@@ -1,0 +1,10 @@
+
+# (c) 2008 by Anton Korenyushkin
+
+Import('test_env')
+
+sources = ['test-main.cc']
+objects = [test_env.Object(source)
+           for source in sources]
+
+Return('objects')

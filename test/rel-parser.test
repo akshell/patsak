@@ -1,0 +1,114 @@
+*(
+a
+**
+(where true (rv a (base a)))
+*)
+
+*(
+b.f
+**
+(where true (field f (rv b (base b))))
+*)
+
+*(
+{f: 2+2}
+**
+(where true (as f (+ 2 2)))
+*)
+
+*(
+{} where 2+2 == 5
+**
+(where (== (+ 2 2) 5))
+*)
+
+*(
+for (a in b) a
+**
+(where true (rv a (where true (rv b (base b)))))
+*)
+
+*(
+union({a}, b)
+**
+(union (where true (rv a (base a)))
+       (where true (rv b (base b))))
+*)
+
+*(
+for (x in a) for (x in b) x
+**
+(where true (rv x (where true (rv b (base b)))))
+*)
+
+*(
+for (x, y in a) {x, y}
+**
+(where true (rv x (where true (rv a (base a))))
+(rv y (where true (rv a (base a)))))
+*)
+
+*(
+for (x in a)
+for (x in for (x in union(c, d where d.f1)) {x.f2})
+{x.f3, f4: x.f5+1} where forall (y in a) y.f6 == x.f7
+**
+(where (always (== (field f6 (rv y (where true
+(rv a (base a))))) (field f7 (rv x (where true 
+(field f2 (rv x (union (where true (rv c (base c))) 
+(where (field f1 (rv d (base d))) (rv d (base d)))))))))) 
+(rv y (where true (rv a (base a))))) (field f3 (rv x 
+(where true (field f2 (rv x (union (where true (rv c
+(base c))) (where (field f1 (rv d (base d))) (rv d 
+(base d))))))))) (as f4 (+ (field f5 (rv x (where true 
+(field f2 (rv x (union (where true (rv c (base c))) (where 
+(field f1 (rv d (base d))) (rv d (base d))))))))) 1)))
+*)
+
+*(
+union(a, b, c)
+**
+(union (union (where true (rv a (base a)))
+              (where true (rv b (base b))))
+       (where true (rv c (base c))))
+*)
+
+*(
+a[f1, f2, f3]
+**
+(where true (fields f1 f2 f3 (rv a (base a))))
+*)
+
+*(
+{a.f1, a[f2, f3]}
+**
+(where true (field f1 (rv a (base a)))
+            (fields f2 f3 (rv a (base a))))
+*)
+
+*(
+a.f1->f2
+**
+(where true (field f2 (key f1 (rv a (base a)))))
+*)
+
+*(
+{a.f1->f2}
+**
+(where true (field f2 (key f1 (rv a (base a)))))
+*)
+
+*(
+{a.f1->f2, a.f3->f4, a.f5}
+**
+(where true (field f2 (key f1 (rv a (base a))))
+            (field f4 (key f3 (rv a (base a))))
+            (field f5 (rv a (base a))))
+*)
+
+*(
+a[f1, f2]->[f3, f4]
+**
+(where true (fields f3 f4 (key f1 f2 (rv a (base a)))))
+*)
+

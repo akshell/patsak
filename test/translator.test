@@ -1,0 +1,167 @@
+*(
+Post
+**
+SELECT DISTINCT "Post".* FROM "Post"
+*)
+
+*(
+Post.id
+**
+SELECT DISTINCT "Post"."id" FROM "Post"
+*)
+
+*(
+{Post.id, User.name}
+**
+SELECT DISTINCT "Post"."id", "User"."name"
+FROM "Post", "User"
+*)
+
+*(
+union(User.id, Post.id)
+**
+SELECT DISTINCT "User"."id" FROM "User"
+UNION
+SELECT DISTINCT "Post"."id" FROM "Post"
+*)
+
+*(
+User where forall (Post) true
+**
+SELECT DISTINCT "User".* FROM "User"
+WHERE (NOT EXISTS (SELECT DISTINCT 1 FROM "Post" WHERE NOT true))
+*)
+
+*(
+{User.name, Post.title}
+where User.id == Post.author && Post.text == Post.title
+**
+SELECT DISTINCT "User"."name", "Post"."title"
+FROM "User", "Post"
+WHERE (("User"."id" = "Post"."author") AND
+       ("Post"."text" = "Post"."title"))
+*)
+
+*(
+{sum: User.id + Post.id}
+**
+SELECT DISTINCT ("User"."id" + "Post"."id") AS "sum"
+FROM "User", "Post"
+*)
+
+*(
+{user: User.id, silent: !(forsome (Post) Post.author == User.id)}
+**
+SELECT DISTINCT
+"User"."id" AS "user",
+NOT (EXISTS (SELECT DISTINCT 1 FROM "Post"
+             WHERE ("Post"."author" = "User"."id"))) AS "silent"
+FROM "User"
+*)
+
+*(
+User where User.id % 2
+**
+SELECT DISTINCT "User".* FROM "User" WHERE ku.to_boolean(("User"."id" % 2))
+*)
+
+*(
+for (x in {is_vasya: User.name == "Vasya", User.name})
+{nik: x.is_vasya ? "VASYA!!!" : x.name}
+**
+SELECT DISTINCT (CASE WHEN "x"."is_vasya" THEN 'VASYA!!!' ELSE "x"."name" END) AS "nik"
+FROM (SELECT DISTINCT ("User"."name" = 'Vasya') AS "is_vasya", "User"."name"
+      FROM "User") AS "x"
+*)
+
+*(
+{strange: User.id ? User.name : -Post.id ? Post.id : Post.title == User.name}
+**
+SELECT DISTINCT (CASE WHEN ku.to_boolean("User"."id")
+                 THEN "User"."name"
+                 ELSE ku.to_string((CASE WHEN ku.to_boolean(- "Post"."id")
+                                         THEN "Post"."id"
+                                         ELSE ku.to_number(("Post"."title" = "User"."name"))
+                                         END))
+                 END) AS "strange" FROM "User", "Post"
+*)
+
+*(
+{name_n_age: User.name + " " + User.age}
+**
+SELECT DISTINCT (("User"."name" || ' ') || ku.to_string("User"."age")) AS "name_n_age"
+FROM "User"
+*)
+
+*(
+{User.age} where User.name == "Kolya'\n\"'"
+**
+SELECT DISTINCT "User"."age"
+FROM "User"
+WHERE ("User"."name" = 'Kolya''
+"''')
+*)
+
+*(
+{Comment.author->name, Comment.text}
+**
+SELECT DISTINCT
+(SELECT "User"."name" FROM "User" WHERE "Comment"."author" = "User"."id") AS "name",
+"Comment"."text"
+FROM "Comment"
+*)
+
+*(
+Comment[relatedPostAuthor, relatedPostTitle]->author->[name, flooder]
+**
+SELECT DISTINCT
+(SELECT "User"."name"
+ FROM "Post", "User"
+ WHERE "Comment"."relatedPostAuthor" = "Post"."author"
+ AND "Comment"."relatedPostTitle" = "Post"."title"
+ AND "Post"."author" = "User"."id") AS "name",
+(SELECT "User"."flooder"
+ FROM "Post", "User"
+ WHERE "Comment"."relatedPostAuthor" = "Post"."author"
+ AND "Comment"."relatedPostTitle" = "Post"."title"
+ AND "Post"."author" = "User"."id") AS "flooder"
+FROM "Comment"
+*)
+
+*(
+Comment where Comment.post->author->name == Comment.author->name &&
+              Comment.post->author != Comment.author
+**
+SELECT DISTINCT "Comment".*
+FROM "Comment"
+WHERE
+(((SELECT "User"."name"
+   FROM "Post", "User"
+   WHERE "Comment"."post" = "Post"."id"
+   AND "Post"."author" = "User"."id") =
+  (SELECT "User"."name"
+   FROM "User"
+   WHERE "Comment"."author" = "User"."id"))
+ AND
+ ((SELECT "Post"."author"
+   FROM "Post"
+   WHERE "Comment"."post" = "Post"."id") <>
+  "Comment"."author"))
+*)
+
+*(
+User where name == "anton"
+**
+SELECT DISTINCT "User".*
+FROM "User"
+WHERE ("User"."name" = 'anton')
+*)
+
+*(
+User where forsome (Post) author == User.id
+**
+SELECT DISTINCT "User".*
+FROM "User"
+WHERE (EXISTS (SELECT DISTINCT 1  FROM "Post"
+               WHERE ("Post"."author" = "User"."id")))
+*)

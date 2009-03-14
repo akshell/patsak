@@ -1,0 +1,14 @@
+id      text    author  post    abusedUser  relatedPostAuthor  relatedPostTitle
+number  string  number  number  string      number             string
+
+unique id
+fk author - User - id
+fk post - Post - id
+fk abusedUser - User - name
+fk relatedPostAuthor relatedPostTitle - Post - author title
+default text FUCK_YOU111
+serial id
+int author
+int post
+serial relatedPostAuthor
+---

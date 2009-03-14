@@ -1,0 +1,9 @@
+id      title   text    author
+number  string  string  number
+
+unique id
+fk author - User - id
+unique title author
+serial id
+int author
+---

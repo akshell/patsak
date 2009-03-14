@@ -1,0 +1,157 @@
+*( forall
+s.sname where forall (x,y in sp where sp.sid == s.sid) x.pid == y.pid
+**
+sname
+string
+---
+Blake
+Adams
+*)
+
+*( p_paris
+{p.pid, p.pname} where p.city == "Paris"
+**
+pid pname
+number string
+---
+2 Bolt
+5 Cam
+*)
+
+*( table_mul
+for (x, y in s) {x.sid, x.sname, y.status}
+**
+sid sname status
+number string number
+---
+1 Smith 20
+2 Jones 20
+3 Blake 20
+4 Clark 20
+5 Adams 20
+1 Smith 10
+2 Jones 10
+3 Blake 10
+4 Clark 10
+5 Adams 10
+1 Smith 30
+2 Jones 30
+3 Blake 30
+4 Clark 30
+5 Adams 30
+*)
+
+*( colors
+p.color
+**
+color
+string
+---
+Green
+Red
+Blue
+*)
+
+*( float
+p.pname where p.weight == 19.85
+**
+pname
+string
+---
+Cog
+*)
+
+*( p_name_qty
+{sp.pid->pname, sp.qty}
+**
+pname qty
+string number
+---
+Nut 300
+Bolt 200
+Screw 400
+Screw 200
+Cam 100
+Bolt 400
+Screw 300
+Cam 400
+Cog 100
+*)
+
+*( 8.3.1
+{s.sid, s.status} where s.city == "Paris" && s.status > 20
+**
+sid status
+number number
+---
+3 30
+*)
+
+*( 8.3.4
+{sp.sid->sname} where sp.pid->color == "Red"
+**
+sname
+string
+---
+Jones
+Clark
+Smith
+*)
+
+*( 8.3.9
+union(p.pid where p.weight > 16,
+      sp.pid where sp.sid == 2)
+**
+pid
+number
+---
+1
+2
+3
+6
+*)
+
+*( 8.3.2
+for (sx, sy in s)
+    {sa: sx.sid, sb: sy.sid} where
+        sx.city == sy.city &&
+        sx.sid < sy.sid
+**
+sa sb
+number number
+---
+1 4
+2 3
+*)
+
+*( sids
+for (x in union(s.sid, sp.sid)) x
+**
+sid
+number
+---
+1
+2
+3
+4
+5
+*)
+
+*(
+{sp.sid->sname, sp.pid->pname}
+**
+sname pname
+string string
+---
+Blake Bolt
+Clark Bolt
+Clark Cam
+Clark Screw
+Jones Bolt
+Jones Nut
+Smith Bolt
+Smith Cam
+Smith Nut
+Smith Screw
+Smith Cog
+*)

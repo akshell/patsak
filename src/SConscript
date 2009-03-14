@@ -1,0 +1,19 @@
+
+# (c) 2008 by Anton Korenyushkin
+
+Import("env")
+
+sources = [
+    'db.cc',
+    'parser.cc',
+    'translator.cc',
+    'type.cc',
+    'js.cc',
+    'js-db.cc',
+    'querist.cc',
+    'error.cc',
+    ]
+
+objects = [env.Object(source)
+           for source in sources]
+Return('objects')

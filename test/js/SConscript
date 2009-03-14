@@ -1,0 +1,13 @@
+
+# (c) 2009 by Anton Korenyushkin
+
+js_files = [File(name) for name in
+            ['main.js',
+             'bug.js',
+             'bug-importer.js',
+             'hello.js',
+             'ku/core.js',
+             'ku/mochi-kit.js',
+             'subdir/another-hello.js']]
+
+Return('js_files')
