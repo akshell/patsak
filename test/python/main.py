@@ -12,8 +12,8 @@ import socket
 import time
 
 
-KU_TEST_FILE_NAME  = 'test-ku'
-KU_FILE_NAME       = 'ku'
+TEST_EXE_NAME  = 'test-patsak'
+EXE_NAME       = 'patsak'
 JS_MAIN_PATH       = 'test/js/main.js'
 JS_HELLO_PATH      = 'test/js/hello.js'
 JS_UNREADABLE_PATH = 'test/js/unreadable.js'
@@ -32,8 +32,8 @@ class EvalResult:
 class Test(unittest.TestCase):
     
     def setUp(self):
-        self._ku_path = os.path.join(Test.DIR, KU_FILE_NAME)
-        self._ku_test_path = os.path.join(Test.DIR, KU_TEST_FILE_NAME)
+        self._exe_path = os.path.join(Test.DIR, EXE_NAME)
+        self._test_exe_path = os.path.join(Test.DIR, TEST_EXE_NAME)
         self._socket_path = os.path.join(SOCKET_DIR, NAME)
         self._in = open('/dev/null', 'r')
         self._out = open('/dev/null', 'w')
@@ -43,14 +43,14 @@ class Test(unittest.TestCase):
         self._in.close()
         
     def _check_launch(self, args, code=0, program=None):
-        popen = subprocess.Popen([program if program else self._ku_path] + args,
+        popen = subprocess.Popen([program if program else self._exe_path] + args,
                                  stdin=self._in,
                                  stdout=self._out,
                                  stderr=self._out)
         self.assertEqual(popen.wait(), code)
 
-    def testKuTest(self):
-        self._check_launch([], 0, self._ku_test_path)
+    def testTestPatsak(self):
+        self._check_launch([], 0, self._test_exe_path)
 
         
     def testMain(self):
@@ -80,7 +80,7 @@ class Test(unittest.TestCase):
                             JS_MAIN_PATH])        
 
     def _eval(self, expr):
-        popen = subprocess.Popen([self._ku_path,
+        popen = subprocess.Popen([self._exe_path,
                                   '--test',
                                   '--db-options', DB_OPTIONS,
                                   '--eval', expr,
@@ -120,7 +120,7 @@ class Test(unittest.TestCase):
                             '--name', NAME,
                             JS_MAIN_PATH], 1)
         self.assertEqual(
-            subprocess.Popen([self._ku_path,
+            subprocess.Popen([self._exe_path,
                               '--test',
                               '--eval', '2+2',
                               '--db-options', DB_OPTIONS,
@@ -145,12 +145,12 @@ class Test(unittest.TestCase):
         return result
 
     def testServer(self):
-        popen = subprocess.Popen([self._ku_path,
+        popen = subprocess.Popen([self._exe_path,
                                   '--server',
                                   '--db-options', DB_OPTIONS,
                                   '--socket-dir', SOCKET_DIR,
                                   '--name', NAME,
-                                  '-l', 'log',
+                                  '-l', '/tmp/log',
                                   JS_MAIN_PATH],
                                  stdin=self._in,
                                  stderr=self._out,

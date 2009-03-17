@@ -58,8 +58,9 @@ main_obj = env.Object(target=join('obj', env['mode'], 'main.o'),
 def program_path(name):
     return join('exe', env['mode'], name)
 
-program = env.Program(program_path('ku'), objects + [main_obj])
-test_program = test_env.Program(program_path('test-ku'), objects + test_objects)
+program = env.Program(program_path('patsak'), objects + [main_obj])
+test_program = test_env.Program(program_path('test-patsak'),
+                                objects + test_objects)
 
 ################################################################################
 

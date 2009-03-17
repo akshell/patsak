@@ -6,7 +6,6 @@
 
 #include "js.h"
 #include "db.h"
-#include "server.h"
 
 #include <asio.hpp>
 
