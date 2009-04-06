@@ -44,7 +44,8 @@ namespace
 
         ostream& GetOstream() const;
         
-        TheLogger();
+        TheLogger() {}
+        ~TheLogger();
     };
 }
 
@@ -56,8 +57,9 @@ TheLogger& TheLogger::GetInstance()
 }
 
 
-TheLogger::TheLogger()
+TheLogger::~TheLogger()
 {
+    Close();
 }
 
         

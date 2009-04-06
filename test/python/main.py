@@ -10,16 +10,19 @@ import unittest
 import sys
 import socket
 import time
+import os
+import shutil
 
 
-TEST_EXE_NAME  = 'test-patsak'
-EXE_NAME       = 'patsak'
-JS_MAIN_PATH       = 'test/js/main.js'
-JS_HELLO_PATH      = 'test/js/hello.js'
-JS_UNREADABLE_PATH = 'test/js/unreadable.js'
-DB_OPTIONS         = 'dbname=test'
-SOCKET_DIR         = '/tmp'
-NAME               = 'test_app1'
+TEST_EXE_NAME      = 'test-patsak'
+EXE_NAME           = 'patsak'
+TMP_DIR            = '/tmp/patsak'
+SOCKET_DIR         = os.path.join(TMP_DIR, 'sockets')
+LOG_DIR            = os.path.join(TMP_DIR, 'logs')
+APP_NAME           = 'test_app'
+USER_NAME          = 'test_user'
+TAG_NAME           = 'test_tag'
+CONFIG_PATH        = 'patsak.config'
 
 
 class EvalResult:
@@ -34,16 +37,30 @@ class Test(unittest.TestCase):
     def setUp(self):
         self._exe_path = os.path.join(Test.DIR, EXE_NAME)
         self._test_exe_path = os.path.join(Test.DIR, TEST_EXE_NAME)
-        self._socket_path = os.path.join(SOCKET_DIR, NAME)
+        
         self._in = open('/dev/null', 'r')
         self._out = open('/dev/null', 'w')
+
+        self._release_socket_dir = os.path.join(SOCKET_DIR, 'release')
+        os.makedirs(self._release_socket_dir)
+        self._tag_socket_dir = os.path.join(SOCKET_DIR, 'tags',
+                                            APP_NAME, USER_NAME)
+        os.makedirs(self._tag_socket_dir)
+
+        self._release_log_dir = os.path.join(LOG_DIR, 'release')
+        os.makedirs(self._release_log_dir)
+        self._tag_log_dir = os.path.join(LOG_DIR, 'tags',
+                                         APP_NAME, USER_NAME)
+        os.makedirs(self._tag_log_dir)
 
     def tearDown(self):
         self._out.close()
         self._in.close()
+        shutil.rmtree(TMP_DIR)
         
     def _check_launch(self, args, code=0, program=None):
-        popen = subprocess.Popen([program if program else self._exe_path] + args,
+        popen = subprocess.Popen([program if program else self._exe_path,
+                                  '--config-file', CONFIG_PATH] + args,
                                  stdin=self._in,
                                  stdout=self._out,
                                  stderr=self._out)
@@ -55,36 +72,22 @@ class Test(unittest.TestCase):
         
     def testMain(self):
         self._check_launch([], 1)
-        self._check_launch(['--server', JS_MAIN_PATH], 1)
-        self._check_launch(['--test', '--db-options', DB_OPTIONS, JS_MAIN_PATH])
-        self._check_launch(['--test',
-                            '--db-options', 'dbname=illegal',
-                            JS_MAIN_PATH],
+        self._check_launch(['--unknown-option', APP_NAME], 1)
+        self._check_launch(['--help'])
+        self._check_launch(['--eval', '2+2',
+                            '--socket-dir', SOCKET_DIR,
+                            '--log-dir', LOG_DIR,
+                            APP_NAME],
                            1)
-        self._check_launch(['-h'])
-        self._check_launch(['--illegal'], 1)
-        self._check_launch(['--server',
-                            '--eval', '2+2',
-                            JS_MAIN_PATH], 1)
-        self._check_launch(['--test',
-                            '--eval', '2+2',
-                            '--test-file',
-                            JS_HELLO_PATH,
-                            JS_MAIN_PATH], 1)
-        self._check_launch(['--test',
-                            '--test-file', 'no-such-file.js',
-                            JS_MAIN_PATH], 1)
-        self._check_launch(['--test',
-                            '--test-file', JS_HELLO_PATH,
-                            '--db-options', DB_OPTIONS,
-                            JS_MAIN_PATH])        
+        self._check_launch(['--test'], 1)
+        self._check_launch(['--test', APP_NAME, USER_NAME], 1)
 
     def _eval(self, expr):
         popen = subprocess.Popen([self._exe_path,
+                                  '--config-file', CONFIG_PATH,
                                   '--test',
-                                  '--db-options', DB_OPTIONS,
                                   '--eval', expr,
-                                  JS_MAIN_PATH],
+                                  APP_NAME],
                                  stdin=self._in,
                                  stderr=self._out,
                                  stdout=subprocess.PIPE)
@@ -103,79 +106,88 @@ class Test(unittest.TestCase):
         self.assertEqual(self._eval('main()').data, '0')
         self._check_launch(['--test',
                             '--eval', '2+2',
-                            '--db-options', DB_OPTIONS,
-                            'no-such-dir/main.js'], 1)
-        self._check_launch(['--test',
-                            '--eval', '2+2',
-                            '--db-options', DB_OPTIONS,
-                            '--log-file', '/dev/null',
-                            'no-such-file.js'], 1)
+                            'no_such_app'], 1)
         self._check_launch(['--test',
                             '--eval', '2+2\n3+3',
-                            '--db-options', DB_OPTIONS,
-                            JS_MAIN_PATH])
-        self._check_launch(['--test',
-                            '--eval', '2+2',
-                            '--db-options', DB_OPTIONS,
-                            '--name', NAME,
-                            JS_MAIN_PATH], 1)
-        self.assertEqual(
-            subprocess.Popen([self._exe_path,
-                              '--test',
-                              '--eval', '2+2',
-                              '--db-options', DB_OPTIONS,
-                              JS_UNREADABLE_PATH],
-                             stdin=self._in,
-                             stderr=self._out,
-                             stdout=subprocess.PIPE).stdout.readline(),
-            'ERROR\n')
+                            APP_NAME])
         self.assertEqual(self._eval('bug()').status, 'ERROR')
 
-    def _connect(self):
+        popen = subprocess.Popen([self._exe_path,
+                                  '--config-file', CONFIG_PATH,
+                                  '--test',
+                                  APP_NAME],
+                                 stdin=subprocess.PIPE,
+                                 stderr=self._out,
+                                 stdout=subprocess.PIPE)
+        popen.stdin.write('2+2\n')
+        popen.stdin.close()
+        self.assertEqual(popen.stdout.read(), 'OK\n4\n')
+        self.assertEqual(popen.wait(), 0)
+
+    def _connect(self, path):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect(self._socket_path)
+        sock.connect(path)
         return sock
 
-    def _talk_through_socket(self, message):
-        sock = self._connect()
+    def _talk_through_socket(self, path, message):
+        sock = self._connect(path)
         sock.send(message + '\n')
         result = sock.recv(4096)
         sock.close()
         self.assert_(len(result) < 4096)
         return result
 
-    def testServer(self):
+    def testReleaseServer(self):
         popen = subprocess.Popen([self._exe_path,
-                                  '--server',
-                                  '--db-options', DB_OPTIONS,
+                                  '--config-file', CONFIG_PATH,
                                   '--socket-dir', SOCKET_DIR,
-                                  '--name', NAME,
-                                  '-l', '/tmp/log',
-                                  JS_MAIN_PATH],
+                                  '--log-dir', LOG_DIR,
+                                  APP_NAME],
                                  stdin=self._in,
                                  stderr=self._out,
                                  stdout=subprocess.PIPE)
         
-        self.assertEqual(popen.stdout.readline(), "READY\n")
+        self.assertEqual(popen.stdout.readline(), 'READY\n')
 
-        sock = self._connect()
+        socket_path = os.path.join(self._release_socket_dir, APP_NAME)
+        
+        sock = self._connect(socket_path)
         sock.close()
-        sock = self._connect()
+        sock = self._connect(socket_path)
         sock.send('STATUS\n')
         sock.close()
         
-        self.assertEqual(self._talk_through_socket('STATUS'),
+        self.assertEqual(self._talk_through_socket(socket_path, 'STATUS'),
                          'OK')
-        self.assertEqual(self._talk_through_socket('UNKNOWN'),
+        self.assertEqual(self._talk_through_socket(socket_path, 'UNKNOWN'),
                          'FAIL')
-        self.assertEqual(self._talk_through_socket('EVAL 2+2'),
+        self.assertEqual(self._talk_through_socket(socket_path, 'EVAL 2+2'),
                          'OK 4')
-        self.assertEqual(self._talk_through_socket('EVAL main(); 2+2'),
+        self.assertEqual(self._talk_through_socket(socket_path,
+                                                   'EVAL main(); 2+2'),
                          'OK 4')
-        self.assertEqual(self._talk_through_socket('STOP'),
+        self.assertEqual(self._talk_through_socket(socket_path, 'STOP'),
                          'OK')
         self.assertEqual(popen.wait(), 0)
-    
+
+    def testTagServer(self):
+        popen = subprocess.Popen([self._exe_path,
+                                  '--config-file', CONFIG_PATH,
+                                  '--socket-dir', SOCKET_DIR,
+                                  '--log-dir', LOG_DIR,
+                                  APP_NAME, USER_NAME, TAG_NAME],
+                                 stdin=self._in,
+                                 stderr=self._out,
+                                 stdout=subprocess.PIPE)
+        
+        self.assertEqual(popen.stdout.readline(), 'READY\n')
+        socket_path = os.path.join(self._tag_socket_dir, TAG_NAME)
+        self.assertEqual(self._talk_through_socket(socket_path, 'EVAL main()'),
+                         'OK 0')
+        self.assertEqual(self._talk_through_socket(socket_path, 'STOP'),
+                         'OK')
+        self.assertEqual(popen.wait(), 0)
+        
 
 def main():
     if len(sys.argv) != 2:

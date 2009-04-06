@@ -8,7 +8,7 @@ opts.Add('mode', 'build mode (release, debug, cov)', 'release')
 
 COMMON_FLAGS = {
     'CCFLAGS': '-pedantic -Wall -Werror -W'.split(),
-    'LIBS': ['pthread', 'pqxx', 'boost_date_time'],
+    'LIBS': ['pthread', 'pqxx', 'boost_date_time', 'boost_program_options'],
     'options': opts,
     }
 
@@ -47,7 +47,8 @@ def invoke_script(dir, obj_dir, exports):
 
 objects = invoke_script('src', '', 'env')
 test_objects = invoke_script('test', 'test', 'test_env')
-js_files = SConscript('test/js/SConscript', duplicate=False)
+js_files = SConscript('sample/code/release/test_app/SConscript',
+                      duplicate=False)
 python_files = SConscript('test/python/SConscript', duplicate=False)
 
 main_obj = env.Object(target=join('obj', env['mode'], 'main.o'),
