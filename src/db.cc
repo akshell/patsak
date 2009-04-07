@@ -22,6 +22,16 @@ using boost::apply_visitor;
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// Constants
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    const size_t MAX_NAME_SIZE = 60;
+    const size_t MAX_ATTR_NUMBER = 500;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Work
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,6 +260,7 @@ namespace
 
         size_t GetRelMetaIdx(const string& rel_name) const; // never throws
         size_t GetRelMetaIdxChecked(const string& rel_name) const;
+        static void CheckNameSize(const string& name);
     };
 
     
@@ -360,8 +371,17 @@ void DBMeta::CreateRel(Work& work,
                        const RichHeader& rich_header,
                        const Constrs& constrs)
 {
+    CheckNameSize(rel_name);
+    if (rich_header.size() > MAX_ATTR_NUMBER) {
+        static const string message(
+            (format("Maximum attribute number is %1%") %
+             MAX_ATTR_NUMBER).str());
+        throw Error(message);
+    }
     if (GetRelMetaIdx(rel_name) != static_cast<size_t>(-1))
         throw Error("Relation " + rel_name + " already exists");
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
+        CheckNameSize(rich_attr.GetName());
     RelMeta rel_meta(rel_name, rich_header, constrs);
     if (!rich_header.empty()) {
         StringSet all_field_names;
@@ -400,6 +420,18 @@ size_t DBMeta::GetRelMetaIdxChecked(const string& rel_name) const
     if (result == static_cast<size_t>(-1))
         throw Error("Relation " + rel_name + " does not exist in metadata");
     return result;
+}
+
+
+void DBMeta::CheckNameSize(const string& name)
+{
+    if (name.size() > MAX_NAME_SIZE) {
+        static const string message (
+            (format("Relation and attribute name length must be "
+                    "no more than %1% characters") %
+             MAX_NAME_SIZE).str());
+        throw Error(message);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

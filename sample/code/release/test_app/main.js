@@ -279,18 +279,30 @@ db_test_suite.testCreateRel = function()
                                  constr.foreignKey(['x', 'y'], 'User', 'id'));
                 });
 
-    checkThrows(function() {
+    checkThrows(function () {
                     var obj = {length: 1};
                     db.createRel('illegal',
                                  {undefined: number},
                                  constr.foreignKey(obj, 'Post', 'id'));
                 });
-    checkThrows(function() {
+    checkThrows(function () {
                     db.createRel('illegal',
                                  {x: number, y: number},
                                  constr.foreignKey(['x', 'y'],
                                                    'Post',
                                                    ['id', 'author']));
+                });
+    checkThrows(function () {
+                    var name = '';
+                    for (var i = 0; i < 61; ++i)
+                        name += 'x';
+                    db.createRel(name, {});
+                });
+    checkThrows(function () {
+                    attrs = {};
+                    for (var i = 0; i < 1000; ++i)
+                        attrs['attr' + i] = number;
+                    db.createRel('illegal', attrs);
                 });
 };
 
