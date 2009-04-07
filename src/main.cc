@@ -271,14 +271,11 @@ string MainRunner::GetPathSuffix() const
 
 auto_ptr<DB> MainRunner::InitDB() const
 {
-    ostringstream oss;
-    oss << "user=" << db_user_
-        << " password=" << db_password_
-        << " dbname=" << app_name_;
-    if (!IsRelease())
-        oss << '@' << user_name_
-            << '@' << tag_name_;
-    return auto_ptr<DB>(new DB(oss.str(), "main"));
+    string options("user=" + db_user_ +
+                   " password=" + db_password_ +
+                   " dbname=ak_" + app_name_);
+    string schema_name(IsRelease() ? "public" : user_name_ + ':' + tag_name_);
+    return auto_ptr<DB>(new DB(options, schema_name));
 }
 
 

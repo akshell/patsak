@@ -89,25 +89,34 @@ DECLARE
     row ku."Empty"%ROWTYPE;
 BEGIN
     EXECUTE 'INSERT INTO "' || table_name || '" DEFAULT VALUES';
-    EXECUTE 'SELECT * FROM "' || table_name || '"' INTO STRICT row;
+    BEGIN
+        EXECUTE 'SELECT * FROM "' || table_name || '"' INTO STRICT row;
     EXCEPTION
         WHEN TOO_MANY_ROWS THEN
             RAISE EXCEPTION 'Empty relation "%" already has a row', table_name;
+    END;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
 
 
+CREATE OR REPLACE FUNCTION init_schema(schema_name text) RETURNS void AS $$
+BEGIN
+    BEGIN
+        EXECUTE 'CREATE SCHEMA "' || schema_name || '"';
+    EXCEPTION
+        WHEN DUPLICATE_SCHEMA THEN
+            RETURN;
+    END;
+    EXECUTE 'CREATE OPERATOR "' || schema_name ||
+            '".% (leftarg = float8, rightarg = float8, procedure = ku.mod)';
+END;
+$$ LANGUAGE plpgsql VOLATILE;
+
 --------------------------------------------------------------------------------
--- main schema
+-- public schema
 --------------------------------------------------------------------------------
 
-CREATE SCHEMA main;
-
-
-SET search_path TO main;
-
-
-CREATE OPERATOR % (
+CREATE OPERATOR public.% (
     leftarg = float8,
     rightarg = float8,
     procedure = ku.mod
