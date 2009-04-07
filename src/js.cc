@@ -104,7 +104,7 @@ Importer::Importer(const string& file_path)
     , ready_(false)
 {
     if (file_path_.empty())
-        Fail("Bad initial path");
+        Fail("Bad initial path " + file_path);
 }
 
 
