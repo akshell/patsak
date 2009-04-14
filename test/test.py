@@ -12,6 +12,7 @@ import socket
 import time
 import os
 import shutil
+import psycopg2
 
 
 TEST_EXE_NAME      = 'test-patsak'
@@ -26,15 +27,25 @@ CONFIG_PATH        = 'patsak.config'
 
 
 class EvalResult:
-
     def __init__(self, status, data):
         self.status = status
         self.data = data
         
+        
+def _create_db(cursor, db_name):
+    try:
+        cursor.execute('CREATE DATABASE "%s" '
+                       'WITH OWNER "patsak" '
+                       'TEMPLATE "template";' % db_name)
+    except psycopg2.Error, error:
+        if error.pgcode != '42P04':
+            raise
+        
 
 class Test(unittest.TestCase):
-    
     def setUp(self):
+        if os.path.exists(TMP_DIR):
+            shutil.rmtree(TMP_DIR)
         self._exe_path = os.path.join(Test.DIR, EXE_NAME)
         self._test_exe_path = os.path.join(Test.DIR, TEST_EXE_NAME)
         
@@ -52,6 +63,13 @@ class Test(unittest.TestCase):
         self._tag_log_dir = os.path.join(LOG_DIR, 'tags',
                                          APP_NAME, USER_NAME)
         os.makedirs(self._tag_log_dir)
+        conn = psycopg2.connect("user=test password=test dbname=template")
+        conn.set_isolation_level(0)
+        cursor = conn.cursor()
+        _create_db(cursor, "test_patsak")
+        _create_db(cursor, "test_patsak_test_app")
+
+        
 
     def tearDown(self):
         self._out.close()

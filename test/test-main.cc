@@ -768,7 +768,7 @@ namespace
 
 
 DBFixture::DBFixture()
-    : db("dbname=ak_test_app password=1q2w3e", "public")
+    : db("dbname=test_patsak password=1q2w3e", "public")
 {
     DeleteRels(GetRelNames());
     BOOST_REQUIRE(GetRelNames().empty());
@@ -952,7 +952,7 @@ namespace
     public:
         TestDBViewer(DBFixture& db_fixture)
             : db_fixture_(db_fixture)
-            , conn_("dbname=ak_test_app password=1q2w3e") {}
+            , conn_("dbname=test_patsak password=1q2w3e") {}
 
         virtual const Header& GetRelHeader(const string& rel_name) const {
             headers_.push_back(Header());

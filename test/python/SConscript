@@ -1,6 +1,0 @@
-
-# (c) 2009 by Anton Korenyushkin
-
-python_files = [File('main.py')]
-
-Return('python_files')

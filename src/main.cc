@@ -75,7 +75,7 @@ namespace
     private:
         string eval_exprs_;
         string log_dir_, socket_dir_, code_dir_, include_dir_;
-        string db_user_, db_password_;
+        string db_user_, db_password_, db_prefix_;
         string app_name_, user_name_, tag_name_;
         bool test_mode_;
 
@@ -155,6 +155,9 @@ void MainRunner::Parse(int argc, char** argv)
         ("include-dir,i", po::value<string>(&include_dir_), "include directory")
         ("db-user,u", po::value<string>(&db_user_), "database user")
         ("db-password,p", po::value<string>(&db_password_), "database password")
+        ("db-prefix",
+         po::value<string>(&db_prefix_)->default_value("ak_"),
+         "prefix for database names")
         ;
 
     po::options_description hidden_options;
@@ -273,7 +276,7 @@ auto_ptr<DB> MainRunner::InitDB() const
 {
     string options("user=" + db_user_ +
                    " password=" + db_password_ +
-                   " dbname=ak_" + app_name_);
+                   " dbname=" + db_prefix_ + app_name_);
     string schema_name(IsRelease() ? "public" : user_name_ + ':' + tag_name_);
     return auto_ptr<DB>(new DB(options, schema_name));
 }

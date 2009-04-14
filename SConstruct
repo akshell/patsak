@@ -49,7 +49,6 @@ objects = invoke_script('src', '', 'env')
 test_objects = invoke_script('test', 'test', 'test_env')
 js_files = SConscript('sample/code/release/test_app/SConscript',
                       duplicate=False)
-python_files = SConscript('test/python/SConscript', duplicate=False)
 
 main_obj = env.Object(target=join('obj', env['mode'], 'main.o'),
                       source='src/main.cc')
@@ -72,7 +71,7 @@ env.Default(all)
 
 env.AlwaysBuild(env.Alias('test',
                           all,
-                          'python test/python/main.py exe/' + env['mode']))
+                          'python test/test.py exe/' + env['mode']))
 
 env.AlwaysBuild(env.Alias('doc', None, 'doxygen'))
 env.AlwaysBuild(env.Alias('clean', None, 'rm -rf obj exe cov doc'))
@@ -81,9 +80,9 @@ env.AlwaysBuild(env.Alias('clean', None, 'rm -rf obj exe cov doc'))
 
 if env['mode'] == 'cov':
     cov_info = env.Command('cov/cov.info',
-                           [all, js_files, python_files],
+                           [all, js_files, 'test/test.py'],
                            'rm obj/cov/*.gcda obj/cov/test/*.gcda;'
-                           'python test/python/main.py exe/cov;'
+                           'python test/test.py exe/cov;'
                            'lcov -d obj/cov/ -c -b . -o $TARGET')
     cov_html = env.Command('cov/index.html', cov_info,
                            'genhtml -o cov $SOURCE')
