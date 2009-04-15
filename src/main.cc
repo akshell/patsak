@@ -62,6 +62,126 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// RequestHandler
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    class RequestHandler {
+    public:
+        RequestHandler(Program& program, stream_protocol::socket& socket);
+        bool Handle(); 
+
+    private:
+        Program& program_;
+        stream_protocol::socket& socket_;
+        asio::streambuf buf_;
+
+        void HandleEvaluate();
+        void Eval(const string& expr) const;
+        void Write(const string& str) const;
+        void WriteAndLogFailure(const string& message) const;
+    };
+}
+
+RequestHandler::RequestHandler(Program& program,
+                               stream_protocol::socket& socket)
+    : program_(program)
+    , socket_(socket)
+{
+}
+        
+
+bool RequestHandler::Handle()
+{
+    try {
+        asio::read_until(socket_, buf_, '\n');
+        istream is(&buf_);
+        string request;
+        is >> request;
+        if (request == "EVAL") {
+            string expr;
+            getline(is, expr);
+            Eval(expr);
+            return true;
+        }
+        if (is.get() != '\n') {
+            WriteAndLogFailure("Request " + request +
+                               " must not have parameters");
+            return true;
+        }
+        if (request == "EVALUATE") {
+            HandleEvaluate();
+            return true;
+        }
+        if (request == "STATUS") {
+            Write("OK\n");
+            return true;
+        }
+        if (request == "STOP") {
+            Write("OK\n");
+            return false;
+        }
+        WriteAndLogFailure("Unknown request: " + request);
+        return true;
+    } catch (const asio::system_error& err) {
+        Log(string("Error during request processing: ") + err.what());
+        return true;
+    }
+}
+
+
+void RequestHandler::HandleEvaluate()
+{
+    asio::read_until(socket_, buf_, '\n');
+    istream is(&buf_);
+    string command;
+    is >> command;
+    if (command == "EXPR") {
+        size_t size;
+        is >> size;
+        if (is.get() != '\n') {
+            WriteAndLogFailure("Bad EXPR command parameters");
+            return;
+        }
+        vector<char> expr(size);
+        is.read(&expr[0], size);
+        if (!is.good() || is.get() != '\n') {
+            WriteAndLogFailure("Bad EXPR data");
+            return;
+        }
+        Eval(string(expr.begin(), expr.end()));
+        return;
+    }
+    WriteAndLogFailure("Unknown command: " + command);
+}
+
+void RequestHandler::Eval(const string& expr) const
+{
+    auto_ptr<EvalResult> eval_result_ptr(program_.Eval(expr));
+    KU_ASSERT(eval_result_ptr.get());
+    vector<asio::const_buffer> buffers;
+    string beginning = eval_result_ptr->GetStatus() + '\n';
+    buffers.push_back(asio::buffer(beginning));
+    buffers.push_back(asio::buffer(eval_result_ptr->GetData(),
+                                   eval_result_ptr->GetSize()));
+    asio::write(socket_, buffers);
+}
+
+
+void RequestHandler::Write(const string& str) const
+{
+    asio::write(socket_, asio::buffer(str));
+}
+
+
+void RequestHandler::WriteAndLogFailure(const string& message) const
+{
+    Write("FAIL\n" + message);
+    Log("Request error: " + message);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // MainRunner
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,9 +213,6 @@ namespace
         auto_ptr<Program> InitProgram(DB& db) const;
         void RunTest(Program& program, istream& is) const;
         
-        static bool ReadRequest(stream_protocol::socket& socket,
-                                string& request);
-
         static bool HandleRequest(Program& program,
                                   stream_protocol::socket& socket);
 
@@ -304,60 +421,6 @@ void MainRunner::RunTest(Program& program, istream& is) const
 }
 
 
-bool MainRunner::ReadRequest(stream_protocol::socket& socket, string& request)
-{
-    request.clear();
-    do {
-        char data[1024];
-        asio::error_code error;
-        size_t length = socket.read_some(asio::buffer(data), error);
-        if (error) {
-            Log("Error while reading request: " + error.message());
-            return false;
-        }
-        request.append(data, length);
-    } while (request[request.size() - 1] != '\n');
-    request.resize(request.size() - 1);
-    return true;
-}
-
-    
-bool MainRunner::HandleRequest(Program& program,
-                               stream_protocol::socket& socket)
-{
-    std::string request;
-    if (!ReadRequest(socket, request))
-        return true;
-    asio::error_code error;
-    if (request.substr(0, 5) == "EVAL ") {
-        auto_ptr<EvalResult>
-            eval_result_ptr(program.Eval(request.substr(5)));
-        KU_ASSERT(eval_result_ptr.get());
-        vector<asio::const_buffer> buffers;
-        string beginning = eval_result_ptr->GetStatus() + ' ';
-        buffers.push_back(asio::buffer(beginning));
-        buffers.push_back(asio::buffer(eval_result_ptr->GetData(),
-                                       eval_result_ptr->GetSize()));
-        asio::write(socket, buffers, asio::transfer_all(), error);
-    } else {
-        string reply;
-        if (request == "STATUS" || request == "STOP") {
-            reply = "OK";
-        } else {
-            reply = "FAIL";
-            Log("Bad request: " + request);
-        }
-        asio::write(socket,
-                    asio::buffer(reply),
-                    asio::transfer_all(),
-                    error);
-    }
-    if (error)
-        Log("Write error: " + error.message());
-    return request != "STOP";
-}
-
-
 void MainRunner::RunServer(Program& program) const
 {
     string socket_path(socket_dir_ + GetPathSuffix());
@@ -387,7 +450,8 @@ void MainRunner::RunServer(Program& program) const
         acceptor.accept(socket, error);
         if (error)
             Fail("accept() error: " + error.message());
-        go_on = HandleRequest(program, socket);
+        RequestHandler request_handler(program, socket);
+        go_on = request_handler.Handle();
         socket.close();
     }
 

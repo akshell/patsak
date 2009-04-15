@@ -176,16 +176,31 @@ class Test(unittest.TestCase):
         sock.close()
         
         self.assertEqual(self._talk_through_socket(socket_path, 'STATUS'),
-                         'OK')
+                         'OK\n')
         self.assertEqual(self._talk_through_socket(socket_path, 'UNKNOWN'),
-                         'FAIL')
+                         'FAIL\nUnknown request: UNKNOWN')
         self.assertEqual(self._talk_through_socket(socket_path, 'EVAL 2+2'),
-                         'OK 4')
+                         'OK\n4')
         self.assertEqual(self._talk_through_socket(socket_path,
                                                    'EVAL main(); 2+2'),
-                         'OK 4')
+                         'OK\n4')
+        self.assertEqual(self._talk_through_socket(socket_path,
+                                                   'EVALUATE\nEXPR 3\n2+2'),
+                         'OK\n4')
+        self.assertEqual(self._talk_through_socket(socket_path,
+                                                   'EVALUATE\nEXPR 3 hi!\n2+2'),
+                         'FAIL\nBad EXPR command parameters')
+        self.assertEqual(self._talk_through_socket(socket_path,
+                                                   'EVALUATE\nEXPR 2\n2+2'),
+                         'FAIL\nBad EXPR data')
+        self.assertEqual(self._talk_through_socket(socket_path,
+                                                   'EVALUATE 2+2\n'),
+                         'FAIL\nRequest EVALUATE must not have parameters')
+        self.assertEqual(self._talk_through_socket(socket_path,
+                                                   'EVALUATE\nSTRANGE_CMD\n'),
+                         'FAIL\nUnknown command: STRANGE_CMD')
         self.assertEqual(self._talk_through_socket(socket_path, 'STOP'),
-                         'OK')
+                         'OK\n')
         self.assertEqual(popen.wait(), 0)
 
     def testTagServer(self):
@@ -201,9 +216,9 @@ class Test(unittest.TestCase):
         self.assertEqual(popen.stdout.readline(), 'READY\n')
         socket_path = os.path.join(self._tag_socket_dir, TAG_NAME)
         self.assertEqual(self._talk_through_socket(socket_path, 'EVAL main()'),
-                         'OK 0')
+                         'OK\n0')
         self.assertEqual(self._talk_through_socket(socket_path, 'STOP'),
-                         'OK')
+                         'OK\n')
         self.assertEqual(popen.wait(), 0)
         
 
