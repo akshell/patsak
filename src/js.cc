@@ -217,19 +217,19 @@ string Importer::Canonicalize(const string& path)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// KuBg and GlobalBg declarations
+// AKBg and GlobalBg declarations
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
     /// ku background
-    class KuBg {
+    class AKBg {
     public:
-        DECLARE_JS_CLASS(KuBg);
+        DECLARE_JS_CLASS(AKBg);
 
-        KuBg(const Printer& printer);
+        AKBg(const Printer& printer);
         
-        void InitConstructors(Handle<Object> ku) const;
+        void InitConstructors(Handle<Object> ak) const;
         
     private:
         Printer printer_;
@@ -258,16 +258,16 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// KuBg definitions
+// AKBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(KuBg, "Ku", object_template, proto_template)
+DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 {
     proto_template->Set("print", FunctionTemplate::New(PrintCb));    
     proto_template->Set("setObjectProp",
                          FunctionTemplate::New(SetObjectPropCb));
     object_template->Set("db",
-                         DbBg::GetJSClass().GetObjectTemplate());
+                         DBBg::GetJSClass().GetObjectTemplate());
     object_template->Set("rel",
                          RelCatalogBg::GetJSClass().GetObjectTemplate());
     object_template->Set("type",
@@ -277,23 +277,23 @@ DEFINE_JS_CLASS(KuBg, "Ku", object_template, proto_template)
 }
 
 
-KuBg::KuBg(const Printer& printer)
+AKBg::AKBg(const Printer& printer)
     : printer_(printer)
 {
 }
 
 
-void KuBg::InitConstructors(Handle<Object> ku) const
+void AKBg::InitConstructors(Handle<Object> ku) const
 {
     ku->Set(String::NewSymbol("Global"),
             GlobalBg::GetJSClass().GetFunction());
-    ku->Set(String::NewSymbol("Ku"),
-            KuBg::GetJSClass().GetFunction());
+    ku->Set(String::NewSymbol("AK"),
+            AKBg::GetJSClass().GetFunction());
     InitDBConstructors(ku);
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, KuBg, PrintCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, PrintCb,
                     const Arguments&, args) const
 {
     for (int i = 0; i < args.Length(); ++i)
@@ -302,7 +302,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, KuBg, PrintCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, KuBg, SetObjectPropCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetObjectPropCb,
                     const Arguments&, args) const
 {
     if (args.Length() != 4) {
@@ -338,8 +338,8 @@ DEFINE_JS_CLASS(GlobalBg, "Global", object_template, /*proto_template*/)
     object_template->Set("import", FunctionTemplate::New(ImportCb));
 
     Handle<ObjectTemplate>
-        ku_object_template(KuBg::GetJSClass().GetObjectTemplate());
-    object_template->Set("ku", ku_object_template);
+        ak_object_template(AKBg::GetJSClass().GetObjectTemplate());
+    object_template->Set("ak", ak_object_template);
 }
 
 
@@ -431,12 +431,10 @@ ErrorResult::ErrorResult(Handle<v8::Value> exception,
         if (!resource_name->IsUndefined())
             oss << "\nFILE " << Stringify(message->GetScriptResourceName());
         oss << "\nLINE " << message->GetLineNumber()
-            << "\nCOLUMN " << message->GetStartColumn();
-    } else if (!exception.IsEmpty())
-        oss << "EXCEPTION " << Stringify(exception);
-    else
-        oss << "UNKNOWN_EXCEPTION";
-    oss << '\n';
+            << "\nCOLUMN " << message->GetStartColumn() << '\n';
+    } else if (!exception.IsEmpty()) {
+        oss << "EXCEPTION " << Stringify(exception) << '\n';
+    }
     data_ = oss.str();
 }
 
@@ -552,8 +550,8 @@ private:
     AccessHolder access_holder_;
     Importer importer_;
     GlobalBg global_bg_;
-    KuBg ku_bg_;
-    DbBg db_bg_;
+    AKBg ak_bg_;
+    DBBg db_bg_;
     TypeCatalogBg type_catalog_bg_;
     RelCatalogBg rel_catalog_bg_;
     ConstrCatalogBg constr_catalog_bg_;
@@ -569,7 +567,7 @@ Program::Impl::Impl(const string& file_path, DB& db, ostream& out)
     : db_(db)
     , importer_(file_path)
     , global_bg_(importer_)
-    , ku_bg_(Printer(out))
+    , ak_bg_(Printer(out))
     , db_bg_(access_holder_)
     , rel_catalog_bg_(access_holder_)
 {
@@ -578,15 +576,15 @@ Program::Impl::Impl(const string& file_path, DB& db, ostream& out)
     context_->DetachGlobal();
     Handle<Object> global(context_->Global());
     global->SetInternalField(0, External::New(&global_bg_));
-    SetInternal(global, "ku", &ku_bg_);
-    Handle<Object> ku(global->Get(String::NewSymbol("ku"))->ToObject());
-    SetInternal(ku, "db", &db_bg_);
-    SetInternal(ku, "type", &type_catalog_bg_);
-    SetInternal(ku, "rel", &rel_catalog_bg_);
-    SetInternal(ku, "constr", &constr_catalog_bg_);
+    SetInternal(global, "ak", &ak_bg_);
+    Handle<Object> ak(global->Get(String::NewSymbol("ak"))->ToObject());
+    SetInternal(ak, "db", &db_bg_);
+    SetInternal(ak, "type", &type_catalog_bg_);
+    SetInternal(ak, "rel", &rel_catalog_bg_);
+    SetInternal(ak, "constr", &constr_catalog_bg_);
 
     Context::Scope context_scope(context_);
-    ku_bg_.InitConstructors(ku);
+    ak_bg_.InitConstructors(ak);
 }
 
 

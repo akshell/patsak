@@ -17,7 +17,7 @@ import('MochiKit.js');
     {
         if (typeof(lhs) != 'object' || typeof(rhs) != 'object')
             return false;
-        return lhs instanceof ku.Tuple || rhs instanceof ku.Tuple;
+        return lhs instanceof ak.Tuple || rhs instanceof ak.Tuple;
     }
 
 
@@ -50,7 +50,7 @@ import('MochiKit.js');
 {
     function checkTypes(lhs, rhs)
     {
-        return lhs instanceof ku.Type && rhs instanceof ku.Type;
+        return lhs instanceof ak.Type && rhs instanceof ak.Type;
     }
 
 
@@ -71,7 +71,7 @@ import('MochiKit.js');
 {
     function checkForeignKeys(lhs, rhs)
     {
-        return lhs instanceof ku.ForeignKey && rhs instanceof ku.ForeignKey;
+        return lhs instanceof ak.ForeignKey && rhs instanceof ak.ForeignKey;
     }
 
     function compareForeignKeys(lhs, rhs)
@@ -92,7 +92,7 @@ import('MochiKit.js');
 
 registerRepr('TupleRepr',
              function (arg) {
-                 return arg instanceof ku.Tuple;
+                 return arg instanceof ak.Tuple;
              },
              function (tuple) {
                  var result = '';
@@ -106,7 +106,7 @@ registerRepr('TupleRepr',
 
 registerRepr('ForeignKeyRepr',
              function (arg) {
-                 return arg instanceof ku.ForeignKey;
+                 return arg instanceof ak.ForeignKey;
              },
              function (foreign_key) {
                  return ('{' +

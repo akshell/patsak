@@ -1,19 +1,19 @@
 
-import('ku/core.js');
-import('ku/mochi-kit.js');
+import('ak/core.js');
+import('ak/mochi-kit.js');
 
 
-var db = ku.db;
-var rel = ku.rel;
-var type = ku.type;
-var constr = ku.constr;
+var db = ak.db;
+var rel = ak.rel;
+var type = ak.type;
+var constr = ak.constr;
 
 function print() {
-    return ku.print.apply(ku, arguments);
+    return ak.print.apply(ak, arguments);
 }
 
 function println() {
-    return ku.println.apply(ku, arguments);
+    return ak.println.apply(ak, arguments);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,30 +141,30 @@ base_test_suite.testType = function()
 
 base_test_suite.testConstructors = function()
 {
-    check("this instanceof ku.Global");
-    check("ku instanceof ku.Ku");
-    check("db instanceof ku.Db");
-    check("type instanceof ku.TypeCatalog");
-    check("rel instanceof ku.RelCatalog");
+    check("this instanceof ak.Global");
+    check("ak instanceof ak.AK");
+    check("db instanceof ak.DB");
+    check("type instanceof ak.TypeCatalog");
+    check("rel instanceof ak.RelCatalog");
 
-    checkThrows("(new ku.Global()).print('hi')");
-    checkThrows("(new ku.Ku()).db.query('test')");
-    checkThrows("(new ku.Db()).query('test')");
-    checkThrows("(new ku.TypeCatalog()).number");
-    checkThrows("(new ku.RelCatalog()).test");
+    checkThrows("(new ak.Global()).print('hi')");
+    checkThrows("(new ak.AK()).db.query('test')");
+    checkThrows("(new ak.Db()).query('test')");
+    checkThrows("(new ak.TypeCatalog()).number");
+    checkThrows("(new ak.RelCatalog()).test");
 };
 
 
 base_test_suite.testSetObjectProp = function()
 {
     var obj = {};
-    checkThrows("ku.setObjectProp()");
-    checkThrows("ku.setObjectProp(1, 'f', 0, 42)");
-    ku.setObjectProp(obj, 'read_only', ku.READ_ONLY, 1);
-    obj.setProp('dont_enum', ku.DONT_ENUM, 2);
-    obj.setProp('dont_delete', ku.DONT_DELETE, 3);
-    checkThrows(function () { ku.setObjectProp(obj, 'field', {}, 42); });
-    checkThrows(function () { ku.setObjectProp(obj, 'field', 8, 42); });
+    checkThrows("ak.setObjectProp()");
+    checkThrows("ak.setObjectProp(1, 'f', 0, 42)");
+    ak.setObjectProp(obj, 'read_only', ak.READ_ONLY, 1);
+    obj.setProp('dont_enum', ak.DONT_ENUM, 2);
+    obj.setProp('dont_delete', ak.DONT_DELETE, 3);
+    checkThrows(function () { ak.setObjectProp(obj, 'field', {}, 42); });
+    checkThrows(function () { ak.setObjectProp(obj, 'field', 8, 42); });
     check(function() {
               obj.read_only = 5;
               return obj.read_only == 1;
@@ -184,10 +184,10 @@ base_test_suite.testSetObjectProp = function()
 var db_test_suite = {};
 
 
-var number = ku.type.number;
-var string = ku.type.string;
-var boolean = ku.type.boolean;
-var date = ku.type.date;
+var number = ak.type.number;
+var string = ak.type.string;
+var boolean = ak.type.boolean;
+var date = ak.type.date;
 
 
 db_test_suite.setUp = function()
@@ -237,8 +237,8 @@ db_test_suite.tearDown = function()
 db_test_suite.testConstructors = function()
 {
     var q = db.query('User');
-    check(q instanceof ku.Query, "ku.Query");
-    check(q[0] instanceof ku.Tuple, "ku.Tuple");
+    check(q instanceof ak.Query, "ak.Query");
+    check(q[0] instanceof ak.Tuple, "ak.Tuple");
 };
 
 
@@ -620,21 +620,21 @@ db_test_suite.testForeignKey = function()
                  constr.foreignKey('ref', 'r', 'id'),
                  constr.unique('id'));
     checkEqualTo(rel.r.getForeignKeys().sort(),
-                 [new ku.ForeignKey(['ref'], 'r', ['id']),
-                  new ku.ForeignKey(['title', 'author'],
+                 [new ak.ForeignKey(['ref'], 'r', ['id']),
+                  new ak.ForeignKey(['title', 'author'],
                                     'Post',
                                     ['title', 'author'])]);
-    var ku1 = ku;
-    delete ku;
+    var ak1 = ak;
+    delete ak;
     checkThrows("rel.r.getForeignKeys()");
-    ku = 15;
+    ak = 15;
     checkThrows("rel.r.getForeignKeys()");
-    ku = {};
+    ak = {};
     checkThrows("rel.r.getForeignKeys()");
-    ku.ForeignKey = {};
+    ak.ForeignKey = {};
     checkThrows("rel.r.getForeignKeys()");
 
-    ku = ku1;
+    ak = ak1;
     rel.r.drop();
 };
 

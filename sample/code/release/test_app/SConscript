@@ -6,8 +6,8 @@ js_files = [File(name) for name in
              'bug.js',
              'bug-importer.js',
              'hello.js',
-             'ku/core.js',
-             'ku/mochi-kit.js',
+             'ak/core.js',
+             'ak/mochi-kit.js',
              'subdir/another-hello.js']]
 
 Return('js_files')

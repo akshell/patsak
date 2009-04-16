@@ -59,11 +59,11 @@ namespace ku
 
 
     /// db background
-    class DbBg {
+    class DBBg {
     public:
-        DECLARE_JS_CLASS(DbBg);
+        DECLARE_JS_CLASS(DBBg);
         
-        DbBg(const AccessHolder& access_holder);
+        DBBg(const AccessHolder& access_holder);
 
     private:
         const AccessHolder& access_holder_;
@@ -122,8 +122,8 @@ namespace ku
     };
 
 
-    /// Initialize ku members - constructors of all database related objects
-    void InitDBConstructors(v8::Handle<v8::Object> ku);
+    /// Initialize ak members - constructors of all database related objects
+    void InitDBConstructors(v8::Handle<v8::Object> ak);
 }
 
 #endif // JS_DB_H

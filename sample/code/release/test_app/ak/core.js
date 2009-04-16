@@ -2,39 +2,39 @@
 // (c) 2009 by Anton Korenyushkin
 
 /// \file core.js
-/// Core ku functionality
+/// Core ak functionality
 
 
-ku.SubRel.prototype.__proto__ = ku.Query.prototype;
+ak.SubRel.prototype.__proto__ = ak.Query.prototype;
 
 
 Date.prototype.toString = Date.prototype.toUTCString;
 
 
-ku.NONE = 0;
-ku.READ_ONLY   = 1 << 0;
-ku.DONT_ENUM   = 1 << 1;
-ku.DONT_DELETE = 1 << 2;
+ak.NONE = 0;
+ak.READ_ONLY   = 1 << 0;
+ak.DONT_ENUM   = 1 << 1;
+ak.DONT_DELETE = 1 << 2;
 
 
-ku.setObjectProp(Object.prototype,
+ak.setObjectProp(Object.prototype,
                  'setProp',
-                 ku.DONT_ENUM,
+                 ak.DONT_ENUM,
                  function (name, attrs, value) {
-                     return ku.setObjectProp(this, name, attrs, value);
+                     return ak.setObjectProp(this, name, attrs, value);
                  });
 
 
-ku.println = function () {
+ak.println = function () {
     var args = [];
     for (var i = 0; i < arguments.length; ++i)
         args.push(arguments[i]);
     args.push('\n');
-    return ku.Ku.prototype.print.apply(this, args);
+    return ak.AK.prototype.print.apply(this, args);
 };
 
 
-ku.ForeignKey = function (key_fields, ref_rel, ref_fields) {
+ak.ForeignKey = function (key_fields, ref_rel, ref_fields) {
     this.key_fields = key_fields;
     this.ref_rel = ref_rel;
     this.ref_fields = ref_fields;
@@ -52,7 +52,7 @@ ku.ForeignKey = function (key_fields, ref_rel, ref_fields) {
     }
 
 
-    ku.Query.prototype.setProp('whose', ku.DONT_ENUM, whose);
+    ak.Query.prototype.setProp('whose', ak.DONT_ENUM, whose);
 
 
     function field(field_name)
@@ -61,7 +61,7 @@ ku.ForeignKey = function (key_fields, ref_rel, ref_fields) {
             throw Error('field() requires exactly one argument');
         if (typeof(field_name) == 'object' && field_name.length)
             throw TypeError('field() argument must not be array-like');
-        var query = ku.Query.prototype.only.call(this, field_name);
+        var query = ak.Query.prototype.only.call(this, field_name);
         var result = [];
         for (var i = 0; i < query.length; ++i)
             result.push(query[i][field_name]);
@@ -69,7 +69,7 @@ ku.ForeignKey = function (key_fields, ref_rel, ref_fields) {
     }
 
 
-    ku.Query.prototype.setProp('field', ku.DONT_ENUM, field);
+    ak.Query.prototype.setProp('field', ak.DONT_ENUM, field);
 
 
     function updateByValues(obj)
@@ -80,17 +80,17 @@ ku.ForeignKey = function (key_fields, ref_rel, ref_fields) {
             args[0][field] = '$' + (++index);
             args.push(obj[field]);
         }
-        return ku.SubRel.prototype.update.apply(this, args);
+        return ak.SubRel.prototype.update.apply(this, args);
     }
 
 
-    ku.SubRel.prototype.setProp('updateByValues', ku.DONT_ENUM, updateByValues);
+    ak.SubRel.prototype.setProp('updateByValues', ak.DONT_ENUM, updateByValues);
 
 
     function makeRelDelegation(func_name)
     {
-        ku.Rel.prototype[func_name] = function () {
-            return ku.SubRel.prototype[func_name].apply(this.all(), arguments);
+        ak.Rel.prototype[func_name] = function () {
+            return ak.SubRel.prototype[func_name].apply(this.all(), arguments);
         }
     }
 

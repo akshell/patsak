@@ -125,26 +125,26 @@ namespace
     }
 
 
-    bool GetKuProperty(const string& name, Handle<v8::Value>& value)
+    bool GetAkProperty(const string& name, Handle<v8::Value>& value)
     {
         Handle<Object> global(Context::GetCurrent()->Global());
-        Handle<String> ku_str(String::NewSymbol("ku"));
-        if (!global->Has(ku_str)) {
-            JS_THROW(Error, "ku does not exist!!!");
+        Handle<String> ak_str(String::NewSymbol("ak"));
+        if (!global->Has(ak_str)) {
+            JS_THROW(Error, "ak does not exist!!!");
             return false;
         }
-        Handle<v8::Value> ku_value(global->Get(ku_str));
-        if (!ku_value->IsObject()) {
-            JS_THROW(Error, "ku is not an object!!!");
+        Handle<v8::Value> ak_value(global->Get(ak_str));
+        if (!ak_value->IsObject()) {
+            JS_THROW(Error, "ak is not an object!!!");
             return false;
         }
-        Handle<Object> ku_object(ku_value->ToObject());
+        Handle<Object> ak_object(ak_value->ToObject());
         Handle<String> prop_str(String::New(name.c_str()));
-        if (!ku_object->Has(prop_str)) {
-            JS_THROW(Error, "ku does not have property " + name);
+        if (!ak_object->Has(prop_str)) {
+            JS_THROW(Error, "ak does not have property " + name);
             return false;
         }
-        value = ku_object->Get(prop_str);
+        value = ak_object->Get(prop_str);
         return true;
     }
     
@@ -152,10 +152,10 @@ namespace
     bool GetConstructor(const string& name, Handle<Function>& constructor)
     {
         Handle<v8::Value> value;
-        if (!GetKuProperty(name, value))
+        if (!GetAkProperty(name, value))
             return false;
         if (!value->IsFunction()) {
-            JS_THROW(TypeError, "ku." + name + " is not a function");
+            JS_THROW(TypeError, "ak." + name + " is not a function");
             return false;
         }
         constructor = Handle<Function>::Cast(value);
@@ -1158,10 +1158,10 @@ bool RelCreator::ReadConstrs(const Arguments& args, Constrs& constrs)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DbBg definitions
+// DBBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(DbBg, "DB", /*object_template*/, proto_template)
+DEFINE_JS_CLASS(DBBg, "DB", /*object_template*/, proto_template)
 {
     proto_template->Set("query", FunctionTemplate::New(QueryCb));
     proto_template->Set("createRel", FunctionTemplate::New(CreateRelCb));
@@ -1169,13 +1169,13 @@ DEFINE_JS_CLASS(DbBg, "DB", /*object_template*/, proto_template)
 }
 
 
-DbBg::DbBg(const AccessHolder& access_holder)
+DBBg::DBBg(const AccessHolder& access_holder)
     : access_holder_(access_holder)
 {
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DbBg, QueryCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, QueryCb,
                     const Arguments&, args) const
 {
     JS_CHECK(args.Length() >= 1, "query() must have at least one argument");
@@ -1188,14 +1188,14 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DbBg, QueryCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DbBg, CreateRelCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateRelCb,
                     const Arguments&, args) const
 {
     return RelCreator(*access_holder_)(args);
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DbBg, DropRelsCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropRelsCb,
                     const Arguments&, args) const
 {
     StringSet rel_names;
@@ -1528,25 +1528,25 @@ DEFINE_JS_CALLBACK1(Handle<Array>, RelCatalogBg, EnumRelsCb,
 namespace
 {
     template<typename BgT>
-    void SetConstuctor(Handle<Object> ku, const string& name)
+    void SetConstuctor(Handle<Object> ak, const string& name)
     {
-        ku->Set(String::NewSymbol(name.c_str()),
+        ak->Set(String::NewSymbol(name.c_str()),
                 BgT::GetJSClass().GetFunction());
     }
 }
 
-void ku::InitDBConstructors(Handle<Object> ku)
+void ku::InitDBConstructors(Handle<Object> ak)
 {
     QueryBg::GetJSClass().AddSubClass(SubRelBg::GetJSClass());
 
-    SetConstuctor<DbBg>           (ku, "Db");
-    SetConstuctor<RelCatalogBg>   (ku, "RelCatalog");
-    SetConstuctor<TypeCatalogBg>  (ku, "TypeCatalog");
-    SetConstuctor<ConstrCatalogBg>(ku, "ConstrCatalog");
-    SetConstuctor<QueryBg>        (ku, "Query");
-    SetConstuctor<SubRelBg>       (ku, "SubRel");
-    SetConstuctor<RelBg>          (ku, "Rel");
-    SetConstuctor<TupleBg>        (ku, "Tuple");
-    SetConstuctor<TypeBg>         (ku, "Type");
-    SetConstuctor<ConstrBg>       (ku, "Constr");
+    SetConstuctor<DBBg>           (ak, "DB");
+    SetConstuctor<RelCatalogBg>   (ak, "RelCatalog");
+    SetConstuctor<TypeCatalogBg>  (ak, "TypeCatalog");
+    SetConstuctor<ConstrCatalogBg>(ak, "ConstrCatalog");
+    SetConstuctor<QueryBg>        (ak, "Query");
+    SetConstuctor<SubRelBg>       (ak, "SubRel");
+    SetConstuctor<RelBg>          (ak, "Rel");
+    SetConstuctor<TupleBg>        (ak, "Tuple");
+    SetConstuctor<TypeBg>         (ak, "Type");
+    SetConstuctor<ConstrBg>       (ak, "Constr");
 }
