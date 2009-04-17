@@ -25,15 +25,6 @@ ak.setObjectProp(Object.prototype,
                  });
 
 
-ak.println = function () {
-    var args = [];
-    for (var i = 0; i < arguments.length; ++i)
-        args.push(arguments[i]);
-    args.push('\n');
-    return ak.AK.prototype.print.apply(this, args);
-};
-
-
 ak.ForeignKey = function (key_fields, ref_rel, ref_fields) {
     this.key_fields = key_fields;
     this.ref_rel = ref_rel;
@@ -91,7 +82,7 @@ ak.ForeignKey = function (key_fields, ref_rel, ref_fields) {
     {
         ak.Rel.prototype[func_name] = function () {
             return ak.SubRel.prototype[func_name].apply(this.all(), arguments);
-        }
+        };
     }
 
     makeRelDelegation('where');

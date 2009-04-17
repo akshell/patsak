@@ -8,12 +8,12 @@ var rel = ak.rel;
 var type = ak.type;
 var constr = ak.constr;
 
-function print() {
-    return ak.print.apply(ak, arguments);
+function print(x) {
+    ak._print(x);
 }
 
 function println() {
-    return ak.println.apply(ak, arguments);
+    ak._print(x + '\n');
 }
 
 ////////////////////////////////////////////////////////////////////////////////

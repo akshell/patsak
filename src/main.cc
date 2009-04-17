@@ -402,7 +402,7 @@ auto_ptr<DB> MainRunner::InitDB() const
 auto_ptr<Program> MainRunner::InitProgram(DB& db) const
 {
     string js_file_path(code_dir_ + GetPathSuffix() + "/main.js");
-    return auto_ptr<Program>(new Program(js_file_path, db, cerr)); // TODO
+    return auto_ptr<Program>(new Program(js_file_path, db));
 }
 
 

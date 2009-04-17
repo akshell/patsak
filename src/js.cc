@@ -17,6 +17,7 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <iostream>
 #include <memory>
 
 
@@ -25,23 +26,6 @@ using namespace std;
 using namespace v8;
 using boost::noncopyable;
 
-
-////////////////////////////////////////////////////////////////////////////////
-// Printer
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    /// Output stream print functor
-    class Printer {
-    public:
-        Printer(ostream& out) : out_(out) {}
-        void operator()(const string& str) const { out_ << str; }
-
-    private:
-        ostream& out_;
-    };
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Importer
@@ -227,13 +211,11 @@ namespace
     public:
         DECLARE_JS_CLASS(AKBg);
 
-        AKBg(const Printer& printer);
+        AKBg();
         
         void InitConstructors(Handle<Object> ak) const;
         
     private:
-        Printer printer_;
-
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, PrintCb,
                              const Arguments&) const;
         
@@ -263,7 +245,9 @@ namespace
 
 DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 {
-    proto_template->Set("print", FunctionTemplate::New(PrintCb));    
+    proto_template->Set(String::NewSymbol("_print"),
+                        FunctionTemplate::New(PrintCb),
+                        ReadOnly | DontEnum | DontDelete);
     proto_template->Set("setObjectProp",
                          FunctionTemplate::New(SetObjectPropCb));
     object_template->Set("db",
@@ -277,8 +261,7 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 }
 
 
-AKBg::AKBg(const Printer& printer)
-    : printer_(printer)
+AKBg::AKBg()
 {
 }
 
@@ -296,8 +279,8 @@ void AKBg::InitConstructors(Handle<Object> ku) const
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, PrintCb,
                     const Arguments&, args) const
 {
-    for (int i = 0; i < args.Length(); ++i)
-        printer_(Stringify(args[i]));
+    JS_CHECK_LENGTH(args, 1);
+    cerr << Stringify(args[0]);
     return Undefined();
 }
 
@@ -541,7 +524,7 @@ void Evaluator::Fail(const TryCatch& try_catch)
 
 class Program::Impl {
 public:
-    Impl(const string& file_path, DB& db, ostream& out);
+    Impl(const string& file_path, DB& db);
     ~Impl();
     auto_ptr<EvalResult> Eval(const string& expr);
     
@@ -563,11 +546,11 @@ private:
 };
 
 
-Program::Impl::Impl(const string& file_path, DB& db, ostream& out)
+Program::Impl::Impl(const string& file_path, DB& db)
     : db_(db)
     , importer_(file_path)
     , global_bg_(importer_)
-    , ak_bg_(Printer(out))
+    , ak_bg_()
     , db_bg_(access_holder_)
     , rel_catalog_bg_(access_holder_)
 {
@@ -616,8 +599,8 @@ void Program::Impl::SetInternal(Handle<Object> object,
 // Program
 ////////////////////////////////////////////////////////////////////////////////
 
-Program::Program(const string& file_path, DB& db, ostream& out)
-    : pimpl_(new Impl(file_path, db, out))
+Program::Program(const string& file_path, DB& db)
+    : pimpl_(new Impl(file_path, db))
 {
 }
 

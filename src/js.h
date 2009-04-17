@@ -33,7 +33,7 @@ namespace ku
     /// JavaScript program abstraction
     class Program {
     public:
-        Program(const std::string& file_path, DB& db, std::ostream& out);
+        Program(const std::string& file_path, DB& db);
         ~Program();
         std::auto_ptr<EvalResult> Eval(const std::string& expr_str);
         
