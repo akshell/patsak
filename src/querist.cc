@@ -9,7 +9,6 @@
 #include "translator.h"
 #include "utils.h"
 
-#include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/operators.hpp>
 #include <boost/utility.hpp>
@@ -39,6 +38,8 @@ namespace
     const size_t PREPARED_MAP_CLEAR_SIZE = 500;
     const size_t USE_COUNT_MAP_CLEAR_SIZE = 1000;
 #endif
+
+    const size_t AVERAGING_TUPLE_COUNT = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,13 +49,27 @@ namespace
 struct QueryResult::Data : private noncopyable {
     Header header;
     pqxx::result result;
+    size_t memory_usage;
 
-    Data(const Header& header, const pqxx::result& result)
-        : header(header), result(result) {}
+    Data(const Header& header, const pqxx::result& result);
 };
 
 
-QueryResult::QueryResult(Data* data_ptr)
+QueryResult::Data::Data(const Header& header, const pqxx::result& result)
+    : header(header), result(result)
+{
+    // NB may be memory usage should not be calculated excactly due to
+    // speed considerations
+    memory_usage = 0;
+    BOOST_FOREACH(const pqxx::result::tuple& tuple, result) {
+        KU_ASSERT((tuple.size() == header.size()) ||
+                  (tuple.size() == 1 && header.size() == 0)); // zero-column query
+        BOOST_FOREACH(const pqxx::result::field& field, tuple)
+            memory_usage += field.size();
+    }
+}
+
+QueryResult::QueryResult(const Data* data_ptr)
     : data_ptr_(data_ptr)
 {
 }
@@ -112,6 +127,12 @@ Values QueryResult::GetValues(size_t idx) const
 const Header& QueryResult::GetHeader() const
 {
     return data_ptr_->header;
+}
+
+
+size_t QueryResult::GetMemoryUsage() const
+{
+    return data_ptr_->memory_usage;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

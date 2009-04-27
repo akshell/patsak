@@ -25,13 +25,6 @@ ak.setObjectProp(Object.prototype,
                  });
 
 
-ak.ForeignKey = function (key_fields, ref_rel, ref_fields) {
-    this.key_fields = key_fields;
-    this.ref_rel = ref_rel;
-    this.ref_fields = ref_fields;
-};
-
-
 (function ()
 {
     function whose()

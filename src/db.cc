@@ -9,7 +9,6 @@
 #include "translator.h"
 #include "utils.h"
 
-#include <boost/foreach.hpp>
 #include <boost/format.hpp>
 
 using namespace std;
@@ -38,28 +37,6 @@ namespace
 namespace
 {
     typedef pqxx::transaction<pqxx::serializable> Work;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// BOOST_FOREACH workarounds
-////////////////////////////////////////////////////////////////////////////////
-
-namespace boost
-{
-    /// For BOOST_FOREACH to work with pqxx::result
-    template<>
-    struct range_iterator<pqxx::result>
-    {
-        typedef pqxx::result::const_iterator type;
-    };
-
-
-    /// For BOOST_FOREACH to work with pqxx::result::tuple
-    template<>
-    struct range_iterator<pqxx::result::tuple>
-    {
-        typedef pqxx::result::tuple::const_iterator type;
-    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

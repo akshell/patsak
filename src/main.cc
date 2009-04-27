@@ -10,7 +10,6 @@
 #include <asio.hpp>
 #include <boost/program_options.hpp>
 
-#include <getopt.h>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -73,14 +72,18 @@ namespace
         bool Handle(); 
 
     private:
+        struct ProcessingError : public runtime_error {
+            ProcessingError(const string& message) : runtime_error(message) {}
+        };
+        
         Program& program_;
         stream_protocol::socket& socket_;
         asio::streambuf buf_;
+        istream is_;
 
-        void HandleEvaluate();
-        void Eval(const string& expr) const;
+        void HandleEval();
         void Write(const string& str) const;
-        void WriteAndLogFailure(const string& message) const;
+        void NextLine();
     };
 }
 
@@ -88,7 +91,9 @@ RequestHandler::RequestHandler(Program& program,
                                stream_protocol::socket& socket)
     : program_(program)
     , socket_(socket)
+    , is_(&buf_)
 {
+    is_.exceptions(ios::eofbit | ios::failbit | ios::badbit);
 }
         
 
@@ -96,22 +101,10 @@ bool RequestHandler::Handle()
 {
     try {
         asio::read_until(socket_, buf_, '\n');
-        istream is(&buf_);
         string request;
-        is >> request;
+        is_ >> request;
         if (request == "EVAL") {
-            string expr;
-            getline(is, expr);
-            Eval(expr);
-            return true;
-        }
-        if (is.get() != '\n') {
-            WriteAndLogFailure("Request " + request +
-                               " must not have parameters");
-            return true;
-        }
-        if (request == "EVALUATE") {
-            HandleEvaluate();
+            HandleEval();
             return true;
         }
         if (request == "STATUS") {
@@ -122,50 +115,60 @@ bool RequestHandler::Handle()
             Write("OK\n");
             return false;
         }
-        WriteAndLogFailure("Unknown request: " + request);
-        return true;
+        throw ProcessingError("Unknown request: " + request);
     } catch (const asio::system_error& err) {
+        Log(string("Error on socket: ") + err.what());
+        return true;
+    } catch (const exception& err) {
         Log(string("Error during request processing: ") + err.what());
+        asio::error_code error_code;
+        asio::write(socket_,
+                    asio::buffer(string("FAIL\n") + err.what()),
+                    asio::transfer_all(),
+                    error_code);
         return true;
     }
 }
 
 
-void RequestHandler::HandleEvaluate()
+void RequestHandler::HandleEval()
 {
-    asio::read_until(socket_, buf_, '\n');
-    istream is(&buf_);
-    string command;
-    is >> command;
-    if (command == "EXPR") {
+    Chars expr;
+    auto_ptr<Chars> data_ptr;
+    if (is_.peek() == ' ') {
+        string expr_str;
+        getline(is_, expr_str);
+        expr.assign(expr_str.begin(), expr_str.end());
+    } else {
+        NextLine();
+        asio::read_until(socket_, buf_, '\n');
+        string command;
+        is_ >> command;
+        if (command == "DATA") {
+            size_t size;
+            is_ >> size;
+            NextLine();
+            data_ptr.reset(new Chars(size));
+            is_.read(&(data_ptr->front()), size);
+            NextLine();
+            is_ >> command;
+        }
+        if (command != "EXPR")
+            throw ProcessingError("Unexpected command: " + command);
         size_t size;
-        is >> size;
-        if (is.get() != '\n') {
-            WriteAndLogFailure("Bad EXPR command parameters");
-            return;
-        }
-        vector<char> expr(size);
-        is.read(&expr[0], size);
-        if (!is.good() || is.get() != '\n') {
-            WriteAndLogFailure("Bad EXPR data");
-            return;
-        }
-        Eval(string(expr.begin(), expr.end()));
-        return;
+        is_ >> size;
+        NextLine();
+        expr.resize(size);
+        is_.read(&expr.front(), size);
     }
-    WriteAndLogFailure("Unknown command: " + command);
-}
-
-void RequestHandler::Eval(const string& expr) const
-{
-    auto_ptr<EvalResult> eval_result_ptr(program_.Eval(expr));
+    auto_ptr<EvalResult> eval_result_ptr(program_.Eval(expr, data_ptr));
     KU_ASSERT(eval_result_ptr.get());
     vector<asio::const_buffer> buffers;
     string beginning = eval_result_ptr->GetStatus() + '\n';
     buffers.push_back(asio::buffer(beginning));
     buffers.push_back(asio::buffer(eval_result_ptr->GetData(),
                                    eval_result_ptr->GetSize()));
-    asio::write(socket_, buffers);
+    asio::write(socket_, buffers);    
 }
 
 
@@ -175,10 +178,10 @@ void RequestHandler::Write(const string& str) const
 }
 
 
-void RequestHandler::WriteAndLogFailure(const string& message) const
+void RequestHandler::NextLine()
 {
-    Write("FAIL\n" + message);
-    Log("Request error: " + message);
+    if (is_.get() != '\n')
+        throw ProcessingError("Ill formed request");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -409,8 +412,9 @@ auto_ptr<Program> MainRunner::InitProgram(DB& db) const
 void MainRunner::RunTest(Program& program, istream& is) const
 {
     while (!is.eof()) {
-        string expr;
-        getline(is, expr);
+        string expr_str;
+        getline(is, expr_str);
+        Chars expr(expr_str.begin(), expr_str.end());
         if (expr.empty())
             continue;
         auto_ptr<EvalResult> result_ptr(program.Eval(expr));
@@ -428,34 +432,29 @@ void MainRunner::RunServer(Program& program) const
     asio::io_service io_service;
     stream_protocol::acceptor acceptor(io_service);
     stream_protocol::endpoint endpoint(socket_path);
-    asio::error_code error;
-    acceptor.open(endpoint.protocol(), error);
-    if (error)
-        Fail("open() error: " + error.message());
-    acceptor.bind(endpoint, error);
-    if (error)
-        Fail("bind() error: " + error.message());
-    acceptor.listen(asio::socket_base::max_connections, error);
-    if (error)
-        Fail("listen() error: " + error.message());
+    try {
+        acceptor.open(endpoint.protocol());
+        acceptor.bind(endpoint);
+        acceptor.listen();
 
-    cout << "READY\n";
-    cout.flush();
-    freopen( "/dev/null", "r", stdin);
-    freopen( "/dev/null", "w", stdout);
-    freopen( "/dev/null", "w", stderr);
+        cout << "READY\n";
+        cout.flush();
+        freopen("/dev/null", "r", stdin);
+        freopen("/dev/null", "w", stdout);
+        freopen("/dev/null", "w", stderr);
     
-    for (bool go_on = true; go_on; ) {
-        stream_protocol::socket socket(io_service);
-        acceptor.accept(socket, error);
-        if (error)
-            Fail("accept() error: " + error.message());
-        RequestHandler request_handler(program, socket);
-        go_on = request_handler.Handle();
-        socket.close();
+        for (bool go_on = true; go_on; ) {
+            stream_protocol::socket socket(io_service);
+            acceptor.accept(socket);
+            RequestHandler request_handler(program, socket);
+            go_on = request_handler.Handle();
+            socket.close();
+        }
+        
+        acceptor.close();
+    } catch (const asio::system_error& err) {
+        Log(string("Network error: ") + err.what());
     }
-
-    acceptor.close();
     remove(socket_path.c_str());
 }
 

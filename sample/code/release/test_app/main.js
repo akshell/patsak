@@ -619,22 +619,18 @@ db_test_suite.testForeignKey = function()
                                    ['title', 'author']),
                  constr.foreignKey('ref', 'r', 'id'),
                  constr.unique('id'));
-    checkEqualTo(rel.r.getForeignKeys().sort(),
-                 [new ak.ForeignKey(['ref'], 'r', ['id']),
-                  new ak.ForeignKey(['title', 'author'],
-                                    'Post',
-                                    ['title', 'author'])]);
-    var ak1 = ak;
-    delete ak;
-    checkThrows("rel.r.getForeignKeys()");
-    ak = 15;
-    checkThrows("rel.r.getForeignKeys()");
-    ak = {};
-    checkThrows("rel.r.getForeignKeys()");
-    ak.ForeignKey = {};
-    checkThrows("rel.r.getForeignKeys()");
-
-    ak = ak1;
+    checkEqualTo(function () {
+                     return map(function (fk) {
+                                    return items(fk).sort();
+                                },
+                                rel.r.getForeignKeys()).sort();
+                 },
+                 [[["key_fields", ["ref"]],
+                   ["ref_fields", ["id"]],
+                   ["ref_rel", "r"]],
+                  [["key_fields", ["title", "author"]],
+                   ["ref_fields", ["title", "author"]],
+                   ["ref_rel", "Post"]]]);
     rel.r.drop();
 };
 

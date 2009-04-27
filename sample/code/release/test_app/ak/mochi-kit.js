@@ -64,29 +64,6 @@ import('MochiKit.js');
 })();
 
 ////////////////////////////////////////////////////////////////////////////////
-// ForeignKey comparison
-////////////////////////////////////////////////////////////////////////////////
-
-(function ()
-{
-    function checkForeignKeys(lhs, rhs)
-    {
-        return lhs instanceof ak.ForeignKey && rhs instanceof ak.ForeignKey;
-    }
-
-    function compareForeignKeys(lhs, rhs)
-    {
-        return (lhs.key_fields == rhs.key_fields &&
-                lhs.ref_rel == rhs.ref_rel &&
-                lhs.ref_fields == rhs.ref_fields);
-    }
-
-    registerComparator('ForeignKeyComparator',
-                       checkForeignKeys,
-                       compareForeignKeys);
-})();
-
-////////////////////////////////////////////////////////////////////////////////
 // Reprs
 ////////////////////////////////////////////////////////////////////////////////
 

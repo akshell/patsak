@@ -22,6 +22,7 @@ namespace ku
     typedef std::vector<Type> Types;
     typedef std::map<std::string, std::string> StringMap;
     typedef std::map<std::string, Value> ValueMap;
+    typedef std::vector<char> Chars;
 }
 
 #endif // COMMON_H

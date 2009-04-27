@@ -7,6 +7,7 @@
 #include "js.h"
 #include "js-common.h"
 #include "js-db.h"
+#include "js-file.h"
 #include "db.h"
 
 #include <boost/foreach.hpp>
@@ -322,7 +323,9 @@ DEFINE_JS_CLASS(GlobalBg, "Global", object_template, /*proto_template*/)
 
     Handle<ObjectTemplate>
         ak_object_template(AKBg::GetJSClass().GetObjectTemplate());
-    object_template->Set("ak", ak_object_template);
+    object_template->Set(String::NewSymbol("ak"),
+                         ak_object_template,
+                         ReadOnly | DontDelete);
 }
 
 
@@ -450,7 +453,7 @@ namespace
     public:
         Evaluator(AccessHolder& access_holder,
                   Importer& importer,
-                  const string& expr);
+                  const Chars& expr);
         virtual void operator()(Access& access);
         virtual void Reset();
         auto_ptr<EvalResult> GetResult();
@@ -458,7 +461,7 @@ namespace
     private:
         AccessHolder& access_holder_;
         Importer& importer_;
-        string expr_;
+        Chars expr_;
         auto_ptr<EvalResult> result_ptr_;
 
         void Fail(const TryCatch& try_catch);
@@ -468,7 +471,7 @@ namespace
 
 Evaluator::Evaluator(AccessHolder& access_holder,
                      Importer& importer,
-                     const string& expr)
+                     const Chars& expr)
     : access_holder_(access_holder)
     , importer_(importer)
     , expr_(expr)
@@ -484,7 +487,8 @@ void Evaluator::operator()(Access& access)
         Fail(try_catch);
         return;
     }
-    Handle<Script> script = Script::Compile(String::New(expr_.c_str()));
+    Handle<Script> script = Script::Compile(String::New(&expr_.front(),
+                                                        expr_.size()));
     if (script.IsEmpty()) {
         Fail(try_catch);
         return;
@@ -526,7 +530,7 @@ class Program::Impl {
 public:
     Impl(const string& file_path, DB& db);
     ~Impl();
-    auto_ptr<EvalResult> Eval(const string& expr);
+    auto_ptr<EvalResult> Eval(const Chars& expr, auto_ptr<Chars> data_ptr);
     
 private:
     DB& db_;
@@ -539,6 +543,7 @@ private:
     RelCatalogBg rel_catalog_bg_;
     ConstrCatalogBg constr_catalog_bg_;
     Persistent<Context> context_;
+    Persistent<Object> ak_;
 
     void SetInternal(Handle<Object> object,
                      const string& field,
@@ -560,28 +565,37 @@ Program::Impl::Impl(const string& file_path, DB& db)
     Handle<Object> global(context_->Global());
     global->SetInternalField(0, External::New(&global_bg_));
     SetInternal(global, "ak", &ak_bg_);
-    Handle<Object> ak(global->Get(String::NewSymbol("ak"))->ToObject());
-    SetInternal(ak, "db", &db_bg_);
-    SetInternal(ak, "type", &type_catalog_bg_);
-    SetInternal(ak, "rel", &rel_catalog_bg_);
-    SetInternal(ak, "constr", &constr_catalog_bg_);
+    ak_ = Persistent<Object>::New(
+        global->Get(String::NewSymbol("ak"))->ToObject());
+    SetInternal(ak_, "db", &db_bg_);
+    SetInternal(ak_, "type", &type_catalog_bg_);
+    SetInternal(ak_, "rel", &rel_catalog_bg_);
+    SetInternal(ak_, "constr", &constr_catalog_bg_);
 
     Context::Scope context_scope(context_);
-    ak_bg_.InitConstructors(ak);
+    ak_bg_.InitConstructors(ak_);
 }
 
 
 Program::Impl::~Impl()
 {
+    ak_.Dispose();
     context_.Dispose();
 }
 
 
-auto_ptr<EvalResult> Program::Impl::Eval(const string& expr_str)
+auto_ptr<EvalResult> Program::Impl::Eval(const Chars& expr,
+                                         auto_ptr<Chars> data_ptr)
 {
     HandleScope handle_scope;
-    Context::Scope context_scope(context_);    
-    Evaluator evaluator(access_holder_, importer_, expr_str);
+    Context::Scope context_scope(context_);
+    Handle<v8::Value> data_value;
+    if (data_ptr.get())
+        data_value = JSNew<DataBg>(data_ptr);
+    else
+        data_value = Null();
+    ak_->Set(String::NewSymbol("_data"), data_value, DontEnum);
+    Evaluator evaluator(access_holder_, importer_, expr);
     db_.Perform(evaluator);
     return evaluator.GetResult();
 }
@@ -610,7 +624,8 @@ Program::~Program()
 }
 
 
-auto_ptr<EvalResult> Program::Eval(const string& expr_str)
+auto_ptr<EvalResult> Program::Eval(const Chars& expr,
+                                   auto_ptr<Chars> data_ptr)
 {
-    return pimpl_->Eval(expr_str);
+    return pimpl_->Eval(expr, data_ptr);
 }

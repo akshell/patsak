@@ -15,6 +15,7 @@
 
 #include <memory>
 #include <vector>
+#include <map>
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,7 +158,7 @@ namespace ku
         JSClass(const std::string& name);
         ~JSClass();
 
-        v8::Handle<v8::Object> Instantiate(T* background_ptr);
+        v8::Handle<v8::Object> Instantiate(T* bg_ptr);
         T* Cast(v8::Handle<v8::Value> value);
         v8::Handle<v8::ObjectTemplate> GetObjectTemplate() const;
         v8::Handle<v8::Function> GetFunction();
@@ -206,12 +207,12 @@ ku::JSClass<T>::~JSClass()
 
 
 template <typename T>
-v8::Handle<v8::Object> ku::JSClass<T>::Instantiate(T* background_ptr)
+v8::Handle<v8::Object> ku::JSClass<T>::Instantiate(T* bg_ptr)
 {
-    std::auto_ptr<T> background_auto_ptr(background_ptr);
-    v8::Persistent<v8::Object> result(GetFunction()->NewInstance());
-    result->SetInternalField(0, v8::External::New(background_auto_ptr.get()));
-    result.MakeWeak(background_auto_ptr.release(), &DeleteCb);
+    v8::Persistent<v8::Object>
+        result(v8::Persistent<v8::Object>::New(GetFunction()->NewInstance()));
+    result.MakeWeak(bg_ptr, DeleteCb);
+    result->SetInternalField(0, v8::External::New(bg_ptr));
     return result;
 }
 

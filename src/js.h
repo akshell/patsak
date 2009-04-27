@@ -35,7 +35,10 @@ namespace ku
     public:
         Program(const std::string& file_path, DB& db);
         ~Program();
-        std::auto_ptr<EvalResult> Eval(const std::string& expr_str);
+        
+        std::auto_ptr<EvalResult> Eval(
+            const Chars& expr,
+            std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>());
         
     private:
         class Impl;

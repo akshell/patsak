@@ -10,13 +10,31 @@
 #include "db.h"
 
 #include <pqxx/pqxx>
+#include <boost/foreach.hpp>
+
+
+// BOOST_FOREACH workarounds
+namespace boost
+{
+    /// For BOOST_FOREACH to work with pqxx::result
+    template<>
+    struct range_iterator<pqxx::result>
+    {
+        typedef pqxx::result::const_iterator type;
+    };
+
+
+    /// For BOOST_FOREACH to work with pqxx::result::tuple
+    template<>
+    struct range_iterator<pqxx::result::tuple>
+    {
+        typedef pqxx::result::tuple::const_iterator type;
+    };
+}
 
 
 namespace ku
 {
-    class DBViewer;
-
-
     /// Functor qouting strings for use as PG literals
     class Quoter {
     public:
@@ -47,6 +65,9 @@ namespace ku
     private:
         pqxx::connection_base& conn_;
     };
+
+
+    class DBViewer;
 
 
     /// Caching query maker

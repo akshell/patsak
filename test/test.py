@@ -177,28 +177,33 @@ class Test(unittest.TestCase):
         
         self.assertEqual(self._talk_through_socket(socket_path, 'STATUS'),
                          'OK\n')
-        self.assertEqual(self._talk_through_socket(socket_path, 'UNKNOWN'),
-                         'FAIL\nUnknown request: UNKNOWN')
+        
         self.assertEqual(self._talk_through_socket(socket_path, 'EVAL 2+2'),
                          'OK\n4')
         self.assertEqual(self._talk_through_socket(socket_path,
                                                    'EVAL main(); 2+2'),
                          'OK\n4')
         self.assertEqual(self._talk_through_socket(socket_path,
-                                                   'EVALUATE\nEXPR 3\n2+2'),
+                                                   'EVAL\nEXPR 3\n2+2'),
                          'OK\n4')
+        self.assertEqual(self._talk_through_socket(socket_path, 'EVAL ak._data'),
+                         'OK\nnull')
         self.assertEqual(self._talk_through_socket(socket_path,
-                                                   'EVALUATE\nEXPR 3 hi!\n2+2'),
-                         'FAIL\nBad EXPR command parameters')
+                                                   'EVAL\nEXPR 8\nak._data'),
+                         'OK\nnull')
         self.assertEqual(self._talk_through_socket(socket_path,
-                                                   'EVALUATE\nEXPR 2\n2+2'),
-                         'FAIL\nBad EXPR data')
+                                                   'EVAL\nDATA 5\nhello\n'
+                                                   'EXPR 11\nak._data+""'),
+                         'OK\nhello')
+        
+        self.assertEqual(self._talk_through_socket(socket_path, 'UNKNOWN'),
+                         'FAIL\nUnknown request: UNKNOWN')
         self.assertEqual(self._talk_through_socket(socket_path,
-                                                   'EVALUATE 2+2\n'),
-                         'FAIL\nRequest EVALUATE must not have parameters')
+                                                   'EVAL\nEXPR 3 hi!\n2+2'),
+                         'FAIL\nIll formed request')
         self.assertEqual(self._talk_through_socket(socket_path,
-                                                   'EVALUATE\nSTRANGE_CMD\n'),
-                         'FAIL\nUnknown command: STRANGE_CMD')
+                                                   'EVAL\nSTRANGE_CMD\n'),
+                         'FAIL\nUnexpected command: STRANGE_CMD')
         self.assertEqual(self._talk_through_socket(socket_path, 'STOP'),
                          'OK\n')
         self.assertEqual(popen.wait(), 0)

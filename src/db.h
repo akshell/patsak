@@ -157,14 +157,15 @@ namespace ku
     public:
         struct Data;
 
-        QueryResult(Data* data_ptr);
+        QueryResult(const Data* data_ptr);
         ~QueryResult();
         size_t GetSize() const;
         Values GetValues(size_t idx) const;
         const Header& GetHeader() const;
+        size_t GetMemoryUsage() const;
         
     private:
-        boost::shared_ptr<Data> data_ptr_;
+        boost::shared_ptr<const Data> data_ptr_;
     };
 
 

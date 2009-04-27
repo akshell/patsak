@@ -21,6 +21,19 @@ using boost::shared_ptr;
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// Constants
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+#ifdef TEST
+    const size_t MEMORY_MULTIPLIER = 1024;
+#else
+    const size_t MEMORY_MULTIPLIER = 1;
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Readers
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,44 +134,6 @@ namespace
                 return false;
             }
         }
-        return true;
-    }
-
-
-    bool GetAkProperty(const string& name, Handle<v8::Value>& value)
-    {
-        Handle<Object> global(Context::GetCurrent()->Global());
-        Handle<String> ak_str(String::NewSymbol("ak"));
-        if (!global->Has(ak_str)) {
-            JS_THROW(Error, "ak does not exist!!!");
-            return false;
-        }
-        Handle<v8::Value> ak_value(global->Get(ak_str));
-        if (!ak_value->IsObject()) {
-            JS_THROW(Error, "ak is not an object!!!");
-            return false;
-        }
-        Handle<Object> ak_object(ak_value->ToObject());
-        Handle<String> prop_str(String::New(name.c_str()));
-        if (!ak_object->Has(prop_str)) {
-            JS_THROW(Error, "ak does not have property " + name);
-            return false;
-        }
-        value = ak_object->Get(prop_str);
-        return true;
-    }
-    
-
-    bool GetConstructor(const string& name, Handle<Function>& constructor)
-    {
-        Handle<v8::Value> value;
-        if (!GetAkProperty(name, value))
-            return false;
-        if (!value->IsFunction()) {
-            JS_THROW(TypeError, "ak." + name + " is not a function");
-            return false;
-        }
-        constructor = Handle<Function>::Cast(value);
         return true;
     }
 }    
@@ -572,6 +547,7 @@ namespace
                 const string& query_str,
                 const Values& params,
                 const Specifiers& specifiers);
+        virtual ~QueryBg();
 
     protected:
         static void InitObjectTemplate(Handle<ObjectTemplate> object_template);
@@ -653,6 +629,13 @@ QueryBg::QueryBg(const AccessHolder& access_holder,
 {
 }
 
+QueryBg::~QueryBg()
+{
+    if (query_result_ptr_.get())
+        V8::AdjustAmountOfExternalAllocatedMemory(
+            -MEMORY_MULTIPLIER * query_result_ptr_->GetMemoryUsage());
+}
+
 
 void QueryBg::InitObjectTemplate(Handle<ObjectTemplate> object_template)
 {
@@ -698,6 +681,8 @@ bool QueryBg::InitQueryResult()
                                                        params_,
                                                        specifiers_));
         query_result_ptr_.reset(new QueryResult(query_result));
+        V8::AdjustAmountOfExternalAllocatedMemory(
+            MEMORY_MULTIPLIER * query_result.GetMemoryUsage());
         return true;
     } catch (Error& err) {
         JS_THROW(Error, err.what());
@@ -1454,18 +1439,18 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetForeignKeysCb,
     JS_CHECK_LENGTH(args, 0);
     Handle<Array> result(Array::New());
     int32_t i = 0;
-    Handle<Function> constructor;
-    if (!GetConstructor("ForeignKey", constructor))
-        return Handle<v8::Value>();
     const Constrs& constrs(access_holder_->GetRelConstrs(name_));
     BOOST_FOREACH(const Constr& constr, constrs) {
         const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
         if (foreign_key_ptr) {
-            Handle<v8::Value> argv[3];
-            argv[0] = MakeV8Array(foreign_key_ptr->key_field_names);
-            argv[1] = String::New(foreign_key_ptr->ref_rel_name.c_str());
-            argv[2] = MakeV8Array(foreign_key_ptr->ref_field_names);
-            result->Set(Integer::New(i++), constructor->NewInstance(3, argv));
+            Handle<Object> object(Object::New());
+            object->Set(String::NewSymbol("key_fields"),
+                        MakeV8Array(foreign_key_ptr->key_field_names));
+            object->Set(String::NewSymbol("ref_rel"),
+                        String::New(foreign_key_ptr->ref_rel_name.c_str()));
+            object->Set(String::NewSymbol("ref_fields"),
+                        MakeV8Array(foreign_key_ptr->ref_field_names));
+            result->Set(Integer::New(i++), object);
         }
     }
     return result;
