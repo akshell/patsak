@@ -1,0 +1,10 @@
+
+# (c) 2009 by Anton Korenyushkin
+
+js_files = [File(name) for name in
+            ['ak/core.js',
+             'ak/mochi-kit.js',
+             'lib/0.1/42.js',
+             'lib/0.1/42impl.js']]
+
+Return('js_files')

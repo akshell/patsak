@@ -33,6 +33,7 @@ namespace ku
     };
 
 
+    /// Temprorary file background
     class TmpFileBg {
     public:
         DECLARE_JS_CLASS(TmpFileBg);
@@ -46,6 +47,7 @@ namespace ku
     };
 
 
+    /// File system accessor background
     class FSBg {
     public:
         DECLARE_JS_CLASS(FSBg);
@@ -92,7 +94,13 @@ namespace ku
     };
     
 
+    /// Try to read whole file into the vector. Return true on success.
     bool ReadFileData(const std::string& path, Chars& data);
+
+
+    /// Calculate the depth of directory nesting for relative or absolute path.
+    /// Return 0 for empty or root path, -1 for path beyond root or parent.
+    int GetPathDepth(const std::string& path);
 }
 
 #endif // JS_FILE_H

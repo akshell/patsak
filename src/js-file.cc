@@ -30,7 +30,7 @@ using boost::lexical_cast;
 
 namespace
 {
-    const size_t MAX_DIR_DEPTH = 30;
+    const int MAX_DIR_DEPTH = 30;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -315,20 +315,11 @@ bool FSBg::ReadPath(Handle<v8::Value> value,
         return true;
     }
     string rel_path(Stringify(value));
-    size_t depth = 0;
-    for (size_t from = 0; from < rel_path.size(); ++from) {
-        size_t to = rel_path.find('/', from);
-        if (to == from)
-            continue;
-        string component = rel_path.substr(from, to - from - 1);
-        if (component == "." || component == "..") {
-            JS_THROW(Error, "Path could not contain . or .. components");
-            return false;
-        }
-        ++depth;
-        if (to == string::npos)
-            break;
-        from = to;
+    int depth = GetPathDepth(rel_path);
+    if (depth < 0) {
+        JS_THROW(Error,
+                 "Path " + rel_path + " leads beyond the root directory");
+        return false;
     }
     if (!can_be_root && !depth) {
         JS_THROW(Error, "Path " + rel_path + " is empty");
@@ -499,4 +490,27 @@ bool ku::ReadFileData(const std::string& path, Chars& data)
     KU_ASSERT(bytes_readen == st.st_size);
     close(fd);
     return true;
+}
+
+
+int ku::GetPathDepth(const std::string& path)
+{
+    int depth = 0;
+    for (size_t from = 0; from < path.size(); ++from) {
+        size_t to = path.find('/', from);
+        if (to == from)
+            continue;
+        string component = path.substr(from, to - from);
+        if (component == "..") {
+            if (!depth)
+                return -1;
+            --depth;
+        } else if (component != ".") {
+            ++depth;
+        }
+        if (to == string::npos)
+            break;
+        from = to;
+    }
+    return depth;
 }

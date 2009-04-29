@@ -4,10 +4,8 @@
 js_files = [File(name) for name in
             ['main.js',
              'bug.js',
-             'bug-importer.js',
+             'bug-includer.js',
              'hello.js',
-             'ak/core.js',
-             'ak/mochi-kit.js',
              'subdir/another-hello.js']]
 
 Return('js_files')

@@ -29,157 +29,111 @@ using boost::ptr_vector;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Importer
+// CodeLoader
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    /// import() functor
-    class Importer : noncopyable {
+    /// import() and include() manager
+    class CodeLoader {
     public:
-        Importer(const string& file_path);
-        Handle<v8::Value> operator()(const Arguments& args);
-        bool GetReady();
-
-    private:
-        class CurrFileScope {
-        public:
-            CurrFileScope(Importer& importer, const string& new_file_path);
-            ~CurrFileScope();
-
-        private:
-            Importer& importer_;
-            string old_file_path_;
-        };
+        CodeLoader(const string& include_dir, const string& base_path);
+        // never throw
+        Handle<v8::Value> Import(const string& lib_path,
+                                 const string& file_path);
+        // never throw
+        Handle<v8::Value> Include(const string& path);
         
-        string file_path_;
-        const string base_dir_;
-        bool ready_;
+    private:
+        const string include_dir_;
+        string base_path_;
+        string curr_path_;
 
-        Handle<v8::Value> Eval(Handle<String> expr) const;
-        bool ReadFile(Handle<String>& str) const;
-
-        void ThrowImportError(Handle<v8::Value> exception,
-                              Handle<Message> message) const;
-            
         static string DirName(const string& path);
         static string Canonicalize(const string& path);
     };
 }
 
 
-Importer::CurrFileScope::CurrFileScope(Importer& importer,
-                                       const string& new_file_path)
-    : importer_(importer)
-    , old_file_path_(importer.file_path_)
+CodeLoader::CodeLoader(const string& include_dir, const string& base_path)
+    : include_dir_(Canonicalize(include_dir))
+    , base_path_(Canonicalize(base_path))
+    , curr_path_(base_path_)
 {
-    importer_.file_path_ = new_file_path;
+    KU_ASSERT(!include_dir.empty());
+    KU_ASSERT(!base_path.empty());
 }
 
 
-Importer::CurrFileScope::~CurrFileScope()
+Handle<v8::Value> CodeLoader::Import(const string& lib_path,
+                                     const string& file_path)
 {
-    importer_.file_path_ = old_file_path_;
+    JS_CHECK(GetPathDepth(lib_path) > 0, "Illegal lib path");
+    string lib_full_path = Canonicalize(include_dir_ + '/' + lib_path);
+    JS_CHECK(!lib_full_path.empty(), "Lib " + lib_path + " does not exist");
+    string old_base_path(base_path_);
+    string old_curr_path(curr_path_);
+    curr_path_ = base_path_ = lib_full_path;
+    Handle<v8::Value> result(Include(file_path));
+    base_path_ = old_base_path;
+    curr_path_ = old_curr_path;
+    return result;
 }
 
 
-Importer::Importer(const string& file_path)
-    : file_path_(Canonicalize(file_path))
-    , base_dir_(DirName(file_path_))
-    , ready_(false)
+Handle<v8::Value> CodeLoader::Include(const string& path)
 {
-    if (file_path_.empty())
-        Fail("Bad initial path " + file_path);
-}
-
-
-Handle<v8::Value> Importer::operator()(const Arguments& args)
-{
-    JS_CHECK_LENGTH(args, 1);
-    string path(Canonicalize(DirName(file_path_) + '/' + Stringify(args[0])));
-    JS_CHECK(!path.empty() && path.substr(0, base_dir_.size()) == base_dir_,
-             "Bad import() path");
-    CurrFileScope curr_file_scope(*this, path);
-    Handle<String> expr;
-    JS_CAN_THROW(ReadFile(expr));
+    JS_CHECK(!path.empty(), "include path is empty");
+    string full_path(Canonicalize(path[0] == '/'
+                                  ? base_path_ + path
+                                  : curr_path_ + '/' + path));
+    // This conditions are checked together in order to prevent the
+    // possibility of scanning file system by such includes
+    JS_CHECK(!full_path.empty() &&
+             full_path.substr(0, base_path_.size()) == base_path_,
+             "Bad include() path");
+    Chars data;
+    JS_CAN_THROW(ReadFileData(full_path, data));
+    Handle<String> expr(String::New(&data[0], data.size()));
     Handle<v8::Value> result;
     Handle<v8::Value> exception;
     Handle<Message> message;
     {
         TryCatch try_catch;
-        result = Eval(expr);
+        Handle<String> resource_name(String::New(path.c_str()));
+        Handle<Script> script = Script::Compile(expr, resource_name);
+        if (!script.IsEmpty()) {
+            string old_curr_path(curr_path_);
+            curr_path_ = DirName(full_path);
+            result = script->Run();
+            curr_path_ = old_curr_path;
+        }
         exception = try_catch.Exception();
         message = try_catch.Message();
     }
     if (result.IsEmpty()) {
-        ThrowImportError(exception, message);
-        return Handle<v8::Value>();
+        ostringstream oss;
+        oss << "ImportError in file " << path;
+        if (!message.IsEmpty())
+            oss << " line " << message->GetLineNumber()
+                << " column " << message->GetStartColumn()
+                << ": " << Stringify(message->Get());
+        else if (!exception.IsEmpty())
+            oss << ": " << Stringify(exception);
+        JS_THROW(Error, oss.str());
     }
-    return result;
+    return result;    
 }
 
 
-bool Importer::GetReady()
-{
-    if (ready_)
-        return true;
-    Handle<String> expr;
-    if (!ReadFile(expr))
-        return false;
-    if (Eval(expr).IsEmpty())
-        return false;
-    ready_ = true;
-    return true;
-}
-
-
-Handle<v8::Value> Importer::Eval(Handle<String> expr) const
-{
-    Handle<String>
-        resouce_name(String::New(file_path_.substr(base_dir_.size()).c_str()));
-    Handle<Script> script = Script::Compile(expr, resouce_name);
-    if (script.IsEmpty())
-        return Handle<v8::Value>();
-    Handle<v8::Value> result = script->Run();
-    if (result.IsEmpty())
-        return Handle<v8::Value>();
-    return result;
-}
-
-
-bool Importer::ReadFile(Handle<String>& str) const
-{
-    Chars data;
-    if (!ReadFileData(file_path_, data))
-        return false;
-    str = String::New(&data[0], data.size());
-    return true;
-}
-
-
-void Importer::ThrowImportError(Handle<v8::Value> exception,
-                                Handle<Message> message) const
-{
-    ostringstream oss;
-    oss << "ImportError in file " << file_path_;
-    if (!message.IsEmpty())
-        oss << " line " << message->GetLineNumber()
-            << " column " << message->GetStartColumn()
-            << ": " << Stringify(message->Get());
-    else if (!exception.IsEmpty())
-        oss << ": " << Stringify(exception);
-    JS_THROW(Error, oss.str());
-}
-
-
-string Importer::DirName(const string& path)
+string CodeLoader::DirName(const string& path)
 {
     vector<char> path_copy(path.c_str(), path.c_str() + path.size() + 1);
     return dirname(&path_copy[0]);
 }
 
 
-string Importer::Canonicalize(const string& path)
+string CodeLoader::Canonicalize(const string& path)
 {
     char* c_str = canonicalize_file_name(path.c_str());
     if (!c_str)
@@ -218,11 +172,14 @@ namespace
     public:
         DECLARE_JS_CLASS(GlobalBg);
         
-        GlobalBg(Importer& importer);
+        GlobalBg(CodeLoader& code_loader);
         
     private:
-        Importer& importer_;
+        CodeLoader& code_loader_;
 
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, IncludeCb,
+                             const Arguments&) const;
+        
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ImportCb,
                              const Arguments&) const;
     };    
@@ -296,6 +253,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetObjectPropCb,
 DEFINE_JS_CLASS(GlobalBg, "Global", object_template, /*proto_template*/)
 {
     object_template->Set("import", FunctionTemplate::New(ImportCb));
+    object_template->Set("include", FunctionTemplate::New(IncludeCb));
 
     Handle<ObjectTemplate>
         ak_object_template(AKBg::GetJSClass().GetObjectTemplate());
@@ -305,8 +263,8 @@ DEFINE_JS_CLASS(GlobalBg, "Global", object_template, /*proto_template*/)
 }
 
 
-GlobalBg::GlobalBg(Importer& importer)
-    : importer_(importer)
+GlobalBg::GlobalBg(CodeLoader& code_loader)
+    : code_loader_(code_loader)
 {
 }
 
@@ -314,7 +272,16 @@ GlobalBg::GlobalBg(Importer& importer)
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, GlobalBg, ImportCb,
                     const Arguments&, args) const
 {
-    return importer_(args);
+    JS_CHECK_LENGTH(args, 2);
+    return code_loader_.Import(Stringify(args[0]), Stringify(args[1]));
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, GlobalBg, IncludeCb,
+                    const Arguments&, args) const
+{
+    JS_CHECK_LENGTH(args, 1);
+    return code_loader_.Include(Stringify(args[0]));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -427,16 +394,13 @@ namespace
     /// Eval functor
     class Evaluator : public Transactor {
     public:
-        Evaluator(AccessHolder& access_holder,
-                  Importer& importer,
-                  const Chars& expr);
+        Evaluator(AccessHolder& access_holder, const Chars& expr);
         virtual void operator()(Access& access);
         virtual void Reset();
         auto_ptr<EvalResult> GetResult();
 
     private:
         AccessHolder& access_holder_;
-        Importer& importer_;
         Chars expr_;
         auto_ptr<EvalResult> result_ptr_;
 
@@ -445,11 +409,8 @@ namespace
 }
 
 
-Evaluator::Evaluator(AccessHolder& access_holder,
-                     Importer& importer,
-                     const Chars& expr)
+Evaluator::Evaluator(AccessHolder& access_holder, const Chars& expr)
     : access_holder_(access_holder)
-    , importer_(importer)
     , expr_(expr)
 {
 }
@@ -459,10 +420,6 @@ void Evaluator::operator()(Access& access)
 {
     AccessHolder::Scope access_scope(access_holder_, access);
     TryCatch try_catch;
-    if (!importer_.GetReady()) {
-        Fail(try_catch);
-        return;
-    }
     Handle<Script> script = Script::Compile(String::New(&expr_.front(),
                                                         expr_.size()));
     if (script.IsEmpty()) {
@@ -495,7 +452,7 @@ void Evaluator::Fail(const TryCatch& try_catch)
 {
     KU_ASSERT(!result_ptr_.get());
     result_ptr_.reset(new ErrorResult(try_catch.Exception(),
-                                        try_catch.Message()));
+                                      try_catch.Message()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -504,16 +461,20 @@ void Evaluator::Fail(const TryCatch& try_catch)
 
 class Program::Impl {
 public:
-    Impl(const string& file_path, const string& media_path, DB& db);
+    Impl(const string& file_dir,
+         const string& include_dir,
+         const string& media_dir,
+         DB& db);
     ~Impl();
     auto_ptr<EvalResult> Eval(const Chars& expr,
                               const Strings& pathes,
                               auto_ptr<Chars> data_ptr);
     
 private:
+    bool initialized_;
     DB& db_;
     AccessHolder access_holder_;
-    Importer importer_;
+    CodeLoader code_loader_;
     GlobalBg global_bg_;
     AKBg ak_bg_;
     DBBg db_bg_;
@@ -530,14 +491,18 @@ private:
 };
 
 
-Program::Impl::Impl(const string& file_path, const string& media_path, DB& db)
-    : db_(db)
-    , importer_(file_path)
-    , global_bg_(importer_)
+Program::Impl::Impl(const string& code_dir,
+                    const string& include_dir,
+                    const string& media_dir,
+                    DB& db)
+    : initialized_(false)
+    , db_(db)
+    , code_loader_(include_dir, code_dir)
+    , global_bg_(code_loader_)
     , ak_bg_()
     , db_bg_(access_holder_)
     , rel_catalog_bg_(access_holder_)
-    , fs_bg_(media_path)
+    , fs_bg_(media_dir)
 {
     HandleScope handle_scope;
     context_ = Context::New(NULL, GlobalBg::GetJSClass().GetObjectTemplate());
@@ -588,14 +553,29 @@ auto_ptr<EvalResult> Program::Impl::Eval(const Chars& expr,
         file_array->Set(Integer::New(i), file);
     }
     ak_->Set(String::NewSymbol("_files"), file_array, DontEnum);
-         
-    Evaluator evaluator(access_holder_, importer_, expr);
-    db_.Perform(evaluator);
 
+    auto_ptr<EvalResult> result;
+    if (!initialized_) {
+        string init_expr_str("include('main.js')");
+        Chars init_expr(init_expr_str.begin(), init_expr_str.end());
+        Evaluator init_evaluator(access_holder_, init_expr);
+        db_.Perform(init_evaluator);
+        result = init_evaluator.GetResult();
+        KU_ASSERT(result.get());
+        if (result->GetStatus() == "OK")
+            initialized_ = true;
+    }
+    if (initialized_) {
+        Evaluator evaluator(access_holder_, expr);
+        db_.Perform(evaluator);
+        result = evaluator.GetResult();
+    }
+    
     BOOST_FOREACH(Handle<Object> file, files)
         TmpFileBg::GetJSClass().Cast(file)->ClearPath();
     
-    return evaluator.GetResult();
+    KU_ASSERT(result.get());
+    return result;
 }
 
 
@@ -611,8 +591,11 @@ void Program::Impl::SetInternal(Handle<Object> object,
 // Program
 ////////////////////////////////////////////////////////////////////////////////
 
-Program::Program(const string& file_path, const string& media_path, DB& db)
-    : pimpl_(new Impl(file_path, media_path, db))
+Program::Program(const string& code_dir,
+                 const string& include_dir,
+                 const string& media_dir,
+                 DB& db)
+    : pimpl_(new Impl(code_dir, include_dir, media_dir, db))
 {
 }
 

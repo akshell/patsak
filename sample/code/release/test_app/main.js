@@ -1,6 +1,6 @@
 
-import('ak/core.js');
-import('ak/mochi-kit.js');
+import('ak', 'core.js');
+import('ak', 'mochi-kit.js');
 
 
 var db = ak.db;
@@ -110,16 +110,23 @@ function runTestSuites(test_suites)
 var base_test_suite = {};
 
 
+base_test_suite.testInclude = function()
+{
+    check("include('hello.js') == 'hello'");
+    checkThrows("include('no-such-file.js')");
+    checkThrows("include('hello.js', 'hello.js')");
+    checkThrows("include('bug.js')");
+    checkThrows("include('bug-includer.js')");
+    checkThrows("include('../out-of-base-dir.js')");
+    checkThrows("include('unreadable.js')");
+    check("include('subdir/another-hello.js') == 'hello'");
+};
+
+
 base_test_suite.testImport = function()
 {
-    check("import('hello.js') == 'hello'");
-    checkThrows("import('no-such-file.js')");
-    checkThrows("import('hello.js', 'hello.js')");
-    checkThrows("import('bug.js')");
-    checkThrows("import('bug-importer.js')");
-    checkThrows("import('../out-of-base-dir.js')");
-    checkThrows("import('unreadable.js')");
-    check("import('subdir/another-hello.js') == 'hello'");
+    checkThrows("import('no_such_lib', 'xxx.js')");
+    checkEqualTo("import('lib/0.1/', '42.js')", 42);
 };
 
 
@@ -636,13 +643,13 @@ db_test_suite.testForeignKey = function()
 (function ()
 {
     try {
-        import('bug-importer.js');
+        include('bug-includer.js');
     } catch (err) {
         if (err instanceof Error)
             return;
         throw err;
     }
-    throw Error("import('bug-importer.js') hasn't thrown");
+    throw Error("include('bug-includer.js') hasn't thrown");
 })();
 
 

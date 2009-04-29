@@ -422,9 +422,12 @@ auto_ptr<DB> MainRunner::InitDB() const
 
 auto_ptr<Program> MainRunner::InitProgram(DB& db) const
 {
-    string js_file_path(code_dir_ + GetPathSuffix() + "/main.js");
+    string code_path(code_dir_ + GetPathSuffix());
     string media_path(media_dir_ + GetPathSuffix());
-    return auto_ptr<Program>(new Program(js_file_path, media_path, db));
+    return auto_ptr<Program>(new Program(code_path,
+                                         include_dir_,
+                                         media_path,
+                                         db));
 }
 
 

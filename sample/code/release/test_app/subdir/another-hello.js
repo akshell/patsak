@@ -1,1 +1,1 @@
-import('../hello.js')
+include('../hello.js');
