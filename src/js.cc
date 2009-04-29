@@ -12,11 +12,10 @@
 
 #include <boost/foreach.hpp>
 #include <boost/utility.hpp>
+#include <boost/ptr_container/ptr_vector.hpp>
 
-#include <stdlib.h>
 #include <libgen.h>
 #include <vector>
-#include <fstream>
 #include <sstream>
 #include <iostream>
 #include <memory>
@@ -26,6 +25,7 @@ using namespace ku;
 using namespace std;
 using namespace v8;
 using boost::noncopyable;
+using boost::ptr_vector;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,7 +57,7 @@ namespace
         bool ready_;
 
         Handle<v8::Value> Eval(Handle<String> expr) const;
-        Handle<String> ReadFile() const;
+        bool ReadFile(Handle<String>& str) const;
 
         void ThrowImportError(Handle<v8::Value> exception,
                               Handle<Message> message) const;
@@ -95,20 +95,13 @@ Importer::Importer(const string& file_path)
 
 Handle<v8::Value> Importer::operator()(const Arguments& args)
 {
-    if (args.Length() != 1) {
-        JS_THROW(Error, "import() must be called with one argument");
-        return Handle<v8::Value>();
-    }
+    JS_CHECK_LENGTH(args, 1);
     string path(Canonicalize(DirName(file_path_) + '/' + Stringify(args[0])));
-    if (path.empty() ||
-        path.substr(0, base_dir_.size()) != base_dir_) {
-        JS_THROW(Error, "Bad import() path");
-        return Handle<v8::Value>();
-    }        
+    JS_CHECK(!path.empty() && path.substr(0, base_dir_.size()) == base_dir_,
+             "Bad import() path");
     CurrFileScope curr_file_scope(*this, path);
-    Handle<String> expr(ReadFile());
-    if (expr.IsEmpty())
-        return Handle<v8::Value>();
+    Handle<String> expr;
+    JS_CAN_THROW(ReadFile(expr));
     Handle<v8::Value> result;
     Handle<v8::Value> exception;
     Handle<Message> message;
@@ -130,7 +123,10 @@ bool Importer::GetReady()
 {
     if (ready_)
         return true;
-    if (Eval(ReadFile()).IsEmpty())
+    Handle<String> expr;
+    if (!ReadFile(expr))
+        return false;
+    if (Eval(expr).IsEmpty())
         return false;
     ready_ = true;
     return true;
@@ -139,8 +135,6 @@ bool Importer::GetReady()
 
 Handle<v8::Value> Importer::Eval(Handle<String> expr) const
 {
-    if (expr.IsEmpty())
-        return Handle<v8::Value>();
     Handle<String>
         resouce_name(String::New(file_path_.substr(base_dir_.size()).c_str()));
     Handle<Script> script = Script::Compile(expr, resouce_name);
@@ -153,19 +147,13 @@ Handle<v8::Value> Importer::Eval(Handle<String> expr) const
 }
 
 
-Handle<String> Importer::ReadFile() const
+bool Importer::ReadFile(Handle<String>& str) const
 {
-    ifstream file(file_path_.c_str(), ios::in | ios::binary | ios::ate);
-    if (!file.is_open()) {
-        JS_THROW(Error, "Can't open file " + file_path_);
-        return Handle<String>();
-    }
-    ifstream::pos_type size = file.tellg();
-    file.seekg(0, ios::beg);
-    vector<char> buf(size);
-    file.read(&buf[0], size);
-    file.close();
-    return String::New(&buf[0], size);
+    Chars data;
+    if (!ReadFileData(file_path_, data))
+        return false;
+    str = String::New(&data[0], data.size());
+    return true;
 }
 
 
@@ -259,6 +247,8 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
                          TypeCatalogBg::GetJSClass().GetObjectTemplate());
     object_template->Set("constr",
                          ConstrCatalogBg::GetJSClass().GetObjectTemplate());
+    object_template->Set("fs",
+                         FSBg::GetJSClass().GetObjectTemplate());
 }
 
 
@@ -267,13 +257,9 @@ AKBg::AKBg()
 }
 
 
-void AKBg::InitConstructors(Handle<Object> ku) const
+void AKBg::InitConstructors(Handle<Object> ak) const
 {
-    ku->Set(String::NewSymbol("Global"),
-            GlobalBg::GetJSClass().GetFunction());
-    ku->Set(String::NewSymbol("AK"),
-            AKBg::GetJSClass().GetFunction());
-    InitDBConstructors(ku);
+    JSClassBase::InitConstructors(ak);
 }
 
 
@@ -289,26 +275,16 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, PrintCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetObjectPropCb,
                     const Arguments&, args) const
 {
-    if (args.Length() != 4) {
-        JS_THROW(Error, "setObjectProp() requires 4 arguments");
-        return Handle<v8::Value>();
-    }
-    if (!args[0]->IsObject()) {
-        JS_THROW(Error, "First setObjectProp() argument must be object");
-        return Handle<v8::Value>();
-    }
+    JS_CHECK_LENGTH(args, 4);
+    JS_TYPE_CHECK(args[0]->IsObject(),
+                  "First setObjectProp() argument must be object");
     Handle<Object> object(args[0]->ToObject());
-    if (!args[2]->IsInt32()) {
-        JS_THROW(Error, "Third setObjectProp() argument must be integer");
-        return Handle<v8::Value>();
-    }
+    JS_TYPE_CHECK(args[2]->IsInt32(),
+                  "Third setObjectProp() argument must be integer");
     int32_t attributes = args[2]->Int32Value();
-    if (attributes < 0 || attributes > 7) {
-        JS_THROW(Error,
-                 "Property attribute must be a "
-                 "non-negative integer less than 8");
-        return Handle<v8::Value>();
-    }
+    JS_CHECK(attributes >= 0 && attributes < 8,
+             "Property attribute must be a "
+             "non-negative integer less than 8");
     object->Set(args[1], args[3], static_cast<PropertyAttribute>(attributes));
     return Undefined();
 }
@@ -528,9 +504,11 @@ void Evaluator::Fail(const TryCatch& try_catch)
 
 class Program::Impl {
 public:
-    Impl(const string& file_path, DB& db);
+    Impl(const string& file_path, const string& media_path, DB& db);
     ~Impl();
-    auto_ptr<EvalResult> Eval(const Chars& expr, auto_ptr<Chars> data_ptr);
+    auto_ptr<EvalResult> Eval(const Chars& expr,
+                              const Strings& pathes,
+                              auto_ptr<Chars> data_ptr);
     
 private:
     DB& db_;
@@ -542,6 +520,7 @@ private:
     TypeCatalogBg type_catalog_bg_;
     RelCatalogBg rel_catalog_bg_;
     ConstrCatalogBg constr_catalog_bg_;
+    FSBg fs_bg_;
     Persistent<Context> context_;
     Persistent<Object> ak_;
 
@@ -551,13 +530,14 @@ private:
 };
 
 
-Program::Impl::Impl(const string& file_path, DB& db)
+Program::Impl::Impl(const string& file_path, const string& media_path, DB& db)
     : db_(db)
     , importer_(file_path)
     , global_bg_(importer_)
     , ak_bg_()
     , db_bg_(access_holder_)
     , rel_catalog_bg_(access_holder_)
+    , fs_bg_(media_path)
 {
     HandleScope handle_scope;
     context_ = Context::New(NULL, GlobalBg::GetJSClass().GetObjectTemplate());
@@ -571,6 +551,7 @@ Program::Impl::Impl(const string& file_path, DB& db)
     SetInternal(ak_, "type", &type_catalog_bg_);
     SetInternal(ak_, "rel", &rel_catalog_bg_);
     SetInternal(ak_, "constr", &constr_catalog_bg_);
+    SetInternal(ak_, "fs", &fs_bg_);
 
     Context::Scope context_scope(context_);
     ak_bg_.InitConstructors(ak_);
@@ -585,18 +566,35 @@ Program::Impl::~Impl()
 
 
 auto_ptr<EvalResult> Program::Impl::Eval(const Chars& expr,
+                                         const Strings& pathes,
                                          auto_ptr<Chars> data_ptr)
 {
     HandleScope handle_scope;
     Context::Scope context_scope(context_);
+    
     Handle<v8::Value> data_value;
     if (data_ptr.get())
         data_value = JSNew<DataBg>(data_ptr);
     else
         data_value = Null();
     ak_->Set(String::NewSymbol("_data"), data_value, DontEnum);
+
+    Handle<Array> file_array(Array::New());
+    vector<Handle<Object> > files;
+    files.reserve(pathes.size());
+    for (size_t i = 0; i < pathes.size(); ++i) {
+        Handle<Object> file(JSNew<TmpFileBg>(pathes[i]));
+        files.push_back(file);
+        file_array->Set(Integer::New(i), file);
+    }
+    ak_->Set(String::NewSymbol("_files"), file_array, DontEnum);
+         
     Evaluator evaluator(access_holder_, importer_, expr);
     db_.Perform(evaluator);
+
+    BOOST_FOREACH(Handle<Object> file, files)
+        TmpFileBg::GetJSClass().Cast(file)->ClearPath();
+    
     return evaluator.GetResult();
 }
 
@@ -613,8 +611,8 @@ void Program::Impl::SetInternal(Handle<Object> object,
 // Program
 ////////////////////////////////////////////////////////////////////////////////
 
-Program::Program(const string& file_path, DB& db)
-    : pimpl_(new Impl(file_path, db))
+Program::Program(const string& file_path, const string& media_path, DB& db)
+    : pimpl_(new Impl(file_path, media_path, db))
 {
 }
 
@@ -625,7 +623,8 @@ Program::~Program()
 
 
 auto_ptr<EvalResult> Program::Eval(const Chars& expr,
+                                   const Strings& pathes,
                                    auto_ptr<Chars> data_ptr)
 {
-    return pimpl_->Eval(expr, data_ptr);
+    return pimpl_->Eval(expr, pathes, data_ptr);
 }

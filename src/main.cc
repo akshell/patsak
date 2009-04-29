@@ -84,6 +84,7 @@ namespace
         void HandleEval();
         void Write(const string& str) const;
         void NextLine();
+        void ReadLine();
     };
 }
 
@@ -100,7 +101,7 @@ RequestHandler::RequestHandler(Program& program,
 bool RequestHandler::Handle()
 {
     try {
-        asio::read_until(socket_, buf_, '\n');
+        ReadLine();
         string request;
         is_ >> request;
         if (request == "EVAL") {
@@ -135,13 +136,13 @@ void RequestHandler::HandleEval()
 {
     Chars expr;
     auto_ptr<Chars> data_ptr;
+    Strings pathes;
     if (is_.peek() == ' ') {
         string expr_str;
         getline(is_, expr_str);
         expr.assign(expr_str.begin(), expr_str.end());
     } else {
         NextLine();
-        asio::read_until(socket_, buf_, '\n');
         string command;
         is_ >> command;
         if (command == "DATA") {
@@ -153,6 +154,14 @@ void RequestHandler::HandleEval()
             NextLine();
             is_ >> command;
         }
+        while (command == "FILE") {
+            if (is_.get() != ' ')
+                throw ProcessingError("Bad FILE command");
+            pathes.push_back(string());
+            getline(is_, pathes.back());
+            ReadLine();
+            is_ >> command;
+        }
         if (command != "EXPR")
             throw ProcessingError("Unexpected command: " + command);
         size_t size;
@@ -161,7 +170,7 @@ void RequestHandler::HandleEval()
         expr.resize(size);
         is_.read(&expr.front(), size);
     }
-    auto_ptr<EvalResult> eval_result_ptr(program_.Eval(expr, data_ptr));
+    auto_ptr<EvalResult> eval_result_ptr(program_.Eval(expr, pathes, data_ptr));
     KU_ASSERT(eval_result_ptr.get());
     vector<asio::const_buffer> buffers;
     string beginning = eval_result_ptr->GetStatus() + '\n';
@@ -182,8 +191,14 @@ void RequestHandler::NextLine()
 {
     if (is_.get() != '\n')
         throw ProcessingError("Ill formed request");
+    ReadLine();
 }
 
+
+void RequestHandler::ReadLine()
+{
+    asio::read_until(socket_, buf_, '\n');
+}
 ////////////////////////////////////////////////////////////////////////////////
 // MainRunner
 ////////////////////////////////////////////////////////////////////////////////
@@ -197,7 +212,7 @@ namespace
         
     private:
         string eval_exprs_;
-        string log_dir_, socket_dir_, code_dir_, include_dir_;
+        string log_dir_, socket_dir_, code_dir_, include_dir_, media_dir_;
         string db_user_, db_password_, db_prefix_;
         string app_name_, user_name_, tag_name_;
         bool test_mode_;
@@ -273,6 +288,7 @@ void MainRunner::Parse(int argc, char** argv)
         ("socket-dir,s", po::value<string>(&socket_dir_), "socket directory")
         ("code-dir,c", po::value<string>(&code_dir_), "code directory")
         ("include-dir,i", po::value<string>(&include_dir_), "include directory")
+        ("media-dir,m", po::value<string>(&media_dir_), "media directory")
         ("db-user,u", po::value<string>(&db_user_), "database user")
         ("db-password,p", po::value<string>(&db_password_), "database password")
         ("db-prefix",
@@ -343,6 +359,7 @@ void MainRunner::Check() const
 {
     RequireOption("code-dir", code_dir_);
     RequireOption("include-dir", include_dir_);
+    RequireOption("media-dir", media_dir_);
     RequireOption("db-user", db_user_);
     RequireOption("db-password", db_password_);
     if (!test_mode_) {
@@ -375,6 +392,7 @@ void MainRunner::MakePathesAbsolute()
     MakePathAbsolute(curr_dir, socket_dir_);
     MakePathAbsolute(curr_dir, code_dir_);
     MakePathAbsolute(curr_dir, include_dir_);
+    MakePathAbsolute(curr_dir, media_dir_);
     free(curr_dir);
 }
 
@@ -405,7 +423,8 @@ auto_ptr<DB> MainRunner::InitDB() const
 auto_ptr<Program> MainRunner::InitProgram(DB& db) const
 {
     string js_file_path(code_dir_ + GetPathSuffix() + "/main.js");
-    return auto_ptr<Program>(new Program(js_file_path, db));
+    string media_path(media_dir_ + GetPathSuffix());
+    return auto_ptr<Program>(new Program(js_file_path, media_path, db));
 }
 
 
@@ -441,7 +460,7 @@ void MainRunner::RunServer(Program& program) const
         cout.flush();
         freopen("/dev/null", "r", stdin);
         freopen("/dev/null", "w", stdout);
-        freopen("/dev/null", "w", stderr);
+        freopen("/tmp/patsak-log", "a", stderr);
     
         for (bool go_on = true; go_on; ) {
             stream_protocol::socket socket(io_service);

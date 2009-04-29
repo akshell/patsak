@@ -7,6 +7,7 @@ var db = ak.db;
 var rel = ak.rel;
 var type = ak.type;
 var constr = ak.constr;
+var fs = ak.fs;
 
 function print(x) {
     ak._print(x);
@@ -146,12 +147,6 @@ base_test_suite.testConstructors = function()
     check("db instanceof ak.DB");
     check("type instanceof ak.TypeCatalog");
     check("rel instanceof ak.RelCatalog");
-
-    checkThrows("(new ak.Global()).print('hi')");
-    checkThrows("(new ak.AK()).db.query('test')");
-    checkThrows("(new ak.Db()).query('test')");
-    checkThrows("(new ak.TypeCatalog()).number");
-    checkThrows("(new ak.RelCatalog()).test");
 };
 
 
@@ -664,12 +659,126 @@ db_test_suite.testForeignKey = function()
 })();
 
 ////////////////////////////////////////////////////////////////////////////////
+// File test suite
+////////////////////////////////////////////////////////////////////////////////
+
+var file_test_suite = {};
+
+
+file_test_suite.setUp = function ()
+{
+    var children = ak.fs.list('');
+    forEach(children, ak.fs.remove);
+    fs.mkdir('dir1');
+    fs.mkdir('dir2');
+    fs.mkdir('dir1/subdir');
+    fs.write('file', 'some text');
+    fs.write('dir1/subdir/hello', 'hello world!');
+};
+
+
+file_test_suite.testRead = function ()
+{
+    checkEqualTo("fs.read('//dir1////subdir/hello')",
+                 'hello world!');
+    checkThrows("fs.read('does_not_exists')");
+    checkThrows("fs.read('dir1')");
+    checkThrows("fs.read('//..//test_app/dir1/subdir/hello')");
+    checkThrows("fs.read('////')");
+    checkThrows(function () {
+                    var path = '';
+                    for (var i = 0; i < 40; ++i)
+                        path += '/dir';
+                    fs.read(path);
+                });
+};
+
+
+file_test_suite.testList = function ()
+{
+    checkEqualTo("fs.list('').sort()", ['dir1', 'dir2', 'file']);
+};
+
+
+file_test_suite.testExists = function ()
+{
+    checkEqualTo("fs.exists('')", true);
+    checkEqualTo("fs.exists('dir1/subdir/hello')", true);
+    checkEqualTo("fs.exists('no/such')", false);
+};
+
+
+file_test_suite.testIsDir = function ()
+{
+    checkEqualTo("fs.isDir('')", true);
+    checkEqualTo("fs.isDir('dir2')", true);
+    checkEqualTo("fs.isDir('file')", false);
+    checkEqualTo("fs.isDir('no/such')", false);
+};
+
+
+file_test_suite.testIsFile = function ()
+{
+    checkEqualTo("fs.isFile('')", false);
+    checkEqualTo("fs.isFile('dir1/subdir/hello')", true);
+    checkEqualTo("fs.isFile('dir1/subdir')", false);
+    checkEqualTo("fs.isFile('no/such')", false);
+};
+
+
+file_test_suite.testRm = function ()
+{
+    fs.write('new-file', 'data');
+    fs.rm('new-file');
+    fs.mkdir('dir2/new-dir');
+    fs.rm('dir2/new-dir');
+    checkEqualTo("fs.list('').sort()", ['dir1', 'dir2', 'file']);
+    checkEqualTo("fs.list('dir2')", []);
+};
+
+
+file_test_suite.testWrite = function ()
+{
+    fs.write('wuzzup', 'yo wuzzup!');
+    checkEqualTo("fs.read('wuzzup')", 'yo wuzzup!');
+    fs.write('hello', fs.read('dir1/subdir/hello'));
+    checkEqualTo("fs.read('hello')", 'hello world!');
+    fs.rm('wuzzup');
+};
+
+
+file_test_suite.testMkDir = function ()
+{
+    fs.mkdir('dir2/ddd');
+    checkEqualTo("fs.list('dir2')", ['ddd']);
+    checkEqualTo("fs.list('dir2/ddd')", []);
+    fs.rm('dir2/ddd');
+};
+
+file_test_suite.testCopyFile = function ()
+{
+    fs.copyFile('dir1/subdir/hello', 'dir2/hello');
+    checkEqualTo("fs.read('dir2/hello')", 'hello world!');
+    fs.rm('dir2/hello');
+    checkThrows("fs.copyFile('no_such', 'never_created')");
+    checkThrows("fs.copyFile('file', 'dir1/subdir')");
+};
+
+
+file_test_suite.testRename = function ()
+{
+    fs.rename('dir1', 'dir2/dir3');
+    checkEqualTo("fs.read('dir2/dir3/subdir/hello')", 'hello world!');
+    fs.rename('dir2/dir3', 'dir1');
+};
+
+////////////////////////////////////////////////////////////////////////////////
 // Entry point
 ////////////////////////////////////////////////////////////////////////////////
 
 function main()
 {
-    runTestSuites([base_test_suite, db_test_suite]);
+    runTestSuites([base_test_suite, db_test_suite, file_test_suite]);
     return error_count;
 }
 
@@ -677,4 +786,10 @@ function main()
 function bug()
 {
     throw 42;
+}
+
+
+function fileTest()
+{
+
 }

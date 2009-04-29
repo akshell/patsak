@@ -16,6 +16,7 @@
 #include <memory>
 #include <vector>
 #include <map>
+#include <stdlib.h>
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,64 +146,77 @@ namespace ku
 #define JS_TYPE_CHECK(cond, message)            \
     JS_ERROR_CHECK(cond, TypeError, message)
 
+
+#define JS_CAN_THROW(expr)                      \
+    do {                                        \
+        if (!(expr))                            \
+            return v8::Handle<v8::Value>();     \
+    } while (0)
+
+
+#define JS_PROPAGATE(statements)                \
+    do {                                        \
+        try {                                   \
+            statements;                         \
+        } catch (const ku::Error& err) {        \
+            JS_THROW(Error, err.what());        \
+            return Handle<v8::Value>();         \
+        }                                       \
+    } while (0)
+
 ////////////////////////////////////////////////////////////////////////////////
 // JSClass
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace ku
 {
-    /// JavaScript class background manager
-    template <typename T>
-    class JSClass : boost::noncopyable{
+    class JSClassBase : boost::noncopyable {
     public:
-        JSClass(const std::string& name);
-        ~JSClass();
-
-        v8::Handle<v8::Object> Instantiate(T* bg_ptr);
-        T* Cast(v8::Handle<v8::Value> value);
         v8::Handle<v8::ObjectTemplate> GetObjectTemplate() const;
+        static void InitConstructors(v8::Handle<v8::Object> holder);
+        
+    protected:
+        JSClassBase(const std::string& name);
+        ~JSClassBase();
         v8::Handle<v8::Function> GetFunction();
-        template<typename U>
-        void AddSubClass(const JSClass<U>& subclass);
+        void AddSubClass(const JSClassBase& subclass);
+        void* Cast(v8::Handle<v8::Value> value);
+        v8::Handle<v8::ObjectTemplate> GetProtoTemplate() const;
 
     private:
-        template <typename>
-        friend class JSClass;
-        
+        std::string name_;
         v8::Persistent<v8::FunctionTemplate> function_template_;
         v8::Persistent<v8::Function> function_;
         v8::Persistent<v8::TypeSwitch> type_switch_;
         std::vector<v8::Handle<v8::FunctionTemplate> > cast_js_classes_;
 
-        v8::Handle<v8::TypeSwitch> GetTypeSwitch();
-        
+        static std::vector<JSClassBase*>& GetInstancePtrs();
+    };
+    
+    
+    /// JavaScript class background manager
+    template <typename T>
+    class JSClass : public JSClassBase {
+    public:
+        JSClass(const std::string& name);
+
+        v8::Handle<v8::Object> Instantiate(T* bg_ptr);
+        T* Cast(v8::Handle<v8::Value> value);
+        template<typename U>
+        void AddSubClass(const JSClass<U>& subclass);
+
+    private:
         static void DeleteCb(v8::Persistent<v8::Value> object,
                              void* parameter);
-
-        static v8::Handle<v8::Value> CallPlugCb(const v8::Arguments& args);
     };
-
 }
 
 
 template <typename T>
 ku::JSClass<T>::JSClass(const std::string& name)
-    : function_template_(v8::FunctionTemplate::New())
+    : JSClassBase(name)
 {
-    function_template_->SetClassName(v8::String::New(name.c_str()));
-    T::AdjustTemplates(GetObjectTemplate(),
-                       function_template_->PrototypeTemplate());
-    GetObjectTemplate()->SetInternalFieldCount(1);
-    cast_js_classes_.push_back(function_template_);
-}
-
-
-template <typename T>
-ku::JSClass<T>::~JSClass()
-{
-    type_switch_.Dispose();
-    function_.Dispose();
-    function_template_.Dispose();
+    T::AdjustTemplates(GetObjectTemplate(), GetProtoTemplate());
 }
 
 
@@ -220,35 +234,7 @@ v8::Handle<v8::Object> ku::JSClass<T>::Instantiate(T* bg_ptr)
 template <typename T>
 T* ku::JSClass<T>::Cast(v8::Handle<v8::Value> value)
 {
-    if (!GetTypeSwitch()->match(value))
-        return 0;
-    v8::Handle<v8::Value>
-        internal_field(value->ToObject()->GetInternalField(0));
-    if (!internal_field->IsExternal())
-        return 0;
-    v8::Handle<v8::External>
-        external = v8::Handle<v8::External>::Cast(internal_field);
-    return static_cast<T*>(external->Value());    
-}
-
-
-template <typename T>
-v8::Handle<v8::ObjectTemplate> ku::JSClass<T>::GetObjectTemplate() const
-{
-    return function_template_->InstanceTemplate();
-}
-
-
-template <typename T>
-v8::Handle<v8::Function> ku::JSClass<T>::GetFunction()
-{
-    if (function_.IsEmpty()) {
-        GetTypeSwitch();
-        function_ =
-            v8::Persistent<v8::Function>::New(
-                function_template_->GetFunction());
-    }
-    return function_;
+    return static_cast<T*>(JSClassBase::Cast(value));
 }
 
 
@@ -257,25 +243,7 @@ template <typename U>
 void ku::JSClass<T>::AddSubClass(const JSClass<U>& subclass)
 {
     while (false) { *(static_cast<T**>(0)) = static_cast<U*>(0); }
-    KU_ASSERT(!cast_js_classes_.empty());
-    
-    cast_js_classes_.push_back(subclass.function_template_);
-}
-
-
-template <typename T>
-v8::Handle<v8::TypeSwitch> ku::JSClass<T>::GetTypeSwitch()
-{
-    if (type_switch_.IsEmpty()) {
-        KU_ASSERT(!cast_js_classes_.empty());
-        type_switch_ =
-            v8::Persistent<v8::TypeSwitch>::New(
-                v8::TypeSwitch::New(cast_js_classes_.size(),
-                                    &cast_js_classes_[0]));
-        cast_js_classes_.clear();
-    }
-    KU_ASSERT(cast_js_classes_.empty());
-    return type_switch_;
+    JSClassBase::AddSubClass(subclass);
 }
 
 
@@ -285,15 +253,6 @@ void ku::JSClass<T>::DeleteCb(v8::Persistent<v8::Value> object, void* parameter)
     delete static_cast<T*>(parameter);
     object.Dispose();
     object.Clear();
-}
-
-
-template <typename T>
-v8::Handle<v8::Value> ku::JSClass<T>::CallPlugCb(const v8::Arguments& args)
-{
-    std::string class_name(ku::Stringify(args.Data()));
-    JS_THROW(Error, class_name + " is not intended for direct invoke");
-    return v8::Handle<v8::Value>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

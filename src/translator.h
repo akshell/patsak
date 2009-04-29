@@ -28,6 +28,8 @@ namespace ku
                 : rel_name(rel_name), field_names(field_names) {}
         };
         
+        virtual ~DBViewer() {}
+
         virtual
         const Header& GetRelHeader(const std::string& rel_name) const = 0;
         

@@ -87,3 +87,13 @@ ak.setObjectProp(Object.prototype,
     makeRelDelegation('updateByValues');
     makeRelDelegation('delete');
 })();
+
+
+ak.fs.remove = function (path) {
+    if (ak.fs.isDir(path)) {
+        var children = ak.fs.list(path);
+        for (var i = 0; i < children.length; ++i)
+            arguments.callee(path + '/' + children[i]);
+    }
+    ak.fs.rm(path);
+};

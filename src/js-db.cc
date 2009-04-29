@@ -260,14 +260,13 @@ namespace
 
 DEFINE_JS_CLASS(TypeBg, "Type", object_template, proto_template)
 {
-    object_template->SetAccessor(String::NewSymbol("name"),
-                                 &GetNameCb);
-    proto_template->Set("int", FunctionTemplate::New(&IntCb));
-    proto_template->Set("serial", FunctionTemplate::New(&SerialCb));
-    proto_template->Set("byDefault", FunctionTemplate::New(&ByDefaultCb));
-    proto_template->Set("unique", FunctionTemplate::New(&UniqueCb));
-    proto_template->Set("foreignKey", FunctionTemplate::New(&ForeignKeyCb));
-    proto_template->Set("check", FunctionTemplate::New(&CheckCb));
+    object_template->SetAccessor(String::NewSymbol("name"), GetNameCb);
+    proto_template->Set("int", FunctionTemplate::New(IntCb));
+    proto_template->Set("serial", FunctionTemplate::New(SerialCb));
+    proto_template->Set("byDefault", FunctionTemplate::New(ByDefaultCb));
+    proto_template->Set("unique", FunctionTemplate::New(UniqueCb));
+    proto_template->Set("foreignKey", FunctionTemplate::New(ForeignKeyCb));
+    proto_template->Set("check", FunctionTemplate::New(CheckCb));
 }
 
 
@@ -399,11 +398,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, CheckCb,
 DEFINE_JS_CLASS(TypeCatalogBg, "TypeCatalog",
                 object_template, /*proto_template*/)
 {
-    object_template->SetNamedPropertyHandler(&GetTypeCb,
+    TypeBg::GetJSClass();
+    object_template->SetNamedPropertyHandler(GetTypeCb,
                                              0,
-                                             &HasTypeCb,
+                                             HasTypeCb,
                                              0,
-                                             &EnumTypesCb);
+                                             EnumTypesCb);
 }
 
 
@@ -478,11 +478,11 @@ namespace
 
 DEFINE_JS_CLASS(TupleBg, "Tuple", object_template, /*proto_template*/)
 {
-    object_template->SetNamedPropertyHandler(&GetFieldCb,
+    object_template->SetNamedPropertyHandler(GetFieldCb,
                                              0,
-                                             &HasFieldCb,
+                                             HasFieldCb,
                                              0,
-                                             &EnumFieldsCb);
+                                             EnumFieldsCb);
 }
 
 
@@ -599,21 +599,22 @@ namespace
 
 DEFINE_JS_CLASS(QueryBg, "Query", object_template, proto_template)
 {
+    TupleBg::GetJSClass();
     InitObjectTemplate(object_template);
     proto_template->Set(String::NewSymbol("perform"),
-                        FunctionTemplate::New(&PerformCb),
+                        FunctionTemplate::New(PerformCb),
                         DontEnum);
 
     proto_template->Set(String::NewSymbol("only"),
-                        FunctionTemplate::New(&OnlyCb),
+                        FunctionTemplate::New(OnlyCb),
                         DontEnum);
 
     proto_template->Set(String::NewSymbol("where"),
-                        FunctionTemplate::New(&WhereCb),
+                        FunctionTemplate::New(WhereCb),
                         DontEnum);
 
     proto_template->Set(String::NewSymbol("by"),
-                        FunctionTemplate::New(&ByCb),
+                        FunctionTemplate::New(ByCb),
                         DontEnum);
 }
 
@@ -646,11 +647,11 @@ void QueryBg::InitObjectTemplate(Handle<ObjectTemplate> object_template)
                                  DEFAULT,
                                  DontEnum);
     
-    object_template->SetIndexedPropertyHandler(&GetTupleCb,
+    object_template->SetIndexedPropertyHandler(GetTupleCb,
                                                0,
-                                               &HasTupleCb,
+                                               HasTupleCb,
                                                0,
-                                               &EnumTuplesCb);
+                                               EnumTuplesCb);
 }
 
 
@@ -695,8 +696,7 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, QueryBg, GetLengthCb,
                     Local<String>, /*property*/,
                     const AccessorInfo&, /*info*/)
 {
-    if (!InitQueryResult())
-        return Handle<v8::Value>();
+    JS_CAN_THROW(InitQueryResult());
     return Integer::New(query_result_ptr_->GetSize());
 }
 
@@ -705,8 +705,7 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, QueryBg, GetTupleCb,
                     uint32_t, index,
                     const AccessorInfo&, /*info*/)
 {
-    if (!InitQueryResult())
-        return Handle<v8::Value>();
+    JS_CAN_THROW(InitQueryResult());
     if (index >= query_result_ptr_->GetSize())
         return Handle<v8::Value>();
     return JSNew<TupleBg>(*query_result_ptr_,
@@ -743,8 +742,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, PerformCb,
                     const Arguments&, args)
 {
     JS_CHECK_LENGTH(args, 0);
-    if (!InitQueryResult())
-        return Handle<v8::Value>();
+    JS_CAN_THROW(InitQueryResult());
     return Undefined();
 }
 
@@ -753,8 +751,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, OnlyCb,
                     const Arguments&, args) const
 {
     StringSet field_names;
-    if (!ReadStringSet(args, field_names))
-        return Handle<v8::Value>();
+    JS_CAN_THROW(ReadStringSet(args, field_names));
     Specifiers new_specifiers(specifiers_);
     new_specifiers.push_back(OnlySpecifier(field_names));
     return JSNew<QueryBg>(ref(access_holder_),
@@ -839,11 +836,11 @@ DEFINE_JS_CLASS(SubRelBg, "SubRel", object_template, proto_template)
     InitObjectTemplate(object_template);
     
     proto_template->Set(String::NewSymbol("update"),
-                        FunctionTemplate::New(&UpdateCb),
+                        FunctionTemplate::New(UpdateCb),
                         DontEnum);
 
     proto_template->Set(String::NewSymbol("del"),
-                        FunctionTemplate::New(&DelCb),
+                        FunctionTemplate::New(DelCb),
                         DontEnum);
 }
 
@@ -902,15 +899,10 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, UpdateCb,
     params.reserve(args.Length() - 1);
     for (int i = 1; i < args.Length(); ++i)
         params.push_back(ReadKuValue(args[i]));
-    try {
-        GetAccessHolder()->Update(GetRelName(),
-                                  field_expr_map,
-                                  params,
-                                  GetWhereSpecifiers());
-    } catch (const Error& err) {
-        JS_THROW(Error, err.what());
-        return Handle<v8::Value>();
-    }
+    JS_PROPAGATE(GetAccessHolder()->Update(GetRelName(),
+                                           field_expr_map,
+                                           params,
+                                           GetWhereSpecifiers()));
     return Undefined();
 }
 
@@ -919,12 +911,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, DelCb,
                     const Arguments&, args) const
 {
     JS_CHECK_LENGTH(args, 0);
-    try {
-        GetAccessHolder()->Delete(GetRelName(), GetWhereSpecifiers());
-    } catch (const Error& err) {
-        JS_THROW(Error, err.what());
-        return Handle<v8::Value>();
-    }
+    JS_PROPAGATE(GetAccessHolder()->Delete(GetRelName(), GetWhereSpecifiers()));
     return Undefined();
 }
 
@@ -970,6 +957,7 @@ const Constr& ConstrBg::GetConstr() const
 DEFINE_JS_CLASS(ConstrCatalogBg, "ConstrCatalog",
                 /*object_template*/, proto_template)
 {
+    ConstrBg::GetJSClass();
     proto_template->Set("unique", FunctionTemplate::New(UniqueCb));
     proto_template->Set("foreignKey", FunctionTemplate::New(ForeignKeyCb));
     proto_template->Set("check", FunctionTemplate::New(CheckCb));
@@ -980,8 +968,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, UniqueCb,
                     const Arguments&, args) const
 {
     StringSet field_names;
-    if (!ReadStringSet(args, field_names))
-        return Handle<v8::Value>();
+    JS_CAN_THROW(ReadStringSet(args, field_names));
     return JSNew<ConstrBg>(Unique(field_names));
 }
 
@@ -991,9 +978,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, ForeignKeyCb,
 {
     JS_CHECK_LENGTH(args, 3);
     StringSet key_field_names, ref_field_names;
-    if (!ReadStringSet(args[0], key_field_names) ||
-        !ReadStringSet(args[2], ref_field_names))
-        return Handle<v8::Value>();
+    JS_CAN_THROW(ReadStringSet(args[0], key_field_names) &&
+                 ReadStringSet(args[2], ref_field_names));
     return JSNew<ConstrBg>(ForeignKey(key_field_names,
                                       Stringify(args[1]),
                                       ref_field_names));
@@ -1082,16 +1068,10 @@ Handle<v8::Value> RelCreator::operator()(const Arguments& args) const
     string name;
     RichHeader rich_header;
     Constrs constrs;
-    if (!ReadIdentifier(args[0], name) ||
-        !ReadHeader(args[1], rich_header, constrs) ||
-        !ReadConstrs(args, constrs))
-        return Handle<v8::Value>();
-    try {
-        access_.CreateRel(name, rich_header, constrs);
-    } catch (const Error& err) {
-        JS_THROW(Error, err.what());
-        return Handle<v8::Value>();
-    }
+    JS_CAN_THROW(ReadIdentifier(args[0], name) &&
+                 ReadHeader(args[1], rich_header, constrs) &&
+                 ReadConstrs(args, constrs));
+    JS_PROPAGATE(access_.CreateRel(name, rich_header, constrs));
     return Undefined();
 }
 
@@ -1148,6 +1128,7 @@ bool RelCreator::ReadConstrs(const Arguments& args, Constrs& constrs)
 
 DEFINE_JS_CLASS(DBBg, "DB", /*object_template*/, proto_template)
 {
+    QueryBg::GetJSClass();
     proto_template->Set("query", FunctionTemplate::New(QueryCb));
     proto_template->Set("createRel", FunctionTemplate::New(CreateRelCb));
     proto_template->Set("dropRels", FunctionTemplate::New(DropRelsCb));
@@ -1184,14 +1165,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropRelsCb,
                     const Arguments&, args) const
 {
     StringSet rel_names;
-    if (!ReadStringSet(args, rel_names))
-        return Handle<v8::Value>();
-    try {
-        access_holder_->DeleteRels(rel_names);
-    } catch (const Error& err) {
-        JS_THROW(Error, err.what());
-        return Handle<v8::Value>();
-    }
+    JS_CAN_THROW(ReadStringSet(args, rel_names));
+    JS_PROPAGATE(access_holder_->DeleteRels(rel_names));
     return Undefined();
 }
 
@@ -1231,16 +1206,10 @@ Handle<v8::Value> Inserter::operator()(const Arguments& args) const
     for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
         Prop prop(prop_enumerator.GetProp(i));
         string name;
-        if (!ReadIdentifier(prop.key, name))
-            return Handle<v8::Value>();
+        JS_CAN_THROW(ReadIdentifier(prop.key, name));
         value_map.insert(ValueMap::value_type(name, ReadKuValue(prop.value)));
     }
-    try {
-        access_.Insert(rel_name_, value_map);
-    } catch (Error& err) {
-        JS_THROW(Error, err.what());
-        return Handle<v8::Value>();
-    }
+    JS_PROPAGATE(access_.Insert(rel_name_, value_map));
     return Undefined();
 }
 
@@ -1296,10 +1265,10 @@ namespace
 
 DEFINE_JS_CLASS(RelBg, "Rel", object_template, proto_template)
 {
-    object_template->SetAccessor(String::NewSymbol("name"),
-                                 &GetNameCb);
-    object_template->SetAccessor(String::NewSymbol("header"),
-                                 &GetHeaderCb);
+    SubRelBg::GetJSClass();
+    QueryBg::GetJSClass().AddSubClass(SubRelBg::GetJSClass());
+    object_template->SetAccessor(String::NewSymbol("name"), GetNameCb);
+    object_template->SetAccessor(String::NewSymbol("header"), GetHeaderCb);
     proto_template->Set("insert", FunctionTemplate::New(InsertCb));
     proto_template->Set("drop", FunctionTemplate::New(DropCb));
     proto_template->Set("all", FunctionTemplate::New(AllCb));
@@ -1351,12 +1320,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, DropCb,
                     const Arguments&, args) const
 {
     JS_CHECK_LENGTH(args, 0);    
-    try {
-        access_holder_->DeleteRel(name_);
-    } catch (Error& err) {
-        JS_THROW(Error, err.what());
-        return Handle<v8::Value>();
-    }
+    JS_PROPAGATE(access_holder_->DeleteRel(name_));
     return Undefined();
 }
 
@@ -1462,11 +1426,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetForeignKeysCb,
 
 DEFINE_JS_CLASS(RelCatalogBg, "RelCatalog", object_template, /*proto_template*/)
 {
-    object_template->SetNamedPropertyHandler(&GetRelCb,
+    RelBg::GetJSClass();
+    object_template->SetNamedPropertyHandler(GetRelCb,
                                              0,
-                                             &HasRelCb,
+                                             HasRelCb,
                                              0,
-                                             &EnumRelsCb);
+                                             EnumRelsCb);
 }
 
 
@@ -1504,34 +1469,4 @@ DEFINE_JS_CALLBACK1(Handle<Array>, RelCatalogBg, EnumRelsCb,
     for (size_t i = 0; i < rel_name_set.size(); ++i)
         result->Set(Integer::New(i), String::New(rel_name_set[i].c_str()));
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// InitDBConstructors definition
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    template<typename BgT>
-    void SetConstuctor(Handle<Object> ak, const string& name)
-    {
-        ak->Set(String::NewSymbol(name.c_str()),
-                BgT::GetJSClass().GetFunction());
-    }
-}
-
-void ku::InitDBConstructors(Handle<Object> ak)
-{
-    QueryBg::GetJSClass().AddSubClass(SubRelBg::GetJSClass());
-
-    SetConstuctor<DBBg>           (ak, "DB");
-    SetConstuctor<RelCatalogBg>   (ak, "RelCatalog");
-    SetConstuctor<TypeCatalogBg>  (ak, "TypeCatalog");
-    SetConstuctor<ConstrCatalogBg>(ak, "ConstrCatalog");
-    SetConstuctor<QueryBg>        (ak, "Query");
-    SetConstuctor<SubRelBg>       (ak, "SubRel");
-    SetConstuctor<RelBg>          (ak, "Rel");
-    SetConstuctor<TupleBg>        (ak, "Tuple");
-    SetConstuctor<TypeBg>         (ak, "Type");
-    SetConstuctor<ConstrBg>       (ak, "Constr");
 }

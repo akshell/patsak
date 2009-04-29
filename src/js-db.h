@@ -120,10 +120,6 @@ namespace ku
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CheckCb,
                              const v8::Arguments&) const;
     };
-
-
-    /// Initialize ak members - constructors of all database related objects
-    void InitDBConstructors(v8::Handle<v8::Object> ak);
 }
 
 #endif // JS_DB_H

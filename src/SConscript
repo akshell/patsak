@@ -9,6 +9,7 @@ sources = [
     'translator.cc',
     'type.cc',
     'js.cc',
+    'js-common.cc',
     'js-file.cc',
     'js-db.cc',
     'querist.cc',
