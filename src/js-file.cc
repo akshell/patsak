@@ -229,7 +229,7 @@ auto_ptr<struct stat> FSManager::GetStat() const
 
 bool FSManager::MkDir() const
 {
-    JS_ERRNO_CHECK(!mkdir(path_.c_str(), 0700));
+    JS_ERRNO_CHECK(!mkdir(path_.c_str(), S_IRWXU));
     return true;
 }
 

@@ -9,17 +9,42 @@
 
 #include <asio.hpp>
 #include <boost/program_options.hpp>
+#include <boost/assign/std/vector.hpp>
+#include <boost/bind.hpp>
+#include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/foreach.hpp>
 
+#include <sys/file.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <cstdio>
 
+
 using namespace std;
 using namespace ku;
 using asio::local::stream_protocol;
 namespace po = boost::program_options;
+using namespace boost::assign;
+using boost::bind;
+using boost::lexical_cast;
 
+
+////////////////////////////////////////////////////////////////////////////////
+// Constants
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    boost::posix_time::milliseconds CONNECT_TIMEOUT(1000);
+    boost::posix_time::milliseconds READ_TIMEOUT(1000);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Utils
@@ -61,6 +86,341 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Lock
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    class Lock {
+    public:
+        Lock(const string& path);
+        ~Lock();
+
+    private:
+        int fd_;
+    };
+}
+
+
+Lock::Lock(const string& path)
+{
+    fd_ = open(path.c_str(), O_CREAT | O_CLOEXEC, S_IRUSR | S_IWUSR);
+    KU_ASSERT(fd_ != -1);
+    int ret = flock(fd_, LOCK_EX);
+    KU_ASSERT(!ret);
+}
+
+
+Lock::~Lock()
+{
+    close(fd_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Connector
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    class Connector {
+    public:
+        enum Result {
+            OK,
+            FAIL,
+            TIMED_OUT
+        };
+        
+        Connector(stream_protocol::socket& socket);
+        Result operator()(const stream_protocol::endpoint& endpoint);
+
+    private:
+        static const Result INITIAL = static_cast<Result>(-1);
+        
+        stream_protocol::socket& socket_;
+        asio::deadline_timer timer_;
+        Result result_;
+
+        void HandleConnect(const asio::error_code& error);
+        void HandleTimer(const asio::error_code& error);
+    };
+}
+
+
+Connector::Connector(stream_protocol::socket& socket)
+    : socket_(socket)
+    , timer_(socket.get_io_service())
+{
+}
+
+
+Connector::Result
+Connector::operator()(const stream_protocol::endpoint& endpoint)
+{
+    socket_.get_io_service().reset();
+    result_ = INITIAL;
+    socket_.async_connect(endpoint, bind(&Connector::HandleConnect, this, _1));
+    timer_.expires_from_now(CONNECT_TIMEOUT);
+    timer_.async_wait(bind(&Connector::HandleTimer, this, _1));
+    socket_.get_io_service().run();
+    KU_ASSERT(result_ != INITIAL);
+    return result_;
+}
+
+
+void Connector::HandleConnect(const asio::error_code& error)
+{
+    if (result_ == INITIAL) {
+        timer_.cancel();
+        result_ = error ? FAIL : OK;
+    }
+}
+
+
+void Connector::HandleTimer(const asio::error_code& /*error*/)
+{
+    if (result_ == INITIAL) {
+        socket_.cancel();
+        result_ = TIMED_OUT;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Reader
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    class Reader {
+    public:
+        Reader(stream_protocol::socket& socket, Chars& data);
+        bool operator()();
+
+    private:
+        enum State {
+            INITIAL,
+            OK,
+            TIMED_OUT
+        };
+        
+        stream_protocol::socket& socket_;
+        asio::streambuf buf_;
+        Chars& data_;
+        asio::deadline_timer timer_;
+        State state_;
+
+        void HandleRead(const asio::error_code& error, size_t size);
+        void HandleTimer(const asio::error_code& error);
+    };
+}
+
+
+Reader::Reader(stream_protocol::socket& socket, Chars& data)
+    : socket_(socket)
+    , data_(data)
+    , timer_(socket.get_io_service())
+{
+}
+
+
+bool Reader::operator()()
+{
+    state_ = INITIAL;
+    async_read(socket_, buf_, bind(&Reader::HandleRead, this, _1, _2));
+    timer_.expires_from_now(READ_TIMEOUT);
+    timer_.async_wait(bind(&Reader::HandleTimer, this, _1));
+    socket_.get_io_service().reset();
+    socket_.get_io_service().run();
+    KU_ASSERT(state_ != INITIAL);
+    return state_ == OK;
+}
+
+
+void Reader::HandleRead(const asio::error_code& /*error*/, size_t size)
+{
+    if (state_ == INITIAL) {
+        timer_.cancel();
+        data_.resize(size);
+        buf_.commit(size);
+        istream(&buf_).read(&data_[0], size);
+        state_ = OK;
+    }
+}
+
+
+void Reader::HandleTimer(const asio::error_code& /*error*/)
+{
+    if (state_ == INITIAL) {
+        socket_.cancel();
+        state_ = TIMED_OUT;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AppAccessorImpl
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    class AppAccessorImpl : public AppAccessor {
+    public:
+        AppAccessorImpl(const string& self_name,
+                        const string& code_dir,
+                        const string& socket_dir,
+                        const string& guard_dir,
+                        const Strings& args);
+        
+        virtual Status Process(const string& self_name,
+                               const Chars* data_ptr,
+                               const Strings& file_pathes,
+                               const string& request,
+                               Chars& result);
+
+        virtual bool Exists(const string& app_name);
+        
+    private:
+        asio::io_service io_service_;
+        string self_name_;
+        string code_dir_;
+        string socket_dir_;
+        string guard_dir_;
+        Strings args_;
+
+        void LaunchApp(const string& app_name);
+    };
+}
+
+
+AppAccessorImpl::AppAccessorImpl(const string& self_name,
+                                 const string& code_dir,
+                                 const string& socket_dir,
+                                 const string& guard_dir,
+                                 const Strings& args)
+    : self_name_(self_name)
+    , code_dir_(code_dir)
+    , socket_dir_(socket_dir)
+    , guard_dir_(guard_dir)
+    , args_(args)
+{
+}
+
+
+AppAccessor::Status AppAccessorImpl::Process(const string& app_name,
+                                             const Chars* data_ptr,
+                                             const Strings& file_pathes,
+                                             const string& request,
+                                             Chars& result)
+{
+    if (app_name.empty() || app_name.find('/') != string::npos ||
+        app_name == "."  || app_name == "..")
+        return INVALID_APP_NAME;
+    if (app_name == self_name_)
+        return SELF_CALL;
+    
+    stream_protocol::endpoint endpoint(socket_dir_ + "/release/" + app_name);
+    stream_protocol::socket socket(io_service_);
+
+    Connector connector(socket);
+    Connector::Result connect_result = connector(endpoint);
+    if (connect_result == Connector::TIMED_OUT)
+        return TIMED_OUT;
+    if (connect_result == Connector::FAIL) {
+        Lock(guard_dir_ + "/release/" + app_name);
+        if (!Exists(app_name))
+            return NO_SUCH_APP;
+        connect_result = connector(endpoint);
+        if (connect_result == Connector::TIMED_OUT)
+            return TIMED_OUT;
+        if (connect_result == Connector::FAIL) {
+            LaunchApp(app_name);
+            connect_result = connector(endpoint);
+        }
+    }
+    KU_ASSERT(connect_result == Connector::OK);
+
+    vector<asio::const_buffer> buffers;
+    buffers.reserve(file_pathes.size() + 5);
+
+    string process_header("PROCESS");
+    buffers.push_back(asio::buffer(process_header));
+
+    string data_header;
+    if (data_ptr) {
+        data_header = "\nDATA " + lexical_cast<string>(data_ptr->size()) + '\n';
+        buffers.push_back(asio::buffer(data_header));
+        buffers.push_back(asio::buffer(*data_ptr));
+    }
+
+    vector<string> file_descrs;
+    file_descrs.reserve(file_pathes.size());
+    BOOST_FOREACH(const string& file_path, file_pathes) {
+        file_descrs.push_back("\nFILE " + file_path);
+        buffers.push_back(asio::buffer(file_descrs.back()));
+    }
+
+    string request_header("\nREQUEST " +
+                          lexical_cast<string>(request.size()) +
+                          '\n');
+    buffers.push_back(asio::buffer(request_header));
+    buffers.push_back(asio::buffer(request));
+
+    asio::error_code error_code;
+    asio::write(socket, buffers, asio::transfer_all(), error_code);
+    KU_ASSERT(!error_code);
+
+    Reader reader(socket, result);
+    if (!reader())
+        return TIMED_OUT;
+    return OK;
+}
+
+
+bool AppAccessorImpl::Exists(const string& app_name)
+{
+    string code_path(code_dir_ + "/release/" + app_name);
+    struct stat st;
+    int ret = stat(code_path.c_str(), &st);
+    if (ret == -1) {
+        KU_ASSERT(errno == ENOENT);
+        return false;
+    }
+    KU_ASSERT(S_ISDIR(st.st_mode));
+    return true;
+}
+
+
+void AppAccessorImpl::LaunchApp(const string& app_name)
+{
+    int pipe_fds[2];
+    int ret = pipe(pipe_fds);
+    KU_ASSERT(!ret);
+    pid_t pid = fork();
+    KU_ASSERT(pid != -1);
+    if (pid) {
+        close(pipe_fds[1]);
+        pid_t child_pid = waitpid(pid, 0, 0);
+        KU_ASSERT(child_pid == pid);
+        char buf[6];
+        ssize_t count = read(pipe_fds[0], buf, 6);
+        close(pipe_fds[0]);
+        KU_ASSERT(count == 6);
+        KU_ASSERT(string(buf, buf + 6) == "READY\n");
+    } else {
+        close(pipe_fds[0]);
+        int fd = dup2(pipe_fds[1], 1);
+        KU_ASSERT(fd == 1);
+        if (pipe_fds[1] != 1)
+            close(pipe_fds[1]);
+        vector<char*> argv(args_.size() + 2);
+        for (size_t i = 0; i < args_.size(); ++i)
+            argv[i] = const_cast<char*>(args_[i].c_str());
+        argv[args_.size()] = const_cast<char*>(app_name.c_str());
+        argv.back() = 0;
+        execv(argv[0], &argv[0]);
+        Fail(strerror(errno));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // RequestHandler
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,10 +441,11 @@ namespace
         asio::streambuf buf_;
         istream is_;
 
-        void HandleEval();
+        void HandleProcess();
         void Write(const string& str) const;
         void NextLine();
         void ReadLine();
+        void Read(size_t size);
     };
 }
 
@@ -102,10 +463,12 @@ bool RequestHandler::Handle()
 {
     try {
         ReadLine();
+        Log("Size: " + lexical_cast<string>(buf_.size()));
         string request;
         is_ >> request;
-        if (request == "EVAL") {
-            HandleEval();
+        Log("Request: " + request);
+        if (request == "PROCESS") {
+            HandleProcess();
             return true;
         }
         if (request == "STATUS") {
@@ -132,26 +495,30 @@ bool RequestHandler::Handle()
 }
 
 
-void RequestHandler::HandleEval()
+void RequestHandler::HandleProcess()
 {
-    Chars expr;
+    Chars request;
     auto_ptr<Chars> data_ptr;
     Strings pathes;
-    if (is_.peek() == ' ') {
-        string expr_str;
-        getline(is_, expr_str);
-        expr.assign(expr_str.begin(), expr_str.end());
+    if (istream(&buf_).peek() == ' ') {
+        string request_str;
+        istream is(&buf_);
+        getline(is, request_str);
+        request.assign(request_str.begin(), request_str.end());
     } else {
         NextLine();
+        ReadLine();
         string command;
         is_ >> command;
         if (command == "DATA") {
             size_t size;
-            is_ >> size;
+            istream(&buf_) >> size;
             NextLine();
+            Read(size + 1);
             data_ptr.reset(new Chars(size));
             is_.read(&(data_ptr->front()), size);
             NextLine();
+            ReadLine();
             is_ >> command;
         }
         while (command == "FILE") {
@@ -162,21 +529,24 @@ void RequestHandler::HandleEval()
             ReadLine();
             is_ >> command;
         }
-        if (command != "EXPR")
+        if (command != "REQUEST")
             throw ProcessingError("Unexpected command: " + command);
         size_t size;
         is_ >> size;
         NextLine();
-        expr.resize(size);
-        is_.read(&expr.front(), size);
+        Read(size);
+        request.resize(size);
+        is_.read(&request[0], size);
     }
-    auto_ptr<EvalResult> eval_result_ptr(program_.Eval(expr, pathes, data_ptr));
-    KU_ASSERT(eval_result_ptr.get());
+    auto_ptr<Response> response_ptr(program_.Process(request,
+                                                     pathes,
+                                                     data_ptr));
+    KU_ASSERT(response_ptr.get());
     vector<asio::const_buffer> buffers;
-    string beginning = eval_result_ptr->GetStatus() + '\n';
+    string beginning = response_ptr->GetStatus() + '\n';
     buffers.push_back(asio::buffer(beginning));
-    buffers.push_back(asio::buffer(eval_result_ptr->GetData(),
-                                   eval_result_ptr->GetSize()));
+    buffers.push_back(asio::buffer(response_ptr->GetData(),
+                                   response_ptr->GetSize()));
     asio::write(socket_, buffers);    
 }
 
@@ -191,7 +561,6 @@ void RequestHandler::NextLine()
 {
     if (is_.get() != '\n')
         throw ProcessingError("Ill formed request");
-    ReadLine();
 }
 
 
@@ -199,6 +568,30 @@ void RequestHandler::ReadLine()
 {
     asio::read_until(socket_, buf_, '\n');
 }
+
+
+namespace
+{
+    class TransferController {
+    public:
+        TransferController(size_t size) : size_(size) {}
+        
+        size_t operator()(const asio::error_code&, size_t bytes_read) const {
+            return bytes_read > size_ ? 0 : size_ - bytes_read;
+        }
+
+    private:
+        size_t size_;
+    };
+}
+
+
+void RequestHandler::Read(size_t size)
+{
+    if (size > buf_.size())
+        asio::read(socket_, buf_, TransferController(size - buf_.size()));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // MainRunner
 ////////////////////////////////////////////////////////////////////////////////
@@ -211,8 +604,9 @@ namespace
         void Run();
         
     private:
-        string eval_exprs_;
-        string log_dir_, socket_dir_, code_dir_, include_dir_, media_dir_;
+        string request_;
+        string log_dir_, code_dir_, include_dir_, media_dir_;
+        string socket_dir_, guard_dir_;
         string db_user_, db_password_, db_prefix_;
         string app_name_, user_name_, tag_name_;
         bool test_mode_;
@@ -220,15 +614,18 @@ namespace
         void Parse(int argc, char** argv);
         
         static void RequireOption(const string& name,
-                                  const string& value,
-                                  const string& addition=string());
+                                  const string& value);
 
         void Check() const;
         void MakePathesAbsolute();
         bool IsRelease() const;
         string GetPathSuffix() const;
         auto_ptr<DB> InitDB() const;
-        auto_ptr<Program> InitProgram(DB& db) const;
+        auto_ptr<AppAccessor> InitAppAccessor() const;
+
+        auto_ptr<Program> InitProgram(DB& db,
+                                      AppAccessor& app_accessor) const;
+        
         void RunTest(Program& program, istream& is) const;
         
         static bool HandleRequest(Program& program,
@@ -254,12 +651,13 @@ void MainRunner::Run()
         Daemonize();
     }
     auto_ptr<DB> db_ptr(InitDB());
-    auto_ptr<Program> program_ptr(InitProgram(*db_ptr));
+    auto_ptr<AppAccessor> ae_ptr(InitAppAccessor());
+    auto_ptr<Program> program_ptr(InitProgram(*db_ptr, *ae_ptr));
     if (test_mode_) {
-        if (eval_exprs_.empty()) {
+        if (request_.empty()) {
             RunTest(*program_ptr, cin);
         } else {
-            istringstream iss(eval_exprs_);
+            istringstream iss(request_);
             RunTest(*program_ptr, iss);
         }
     } else {
@@ -277,15 +675,16 @@ void MainRunner::Parse(int argc, char** argv)
          po::value<string>()->default_value("/etc/patsak"),
          "config file path")
         ("test,t", po::bool_switch(&test_mode_), "test mode")
-        ("eval,e",
-         po::value<string>(&eval_exprs_),
-         "expression for evaluation (test mode only, \\n delimited)")
+        ("request,r",
+         po::value<string>(&request_),
+         "request for processing (test mode only)")
         ;
     
     po::options_description config_options("Config options");
     config_options.add_options()
         ("log-dir,l", po::value<string>(&log_dir_), "log directory")
         ("socket-dir,s", po::value<string>(&socket_dir_), "socket directory")
+        ("guard-dir,g", po::value<string>(&guard_dir_), "guard directory")
         ("code-dir,c", po::value<string>(&code_dir_), "code directory")
         ("include-dir,i", po::value<string>(&include_dir_), "include directory")
         ("media-dir,m", po::value<string>(&media_dir_), "media directory")
@@ -345,11 +744,10 @@ void MainRunner::Parse(int argc, char** argv)
 
 
 void MainRunner::RequireOption(const string& name,
-                                const string& value,
-                                const string& addition)
+                               const string& value)
 {
     if (value.empty()) {
-        cerr << "option " << name << " is required" << addition << '\n';
+        cerr << "option " << name << " is required\n";
         exit(1);
     }
 }
@@ -357,16 +755,17 @@ void MainRunner::RequireOption(const string& name,
 
 void MainRunner::Check() const
 {
+    RequireOption("log-dir", log_dir_);
+    RequireOption("socket-dir", socket_dir_);
+    RequireOption("guard-dir", guard_dir_);
     RequireOption("code-dir", code_dir_);
     RequireOption("include-dir", include_dir_);
     RequireOption("media-dir", media_dir_);
     RequireOption("db-user", db_user_);
     RequireOption("db-password", db_password_);
     if (!test_mode_) {
-        RequireOption("log-dir", log_dir_, " for server mode");
-        RequireOption("socket-dir", socket_dir_, " for server mode");
-        if (!eval_exprs_.empty()) {
-            cerr << "eval expressions option is specific to test mode\n";
+        if (!request_.empty()) {
+            cerr << "request option is specific to test mode\n";
             exit(1);
         }
     }
@@ -390,6 +789,7 @@ void MainRunner::MakePathesAbsolute()
     }
     MakePathAbsolute(curr_dir, log_dir_);
     MakePathAbsolute(curr_dir, socket_dir_);
+    MakePathAbsolute(curr_dir, guard_dir_);
     MakePathAbsolute(curr_dir, code_dir_);
     MakePathAbsolute(curr_dir, include_dir_);
     MakePathAbsolute(curr_dir, media_dir_);
@@ -420,28 +820,52 @@ auto_ptr<DB> MainRunner::InitDB() const
 }
 
 
-auto_ptr<Program> MainRunner::InitProgram(DB& db) const
+auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
+{
+    Strings args;
+    args +=
+        "/proc/self/exe",
+        "--log-dir", log_dir_,
+        "--socket-dir", socket_dir_,
+        "--guard-dir", guard_dir_,
+        "--code-dir", code_dir_,
+        "--include-dir", include_dir_,
+        "--media-dir", media_dir_,
+        "--db-user", db_user_,
+        "--db-password", db_password_,
+        "--db-prefix", db_prefix_;
+    return auto_ptr<AppAccessor>(new AppAccessorImpl(app_name_,
+                                                     code_dir_,
+                                                     socket_dir_,
+                                                     guard_dir_,
+                                                     args));
+}
+
+
+auto_ptr<Program> MainRunner::InitProgram(DB& db,
+                                          AppAccessor& app_accessor) const
 {
     string code_path(code_dir_ + GetPathSuffix());
     string media_path(media_dir_ + GetPathSuffix());
     return auto_ptr<Program>(new Program(code_path,
                                          include_dir_,
                                          media_path,
-                                         db));
+                                         db,
+                                         app_accessor));
 }
 
 
 void MainRunner::RunTest(Program& program, istream& is) const
 {
     while (!is.eof()) {
-        string expr_str;
-        getline(is, expr_str);
-        Chars expr(expr_str.begin(), expr_str.end());
-        if (expr.empty())
+        string request_str;
+        getline(is, request_str);
+        if (request_str.empty())
             continue;
-        auto_ptr<EvalResult> result_ptr(program.Eval(expr));
-        cout << result_ptr->GetStatus() << '\n';
-        cout.write(result_ptr->GetData(), result_ptr->GetSize());
+        Chars request(request_str.begin(), request_str.end());
+        auto_ptr<Response> response_ptr(program.Process(request));
+        cout << response_ptr->GetStatus() << '\n';
+        cout.write(response_ptr->GetData(), response_ptr->GetSize());
         cout << '\n';
     }
 }

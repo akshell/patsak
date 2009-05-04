@@ -33,7 +33,7 @@ JSClassBase::~JSClassBase()
 {
     type_switch_.Dispose();
     function_.Dispose();
-    function_template_.Dispose();
+//     function_template_.Dispose(); // causes segfault in cov mode
 }
 
 

@@ -8,6 +8,8 @@ var rel = ak.rel;
 var type = ak.type;
 var constr = ak.constr;
 var fs = ak.fs;
+var apps = ak.apps;
+
 
 function print(x) {
     ak._print(x);
@@ -674,13 +676,18 @@ var file_test_suite = {};
 
 file_test_suite.setUp = function ()
 {
-    var children = ak.fs.list('');
-    forEach(children, ak.fs.remove);
+    forEach(ak.fs.list(''), ak.fs.remove);
     fs.mkdir('dir1');
     fs.mkdir('dir2');
     fs.mkdir('dir1/subdir');
     fs.write('file', 'some text');
     fs.write('dir1/subdir/hello', 'hello world!');
+};
+
+
+file_test_suite.tearDown = function ()
+{
+    forEach(ak.fs.list(''), ak.fs.remove);
 };
 
 
@@ -762,6 +769,7 @@ file_test_suite.testMkDir = function ()
     fs.rm('dir2/ddd');
 };
 
+
 file_test_suite.testCopyFile = function ()
 {
     fs.copyFile('dir1/subdir/hello', 'dir2/hello');
@@ -780,12 +788,62 @@ file_test_suite.testRename = function ()
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+// File test suite
+////////////////////////////////////////////////////////////////////////////////
+
+var call_test_suite = {};
+
+
+call_test_suite.testCall = function ()
+{
+    fs.write('file1', 'wuzzup');
+    fs.write('file2', 'yo ho ho');
+    checkEqualTo(function () {
+                     return apps.another_app.call('hello world!',
+                                                  ['file1', 'file2'],
+                                                  'yo!!!');
+                 },
+                 '{"arg":"hello world!","data":"yo!!!",' +
+                 '"file_contents":["wuzzup","yo ho ho"]}');
+    check("!fs.exists('file1') && !fs.exists('file2')");
+    checkThrows("apps.no_such_app.call('hi')");
+    check("'another_app' in apps");
+    check("!('no_such_app' in apps)");
+    checkThrows("apps.another_app.call('', {length: 1})");
+    checkEqualTo(
+        function () {
+            fs.write('file3', 'text');
+            var result = apps.another_app.call('', [], fs.read('file3'));
+            fs.remove('file3');
+            return result;
+        },
+        '{"arg":"","data":"text","file_contents":[]}');
+    checkThrows("apps['invalid/app/name'].call('')");
+    checkThrows("apps.test_app.call('2+2')");
+    checkThrows("apps.throwing_app.call('')");
+    checkThrows("apps.blocking_app.call('')");
+    checkThrows("apps.another_app.call('', ['..'])");
+    checkThrows("apps.another_app.call('', ['no-such-file'])");
+    checkThrows(function () {
+                    fs.mkdir('dir');
+                    try {
+                        apps.another_app.call('', ['dir']);
+                    } finally {
+                        fs.remove('dir');
+                    }
+                });
+};
+
+////////////////////////////////////////////////////////////////////////////////
 // Entry point
 ////////////////////////////////////////////////////////////////////////////////
 
 function main()
 {
-    runTestSuites([base_test_suite, db_test_suite, file_test_suite]);
+    runTestSuites([base_test_suite,
+                   db_test_suite,
+                   file_test_suite,
+                   call_test_suite]);
     return error_count;
 }
 
@@ -800,3 +858,9 @@ function fileTest()
 {
 
 }
+
+
+ak._main = function (expr)
+{
+    return eval(expr);
+};

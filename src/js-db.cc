@@ -109,6 +109,7 @@ namespace
         if (length == -1)
             string_set.add_sure(Stringify(value));
         else {
+            string_set.reserve(length);
             for (int32_t i = 0; i < length; ++i) {
                 Handle<v8::Value> item(GetArrayLikeItem(value, i));
                 if (item.IsEmpty())
@@ -128,6 +129,7 @@ namespace
         if (args.Length() == 1)
             return ReadStringSet(args[0], string_set);
         string_set.clear();
+        string_set.reserve(args.Length());
         for (int i = 0; i < args.Length(); ++i) {
             if (!string_set.add_unsure(Stringify(args[i]))) {
                 JS_THROW(Error, "Dumplicating names");

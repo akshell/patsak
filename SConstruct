@@ -19,7 +19,7 @@ MODE_FLAGS = {
         },
     'debug': {
         'LIBS': ['v8_g'],
-        'CCFLAGS': ['-g', '-O0', '-DBACKTRACE'],
+        'CCFLAGS': ['-g', '-O0', '-DBACKTRACE', '-DTEST'],
         'LINKFLAGS': ['-rdynamic'],
         },
     'cov': {
