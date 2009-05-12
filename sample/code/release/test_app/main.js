@@ -122,6 +122,7 @@ base_test_suite.testInclude = function()
     checkThrows("include('../out-of-base-dir.js')");
     checkThrows("include('unreadable.js')");
     check("include('subdir/another-hello.js') == 'hello'");
+    checkThrows("include('self-includer.js')");
 };
 
 

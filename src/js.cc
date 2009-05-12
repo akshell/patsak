@@ -54,6 +54,7 @@ namespace
         const string include_dir_;
         string base_path_;
         string curr_path_;
+        Strings work_pathes_;
 
         static string DirName(const string& path);
         static string Canonicalize(const string& path);
@@ -97,7 +98,9 @@ Handle<v8::Value> CodeLoader::Include(const string& path)
     // possibility of scanning file system by such includes
     JS_CHECK(!full_path.empty() &&
              full_path.substr(0, base_path_.size()) == base_path_,
-             "Bad include() path");
+             "Bad include() path: " + path);
+    BOOST_FOREACH(const string& work_path, work_pathes_)
+        JS_CHECK(full_path != work_path, "Recursive including: " + path);
     Chars data;
     JS_CAN_THROW(ReadFileData(full_path, data));
     Handle<String> expr(String::New(&data[0], data.size()));
@@ -111,7 +114,9 @@ Handle<v8::Value> CodeLoader::Include(const string& path)
         if (!script.IsEmpty()) {
             string old_curr_path(curr_path_);
             curr_path_ = DirName(full_path);
+            work_pathes_.push_back(full_path);
             result = script->Run();
+            work_pathes_.pop_back();
             curr_path_ = old_curr_path;
         }
         exception = try_catch.Exception();
