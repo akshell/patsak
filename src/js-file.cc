@@ -203,6 +203,7 @@ bool FSManager::IsFile() const
     return S_ISREG(stat_ptr->st_mode);
 }
 
+
 bool FSManager::List(Strings& items) const
 {
     items.clear();

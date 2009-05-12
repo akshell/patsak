@@ -406,6 +406,7 @@ void AppAccessorImpl::LaunchApp(const string& app_name)
         KU_ASSERT(string(buf, buf + 6) == "READY\n");
     } else {
         close(pipe_fds[0]);
+        freopen("/dev/null", "w", stderr);
         int fd = dup2(pipe_fds[1], 1);
         KU_ASSERT(fd == 1);
         if (pipe_fds[1] != 1)
@@ -463,10 +464,8 @@ bool RequestHandler::Handle()
 {
     try {
         ReadLine();
-        Log("Size: " + lexical_cast<string>(buf_.size()));
         string request;
         is_ >> request;
-        Log("Request: " + request);
         if (request == "PROCESS") {
             HandleProcess();
             return true;
@@ -645,9 +644,9 @@ MainRunner::MainRunner(int argc, char** argv)
 
 void MainRunner::Run()
 {
+    MakePathesAbsolute();
     if (!test_mode_) {
         OpenLogFile(log_dir_ + GetPathSuffix());
-        MakePathesAbsolute();
         Daemonize();
     }
     auto_ptr<DB> db_ptr(InitDB());

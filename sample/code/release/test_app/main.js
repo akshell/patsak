@@ -261,7 +261,7 @@ db_test_suite.testCreateRel = function()
                     db.createRel('illegal', {x: number}, constr.unique(obj));
                 });
 
-    var obj = {toString: function () { return 'x'; }}
+    var obj = {toString: function () { return 'x'; }};
     db.createRel('legal', {x: number}, constr.unique(obj));
     rel.legal.drop();
 
@@ -358,7 +358,7 @@ db_test_suite.testQuery = function()
     check(function() { return q[1] === undefined; });
     check(function() { return (0 in q) && !(1 in q); });
     checkEqualTo(function() { return keys(q); }, [0]);
-    checkThrows("db.query()")
+    checkThrows("db.query()");
     checkThrows("db.query('dfsa').perform()");
     checkThrows("db.query('dfsa').length");
     checkThrows("db.query('dfsa')[0]");
