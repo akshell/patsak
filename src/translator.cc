@@ -784,7 +784,7 @@ Type ExprTranslator::operator()(const Quant& quant) const
     string modificator(quant.flag ? "NOT " : "");
     control_ << '(' << modificator << "EXISTS (";
     SelectBuilder builder(control_);
-    control_ << "1 ";
+    control_ << '1';
     RangeVarSet rv_set(quant.rvs.begin(), quant.rvs.end());
     Control::BindScope bind_scope(control_, builder.BuildFrom(rv_set));
     control_ << " WHERE " << modificator;
@@ -869,8 +869,12 @@ Header RelTranslator::operator()(const Base& base) const
 
 Header RelTranslator::operator()(const Select& select) const
 {
-    KU_ASSERT(!select.protos.empty());
     SelectBuilder builder(control_);
+    if (select.protos.empty()) {
+        control_ << '1';
+        builder.BuildWhere(select.expr, 0);
+        return Header();
+    }
     RangeVarSet rvs = builder.CollectRangeVars(select.protos);
     string from_part;
     Control::BindData bind_data;

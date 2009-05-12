@@ -165,3 +165,16 @@ FROM "User"
 WHERE (EXISTS (SELECT DISTINCT 1  FROM "Post"
                WHERE ("Post"."author" = "User"."id")))
 *)
+
+*(
+{}
+**
+SELECT DISTINCT 1
+*)
+
+*(
+User where forsome (x in {}) true
+**
+SELECT DISTINCT "User".* FROM "User"
+WHERE (EXISTS (SELECT DISTINCT 1 FROM (SELECT DISTINCT 1) AS "x" WHERE true))
+*)

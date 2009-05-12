@@ -416,6 +416,7 @@ db_test_suite.testWhere = function()
                  },
                  [{id: 0, name: 'anton'}]);
     checkThrows("db.query('User').where()");
+    checkEqualTo("rel.User.where('forsome (x in {}) true').length", 3);
 };
 
 
