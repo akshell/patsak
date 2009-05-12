@@ -1179,25 +1179,28 @@ void Access::Delete(const std::string& rel_name,
 }    
 
 
-void Access::Insert(const std::string& rel_name, const ValueMap& value_map)
+Values Access::Insert(const std::string& rel_name, const ValueMap& value_map)
 {
     static const format empty_cmd("SELECT ku.insert_into_empty('%1%');");
-    static const format cmd("INSERT INTO \"%1%\" (%2%) VALUES (%3%);");
-    static const format default_cmd("INSERT INTO \"%1%\" DEFAULT VALUES;");
+    static const format cmd(
+        "INSERT INTO \"%1%\" (%2%) VALUES (%3%) RETURNING *;");
+    static const format default_cmd(
+        "INSERT INTO \"%1%\" DEFAULT VALUES RETURNING *;");
 
     const RelMeta& rel_meta(data_.manager.GetMeta().GetRelMeta(rel_name));
+    const RichHeader& rich_header(rel_meta.GetRichHeader());
     string sql_str;
-    if (rel_meta.GetRichHeader().empty()) {
+    if (rich_header.empty()) {
         if (!value_map.empty())
             throw Error("Non empty insert into zero-column relation");
         sql_str = (format(empty_cmd) % rel_name).str();
     } else if (!value_map.empty()) {
         BOOST_FOREACH(const ValueMap::value_type& name_value, value_map)
-            rel_meta.GetRichHeader().find(name_value.first);
+            rich_header.find(name_value.first);
         ostringstream names_oss, values_oss;
         OmitInvoker print_names_sep((SepPrinter(names_oss)));
         OmitInvoker print_values_sep((SepPrinter(values_oss)));
-        BOOST_FOREACH(const RichAttr& rich_attr, rel_meta.GetRichHeader()) {
+        BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
             ValueMap::const_iterator itr(value_map.find(rich_attr.GetName()));
             if (itr == value_map.end()) {
                 if (rich_attr.GetTrait() != Type::SERIAL &&
@@ -1222,8 +1225,12 @@ void Access::Insert(const std::string& rel_name, const ValueMap& value_map)
     }
     pqxx::subtransaction sub_work(data_.work);
     try {
-        sub_work.exec(sql_str);
+        pqxx::result pqxx_result(sub_work.exec(sql_str));
         sub_work.commit();
+        if (rich_header.empty())
+            return Values();
+        KU_ASSERT(pqxx_result.size() == 1);
+        return GetTupleValues(pqxx_result[0], rel_meta.GetHeader());
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(err.what());

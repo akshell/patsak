@@ -1211,8 +1211,18 @@ Handle<v8::Value> Inserter::operator()(const Arguments& args) const
         JS_CAN_THROW(ReadIdentifier(prop.key, name));
         value_map.insert(ValueMap::value_type(name, ReadKuValue(prop.value)));
     }
-    JS_PROPAGATE(access_.Insert(rel_name_, value_map));
-    return Undefined();
+    Values values;
+    const RichHeader* rich_header_ptr = 0;
+    JS_PROPAGATE(
+        rich_header_ptr = &access_.GetRelRichHeader(rel_name_);
+        values = access_.Insert(rel_name_, value_map);
+        );
+    KU_ASSERT(values.size() == rich_header_ptr->size());
+    Handle<Object> result(Object::New());
+    for (size_t i = 0; i < values.size(); ++i)
+        result->Set(String::New((*rich_header_ptr)[i].GetName().c_str()),
+                    MakeV8Value(values[i]));
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

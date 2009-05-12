@@ -43,6 +43,38 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// GetTupleValues definition
+////////////////////////////////////////////////////////////////////////////////
+
+Values ku::GetTupleValues(const pqxx::result::tuple& tuple,
+                          const Header& header)
+{
+    KU_ASSERT(tuple.size() == header.size());
+    Values result;
+    result.reserve(tuple.size());
+    for (size_t i = 0; i < tuple.size(); ++i) {
+        pqxx::result::field field(tuple[i]);
+        KU_ASSERT(!field.is_null());
+        Type type(header[i].GetType());
+        if (type == Type::NUMBER) {
+            double d;
+            field >> d;
+            result.push_back(Value(type, d));
+        } else if (type == Type::STRING) {
+            result.push_back(Value(type, field.c_str()));        
+        } else if (type == Type::BOOLEAN) {
+            bool b;
+            field >> b;
+            result.push_back(Value(type, b));
+        } else {
+            KU_ASSERT(type == Type::DATE);
+            result.push_back(Value(type, field.c_str()));
+        }
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // QueryResult definitions
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,31 +128,7 @@ Values QueryResult::GetValues(size_t idx) const
         KU_ASSERT(GetSize() == 1);
         return Values();
     }
-    pqxx::result::tuple pqxx_tuple(data_ptr_->result[idx]);
-    size_t tuple_size = pqxx_tuple.size();
-    KU_ASSERT(tuple_size == GetHeader().size());
-    Values result;
-    result.reserve(tuple_size);
-    for (size_t idx = 0; idx < tuple_size; ++idx) {
-        pqxx::result::field field(pqxx_tuple[idx]);
-        KU_ASSERT(!field.is_null());
-        Type type(GetHeader()[idx].GetType());
-        if (type == Type::NUMBER) {
-            double d;
-            field >> d;
-            result.push_back(Value(type, d));
-        } else if (type == Type::STRING) {
-            result.push_back(Value(type, field.c_str()));        
-        } else if (type == Type::BOOLEAN) {
-            bool b;
-            field >> b;
-            result.push_back(Value(type, b));
-        } else {
-            KU_ASSERT(type == Type::DATE);
-            result.push_back(Value(type, field.c_str()));
-        }
-    }
-    return result;
+    return GetTupleValues(data_ptr_->result[idx], GetHeader());
 }
 
 

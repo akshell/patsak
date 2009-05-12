@@ -382,6 +382,12 @@ db_test_suite.testInsert = function()
     checkThrows("rel.Comment.insert({id: 2, text: 'yo', author: 5, post: 0})");
     checkThrows("rel.User.insert({id: 2})");
     checkThrows("rel.Empty.insert({x: 5})");
+    checkEqualTo("items(rel.User.insert({name: 'xxx', age: 0}))",
+                [['id', 3], ['name', 'xxx'], ['age', 0], ['flooder', true]]);
+    rel.User.where('name == $', 'xxx').del();
+    checkEqualTo("items(rel.Empty.insert({}))", []);
+    checkThrows("rel.Empty.insert({})");
+    rel.Empty.all().del();
 };
 
 

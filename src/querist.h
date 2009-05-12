@@ -35,6 +35,11 @@ namespace boost
 
 namespace ku
 {
+    /// Convert pqxx tuple to values according to the given header
+    Values GetTupleValues(const pqxx::result::tuple& pqxx_tuple,
+                          const Header& header);
+    
+    
     /// Functor qouting strings for use as PG literals
     class Quoter {
     public:

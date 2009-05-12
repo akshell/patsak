@@ -62,7 +62,7 @@ namespace ku
     typedef std::vector<Specifier> Specifiers;
 
     ////////////////////////////////////////////////////////////////////////////
-    /// Constr
+    // Constrs
     ////////////////////////////////////////////////////////////////////////////
 
     struct Unique {
@@ -226,7 +226,7 @@ namespace ku
         void Delete(const std::string& rel_name,
                     const WhereSpecifiers& where_specifiers);
         
-        void Insert(const std::string& rel_name, const ValueMap& value_map);
+        Values Insert(const std::string& rel_name, const ValueMap& value_map);
 
     private:
         Data& data_;
