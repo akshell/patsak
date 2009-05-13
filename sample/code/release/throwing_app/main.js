@@ -1,4 +1,4 @@
 
-ak._main = function (arg) {
+ak._main = function () {
     throw 42;
 };

@@ -811,7 +811,8 @@ call_test_suite.testCall = function ()
                                                   ['file1', 'file2'],
                                                   'yo!!!');
                  },
-                 '{"arg":"hello world!","data":"yo!!!",' +
+                 '{"user":"' + ak._user + '",'+
+                 '"arg":"hello world!","data":"yo!!!",' +
                  '"file_contents":["wuzzup","yo ho ho"]}');
     check("!fs.exists('file1') && !fs.exists('file2')");
     checkThrows("apps.no_such_app.call('hi')");
@@ -825,7 +826,8 @@ call_test_suite.testCall = function ()
             fs.remove('file3');
             return result;
         },
-        '{"arg":"","data":"text","file_contents":[]}');
+        '{"user":"' + ak._user + '",' +
+        '"arg":"","data":"text","file_contents":[]}');
     checkThrows("apps['invalid/app/name'].call('')");
     checkThrows("apps.test_app.call('2+2')");
     checkThrows("apps.throwing_app.call('')");

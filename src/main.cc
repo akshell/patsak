@@ -267,7 +267,8 @@ namespace
                         const string& code_dir,
                         const string& socket_dir,
                         const string& guard_dir,
-                        const Strings& args);
+                        const Strings& args,
+                        const string& user); // user is held by reference
         
         virtual Status Process(const string& self_name,
                                const Chars* data_ptr,
@@ -284,6 +285,7 @@ namespace
         string socket_dir_;
         string guard_dir_;
         Strings args_;
+        const string& user_;
 
         void LaunchApp(const string& app_name);
     };
@@ -294,12 +296,14 @@ AppAccessorImpl::AppAccessorImpl(const string& self_name,
                                  const string& code_dir,
                                  const string& socket_dir,
                                  const string& guard_dir,
-                                 const Strings& args)
+                                 const Strings& args,
+                                 const string& user)
     : self_name_(self_name)
     , code_dir_(code_dir)
     , socket_dir_(socket_dir)
     , guard_dir_(guard_dir)
     , args_(args)
+    , user_(user)
 {
 }
 
@@ -357,7 +361,8 @@ AppAccessor::Status AppAccessorImpl::Process(const string& app_name,
         buffers.push_back(asio::buffer(file_descrs.back()));
     }
 
-    string request_header("\nREQUEST " +
+    string request_header("\nUSER " + user_ +
+                          "\nREQUEST " +
                           lexical_cast<string>(request.size()) +
                           '\n');
     buffers.push_back(asio::buffer(request_header));
@@ -429,8 +434,10 @@ namespace
 {
     class RequestHandler {
     public:
-        RequestHandler(Program& program, stream_protocol::socket& socket);
-        bool Handle(); 
+        RequestHandler(Program& program,
+                       string& user,
+                       stream_protocol::socket& socket);
+        bool Handle();
 
     private:
         struct ProcessingError : public runtime_error {
@@ -438,6 +445,7 @@ namespace
         };
         
         Program& program_;
+        string& user_;
         stream_protocol::socket& socket_;
         asio::streambuf buf_;
         istream is_;
@@ -451,8 +459,10 @@ namespace
 }
 
 RequestHandler::RequestHandler(Program& program,
+                               string& user,
                                stream_protocol::socket& socket)
     : program_(program)
+    , user_(user)
     , socket_(socket)
     , is_(&buf_)
 {
@@ -496,19 +506,19 @@ bool RequestHandler::Handle()
 
 void RequestHandler::HandleProcess()
 {
-    Chars request;
-    auto_ptr<Chars> data_ptr;
-    Strings pathes;
-    if (istream(&buf_).peek() == ' ') {
-        string request_str;
-        istream is(&buf_);
-        getline(is, request_str);
-        request.assign(request_str.begin(), request_str.end());
+    auto_ptr<Response> response_ptr;
+    if (is_.peek() == ' ') {
+        string expr_str;
+        getline(is_, expr_str);
+        Chars expr(expr_str.begin(), expr_str.end());
+        user_ = "";
+        response_ptr = program_.Eval(user_, expr);
     } else {
         NextLine();
         ReadLine();
         string command;
         is_ >> command;
+        auto_ptr<Chars> data_ptr;
         if (command == "DATA") {
             size_t size;
             istream(&buf_) >> size;
@@ -520,26 +530,45 @@ void RequestHandler::HandleProcess()
             ReadLine();
             is_ >> command;
         }
+        Strings file_pathes;
         while (command == "FILE") {
             if (is_.get() != ' ')
                 throw ProcessingError("Bad FILE command");
-            pathes.push_back(string());
-            getline(is_, pathes.back());
+            file_pathes.push_back(string());
+            getline(is_, file_pathes.back());
             ReadLine();
             is_ >> command;
         }
-        if (command != "REQUEST")
+        if (command == "USER") {
+            if (is_.get() != ' ')
+                throw ProcessingError("Bad USER command");
+            getline(is_, user_);
+            ReadLine();
+            is_ >> command;
+        } else {
+            user_ = "";
+        }
+        if (command != "REQUEST" && command != "EXPR")
             throw ProcessingError("Unexpected command: " + command);
         size_t size;
         is_ >> size;
         NextLine();
         Read(size);
-        request.resize(size);
-        is_.read(&request[0], size);
+        Chars input(size);
+        is_.read(&input[0], size);
+        if (command == "EXPR") {
+            if (data_ptr.get())
+                throw ProcessingError("DATA is not supported by EXPR");
+            if (!file_pathes.empty())
+                throw ProcessingError("FILE is not supported by EXPR");
+            response_ptr = program_.Eval(user_, input);
+        } else {
+            response_ptr = program_.Process(user_,
+                                            input,
+                                            file_pathes,
+                                            data_ptr);
+        }
     }
-    auto_ptr<Response> response_ptr(program_.Process(request,
-                                                     pathes,
-                                                     data_ptr));
     KU_ASSERT(response_ptr.get());
     vector<asio::const_buffer> buffers;
     string beginning = response_ptr->GetStatus() + '\n';
@@ -603,11 +632,11 @@ namespace
         void Run();
         
     private:
-        string request_;
+        string expr_, user_;
         string log_dir_, code_dir_, include_dir_, media_dir_;
         string socket_dir_, guard_dir_;
         string db_user_, db_password_, db_prefix_;
-        string app_name_, user_name_, tag_name_;
+        string app_name_, owner_name_, tag_name_;
         bool test_mode_;
 
         void Parse(int argc, char** argv);
@@ -630,7 +659,7 @@ namespace
         static bool HandleRequest(Program& program,
                                   stream_protocol::socket& socket);
 
-        void RunServer(Program& program) const;
+        void RunServer(Program& program);
     };
 }    
 
@@ -650,13 +679,13 @@ void MainRunner::Run()
         Daemonize();
     }
     auto_ptr<DB> db_ptr(InitDB());
-    auto_ptr<AppAccessor> ae_ptr(InitAppAccessor());
-    auto_ptr<Program> program_ptr(InitProgram(*db_ptr, *ae_ptr));
+    auto_ptr<AppAccessor> app_accessor_ptr(InitAppAccessor());
+    auto_ptr<Program> program_ptr(InitProgram(*db_ptr, *app_accessor_ptr));
     if (test_mode_) {
-        if (request_.empty()) {
+        if (expr_.empty()) {
             RunTest(*program_ptr, cin);
         } else {
-            istringstream iss(request_);
+            istringstream iss(expr_);
             RunTest(*program_ptr, iss);
         }
     } else {
@@ -674,9 +703,12 @@ void MainRunner::Parse(int argc, char** argv)
          po::value<string>()->default_value("/etc/patsak"),
          "config file path")
         ("test,t", po::bool_switch(&test_mode_), "test mode")
-        ("request,r",
-         po::value<string>(&request_),
-         "request for processing (test mode only)")
+        ("expr,e",
+         po::value<string>(&expr_),
+         "expr for evaluation (test mode only)")
+        ("user,u",
+         po::value<string>(&user_),
+         "user name (test mode only)")
         ;
     
     po::options_description config_options("Config options");
@@ -687,8 +719,8 @@ void MainRunner::Parse(int argc, char** argv)
         ("code-dir,c", po::value<string>(&code_dir_), "code directory")
         ("include-dir,i", po::value<string>(&include_dir_), "include directory")
         ("media-dir,m", po::value<string>(&media_dir_), "media directory")
-        ("db-user,u", po::value<string>(&db_user_), "database user")
-        ("db-password,p", po::value<string>(&db_password_), "database password")
+        ("db-user", po::value<string>(&db_user_), "database user")
+        ("db-password", po::value<string>(&db_password_), "database password")
         ("db-prefix",
          po::value<string>(&db_prefix_)->default_value("ak_"),
          "prefix for database names")
@@ -697,14 +729,14 @@ void MainRunner::Parse(int argc, char** argv)
     po::options_description hidden_options;
     hidden_options.add_options()
         ("app-name", po::value<string>(&app_name_))
-        ("user-name", po::value<string>(&user_name_))
+        ("owner-name", po::value<string>(&owner_name_))
         ("tag-name", po::value<string>(&tag_name_))
         ;
 
     po::positional_options_description positional_options;
     positional_options
         .add("app-name", 1)
-        .add("user-name", 1)
+        .add("owner-name", 1)
         .add("tag-name", 1)
         ;
 
@@ -763,8 +795,8 @@ void MainRunner::Check() const
     RequireOption("db-user", db_user_);
     RequireOption("db-password", db_password_);
     if (!test_mode_) {
-        if (!request_.empty()) {
-            cerr << "request option is specific to test mode\n";
+        if (!expr_.empty() || !user_.empty()) {
+            cerr << "expr and user option are specific to test mode\n";
             exit(1);
         }
     }
@@ -772,8 +804,8 @@ void MainRunner::Check() const
         cerr << "app_name must be specified\n";
         exit(1);
     }
-    if (!user_name_.empty() && tag_name_.empty()) {
-        cerr << "user_name and tag_name must be specified together\n";
+    if (!owner_name_.empty() && tag_name_.empty()) {
+        cerr << "owner name and tag name must be specified together\n";
         exit(1);
     }
 }
@@ -798,7 +830,7 @@ void MainRunner::MakePathesAbsolute()
 
 bool MainRunner::IsRelease() const
 {
-    return user_name_.empty();
+    return owner_name_.empty();
 }
 
 
@@ -806,7 +838,7 @@ string MainRunner::GetPathSuffix() const
 {
     return (IsRelease()
             ? "/release/" + app_name_
-            : "/tags/" + app_name_ + '/' + user_name_ + '/' + tag_name_);
+            : "/tags/" + app_name_ + '/' + owner_name_ + '/' + tag_name_);
 }
 
 auto_ptr<DB> MainRunner::InitDB() const
@@ -814,7 +846,7 @@ auto_ptr<DB> MainRunner::InitDB() const
     string options("user=" + db_user_ +
                    " password=" + db_password_ +
                    " dbname=" + db_prefix_ + app_name_);
-    string schema_name(IsRelease() ? "public" : user_name_ + ':' + tag_name_);
+    string schema_name(IsRelease() ? "public" : owner_name_ + ':' + tag_name_);
     return auto_ptr<DB>(new DB(options, schema_name));
 }
 
@@ -837,7 +869,8 @@ auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
                                                      code_dir_,
                                                      socket_dir_,
                                                      guard_dir_,
-                                                     args));
+                                                     args,
+                                                     user_));
 }
 
 
@@ -857,12 +890,12 @@ auto_ptr<Program> MainRunner::InitProgram(DB& db,
 void MainRunner::RunTest(Program& program, istream& is) const
 {
     while (!is.eof()) {
-        string request_str;
-        getline(is, request_str);
-        if (request_str.empty())
+        string expr_str;
+        getline(is, expr_str);
+        if (expr_str.empty())
             continue;
-        Chars request(request_str.begin(), request_str.end());
-        auto_ptr<Response> response_ptr(program.Process(request));
+        Chars expr(expr_str.begin(), expr_str.end());
+        auto_ptr<Response> response_ptr(program.Eval(user_, expr));
         cout << response_ptr->GetStatus() << '\n';
         cout.write(response_ptr->GetData(), response_ptr->GetSize());
         cout << '\n';
@@ -870,7 +903,7 @@ void MainRunner::RunTest(Program& program, istream& is) const
 }
 
 
-void MainRunner::RunServer(Program& program) const
+void MainRunner::RunServer(Program& program)
 {
     string socket_path(socket_dir_ + GetPathSuffix());
     remove(socket_path.c_str());
@@ -891,7 +924,7 @@ void MainRunner::RunServer(Program& program) const
         for (bool go_on = true; go_on; ) {
             stream_protocol::socket socket(io_service);
             acceptor.accept(socket);
-            RequestHandler request_handler(program, socket);
+            RequestHandler request_handler(program, user_, socket);
             go_on = request_handler.Handle();
             socket.close();
         }

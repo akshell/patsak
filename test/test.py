@@ -23,6 +23,7 @@ LOG_DIR            = os.path.join(TMP_DIR, 'logs')
 GUARD_DIR          = os.path.join(TMP_DIR, 'guards')
 MEDIA_DIR          = os.path.join(TMP_DIR, 'media')
 APP_NAME           = 'test_app'
+BAD_APP_NAME       = 'bad_app'
 USER_NAME          = 'test_user'
 TAG_NAME           = 'test_tag'
 CONFIG_PATH        = 'patsak.config'
@@ -102,7 +103,7 @@ class Test(unittest.TestCase):
         self._check_launch([], 1)
         self._check_launch(['--unknown-option', APP_NAME], 1)
         self._check_launch(['--help'])
-        self._check_launch(['--request', '2+2',
+        self._check_launch(['--expr', '2+2',
                             '--socket-dir', SOCKET_DIR,
                             '--guard-dir', GUARD_DIR,
                             '--log-dir', LOG_DIR,
@@ -112,7 +113,7 @@ class Test(unittest.TestCase):
         self._check_test_launch([], 1)
         self._check_test_launch([APP_NAME, USER_NAME], 1)
 
-    def _process(self, request):
+    def _eval(self, expr):
         popen = subprocess.Popen([self._exe_path,
                                   '--config-file', CONFIG_PATH,
                                   '--media-dir', MEDIA_DIR,
@@ -120,7 +121,7 @@ class Test(unittest.TestCase):
                                   '--guard-dir', GUARD_DIR,
                                   '--log-dir', LOG_DIR,
                                   '--test',
-                                  '--request', request,
+                                  '--expr', expr,
                                   APP_NAME],
                                  stdin=self._in,
                                  stderr=self._out,
@@ -129,21 +130,21 @@ class Test(unittest.TestCase):
         return Response(status, popen.stdout.read()[:-1])
 
     def testJS(self):
-        self.assertEqual(self._process('argh!!!!').status, 'ERROR')
-        pish_result = self._process('pish')
+        self.assertEqual(self._eval('argh!!!!').status, 'ERROR')
+        pish_result = self._eval('pish')
         self.assertEqual(pish_result.status, 'ERROR')
         self.assertEqual(pish_result.data,
                          'EXCEPTION Uncaught ReferenceError: '
                          'pish is not defined\n'
                          'LINE 1\n'
                          'COLUMN 0\n')
-        self.assertEqual(self._process('main()').data, '0')
+        self.assertEqual(self._eval('main()').data, '0')
         self._check_launch(['--test',
                             '--media-dir', MEDIA_DIR,
-                            '--request', '2+2',
+                            '--expr', '2+2',
                             'no_such_app'], 1)
-        self._check_test_launch(['--request', '2+2\n3+3', APP_NAME])
-        self.assertEqual(self._process('bug()').status, 'ERROR')
+        self._check_test_launch(['--expr', '2+2\n3+3', APP_NAME])
+        self.assertEqual(self._eval('bug()').status, 'ERROR')
 
         popen = subprocess.Popen([self._exe_path,
                                   '--config-file', CONFIG_PATH,
@@ -161,6 +162,21 @@ class Test(unittest.TestCase):
         self.assertEqual(popen.stdout.read(), 'OK\n4\n')
         self.assertEqual(popen.wait(), 0)
 
+        popen = subprocess.Popen([self._exe_path,
+                                  '--config-file', CONFIG_PATH,
+                                  '--media-dir', MEDIA_DIR,
+                                  '--socket-dir', SOCKET_DIR,
+                                  '--guard-dir', GUARD_DIR,
+                                  '--log-dir', LOG_DIR,
+                                  '--test',
+                                  '--expr', '2+2',
+                                  BAD_APP_NAME],
+                                 stdin=self._in,
+                                 stderr=self._out,
+                                 stdout=subprocess.PIPE)
+        self.assertEqual(popen.stdout.read().split('\n')[0], 'ERROR')
+        self.assertEqual(popen.wait(), 0)
+        
     def _connect(self, path):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(path)
@@ -202,7 +218,8 @@ class Test(unittest.TestCase):
         self.assertEqual(talk('STATUS'), 'OK\n')
         
         self.assertEqual(talk('PROCESS 2+2'), 'OK\n4')
-        self.assertEqual(talk('PROCESS main(); 2+2'), 'OK\n4')
+        self.assertEqual(talk('PROCESS\nDATA 0\n\nREQUEST 3\n2+2'), 'OK\n4')
+        self.assertEqual(talk('PROCESS\nUSER anton\nEXPR 6\nmain()'), 'OK\n0')
         self.assertEqual(talk('PROCESS\nREQUEST 3\n2+2'), 'OK\n4')
         self.assertEqual(talk('PROCESS ak._data'), 'OK\nnull')
         self.assertEqual(talk('PROCESS\nREQUEST 8\nak._data'), 'OK\nnull')
@@ -238,6 +255,12 @@ class Test(unittest.TestCase):
                          'FAIL\nUnexpected command: STRANGE_CMD')
         self.assertEqual(talk('PROCESS\nFILE\tpish\nREQUEST 2+2'),
                          'FAIL\nBad FILE command')
+        self.assertEqual(talk('PROCESS\nUSER\tpish\nEXPR 3\n2+2'),
+                         'FAIL\nBad USER command')
+        self.assertEqual(talk('PROCESS\nDATA 1\n1\nEXPR 3\n2+2'),
+                         'FAIL\nDATA is not supported by EXPR')
+        self.assertEqual(talk('PROCESS\nFILE file\nEXPR 3\n2+2'),
+                         'FAIL\nFILE is not supported by EXPR')
         
         self.assertEqual(talk('STOP'), 'OK\n')
         self.assertEqual(popen.wait(), 0)
@@ -257,8 +280,9 @@ class Test(unittest.TestCase):
         self.assertEqual(popen.stdout.readline(), 'READY\n')
         socket_path = os.path.join(SOCKET_DIR, 'tags',
                                    APP_NAME, USER_NAME, TAG_NAME)
-        self.assertEqual(self._talk_through_socket(socket_path, 'PROCESS main()'),
-                         'ERROR\nak._main is not a function')
+        self.assertEqual(self._talk_through_socket(socket_path,
+                                                   'PROCESS\nREQUEST 1\n1'),
+                         'ERROR\n_main is not a function')
         self.assertEqual(self._talk_through_socket(socket_path, 'STOP'),
                          'OK\n')
         self.assertEqual(popen.wait(), 0)

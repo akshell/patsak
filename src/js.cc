@@ -693,9 +693,12 @@ public:
     
     ~Impl();
     
-    auto_ptr<Response> Process(const Chars& request,
+    auto_ptr<Response> Process(const string& user,
+                               const Chars& request,
                                const Strings& pathes,
                                auto_ptr<Chars> data_ptr);
+
+    auto_ptr<Response> Eval(const string& user, const Chars& expr);
     
 private:
     bool initialized_;
@@ -716,6 +719,13 @@ private:
     void SetInternal(Handle<Object> object,
                      const string& field,
                      void* ptr) const;
+    
+    auto_ptr<Response> Call(const string& user,
+                            const Chars& input,
+                            const Strings& file_pathes,
+                            auto_ptr<Chars> data_ptr,
+                            Handle<Object> object,
+                            const string& func_name);
 };
 
 
@@ -761,12 +771,53 @@ Program::Impl::~Impl()
 }
 
 
-auto_ptr<Response> Program::Impl::Process(const Chars& request,
+auto_ptr<Response> Program::Impl::Process(const string& user,
+                                          const Chars& request,
                                           const Strings& file_pathes,
                                           auto_ptr<Chars> data_ptr)
 {
+    return Call(user, request, file_pathes, data_ptr, ak_, "_main");
+}
+
+
+auto_ptr<Response> Program::Impl::Eval(const string& user, const Chars& expr)
+{
+    HandleScope handle_scope;
+    return Call(user, expr,
+                Strings(), auto_ptr<Chars>(),
+                context_->Global(), "eval");
+}
+
+
+auto_ptr<Response> Program::Impl::Call(const string& user,
+                                       const Chars& input,
+                                       const Strings& file_pathes,
+                                       auto_ptr<Chars> data_ptr,
+                                       Handle<Object> object,
+                                       const string& func_name)
+{
     HandleScope handle_scope;
     Context::Scope context_scope(context_);
+    if (!initialized_) {
+        Handle<Function> include_func(
+            Handle<Function>::Cast(
+                context_->Global()->Get(String::NewSymbol("include"))));
+        KU_ASSERT(!include_func.IsEmpty());
+        Caller include_caller(access_holder_,
+                              include_func,
+                              context_->Global(),
+                              String::New("main.js"));
+        db_.Perform(include_caller);
+        auto_ptr<Response> response_ptr(include_caller.GetResult());
+        if (response_ptr->GetStatus() != "OK")
+            return response_ptr;
+        initialized_ = true;
+    }
+    
+    Handle<v8::Value> func_value(object->Get(String::NewSymbol(func_name.c_str())));
+    if (func_value.IsEmpty() || !func_value->IsFunction())
+        return auto_ptr<Response>(
+            new ErrorResponse(func_name + " is not a function"));
     
     Handle<v8::Value> data_value;
     if (data_ptr.get())
@@ -785,43 +836,21 @@ auto_ptr<Response> Program::Impl::Process(const Chars& request,
     }
     ak_->Set(String::NewSymbol("_files"), file_array, DontEnum);
 
-    auto_ptr<Response> result;
-    if (!initialized_) {
-        Handle<Function> include_func(
-            Handle<Function>::Cast(
-                context_->Global()->Get(String::NewSymbol("include"))));
-        KU_ASSERT(!include_func.IsEmpty());
-        Caller include_caller(access_holder_,
-                              include_func,
-                              context_->Global(),
-                              String::New("main.js"));
-        db_.Perform(include_caller);
-        result = include_caller.GetResult();
-        KU_ASSERT(result.get());
-        if (result->GetStatus() == "OK")
-            initialized_ = true;
-    }
-    if (initialized_) {
-        Handle<v8::Value> main_value(ak_->Get(String::NewSymbol("_main")));
-        if (main_value.IsEmpty() || !main_value->IsFunction()) {
-            result = auto_ptr<Response>(
-                new ErrorResponse("ak._main is not a function"));
-        } else {
-            Handle<Function> main_func(Handle<Function>::Cast(main_value));
-            Handle<String> arg(String::New(&request[0], request.size()));
-            Caller main_caller(access_holder_, main_func, ak_, arg);
-            db_.Perform(main_caller);
-            result = main_caller.GetResult();
-        }
-    }
+    ak_->Set(String::NewSymbol("_user"), String::New(user.c_str()), DontEnum);
+
+    Caller caller(access_holder_,
+                  Handle<Function>::Cast(func_value),
+                  object,
+                  String::New(&input[0], input.size()));
+    db_.Perform(caller);
+    auto_ptr<Response> result(caller.GetResult());
     
     BOOST_FOREACH(Handle<Object> file, files)
         TmpFileBg::GetJSClass().Cast(file)->ClearPath();
     
-    KU_ASSERT(result.get());
-    return result;
+    return result;    
 }
-
+                                       
 
 void Program::Impl::SetInternal(Handle<Object> object,
                                 const string& field,
@@ -850,9 +879,16 @@ Program::~Program()
 }
 
 
-auto_ptr<Response> Program::Process(const Chars& request,
-                                   const Strings& file_pathes,
-                                   auto_ptr<Chars> data_ptr)
+auto_ptr<Response> Program::Process(const string& user,
+                                    const Chars& request,
+                                    const Strings& file_pathes,
+                                    auto_ptr<Chars> data_ptr)
 {
-    return pimpl_->Process(request, file_pathes, data_ptr);
+    return pimpl_->Process(user, request, file_pathes, data_ptr);
+}
+
+
+auto_ptr<Response> Program::Eval(const string& user, const Chars& expr)
+{
+    return pimpl_->Eval(user, expr);
 }

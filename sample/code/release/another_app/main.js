@@ -8,7 +8,8 @@ ak._main = function (arg)
         file_contents.push(ak.fs.read(ak._files[i]).toString());
         ak.fs.rm(ak._files[i]);
     }
-    return JSON.stringify({arg: arg,
+    return JSON.stringify({user: ak._user,
+                           arg: arg,
                            data: ak._data.toString(),
                            file_contents: file_contents});
 };
