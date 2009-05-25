@@ -1,0 +1,22 @@
+
+# (c) 2009 by Anton Korenyushkin
+
+js_files = [File(path) for path in
+            ['test_app/main.js',
+             'test_app/bug.js',
+             'test_app/bug-includer.js',
+             'test_app/hello.js',
+             'test_app/self-includer-includer.js',
+             'test_app/subdir/another-hello.js',
+             'another_app/main.js',
+             'ak/MochiKit.js',
+             'ak/core.js',
+             'ak/mochi-kit.js',
+             'blocking_app/main.js',
+             'bad_app/main.js',
+             'throwing_app/main.js',
+             'lib/0.1/42impl.js',
+             'lib/0.1/42.js',
+             ]]
+
+Return('js_files')

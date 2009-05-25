@@ -633,7 +633,7 @@ namespace
         
     private:
         string expr_, user_;
-        string log_dir_, code_dir_, include_dir_, media_dir_;
+        string log_dir_, code_dir_, media_dir_;
         string socket_dir_, guard_dir_;
         string db_user_, db_password_, db_name_;
         string app_name_, owner_name_, tag_name_;
@@ -717,9 +717,10 @@ void MainRunner::Parse(int argc, char** argv)
         ("socket-dir,s", po::value<string>(&socket_dir_), "socket directory")
         ("guard-dir,g", po::value<string>(&guard_dir_), "guard directory")
         ("code-dir,c", po::value<string>(&code_dir_), "code directory")
-        ("include-dir,i", po::value<string>(&include_dir_), "include directory")
         ("media-dir,m", po::value<string>(&media_dir_), "media directory")
-        ("db-user", po::value<string>(&db_user_), "database user")
+        ("db-user",
+         po::value<string>(&db_user_)->default_value("patsak"),
+         "database user")
         ("db-password", po::value<string>(&db_password_), "database password")
         ("db-name",
          po::value<string>(&db_name_)->default_value("ak"),
@@ -790,7 +791,6 @@ void MainRunner::Check() const
     RequireOption("socket-dir", socket_dir_);
     RequireOption("guard-dir", guard_dir_);
     RequireOption("code-dir", code_dir_);
-    RequireOption("include-dir", include_dir_);
     RequireOption("media-dir", media_dir_);
     RequireOption("db-user", db_user_);
     RequireOption("db-password", db_password_);
@@ -822,7 +822,6 @@ void MainRunner::MakePathesAbsolute()
     MakePathAbsolute(curr_dir, socket_dir_);
     MakePathAbsolute(curr_dir, guard_dir_);
     MakePathAbsolute(curr_dir, code_dir_);
-    MakePathAbsolute(curr_dir, include_dir_);
     MakePathAbsolute(curr_dir, media_dir_);
     free(curr_dir);
 }
@@ -862,7 +861,6 @@ auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
         "--socket-dir", socket_dir_,
         "--guard-dir", guard_dir_,
         "--code-dir", code_dir_,
-        "--include-dir", include_dir_,
         "--media-dir", media_dir_,
         "--db-user", db_user_,
         "--db-password", db_password_,
@@ -882,7 +880,7 @@ auto_ptr<Program> MainRunner::InitProgram(DB& db,
     string code_path(code_dir_ + GetPathSuffix());
     string media_path(media_dir_ + GetPathSuffix());
     return auto_ptr<Program>(new Program(code_path,
-                                         include_dir_,
+                                         code_dir_ + "/release/",
                                          media_path,
                                          db,
                                          app_accessor));
