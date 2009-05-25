@@ -635,7 +635,7 @@ namespace
         string expr_, user_;
         string log_dir_, code_dir_, include_dir_, media_dir_;
         string socket_dir_, guard_dir_;
-        string db_user_, db_password_, db_prefix_;
+        string db_user_, db_password_, db_name_;
         string app_name_, owner_name_, tag_name_;
         bool test_mode_;
 
@@ -721,9 +721,9 @@ void MainRunner::Parse(int argc, char** argv)
         ("media-dir,m", po::value<string>(&media_dir_), "media directory")
         ("db-user", po::value<string>(&db_user_), "database user")
         ("db-password", po::value<string>(&db_password_), "database password")
-        ("db-prefix",
-         po::value<string>(&db_prefix_)->default_value("ak_"),
-         "prefix for database names")
+        ("db-name",
+         po::value<string>(&db_name_)->default_value("patsak"),
+         "database name")
         ;
 
     po::options_description hidden_options;
@@ -801,7 +801,7 @@ void MainRunner::Check() const
         }
     }
     if (app_name_.empty()) {
-        cerr << "app_name must be specified\n";
+        cerr << "app name must be specified\n";
         exit(1);
     }
     if (!owner_name_.empty() && tag_name_.empty()) {
@@ -845,8 +845,10 @@ auto_ptr<DB> MainRunner::InitDB() const
 {
     string options("user=" + db_user_ +
                    " password=" + db_password_ +
-                   " dbname=" + db_prefix_ + app_name_);
-    string schema_name(IsRelease() ? "public" : owner_name_ + ':' + tag_name_);
+                   " dbname=" + db_name_);
+    string schema_name(':' + app_name_);
+    if (!IsRelease())
+        schema_name += ':' + owner_name_ + ':' + tag_name_;
     return auto_ptr<DB>(new DB(options, schema_name));
 }
 
@@ -864,7 +866,7 @@ auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
         "--media-dir", media_dir_,
         "--db-user", db_user_,
         "--db-password", db_password_,
-        "--db-prefix", db_prefix_;
+        "--db-name", db_name_;
     return auto_ptr<AppAccessor>(new AppAccessorImpl(app_name_,
                                                      code_dir_,
                                                      socket_dir_,
