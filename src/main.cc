@@ -722,7 +722,7 @@ void MainRunner::Parse(int argc, char** argv)
         ("db-user", po::value<string>(&db_user_), "database user")
         ("db-password", po::value<string>(&db_password_), "database password")
         ("db-name",
-         po::value<string>(&db_name_)->default_value("patsak"),
+         po::value<string>(&db_name_)->default_value("ak"),
          "database name")
         ;
 
