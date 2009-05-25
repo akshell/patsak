@@ -636,7 +636,7 @@ namespace
         string log_dir_, code_dir_, media_dir_;
         string socket_dir_, guard_dir_;
         string db_user_, db_password_, db_name_;
-        string app_name_, owner_name_, tag_name_;
+        string app_name_, owner_name_, spot_name_;
         bool test_mode_;
 
         void Parse(int argc, char** argv);
@@ -731,14 +731,14 @@ void MainRunner::Parse(int argc, char** argv)
     hidden_options.add_options()
         ("app-name", po::value<string>(&app_name_))
         ("owner-name", po::value<string>(&owner_name_))
-        ("tag-name", po::value<string>(&tag_name_))
+        ("spot-name", po::value<string>(&spot_name_))
         ;
 
     po::positional_options_description positional_options;
     positional_options
         .add("app-name", 1)
         .add("owner-name", 1)
-        .add("tag-name", 1)
+        .add("spot-name", 1)
         ;
 
     po::options_description cmdline_options;
@@ -767,7 +767,7 @@ void MainRunner::Parse(int argc, char** argv)
     if (vm.count("help")) {
         po::options_description visible_options(
             string("Usage: ") + argv[0] +
-            " [options] app_name [user_name tag_name]");
+            " [options] app_name [user_name spot_name]");
         visible_options.add(generic_options).add(config_options);
         cout << visible_options << "\n";
         exit(0);
@@ -804,8 +804,8 @@ void MainRunner::Check() const
         cerr << "app name must be specified\n";
         exit(1);
     }
-    if (!owner_name_.empty() && tag_name_.empty()) {
-        cerr << "owner name and tag name must be specified together\n";
+    if (!owner_name_.empty() && spot_name_.empty()) {
+        cerr << "owner name and spot name must be specified together\n";
         exit(1);
     }
 }
@@ -837,7 +837,7 @@ string MainRunner::GetPathSuffix() const
 {
     return (IsRelease()
             ? "/release/" + app_name_
-            : "/tags/" + app_name_ + '/' + owner_name_ + '/' + tag_name_);
+            : "/spots/" + app_name_ + '/' + owner_name_ + '/' + spot_name_);
 }
 
 auto_ptr<DB> MainRunner::InitDB() const
@@ -847,7 +847,7 @@ auto_ptr<DB> MainRunner::InitDB() const
                    " dbname=" + db_name_);
     string schema_name(':' + app_name_);
     if (!IsRelease())
-        schema_name += ':' + owner_name_ + ':' + tag_name_;
+        schema_name += ':' + owner_name_ + ':' + spot_name_;
     return auto_ptr<DB>(new DB(options, schema_name));
 }
 

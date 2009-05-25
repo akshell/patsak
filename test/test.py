@@ -25,7 +25,7 @@ MEDIA_DIR          = os.path.join(TMP_DIR, 'media')
 APP_NAME           = 'test_app'
 BAD_APP_NAME       = 'bad_app'
 USER_NAME          = 'test_user'
-TAG_NAME           = 'test_tag'
+SPOT_NAME           = 'test_spot'
 CONFIG_PATH        = 'patsak.config'
 
 
@@ -47,7 +47,7 @@ def _create_db(cursor, db_name):
 
 def _make_dir_tree(base_dir):
     os.makedirs(os.path.join(base_dir, 'release'));
-    os.makedirs(os.path.join(base_dir, 'tags', APP_NAME, USER_NAME))
+    os.makedirs(os.path.join(base_dir, 'spots', APP_NAME, USER_NAME))
     
 
 class Test(unittest.TestCase):
@@ -265,21 +265,21 @@ class Test(unittest.TestCase):
         self.assertEqual(talk('STOP'), 'OK\n')
         self.assertEqual(popen.wait(), 0)
 
-    def testTagServer(self):
+    def testSpotServer(self):
         popen = subprocess.Popen([self._exe_path,
                                   '--config-file', CONFIG_PATH,
                                   '--socket-dir', SOCKET_DIR,
                                   '--guard-dir', GUARD_DIR,
                                   '--log-dir', LOG_DIR,
                                   '--media-dir', MEDIA_DIR,
-                                  APP_NAME, USER_NAME, TAG_NAME],
+                                  APP_NAME, USER_NAME, SPOT_NAME],
                                  stdin=self._in,
                                  stderr=self._out,
                                  stdout=subprocess.PIPE)
         
         self.assertEqual(popen.stdout.readline(), 'READY\n')
-        socket_path = os.path.join(SOCKET_DIR, 'tags',
-                                   APP_NAME, USER_NAME, TAG_NAME)
+        socket_path = os.path.join(SOCKET_DIR, 'spots',
+                                   APP_NAME, USER_NAME, SPOT_NAME)
         self.assertEqual(self._talk_through_socket(socket_path,
                                                    'PROCESS\nREQUEST 1\n1'),
                          'ERROR\n_main is not a function')
