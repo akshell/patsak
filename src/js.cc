@@ -314,7 +314,7 @@ namespace
 }
 
 
-DEFINE_JS_CLASS(AppCatalogBg, "AppCatalogg",
+DEFINE_JS_CLASS(AppCatalogBg, "Apps",
                 object_template, /*proto_template*/)
 {
     object_template->SetNamedPropertyHandler(GetAppCb, 0, HasAppCb);
@@ -389,6 +389,17 @@ namespace
 // AKBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace
+{
+    template <typename BgT>
+    void SetObjectTemplate(Handle<ObjectTemplate> holder_template,
+                           const string& name)
+    {
+        holder_template->Set(name.c_str(),
+                            BgT::GetJSClass().GetObjectTemplate());
+    }
+}
+
 DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 {
     proto_template->Set(String::NewSymbol("_print"),
@@ -396,18 +407,12 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
                         ReadOnly | DontEnum | DontDelete);
     proto_template->Set("setObjectProp",
                          FunctionTemplate::New(SetObjectPropCb));
-    object_template->Set("db",
-                         DBBg::GetJSClass().GetObjectTemplate());
-    object_template->Set("rel",
-                         RelCatalogBg::GetJSClass().GetObjectTemplate());
-    object_template->Set("type",
-                         TypeCatalogBg::GetJSClass().GetObjectTemplate());
-    object_template->Set("constr",
-                         ConstrCatalogBg::GetJSClass().GetObjectTemplate());
-    object_template->Set("fs",
-                         FSBg::GetJSClass().GetObjectTemplate());
-    object_template->Set("apps",
-                         AppCatalogBg::GetJSClass().GetObjectTemplate());
+    SetObjectTemplate<DBBg>(object_template, "db");
+    SetObjectTemplate<RelCatalogBg>(object_template, "rels");
+    SetObjectTemplate<TypeCatalogBg>(object_template, "types");
+    SetObjectTemplate<ConstrCatalogBg>(object_template, "constrs");
+    SetObjectTemplate<FSBg>(object_template, "fs");
+    SetObjectTemplate<AppCatalogBg>(object_template, "apps");
 }
 
 
@@ -753,9 +758,9 @@ Program::Impl::Impl(const string& code_dir,
     ak_ = Persistent<Object>::New(
         global->Get(String::NewSymbol("ak"))->ToObject());
     SetInternal(ak_, "db", &db_bg_);
-    SetInternal(ak_, "type", &type_catalog_bg_);
-    SetInternal(ak_, "rel", &rel_catalog_bg_);
-    SetInternal(ak_, "constr", &constr_catalog_bg_);
+    SetInternal(ak_, "types", &type_catalog_bg_);
+    SetInternal(ak_, "rels", &rel_catalog_bg_);
+    SetInternal(ak_, "constrs", &constr_catalog_bg_);
     SetInternal(ak_, "fs", &fs_bg_);
     SetInternal(ak_, "apps", &app_catalog_bg_);
 

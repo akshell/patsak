@@ -397,7 +397,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, CheckCb,
 // TypeCatalogBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(TypeCatalogBg, "TypeCatalog",
+DEFINE_JS_CLASS(TypeCatalogBg, "Types",
                 object_template, /*proto_template*/)
 {
     TypeBg::GetJSClass();
@@ -956,7 +956,7 @@ const Constr& ConstrBg::GetConstr() const
 // ConstrCatalogBg
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(ConstrCatalogBg, "ConstrCatalog",
+DEFINE_JS_CLASS(ConstrCatalogBg, "Constrs",
                 /*object_template*/, proto_template)
 {
     ConstrBg::GetJSClass();
@@ -1436,7 +1436,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetForeignKeysCb,
 // RelCatalogBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(RelCatalogBg, "RelCatalog", object_template, /*proto_template*/)
+DEFINE_JS_CLASS(RelCatalogBg, "Rels", object_template, /*proto_template*/)
 {
     RelBg::GetJSClass();
     object_template->SetNamedPropertyHandler(GetRelCb,

@@ -292,7 +292,11 @@ def _drop_db():
     conn = psycopg2.connect(DB_PARAMS % 'template1')
     conn.set_isolation_level(0)
     cursor = conn.cursor()
-    cursor.execute('DROP DATABASE "%s"' % DB_NAME)
+    try:
+        cursor.execute('DROP DATABASE "%s"' % DB_NAME)
+    except psycopg2.ProgrammingError, error:
+        if error.pgcode != '3D000':
+            raise
     conn.close()
 
     
@@ -317,6 +321,7 @@ def main():
         sys.exit(1)
     Test.DIR = sys.argv[1]
     suite = unittest.TestLoader().loadTestsFromTestCase(Test)
+    _drop_db()
     _create_db()
     _make_dirs()
     
@@ -327,7 +332,6 @@ def main():
                      stdout=subprocess.PIPE,
                      stderr=subprocess.STDOUT)
     shutil.rmtree(TMP_DIR)
-    _drop_db()
     
         
 if __name__ == '__main__':

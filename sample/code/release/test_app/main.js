@@ -4,9 +4,9 @@ import('ak', 'mochi-kit.js');
 
 
 var db = ak.db;
-var rel = ak.rel;
-var type = ak.type;
-var constr = ak.constr;
+var rels = ak.rels;
+var types = ak.types;
+var constrs = ak.constrs;
 var fs = ak.fs;
 var apps = ak.apps;
 
@@ -133,20 +133,20 @@ base_test_suite.testImport = function()
 };
 
 
-base_test_suite.testType = function()
+base_test_suite.testTypes = function()
 {
-    check("type.a === undefined");
-    check("'number' in type && 'string' in type && 'boolean' in type");
-    check("!('abc' in type)");
+    check("types.a === undefined");
+    check("'number' in types && 'string' in types && 'boolean' in types");
+    check("!('abc' in types)");
 
     var fields = [];
-    for (var field in type)
+    for (var field in types)
         fields.push(field);
-    check(fields == 'number,string,boolean', 'types list');
+    checkEqualTo(fields, 'number,string,boolean');
 
-    check("type.number.name == 'number'");
-    check("type.string.name == 'string'");
-    check("type.boolean.name == 'boolean'");
+    check("types.number.name == 'number'");
+    check("types.string.name == 'string'");
+    check("types.boolean.name == 'boolean'");
 };
 
 
@@ -155,8 +155,8 @@ base_test_suite.testConstructors = function()
     check("this instanceof ak.Global");
     check("ak instanceof ak.AK");
     check("db instanceof ak.DB");
-    check("type instanceof ak.TypeCatalog");
-    check("rel instanceof ak.RelCatalog");
+    check("types instanceof ak.Types");
+    check("rels instanceof ak.Rels");
 };
 
 
@@ -189,15 +189,15 @@ base_test_suite.testSetObjectProp = function()
 var db_test_suite = {};
 
 
-var number = ak.type.number;
-var string = ak.type.string;
-var boolean = ak.type.boolean;
-var date = ak.type.date;
+var number = ak.types.number;
+var string = ak.types.string;
+var boolean = ak.types.boolean;
+var date = ak.types.date;
 
 
 db_test_suite.setUp = function()
 {
-    db.dropRels(keys(rel));
+    db.dropRels(keys(rels));
 
     db.createRel('Dummy',
                  {id: number});
@@ -212,30 +212,30 @@ db_test_suite.setUp = function()
                   title: string,
                   text: string,
                   author: number.int().foreignKey('User', 'id')},
-                 constr.unique(['title', 'author']));
+                 constrs.unique(['title', 'author']));
     db.createRel('Comment',
                  {id: number.serial().unique(),
                   text: string,
                   author: number.int().foreignKey('User', 'id'),
                   post: number.int().foreignKey('Post', 'id')});
 
-    rel.User.insert({name: 'anton', age: 22, flooder: true});
-    rel.User.insert({name: 'marina', age: 25, flooder: false});
-    rel.User.insert({name: 'den', age: 23});
+    rels.User.insert({name: 'anton', age: 22, flooder: true});
+    rels.User.insert({name: 'marina', age: 25, flooder: false});
+    rels.User.insert({name: 'den', age: 23});
 
-    rel.Post.insert({title: 'first', text: 'hello world', author: 0});
-    rel.Post.insert({title: 'second', text: 'hi', author: 1});
-    rel.Post.insert({title: 'third', text: 'yo!', author: 0});
+    rels.Post.insert({title: 'first', text: 'hello world', author: 0});
+    rels.Post.insert({title: 'second', text: 'hi', author: 1});
+    rels.Post.insert({title: 'third', text: 'yo!', author: 0});
 
-    rel.Comment.insert({text: ':-*', author: 1, post: 0});
-    rel.Comment.insert({text: 'rrr', author: 0, post: 0});
-    rel.Comment.insert({text: 'ololo', author: 2, post: 2});
+    rels.Comment.insert({text: ':-*', author: 1, post: 0});
+    rels.Comment.insert({text: 'rrr', author: 0, post: 0});
+    rels.Comment.insert({text: 'ololo', author: 2, post: 2});
 };
 
 
 db_test_suite.tearDown = function()
 {
-    db.dropRels(keys(rel));
+    db.dropRels(keys(rels));
 };
 
 
@@ -259,41 +259,41 @@ db_test_suite.testCreateRel = function()
     checkThrows("db.createRel('User', {})");
     checkThrows(function () {
                     var obj = {length: 15};
-                    db.createRel('illegal', {x: number}, constr.unique(obj));
+                    db.createRel('illegal', {x: number}, constrs.unique(obj));
                 });
 
     var obj = {toString: function () { return 'x'; }};
-    db.createRel('legal', {x: number}, constr.unique(obj));
-    rel.legal.drop();
+    db.createRel('legal', {x: number}, constrs.unique(obj));
+    rels.legal.drop();
 
     obj.length = 12.1;
-    db.createRel('legal', {x: number}, constr.unique(obj));
-    rel.legal.drop();
+    db.createRel('legal', {x: number}, constrs.unique(obj));
+    rels.legal.drop();
 
     obj.length = -1;
-    db.createRel('legal', {x: number}, constr.unique(obj));
-    rel.legal.drop();
+    db.createRel('legal', {x: number}, constrs.unique(obj));
+    rels.legal.drop();
 
     checkThrows(function () {
-                    db.createRel('illegal', {x: number}, constr.unique([]));
+                    db.createRel('illegal', {x: number}, constrs.unique([]));
                 });
 
     checkThrows(function () {
                     db.createRel('illegal',
                                  {x: number, y: number},
-                                 constr.foreignKey(['x', 'y'], 'User', 'id'));
+                                 constrs.foreignKey(['x', 'y'], 'User', 'id'));
                 });
 
     checkThrows(function () {
                     var obj = {length: 1};
                     db.createRel('illegal',
                                  {undefined: number},
-                                 constr.foreignKey(obj, 'Post', 'id'));
+                                 constrs.foreignKey(obj, 'Post', 'id'));
                 });
     checkThrows(function () {
                     db.createRel('illegal',
                                  {x: number, y: number},
-                                 constr.foreignKey(['x', 'y'],
+                                 constrs.foreignKey(['x', 'y'],
                                                    'Post',
                                                    ['id', 'author']));
                 });
@@ -314,22 +314,22 @@ db_test_suite.testCreateRel = function()
 
 db_test_suite.testConstr = function()
 {
-    checkThrows("db.createRel('illegal', {}, constr.unique())");
-    checkThrows("constr.foreignKey('a', 'b')");
-    checkThrows("constr.check('a', 'b')");
-    checkThrows("constr.unique(['a', 'a'])");
-    checkThrows("constr.unique('a', 'a')");
-    constr.check('field != 0');
+    checkThrows("db.createRel('illegal', {}, constrs.unique())");
+    checkThrows("constrs.foreignKey('a', 'b')");
+    checkThrows("constrs.check('a', 'b')");
+    checkThrows("constrs.unique(['a', 'a'])");
+    checkThrows("constrs.unique('a', 'a')");
+    constrs.check('field != 0');
     checkThrows("db.createRel('ill', {x: number}, {})");
     checkThrows(function () {
                     db.createRel('ill',
                                  {x: number},
-                                 constr.foreignKey([], 'User', []));
+                                 constrs.foreignKey([], 'User', []));
                 });
     checkThrows(function () {
                     db.createRel('ill',
                                  {x: number},
-                                 constr.foreignKey('x', 'User', 'age'));
+                                 constrs.foreignKey('x', 'User', 'age'));
                 });
 };
 
@@ -337,17 +337,17 @@ db_test_suite.testConstr = function()
 db_test_suite.testDropRels = function()
 {
     db.createRel('NewRel', {x: number});
-    rel.NewRel.drop();
-    check("!('NewRel' in rel)");
-    checkThrows("rel.User.drop(1)");
-    checkThrows("rel.User.drop()");
+    rels.NewRel.drop();
+    check("!('NewRel' in rels)");
+    checkThrows("rels.User.drop(1)");
+    checkThrows("rels.User.drop()");
     checkThrows("db.dropRels('User', 'Post')");
     checkThrows("db.dropRels('Comment', 'Comment')");
     checkThrows("db.dropRels(['Comment', 'Comment'])");
 
-    db.createRel('rel1', {x: number}, constr.unique('x'));
-    db.createRel('rel2', {x: number}, constr.foreignKey('x', 'rel1', 'x'));
-    checkThrows("rel.rel1.drop()");
+    db.createRel('rel1', {x: number}, constrs.unique('x'));
+    db.createRel('rel2', {x: number}, constrs.foreignKey('x', 'rel1', 'x'));
+    checkThrows("rels.rel1.drop()");
     db.dropRels('rel1', 'rel2');
 };
 
@@ -376,41 +376,41 @@ db_test_suite.testQuery = function()
 
 db_test_suite.testInsert = function()
 {
-    checkThrows("rel.User.insert()");
-    checkThrows("rel.User.insert(15)", TypeError);
-    checkThrows("rel.User.insert({'@': 'abc'})");
-    checkThrows("rel.Comment.insert({id: 2, text: 'yo', author: 5, post: 0})");
-    checkThrows("rel.User.insert({id: 2})");
-    checkThrows("rel.Empty.insert({x: 5})");
-    checkEqualTo("items(rel.User.insert({name: 'xxx', age: 0}))",
+    checkThrows("rels.User.insert()");
+    checkThrows("rels.User.insert(15)", TypeError);
+    checkThrows("rels.User.insert({'@': 'abc'})");
+    checkThrows("rels.Comment.insert({id: 2, text: 'yo', author: 5, post: 0})");
+    checkThrows("rels.User.insert({id: 2})");
+    checkThrows("rels.Empty.insert({x: 5})");
+    checkEqualTo("items(rels.User.insert({name: 'xxx', age: 0}))",
                 [['id', 3], ['name', 'xxx'], ['age', 0], ['flooder', true]]);
-    rel.User.where('name == $', 'xxx').del();
-    checkEqualTo("items(rel.Empty.insert({}))", []);
-    checkThrows("rel.Empty.insert({})");
-    rel.Empty.all().del();
+    rels.User.where('name == $', 'xxx').del();
+    checkEqualTo("items(rels.Empty.insert({}))", []);
+    checkThrows("rels.Empty.insert({})");
+    rels.Empty.all().del();
 };
 
 
 db_test_suite.testRel = function()
 {
-    check("rel.User.name == 'User'");
-    checkEqualTo("items(rel.User.header).sort()",
+    check("rels.User.name == 'User'");
+    checkEqualTo("items(rels.User.header).sort()",
                  [['age', number],
                   ['flooder', boolean],
                   ['id', number],
                   ['name', string]]);
-    check("'name' in rel.User");
-    check("'header' in rel.User");
-    check("'insert' in rel.User");
+    check("'name' in rels.User");
+    check("'header' in rels.User");
+    check("'insert' in rels.User");
 };
 
 
-db_test_suite.testRelCatalog = function()
+db_test_suite.testRels = function()
 {
-    check("'Comment' in rel");
-    check("!('second' in rel)");
-    check("rel.second === undefined");
-    checkEqualTo("keys(rel).sort()",
+    check("'Comment' in rels");
+    check("!('second' in rels)");
+    check("rels.second === undefined");
+    checkEqualTo("keys(rels).sort()",
                  ['Comment', 'Dummy', 'Empty', 'Post', 'User']);
 };
 
@@ -423,7 +423,7 @@ db_test_suite.testWhere = function()
                  },
                  [{id: 0, name: 'anton'}]);
     checkThrows("db.query('User').where()");
-    checkEqualTo("rel.User.where('forsome (x in {}) true').length", 3);
+    checkEqualTo("rels.User.where('forsome (x in {}) true').length", 3);
 };
 
 
@@ -438,16 +438,16 @@ db_test_suite.testWhose = function()
 db_test_suite.testBy = function()
 {
     db.createRel('ByTest', {x: number, y: number});
-    rel.ByTest.insert({x: 0, y: 1});
-    rel.ByTest.insert({x: 1, y: 7});
-    rel.ByTest.insert({x: 2, y: 3});
-    rel.ByTest.insert({x: 3, y: 9});
-    rel.ByTest.insert({x: 4, y: 4});
-    rel.ByTest.insert({x: 5, y: 2});
+    rels.ByTest.insert({x: 0, y: 1});
+    rels.ByTest.insert({x: 1, y: 7});
+    rels.ByTest.insert({x: 2, y: 3});
+    rels.ByTest.insert({x: 3, y: 9});
+    rels.ByTest.insert({x: 4, y: 4});
+    rels.ByTest.insert({x: 5, y: 2});
     check("db.query('ByTest').where('y != $', 9)" +
           ".by('x * $1 % $2', 2, 7).field('y')",
           [1, 4, 7, 2, 3]);
-    rel.ByTest.drop();
+    rels.ByTest.drop();
 };
 
 
@@ -462,28 +462,28 @@ db_test_suite.testOnly = function()
 
 db_test_suite.testAll = function()
 {
-    checkThrows("rel.User.all(1)");
-    check("rel.User.all().field('id').sort()", [0, 1, 2]);
-    check("rel.User.all().where('!(id % 2)').by('-id').field('name')",
+    checkThrows("rels.User.all(1)");
+    check("rels.User.all().field('id').sort()", [0, 1, 2]);
+    check("rels.User.all().where('!(id % 2)').by('-id').field('name')",
           ['den', 'anton']);
-    check("rel.User.whose('id == $', 0)['name']",
+    check("rels.User.whose('id == $', 0)['name']",
           'anton');
-    check("rel.User.where('name != $', 'den').by('flooder').field('id')",
+    check("rels.User.where('name != $', 'den').by('flooder').field('id')",
           [1, 0]);
 };
 
 
 db_test_suite.testUpdate = function()
 {
-    var initial = rel.User.all();
+    var initial = rels.User.all();
     initial.perform();
-    checkThrows("rel.User.where('id == 0').update({})");
-    checkThrows("rel.User.where('id == 0').update()");
-    checkThrows("rel.User.where('id == 0').update(1)");
-    rel.User.where('id == 0').update({name: '$'}, 'ANTON');
-    check("rel.User.whose('id == 0')['name'] == 'ANTON'");
-    checkThrows("rel.User.all().update({}");
-    rel.User
+    checkThrows("rels.User.where('id == 0').update({})");
+    checkThrows("rels.User.where('id == 0').update()");
+    checkThrows("rels.User.where('id == 0').update(1)");
+    rels.User.where('id == 0').update({name: '$'}, 'ANTON');
+    check("rels.User.whose('id == 0')['name'] == 'ANTON'");
+    checkThrows("rels.User.all().update({}");
+    rels.User
         .where('name != $', 'marina')
         .by('id').update({age: 'age + $1',
                           flooder: 'flooder || $2'},
@@ -491,26 +491,26 @@ db_test_suite.testUpdate = function()
                          'yo!');
     for (var i = 0; i < 10; ++ i)
         checkThrows(
-            "rel.User.where('name == $', 'den').updateByValues({id: 4})");
+            "rels.User.where('name == $', 'den').updateByValues({id: 4})");
     forEach(initial, function (tuple) {
-                rel.User.where('id == $', tuple.id).updateByValues(tuple);
+                rels.User.where('id == $', tuple.id).updateByValues(tuple);
             });
-    checkEqualTo("rel.User.all()", initial);
+    checkEqualTo("rels.User.all()", initial);
 };
 
 
 db_test_suite.testDel = function()
 {
-    var initial = rel.User.all();
+    var initial = rels.User.all();
     initial.perform();
-    checkThrows("rel.User.all().del()");
+    checkThrows("rels.User.all().del()");
     var tricky_name = 'xx\'y\'zz\'';
-    rel.User.insert({id: 3, name: tricky_name, age: 15, flooder: true});
-    checkThrows("rel.User.where('age == 15').del(0)");
-    rel.User.by('name').where('id == 3').update({name: 'name + 1'});
-    checkEqualTo("rel.User.whose('id == 3')['name']", tricky_name + 1);
-    rel.User.where('age == 15').del();
-    checkEqualTo("rel.User.field('id').sort()", [0, 1, 2]);
+    rels.User.insert({id: 3, name: tricky_name, age: 15, flooder: true});
+    checkThrows("rels.User.where('age == 15').del(0)");
+    rels.User.by('name').where('id == 3').update({name: 'name + 1'});
+    checkEqualTo("rels.User.whose('id == 3')['name']", tricky_name + 1);
+    rels.User.where('age == 15').del();
+    checkEqualTo("rels.User.field('id').sort()", [0, 1, 2]);
 };
 
 
@@ -527,9 +527,9 @@ db_test_suite.testStress = function()
 db_test_suite.testPg = function()
 {
     db.createRel('pg_class', {x: number});
-    rel.pg_class.insert({x: 0});
-    checkEqualTo("rel.pg_class.all()", [{x: 0}]);
-    rel.pg_class.drop();
+    rels.pg_class.insert({x: 0});
+    checkEqualTo("rels.pg_class.all()", [{x: 0}]);
+    rels.pg_class.drop();
 };
 
 
@@ -537,29 +537,29 @@ db_test_suite.testCheck = function()
 {
     db.createRel('silly', {n: number.check('n != 42')});
     db.createRel('dummy', {b: boolean, s: string},
-                 constr.check('b || s == "hello"'));
-    rel.silly.insert({n: 0});
-    checkThrows("rel.r.insert({n: 42})");
-    rel.dummy.insert({b: true, s: 'hi'});
-    rel.dummy.insert({b: false, s: 'hello'});
-    checkThrows("rel.dummy.insert({b: false, s: 'oops'})");
-    rel.silly.drop();
-    rel.dummy.drop();
+                 constrs.check('b || s == "hello"'));
+    rels.silly.insert({n: 0});
+    checkThrows("rels.r.insert({n: 42})");
+    rels.dummy.insert({b: true, s: 'hi'});
+    rels.dummy.insert({b: false, s: 'hello'});
+    checkThrows("rels.dummy.insert({b: false, s: 'oops'})");
+    rels.silly.drop();
+    rels.dummy.drop();
 };
 
 
 db_test_suite.testDate = function()
 {
-    db.createRel('d1', {d: date}, constr.unique('d'));
+    db.createRel('d1', {d: date}, constrs.unique('d'));
     var some_date = new Date(Date.parse('Wed, Mar 04 2009 16:12:09 GMT'));
     var other_date = new Date(2009, 0, 15, 13, 27, 11, 481);
-    rel.d1.insert({d: some_date});
-    checkEqualTo("rel.d1.field('d')", [some_date]);
-    db.createRel('d2', {d: date}, constr.foreignKey('d', 'd1', 'd'));
-    checkThrows(function () { rel.d2.insert({d: other_date}); });
-    rel.d1.insert({d: other_date});
-    checkEqualTo("rel.d1.by('-d').field('d')", [some_date, other_date]);
-    rel.d2.insert({d: other_date});
+    rels.d1.insert({d: some_date});
+    checkEqualTo("rels.d1.field('d')", [some_date]);
+    db.createRel('d2', {d: date}, constrs.foreignKey('d', 'd1', 'd'));
+    checkThrows(function () { rels.d2.insert({d: other_date}); });
+    rels.d1.insert({d: other_date});
+    checkEqualTo("rels.d1.by('-d').field('d')", [some_date, other_date]);
+    rels.d2.insert({d: other_date});
     db.dropRels('d1', 'd2');
 };
 
@@ -571,20 +571,20 @@ db_test_suite.testDefault = function()
                          s: string.byDefault('hello, world!'),
                          b: boolean.byDefault(true),
                          d: date.byDefault(now)});
-    checkEqualTo("items(rel.def.getDefaults()).sort()",
+    checkEqualTo("items(rels.def.getDefaults()).sort()",
                  [['b', true],
                   ['d', now],
                   ['n', 42],
                   ['s', 'hello, world!']]);
-    rel.def.insert({});
-    checkThrows("rel.def.insert({})");
-    rel.def.insert({b: false});
-    rel.def.insert({n: 0, s: 'hi'});
-    checkEqualTo("rel.def.by('b').by('n')",
+    rels.def.insert({});
+    checkThrows("rels.def.insert({})");
+    rels.def.insert({b: false});
+    rels.def.insert({n: 0, s: 'hi'});
+    checkEqualTo("rels.def.by('b').by('n')",
                  [{b: false, d: now, n: 42, s: 'hello, world!'},
                   {b: true, d: now, n: 0, s: 'hi'},
                   {b: true, d: now, n: 42, s: 'hello, world!'}]);
-    rel.def.drop();
+    rels.def.drop();
 };
 
 
@@ -595,13 +595,13 @@ db_test_suite.testIntSerial = function()
     checkThrows("number.serial().int()");
     checkThrows("number.serial().serial()");
     checkThrows("number.int().int()");
-    checkEqualTo("rel.Comment.getInts().sort()", ['author', 'id', 'post']);
+    checkEqualTo("rels.Comment.getInts().sort()", ['author', 'id', 'post']);
     db.createRel('r', {x: number.serial(),
                        y: number.serial(),
                        z: number.int()});
-    checkEqualTo("rel.r.getInts().sort()", ['x', 'y', 'z']);
-    checkEqualTo("rel.r.getSerials().sort()", ['x', 'y']);
-    rel.r.drop();
+    checkEqualTo("rels.r.getInts().sort()", ['x', 'y', 'z']);
+    checkEqualTo("rels.r.getSerials().sort()", ['x', 'y']);
+    rels.r.drop();
 };
 
 
@@ -609,13 +609,13 @@ db_test_suite.testUnique = function()
 {
     db.createRel('r',
                  {a: number, b: string, c: boolean},
-                 constr.unique('a', 'b'),
-                 constr.unique('b', 'c'),
-                 constr.unique('c'));
-    checkEqualTo("rel.r.getUniques().sort()",
+                 constrs.unique('a', 'b'),
+                 constrs.unique('b', 'c'),
+                 constrs.unique('c'));
+    checkEqualTo("rels.r.getUniques().sort()",
                  [['a', 'b'], ['a', 'b', 'c'], ['b', 'c'], ['c']]);
-    checkEqualTo("rel.Dummy.getUniques()", [['id']]);
-    rel.r.drop();
+    checkEqualTo("rels.Dummy.getUniques()", [['id']]);
+    rels.r.drop();
 };
 
 
@@ -626,16 +626,16 @@ db_test_suite.testForeignKey = function()
                   author: number.int(),
                   id: number.serial(),
                   ref: number.int()},
-                 constr.foreignKey(['title', 'author'],
+                 constrs.foreignKey(['title', 'author'],
                                    'Post',
                                    ['title', 'author']),
-                 constr.foreignKey('ref', 'r', 'id'),
-                 constr.unique('id'));
+                 constrs.foreignKey('ref', 'r', 'id'),
+                 constrs.unique('id'));
     checkEqualTo(function () {
                      return map(function (fk) {
                                     return items(fk).sort();
                                 },
-                                rel.r.getForeignKeys()).sort();
+                                rels.r.getForeignKeys()).sort();
                  },
                  [[["key_fields", ["ref"]],
                    ["ref_fields", ["id"]],
@@ -643,7 +643,7 @@ db_test_suite.testForeignKey = function()
                   [["key_fields", ["title", "author"]],
                    ["ref_fields", ["title", "author"]],
                    ["ref_rel", "Post"]]]);
-    rel.r.drop();
+    rels.r.drop();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
