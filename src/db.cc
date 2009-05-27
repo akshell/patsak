@@ -853,11 +853,9 @@ Manager::Manager(Work& work, const string& schema_name, ConsistController& cc)
     : schema_name_(schema_name)
     , consist_controller_(cc)
 {
-    static const format set_cmd("SET search_path TO \"%1%\", pg_catalog;");
-    static const format init_cmd("SELECT ku.init_schema('%1%');");
+    static const format cmd("SET search_path TO \"%1%\", pg_catalog;");
 
-    work.exec((format(init_cmd) % schema_name).str());
-    work.exec((format(set_cmd) % schema_name).str());
+    work.exec((format(cmd) % schema_name).str());
     LoadMeta(work);
 }
 

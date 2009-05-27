@@ -15,68 +15,41 @@ import shutil
 import psycopg2
 
 
-TEST_EXE_NAME      = 'test-patsak'
-EXE_NAME           = 'patsak'
-TMP_DIR            = '/tmp/patsak'
-SOCKET_DIR         = os.path.join(TMP_DIR, 'sockets')
-LOG_DIR            = os.path.join(TMP_DIR, 'logs')
-GUARD_DIR          = os.path.join(TMP_DIR, 'guards')
-MEDIA_DIR          = os.path.join(TMP_DIR, 'media')
-APP_NAME           = 'test_app'
-BAD_APP_NAME       = 'bad_app'
-USER_NAME          = 'test_user'
-SPOT_NAME           = 'test_spot'
-CONFIG_PATH        = 'patsak.config'
+TEST_EXE_NAME = 'test-patsak'
+EXE_NAME      = 'patsak'
+TMP_DIR       = '/tmp/patsak'
+SOCKET_DIR    = os.path.join(TMP_DIR, 'sockets')
+LOG_DIR       = os.path.join(TMP_DIR, 'logs')
+GUARD_DIR     = os.path.join(TMP_DIR, 'guards')
+MEDIA_DIR     = os.path.join(TMP_DIR, 'media')
+APP_NAME      = 'test_app'
+BAD_APP_NAME  = 'bad_app'
+USER_NAME     = 'test_user'
+SPOT_NAME     = 'test_spot'
+CONFIG_PATH   = 'patsak.config'
+DB_NAME       = 'test_patsak'
+DB_PARAMS     = 'user=test password=test dbname=%s'
+RELEASE_DIR   = os.path.join(os.path.dirname(__file__),
+                             '../sample/code/release')
 
 
-class Response:
+class _Response:
     def __init__(self, status, data):
         self.status = status
         self.data = data
-        
-        
-def _create_db(cursor, db_name):
-    try:
-        cursor.execute('CREATE DATABASE "%s" '
-                       'WITH OWNER "patsak" '
-                       'TEMPLATE "template";' % db_name)
-    except psycopg2.Error, error:
-        if error.pgcode != '42P04':
-            raise
 
-
-def _make_dir_tree(base_dir):
-    os.makedirs(os.path.join(base_dir, 'release'));
-    os.makedirs(os.path.join(base_dir, 'spots', APP_NAME, USER_NAME))
-    
 
 class Test(unittest.TestCase):
     def setUp(self):
-        if os.path.exists(TMP_DIR):
-            shutil.rmtree(TMP_DIR)
         self._exe_path = os.path.join(Test.DIR, EXE_NAME)
         self._test_exe_path = os.path.join(Test.DIR, TEST_EXE_NAME)
         
         self._in = open('/dev/null', 'r')
         self._out = open('/dev/null', 'w')
 
-        _make_dir_tree(SOCKET_DIR)
-        _make_dir_tree(LOG_DIR)
-        _make_dir_tree(GUARD_DIR)
-        _make_dir_tree(MEDIA_DIR)
-        os.mkdir(os.path.join(MEDIA_DIR, 'release', APP_NAME))
-        
-        conn = psycopg2.connect("user=test password=test dbname=template")
-        conn.set_isolation_level(0)
-        cursor = conn.cursor()
-        _create_db(cursor, "test_patsak")
-        _create_db(cursor, "test_patsak_test_app")
-
-
     def tearDown(self):
         self._out.close()
         self._in.close()
-        shutil.rmtree(TMP_DIR)
         
     def _check_launch(self, args, code=0, program=None):
         popen = subprocess.Popen([program if program else self._exe_path,
@@ -127,7 +100,7 @@ class Test(unittest.TestCase):
                                  stderr=self._out,
                                  stdout=subprocess.PIPE)
         status = popen.stdout.readline()[:-1]
-        return Response(status, popen.stdout.read()[:-1])
+        return _Response(status, popen.stdout.read()[:-1])
 
     def testJS(self):
         self.assertEqual(self._eval('argh!!!!').status, 'ERROR')
@@ -286,19 +259,75 @@ class Test(unittest.TestCase):
         self.assertEqual(self._talk_through_socket(socket_path, 'STOP'),
                          'OK\n')
         self.assertEqual(popen.wait(), 0)
-        
 
+        
+def _create_schema(cursor, schema_name):
+    cursor.execute('DROP SCHEMA IF EXISTS "%s" CASCADE' % schema_name)
+    cursor.execute('SELECT ku.create_schema(%s)', (schema_name,))
+    
+        
+def _create_db():
+    conn = psycopg2.connect(DB_PARAMS % 'template1')
+    conn.set_isolation_level(0)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('CREATE DATABASE "%s"' % DB_NAME)
+    except psycopg2.Error, error:
+        if error.pgcode != '42P04':
+            raise
+    conn.close()
+    conn = psycopg2.connect(DB_PARAMS % DB_NAME)
+    cursor = conn.cursor()
+    for app_name in os.listdir(RELEASE_DIR):
+        if (app_name[0] == '.' or
+            not os.path.isdir(os.path.join(RELEASE_DIR, app_name))):
+            continue
+        _create_schema(cursor, ':' + app_name)
+    _create_schema(cursor, ':%s:%s:%s' % (APP_NAME, USER_NAME, SPOT_NAME))
+    conn.commit()
+    conn.close()
+
+
+def _drop_db():
+    conn = psycopg2.connect(DB_PARAMS % 'template1')
+    conn.set_isolation_level(0)
+    cursor = conn.cursor()
+    cursor.execute('DROP DATABASE "%s"' % DB_NAME)
+    conn.close()
+
+    
+def _make_dir_tree(base_dir):
+    os.makedirs(os.path.join(base_dir, 'release'));
+    os.makedirs(os.path.join(base_dir, 'spots', APP_NAME, USER_NAME))
+
+    
+def _make_dirs():
+    if os.path.exists(TMP_DIR):
+        shutil.rmtree(TMP_DIR)
+    _make_dir_tree(SOCKET_DIR)
+    _make_dir_tree(LOG_DIR)
+    _make_dir_tree(GUARD_DIR)
+    _make_dir_tree(MEDIA_DIR)
+    os.mkdir(os.path.join(MEDIA_DIR, 'release', APP_NAME))
+
+    
 def main():
     if len(sys.argv) != 2:
         print 'Usage: ', sys.argv[0], ' dir'
         sys.exit(1)
     Test.DIR = sys.argv[1]
     suite = unittest.TestLoader().loadTestsFromTestCase(Test)
+    _create_db()
+    _make_dirs()
+    
     unittest.TextTestRunner(verbosity=2).run(suite)
+    
     subprocess.Popen('killall -w patsak; killall -w exe',
                      shell=True,
                      stdout=subprocess.PIPE,
                      stderr=subprocess.STDOUT)
+    shutil.rmtree(TMP_DIR)
+    _drop_db()
     
         
 if __name__ == '__main__':

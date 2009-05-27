@@ -88,9 +88,9 @@ CREATE OR REPLACE FUNCTION insert_into_empty(table_name text) RETURNS void AS $$
 DECLARE
     row ku."Empty"%ROWTYPE;
 BEGIN
-    EXECUTE 'INSERT INTO "' || table_name || '" DEFAULT VALUES';
+    EXECUTE 'INSERT INTO ' || quote_ident(table_name) || ' DEFAULT VALUES';
     BEGIN
-        EXECUTE 'SELECT * FROM "' || table_name || '"' INTO STRICT row;
+        EXECUTE 'SELECT * FROM ' || quote_ident(table_name) INTO STRICT row;
     EXCEPTION
         WHEN TOO_MANY_ROWS THEN
             RAISE EXCEPTION 'Empty relation "%" already has a row', table_name;
@@ -99,16 +99,24 @@ END;
 $$ LANGUAGE plpgsql VOLATILE;
 
 
-CREATE OR REPLACE FUNCTION init_schema(schema_name text) RETURNS void AS $$
+CREATE OR REPLACE FUNCTION create_schema(schema_name text) RETURNS void AS $$
 BEGIN
-    BEGIN
-        EXECUTE 'CREATE SCHEMA "' || schema_name || '"';
-    EXCEPTION
-        WHEN DUPLICATE_SCHEMA THEN
-            RETURN;
-    END;
-    EXECUTE 'CREATE OPERATOR "' || schema_name ||
-            '".% (leftarg = float8, rightarg = float8, procedure = ku.mod)';
+    EXECUTE 'CREATE SCHEMA ' || quote_ident(schema_name);
+    EXECUTE 'CREATE OPERATOR ' || quote_ident(schema_name) ||
+            '.% (leftarg = float8, rightarg = float8, procedure = ku.mod)';
+END;
+$$ LANGUAGE plpgsql VOLATILE;
+
+
+CREATE OR REPLACE FUNCTION drop_schemas(prefix text) RETURNS void AS $$
+DECLARE
+    nsp RECORD;
+BEGIN
+    FOR nsp IN SELECT nspname
+               FROM pg_namespace
+               WHERE nspname LIKE (prefix || '%') LOOP
+        EXECUTE 'DROP SCHEMA ' || quote_ident(nsp.nspname) || ' CASCADE';
+    END LOOP;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
 
