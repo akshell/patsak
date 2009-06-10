@@ -62,7 +62,7 @@ function checkThrows(expr, cls)
     cls = cls || Error;
     try {
         if (expr instanceof Function)
-            expr()
+            expr();
         else
             eval(expr);
     } catch (err) {

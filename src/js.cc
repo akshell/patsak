@@ -751,12 +751,11 @@ Program::Impl::Impl(const string& code_dir,
 {
     HandleScope handle_scope;
     context_ = Context::New(NULL, GlobalBg::GetJSClass().GetObjectTemplate());
-    context_->DetachGlobal();
-    Handle<Object> global(context_->Global());
-    global->SetInternalField(0, External::New(&global_bg_));
-    SetInternal(global, "ak", &ak_bg_);
+    Handle<Object> global_proto(context_->Global()->GetPrototype()->ToObject());
+    global_proto->SetInternalField(0, External::New(&global_bg_));
+    SetInternal(global_proto, "ak", &ak_bg_);
     ak_ = Persistent<Object>::New(
-        global->Get(String::NewSymbol("ak"))->ToObject());
+        global_proto->Get(String::NewSymbol("ak"))->ToObject());
     SetInternal(ak_, "db", &db_bg_);
     SetInternal(ak_, "types", &type_catalog_bg_);
     SetInternal(ak_, "rels", &rel_catalog_bg_);
