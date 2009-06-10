@@ -28,6 +28,7 @@ namespace
 {
     const size_t MAX_NAME_SIZE = 60;
     const size_t MAX_ATTR_NUMBER = 500;
+    const size_t MAX_REL_NUMBER = 500;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -348,6 +349,11 @@ void DBMeta::CreateRel(Work& work,
                        const RichHeader& rich_header,
                        const Constrs& constrs)
 {
+    if (rel_metas_.size() >= MAX_REL_NUMBER) {
+        static const string message(
+            (format("Maximum relation number is %1%") % MAX_REL_NUMBER).str());
+        throw Error(message);
+    }
     CheckNameSize(rel_name);
     if (rich_header.size() > MAX_ATTR_NUMBER) {
         static const string message(

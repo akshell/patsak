@@ -111,7 +111,7 @@ class Test(unittest.TestCase):
                          'pish is not defined\n'
                          'LINE 1\n'
                          'COLUMN 0\n')
-        self.assertEqual(self._eval('main()').data, '0')
+        self.assertEqual(self._eval('2+2').data, '4')
         self._check_launch(['--test',
                             '--media-dir', MEDIA_DIR,
                             '--expr', '2+2',

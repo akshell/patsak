@@ -112,7 +112,7 @@ function runTestSuites(test_suites)
 var base_test_suite = {};
 
 
-base_test_suite.testInclude = function()
+base_test_suite.testInclude = function ()
 {
     check("include('hello.js') == 'hello'");
     checkThrows("include('no-such-file.js')");
@@ -126,14 +126,14 @@ base_test_suite.testInclude = function()
 };
 
 
-base_test_suite.testImport = function()
+base_test_suite.testImport = function ()
 {
     checkThrows("import('no_such_lib', 'xxx.js')");
     checkEqualTo("import('lib/0.1/', '42.js')", 42);
 };
 
 
-base_test_suite.testTypes = function()
+base_test_suite.testTypes = function ()
 {
     check("types.a === undefined");
     check("'number' in types && 'string' in types && 'boolean' in types");
@@ -150,7 +150,7 @@ base_test_suite.testTypes = function()
 };
 
 
-base_test_suite.testConstructors = function()
+base_test_suite.testConstructors = function ()
 {
     check("this instanceof ak.Global");
     check("ak instanceof ak.AK");
@@ -160,7 +160,7 @@ base_test_suite.testConstructors = function()
 };
 
 
-base_test_suite.testSetObjectProp = function()
+base_test_suite.testSetObjectProp = function ()
 {
     var obj = {};
     checkThrows("ak.setObjectProp()");
@@ -170,7 +170,7 @@ base_test_suite.testSetObjectProp = function()
     obj.setProp('dont_delete', ak.DONT_DELETE, 3);
     checkThrows(function () { ak.setObjectProp(obj, 'field', {}, 42); });
     checkThrows(function () { ak.setObjectProp(obj, 'field', 8, 42); });
-    check(function() {
+    check(function () {
               obj.read_only = 5;
               return obj.read_only == 1;
           });
@@ -195,7 +195,7 @@ var boolean = ak.types.boolean;
 var date = ak.types.date;
 
 
-db_test_suite.setUp = function()
+db_test_suite.setUp = function ()
 {
     db.dropRels(keys(rels));
 
@@ -233,13 +233,13 @@ db_test_suite.setUp = function()
 };
 
 
-db_test_suite.tearDown = function()
+db_test_suite.tearDown = function ()
 {
     db.dropRels(keys(rels));
 };
 
 
-db_test_suite.testConstructors = function()
+db_test_suite.testConstructors = function ()
 {
     var q = db.query('User');
     check(q instanceof ak.Query, "ak.Query");
@@ -247,7 +247,7 @@ db_test_suite.testConstructors = function()
 };
 
 
-db_test_suite.testCreateRel = function()
+db_test_suite.testCreateRel = function ()
 {
     checkThrows("db.createRel('illegal')");
     checkThrows("db.createRel('illegal', 'str')");
@@ -312,7 +312,7 @@ db_test_suite.testCreateRel = function()
 };
 
 
-db_test_suite.testConstr = function()
+db_test_suite.testConstr = function ()
 {
     checkThrows("db.createRel('illegal', {}, constrs.unique())");
     checkThrows("constrs.foreignKey('a', 'b')");
@@ -334,7 +334,7 @@ db_test_suite.testConstr = function()
 };
 
 
-db_test_suite.testDropRels = function()
+db_test_suite.testDropRels = function ()
 {
     db.createRel('NewRel', {x: number});
     rels.NewRel.drop();
@@ -352,13 +352,13 @@ db_test_suite.testDropRels = function()
 };
 
 
-db_test_suite.testQuery = function()
+db_test_suite.testQuery = function ()
 {
     var q = db.query('User[name, age, flooder] where id == 0');
     checkEqualTo(q, [{name: 'anton', age: 22, flooder: true}]);
-    check(function() { return q[1] === undefined; });
-    check(function() { return (0 in q) && !(1 in q); });
-    checkEqualTo(function() { return keys(q); }, [0]);
+    check(function () { return q[1] === undefined; });
+    check(function () { return (0 in q) && !(1 in q); });
+    checkEqualTo(function () { return keys(q); }, [0]);
     checkThrows("db.query()");
     checkThrows("db.query('dfsa').perform()");
     checkThrows("db.query('dfsa').length");
@@ -374,7 +374,7 @@ db_test_suite.testQuery = function()
 };
 
 
-db_test_suite.testInsert = function()
+db_test_suite.testInsert = function ()
 {
     checkThrows("rels.User.insert()");
     checkThrows("rels.User.insert(15)", TypeError);
@@ -391,7 +391,7 @@ db_test_suite.testInsert = function()
 };
 
 
-db_test_suite.testRel = function()
+db_test_suite.testRel = function ()
 {
     check("rels.User.name == 'User'");
     checkEqualTo("items(rels.User.header).sort()",
@@ -405,7 +405,7 @@ db_test_suite.testRel = function()
 };
 
 
-db_test_suite.testRels = function()
+db_test_suite.testRels = function ()
 {
     check("'Comment' in rels");
     check("!('second' in rels)");
@@ -415,7 +415,7 @@ db_test_suite.testRels = function()
 };
 
 
-db_test_suite.testWhere = function()
+db_test_suite.testWhere = function ()
 {
     checkEqualTo(function () {
                      return (db.query('User[id, name]')
@@ -427,7 +427,7 @@ db_test_suite.testWhere = function()
 };
 
 
-db_test_suite.testWhose = function()
+db_test_suite.testWhose = function ()
 {
     checkEqualTo("db.query('User[id, name]').whose('id == $', 1)",
                  {id: 1, name: 'marina'});
@@ -435,7 +435,7 @@ db_test_suite.testWhose = function()
 };
 
 
-db_test_suite.testBy = function()
+db_test_suite.testBy = function ()
 {
     db.createRel('ByTest', {x: number, y: number});
     rels.ByTest.insert({x: 0, y: 1});
@@ -451,7 +451,7 @@ db_test_suite.testBy = function()
 };
 
 
-db_test_suite.testOnly = function()
+db_test_suite.testOnly = function ()
 {
     checkThrows(function () {
                     var obj = {length: 1};
@@ -460,7 +460,7 @@ db_test_suite.testOnly = function()
 };
 
 
-db_test_suite.testAll = function()
+db_test_suite.testAll = function ()
 {
     checkThrows("rels.User.all(1)");
     check("rels.User.all().field('id').sort()", [0, 1, 2]);
@@ -473,7 +473,7 @@ db_test_suite.testAll = function()
 };
 
 
-db_test_suite.testUpdate = function()
+db_test_suite.testUpdate = function ()
 {
     var initial = rels.User.all();
     initial.perform();
@@ -499,7 +499,7 @@ db_test_suite.testUpdate = function()
 };
 
 
-db_test_suite.testDel = function()
+db_test_suite.testDel = function ()
 {
     var initial = rels.User.all();
     initial.perform();
@@ -514,7 +514,7 @@ db_test_suite.testDel = function()
 };
 
 
-db_test_suite.testStress = function()
+db_test_suite.testStress = function ()
 {
     for (var i = 0; i < 20; ++i) {
         this.testUpdate();
@@ -524,7 +524,7 @@ db_test_suite.testStress = function()
 };
 
 
-db_test_suite.testPg = function()
+db_test_suite.testPg = function ()
 {
     db.createRel('pg_class', {x: number});
     rels.pg_class.insert({x: 0});
@@ -533,7 +533,7 @@ db_test_suite.testPg = function()
 };
 
 
-db_test_suite.testCheck = function()
+db_test_suite.testCheck = function ()
 {
     db.createRel('silly', {n: number.check('n != 42')});
     db.createRel('dummy', {b: boolean, s: string},
@@ -548,7 +548,7 @@ db_test_suite.testCheck = function()
 };
 
 
-db_test_suite.testDate = function()
+db_test_suite.testDate = function ()
 {
     db.createRel('d1', {d: date}, constrs.unique('d'));
     var some_date = new Date(Date.parse('Wed, Mar 04 2009 16:12:09 GMT'));
@@ -564,7 +564,7 @@ db_test_suite.testDate = function()
 };
 
 
-db_test_suite.testDefault = function()
+db_test_suite.testDefault = function ()
 {
     var now = new Date();
     db.createRel('def', {n: number.byDefault(42),
@@ -588,7 +588,7 @@ db_test_suite.testDefault = function()
 };
 
 
-db_test_suite.testIntSerial = function()
+db_test_suite.testIntSerial = function ()
 {
     checkThrows("number.serial().byDefault(42)");
     checkThrows("number.byDefault(42).serial()");
@@ -605,7 +605,7 @@ db_test_suite.testIntSerial = function()
 };
 
 
-db_test_suite.testUnique = function()
+db_test_suite.testUnique = function ()
 {
     db.createRel('r',
                  {a: number, b: string, c: boolean},
@@ -619,7 +619,7 @@ db_test_suite.testUnique = function()
 };
 
 
-db_test_suite.testForeignKey = function()
+db_test_suite.testForeignKey = function ()
 {
     db.createRel('r',
                  {title: string,
@@ -646,6 +646,18 @@ db_test_suite.testForeignKey = function()
     rels.r.drop();
 };
 
+
+db_test_suite.testRelNumber = function ()
+{
+    checkThrows(function () {
+                    for (var i = 0; i < 500; ++i)
+                        db.createRel('r' + i, {});
+                });
+    checkThrows(function () {
+                    for (var i = 0; i < 500; ++i)
+                        rels['r' + i].drop();
+                });
+};
 ////////////////////////////////////////////////////////////////////////////////
 // Init tests
 ////////////////////////////////////////////////////////////////////////////////
