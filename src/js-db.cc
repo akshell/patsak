@@ -901,11 +901,13 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, UpdateCb,
     params.reserve(args.Length() - 1);
     for (int i = 1; i < args.Length(); ++i)
         params.push_back(ReadKuValue(args[i]));
-    JS_PROPAGATE(GetAccessHolder()->Update(GetRelName(),
-                                           field_expr_map,
-                                           params,
-                                           GetWhereSpecifiers()));
-    return Undefined();
+    unsigned long rows_number;
+    JS_PROPAGATE(
+        rows_number = GetAccessHolder()->Update(GetRelName(),
+                                                field_expr_map,
+                                                params,
+                                                GetWhereSpecifiers()));
+    return Number::New(static_cast<double>(rows_number));
 }
 
 
@@ -913,8 +915,11 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, DelCb,
                     const Arguments&, args) const
 {
     JS_CHECK_LENGTH(args, 0);
-    JS_PROPAGATE(GetAccessHolder()->Delete(GetRelName(), GetWhereSpecifiers()));
-    return Undefined();
+    unsigned long rows_number;
+    JS_PROPAGATE(
+        rows_number = GetAccessHolder()->Delete(GetRelName(),
+                                                GetWhereSpecifiers()));
+    return Number::New(static_cast<double>(rows_number));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

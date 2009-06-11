@@ -1148,19 +1148,21 @@ QueryResult Access::Query(const std::string& query_str,
 }
 
 
-void Access::Update(const std::string& rel_name,
-                    const StringMap& field_expr_map,
-                    const Values& params,
-                    const WhereSpecifiers& where_specifiers)
+unsigned long Access::Update(const std::string& rel_name,
+                             const StringMap& field_expr_map,
+                             const Values& params,
+                             const WhereSpecifiers& where_specifiers)
 {
     const RichHeader& rich_header(GetRelRichHeader(rel_name));
     BOOST_FOREACH(const StringMap::value_type& field_expr, field_expr_map)
         rich_header.find(field_expr.first);
     pqxx::subtransaction sub_work(data_.work);
     try {
-        data_.querist.Update(sub_work, rel_name, field_expr_map,
-                             params, where_specifiers);
+        unsigned long result = data_.querist.Update(sub_work, rel_name,
+                                                    field_expr_map,
+                                                    params, where_specifiers);
         sub_work.commit();
+        return result;
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(err.what());
@@ -1168,13 +1170,15 @@ void Access::Update(const std::string& rel_name,
 }
 
 
-void Access::Delete(const std::string& rel_name,
-            const WhereSpecifiers& where_specifiers)
+unsigned long Access::Delete(const std::string& rel_name,
+                             const WhereSpecifiers& where_specifiers)
 {
     pqxx::subtransaction sub_work(data_.work);
     try {
-        data_.querist.Delete(sub_work, rel_name, where_specifiers);
+        unsigned long result = data_.querist.Delete(sub_work, rel_name,
+                                                    where_specifiers);
         sub_work.commit();
+        return result;
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(err.what());

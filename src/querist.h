@@ -86,15 +86,15 @@ namespace ku
                           const Values& params,
                           const Specifiers& specifiers);
 
-        void Update(pqxx::transaction_base& work,
-                    const std::string& rel_name,
-                    const StringMap& field_expr_map,
-                    const Values& params,
-                    const WhereSpecifiers& where_specifiers);
+        unsigned long Update(pqxx::transaction_base& work,
+                             const std::string& rel_name,
+                             const StringMap& field_expr_map,
+                             const Values& params,
+                             const WhereSpecifiers& where_specifiers);
                     
-        void Delete(pqxx::transaction_base& work,
-                    const std::string& rel_name,
-                    const WhereSpecifiers& where_specifiers);
+        unsigned long Delete(pqxx::transaction_base& work,
+                             const std::string& rel_name,
+                             const WhereSpecifiers& where_specifiers);
         
         void ClearCache();
 

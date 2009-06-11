@@ -480,15 +480,17 @@ db_test_suite.testUpdate = function ()
     checkThrows("rels.User.where('id == 0').update({})");
     checkThrows("rels.User.where('id == 0').update()");
     checkThrows("rels.User.where('id == 0').update(1)");
-    rels.User.where('id == 0').update({name: '$'}, 'ANTON');
+    checkEqualTo("rels.User.where('id == 0').update({name: '$'}, 'ANTON')",
+                 1);
     check("rels.User.whose('id == 0')['name'] == 'ANTON'");
     checkThrows("rels.User.all().update({}");
-    rels.User
-        .where('name != $', 'marina')
-        .by('id').update({age: 'age + $1',
-                          flooder: 'flooder || $2'},
-                         2,
-                         'yo!');
+    var rows_number = rels.User
+                          .where('name != $', 'marina')
+                          .by('id').update({age: 'age + $1',
+                                            flooder: 'flooder || $2'},
+                                            2,
+                                            'yo!');
+    check(rows_number == 2);
     for (var i = 0; i < 10; ++ i)
         checkThrows(
             "rels.User.where('name == $', 'den').updateByValues({id: 4})");
@@ -509,7 +511,7 @@ db_test_suite.testDel = function ()
     checkThrows("rels.User.where('age == 15').del(0)");
     rels.User.by('name').where('id == 3').update({name: 'name + 1'});
     checkEqualTo("rels.User.whose('id == 3')['name']", tricky_name + 1);
-    rels.User.where('age == 15').del();
+    checkEqualTo("rels.User.where('age == 15').del()", 1);
     checkEqualTo("rels.User.field('id').sort()", [0, 1, 2]);
 };
 

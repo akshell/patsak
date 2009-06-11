@@ -75,34 +75,61 @@ Values ku::GetTupleValues(const pqxx::result::tuple& tuple,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// QueryResult definitions
+// QueryResult::Impl
 ////////////////////////////////////////////////////////////////////////////////
 
-struct QueryResult::Data : private noncopyable {
-    Header header;
-    pqxx::result result;
-    size_t memory_usage;
-
-    Data(const Header& header, const pqxx::result& result);
+class QueryResult::Impl : private noncopyable {
+public:
+    Impl(const Header& header, const pqxx::result& pqxx_result);
+    const Header& GetHeader() const;
+    const pqxx::result& GetPqxxResult() const;
+    size_t GetMemoryUsage() const;
+    
+private:
+    Header header_;
+    pqxx::result pqxx_result_;
+    size_t memory_usage_;
 };
 
 
-QueryResult::Data::Data(const Header& header, const pqxx::result& result)
-    : header(header), result(result)
+QueryResult::Impl::Impl(const Header& header, const pqxx::result& pqxx_result)
+    : header_(header), pqxx_result_(pqxx_result)
 {
     // NB may be memory usage should not be calculated excactly due to
     // speed considerations
-    memory_usage = 0;
-    BOOST_FOREACH(const pqxx::result::tuple& tuple, result) {
-        KU_ASSERT((tuple.size() == header.size()) ||
-                  (tuple.size() == 1 && header.size() == 0)); // zero-column query
+    memory_usage_ = 0;
+    BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result_) {
+        KU_ASSERT((tuple.size() == header_.size()) ||
+                  (tuple.size() == 1 && header_.size() == 0)); // zero-column
         BOOST_FOREACH(const pqxx::result::field& field, tuple)
-            memory_usage += field.size();
+            memory_usage_ += field.size();
     }
 }
 
-QueryResult::QueryResult(const Data* data_ptr)
-    : data_ptr_(data_ptr)
+
+const Header& QueryResult::Impl::GetHeader() const
+{
+    return header_;
+}
+
+
+const pqxx::result& QueryResult::Impl::GetPqxxResult() const
+{
+    return pqxx_result_;
+}
+
+
+size_t QueryResult::Impl::GetMemoryUsage() const
+{
+    return memory_usage_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// QueryResult definitions
+////////////////////////////////////////////////////////////////////////////////
+
+QueryResult::QueryResult(const Impl* impl_ptr)
+    : impl_ptr_(impl_ptr)
 {
 }
 
@@ -114,9 +141,9 @@ QueryResult::~QueryResult()
 
 size_t QueryResult::GetSize() const
 {
-    if (data_ptr_->header.empty())
-        return data_ptr_->result.empty() ? 0 : 1;
-    return data_ptr_->result.size();
+    if (impl_ptr_->GetHeader().empty())
+        return impl_ptr_->GetPqxxResult().empty() ? 0 : 1;
+    return impl_ptr_->GetPqxxResult().size();
 }
 
 
@@ -124,23 +151,23 @@ Values QueryResult::GetValues(size_t idx) const
 {
     if (idx >= GetSize())
         throw Error("Values index out of bounds");
-    if (data_ptr_->header.empty()) {
+    if (impl_ptr_->GetHeader().empty()) {
         KU_ASSERT(GetSize() == 1);
         return Values();
     }
-    return GetTupleValues(data_ptr_->result[idx], GetHeader());
+    return GetTupleValues(impl_ptr_->GetPqxxResult()[idx], GetHeader());
 }
 
 
 const Header& QueryResult::GetHeader() const
 {
-    return data_ptr_->header;
+    return impl_ptr_->GetHeader();
 }
 
 
 size_t QueryResult::GetMemoryUsage() const
 {
-    return data_ptr_->memory_usage;
+    return impl_ptr_->GetMemoryUsage();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -562,15 +589,15 @@ public:
                       const Values& params,
                       const Specifiers& specifiers);
 
-    void Update(pqxx::transaction_base& work,
-                const string& rel_name,
-                const StringMap& field_expr_map,
-                const Values& params,
-                const WhereSpecifiers& where_specifiers);
+    unsigned long Update(pqxx::transaction_base& work,
+                         const string& rel_name,
+                         const StringMap& field_expr_map,
+                         const Values& params,
+                         const WhereSpecifiers& where_specifiers);
                     
-    void Delete(pqxx::transaction_base& work,
-                const string& rel_name,
-                const WhereSpecifiers& where_specifiers);
+    unsigned long Delete(pqxx::transaction_base& work,
+                         const string& rel_name,
+                         const WhereSpecifiers& where_specifiers);
 
     void ClearCache();
 
@@ -613,7 +640,7 @@ public:
                const Values& params,
                const SpecsT& specs);
 
-    QueryResult operator()(pqxx::transaction_base& work) const;
+    auto_ptr<QueryResult::Impl> operator()(pqxx::transaction_base& work) const;
 private:
     typedef typename SpecsT::value_type SpecT;
 
@@ -627,11 +654,11 @@ private:
     const Prepared& Prepare(const Translation& translation) const;
     TranslateItem GetQueryItem(bool raw) const;
 
-    QueryResult ExecPrepared(pqxx::transaction_base& work,
-                             const Prepared& prepared) const;
+    auto_ptr<QueryResult::Impl> ExecPrepared(pqxx::transaction_base& work,
+                                             const Prepared& prepared) const;
     
-    QueryResult ExecRaw(pqxx::transaction_base& work,
-                        const Translation& translation) const;
+    auto_ptr<QueryResult::Impl> ExecRaw(pqxx::transaction_base& work,
+                                        const Translation& translation) const;
 };
 
 
@@ -650,7 +677,7 @@ Querist::Impl::SqlFunctor<SpecsT>::SqlFunctor(Querist::Impl& querist_impl,
 
 
 template <typename SpecsT>
-QueryResult
+auto_ptr<QueryResult::Impl>
 Querist::Impl::SqlFunctor<SpecsT>::operator()(pqxx::transaction_base& work) const
 {
     if (querist_impl_.use_count_map_.GetSize() > USE_COUNT_MAP_CLEAR_SIZE)
@@ -756,7 +783,7 @@ Querist::Impl::SqlFunctor<SpecsT>::Prepare(const Translation& translation) const
 
 
 template <typename SpecsT>
-QueryResult
+auto_ptr<QueryResult::Impl>
 Querist::Impl::SqlFunctor<SpecsT>::ExecPrepared(pqxx::transaction_base& work,
                                                 const Prepared& prepared) const
 {
@@ -770,17 +797,19 @@ Querist::Impl::SqlFunctor<SpecsT>::ExecPrepared(pqxx::transaction_base& work,
             invocation(value.GetPgLiter().str);
     }
     pqxx::result pqxx_result(invocation.exec());
-    return QueryResult(new QueryResult::Data(prepared.header, pqxx_result));
+    return auto_ptr<QueryResult::Impl>(new QueryResult::Impl(prepared.header,
+                                                             pqxx_result));
 }
 
 
 template <typename SpecsT>
-QueryResult
+auto_ptr<QueryResult::Impl>
 Querist::Impl::SqlFunctor<SpecsT>::ExecRaw(pqxx::transaction_base& work,
                                            const Translation& translation) const
 {
     pqxx::result pqxx_result(work.exec(translation.sql_str));
-    return QueryResult(new QueryResult::Data(translation.header, pqxx_result));
+    return auto_ptr<QueryResult::Impl>(new QueryResult::Impl(translation.header,
+                                                             pqxx_result));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -811,15 +840,15 @@ QueryResult Querist::Impl::Query(pqxx::transaction_base& work,
                              GetValuesTypes(params));
     SqlFunctor<Specifiers>
         sql_functor(*this, query_family, params, specifiers);
-    return sql_functor(work);
+    return QueryResult(sql_functor(work).release());
 }
 
 
-void Querist::Impl::Update(pqxx::transaction_base& work,
-                           const string& rel_name,
-                           const StringMap& field_expr_map,
-                           const Values& params,
-                           const WhereSpecifiers& where_specifiers)
+unsigned long Querist::Impl::Update(pqxx::transaction_base& work,
+                                    const string& rel_name,
+                                    const StringMap& field_expr_map,
+                                    const Values& params,
+                                    const WhereSpecifiers& where_specifiers)
 {
     QueryFamily query_family(QueryFamily::UPDATE,
                              rel_name,
@@ -827,18 +856,18 @@ void Querist::Impl::Update(pqxx::transaction_base& work,
                              field_expr_map);
     SqlFunctor<WhereSpecifiers>
         sql_functor(*this, query_family, params, where_specifiers);
-    sql_functor(work);
+    return sql_functor(work)->GetPqxxResult().affected_rows();
 }
 
 
-void Querist::Impl::Delete(pqxx::transaction_base& work,
-                           const string& rel_name,
-                           const WhereSpecifiers& where_specifiers)
+unsigned long Querist::Impl::Delete(pqxx::transaction_base& work,
+                                    const string& rel_name,
+                                    const WhereSpecifiers& where_specifiers)
 {
     QueryFamily query_family(QueryFamily::DELETE, rel_name);
     SqlFunctor<WhereSpecifiers>
         sql_functor(*this, query_family, Values(), where_specifiers);
-    sql_functor(work);
+    return sql_functor(work)->GetPqxxResult().affected_rows();
 }
 
 void Querist::Impl::ClearCache()
@@ -894,20 +923,20 @@ QueryResult Querist::Query(pqxx::transaction_base& work,
 }
 
 
-void Querist::Update(pqxx::transaction_base& work,
-                     const string& rel_name,
-                     const StringMap& field_expr_map,
-                     const Values& params,
-                     const WhereSpecifiers& where_specifiers)
+unsigned long Querist::Update(pqxx::transaction_base& work,
+                              const string& rel_name,
+                              const StringMap& field_expr_map,
+                              const Values& params,
+                              const WhereSpecifiers& where_specifiers)
 {
     return pimpl_->Update(work, rel_name, field_expr_map,
                           params, where_specifiers);
 }
 
 
-void Querist::Delete(pqxx::transaction_base& work,
-                     const string& rel_name,
-                     const WhereSpecifiers& where_specifiers)
+unsigned long Querist::Delete(pqxx::transaction_base& work,
+                              const string& rel_name,
+                              const WhereSpecifiers& where_specifiers)
 {
     return pimpl_->Delete(work, rel_name, where_specifiers);
 }

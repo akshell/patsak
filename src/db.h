@@ -155,9 +155,9 @@ namespace ku
     /// Result of successful query, i.e. a list of tuples
     class QueryResult {
     public:
-        struct Data;
+        class Impl;
 
-        QueryResult(const Data* data_ptr);
+        QueryResult(const Impl* impl_ptr);
         ~QueryResult();
         size_t GetSize() const;
         Values GetValues(size_t idx) const;
@@ -165,7 +165,7 @@ namespace ku
         size_t GetMemoryUsage() const;
         
     private:
-        boost::shared_ptr<const Data> data_ptr_;
+        boost::shared_ptr<const Impl> impl_ptr_;
     };
 
 
@@ -218,13 +218,13 @@ namespace ku
                           const Values& params,
                           const Specifiers& specifiers) const;
 
-        void Update(const std::string& rel_name,
-                    const StringMap& field_expr_map,
-                    const Values& params,
-                    const WhereSpecifiers& where_specifiers);
+        unsigned long Update(const std::string& rel_name,
+                             const StringMap& field_expr_map,
+                             const Values& params,
+                             const WhereSpecifiers& where_specifiers);
 
-        void Delete(const std::string& rel_name,
-                    const WhereSpecifiers& where_specifiers);
+        unsigned long Delete(const std::string& rel_name,
+                             const WhereSpecifiers& where_specifiers);
         
         Values Insert(const std::string& rel_name, const ValueMap& value_map);
 
