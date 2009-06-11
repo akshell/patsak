@@ -120,6 +120,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql VOLATILE;
 
+
+CREATE OR REPLACE FUNCTION get_schema_size(prefix text) RETURNS numeric AS $$
+    SELECT SUM(pg_total_relation_size(pg_class.oid))
+    FROM pg_class, pg_namespace
+    WHERE pg_namespace.nspname = $1
+    AND pg_class.relnamespace = pg_namespace.oid;
+$$ LANGUAGE SQL VOLATILE;
+
 --------------------------------------------------------------------------------
 -- public schema
 --------------------------------------------------------------------------------

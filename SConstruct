@@ -7,7 +7,7 @@ vars = Variables()
 vars.Add('mode', 'build mode (release, debug, cov)', 'release')
 
 COMMON_FLAGS = {
-    'CCFLAGS': '-pedantic -Wall -Werror -W'.split(),
+    'CCFLAGS': '-pedantic -Wall -Werror -W -Wno-long-long'.split(),
     'LIBS': ['pthread', 'pqxx', 'boost_date_time', 'boost_program_options'],
     'variables': vars,
     }

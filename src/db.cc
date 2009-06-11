@@ -10,6 +10,7 @@
 #include "utils.h"
 
 #include <boost/format.hpp>
+#include <boost/lexical_cast.hpp>
 
 using namespace std;
 using namespace ku;
@@ -18,6 +19,7 @@ using boost::scoped_ptr;
 using boost::shared_ptr;
 using boost::static_visitor;
 using boost::apply_visitor;
+using boost::lexical_cast;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,6 +31,16 @@ namespace
     const size_t MAX_NAME_SIZE = 60;
     const size_t MAX_ATTR_NUMBER = 500;
     const size_t MAX_REL_NUMBER = 500;
+    
+#ifdef TEST
+    const unsigned ADDED_SIZE_MULTIPLICATOR = 16;
+    const unsigned long long TOTAL_SIZE_QUOTA = 512 * 1024;
+    const unsigned long CHANGED_ROWS_COUNT_LIMIT = 10;
+#else
+    const unsigned ADDED_SIZE_MULTIPLICATOR = 4;
+    const unsigned long long TOTAL_SIZE_QUOTA = 10 * 1024 * 1024;
+    const unsigned long CHANGED_ROWS_COUNT_LIMIT = 10000;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -785,49 +797,52 @@ bool RelsDeleter::IsSetForDelition(const string& rel_name) const
 // ConsistController
 ////////////////////////////////////////////////////////////////////////////////
 
-/// Class for controlling the consistency of metadata cache.
-/// All member functions never throw.
-class ConsistController {
-public:
-    class Guard {
+namespace
+{
+    /// Class for controlling the consistency of metadata cache.
+    /// All member functions never throw.
+    class ConsistController {
     public:
-        Guard(ConsistController& cc)
-            : cc_(cc), commited_(false) {}
+        class Guard {
+        public:
+            Guard(ConsistController& cc)
+                : cc_(cc), commited_(false) {}
 
-        ~Guard() {
-            if (!commited_ && cc_.changed_)
-                cc_.consistent_ = false;
-        }
+            ~Guard() {
+                if (!commited_ && cc_.changed_)
+                    cc_.consistent_ = false;
+            }
         
-        void CommitHappened() {
-            commited_ = true;
+            void CommitHappened() {
+                commited_ = true;
+            }
+
+        private:
+            ConsistController& cc_;
+            bool commited_;
+        };
+
+        ConsistController()
+            : consistent_(false) {}
+    
+        void ChangeHappened() {
+            changed_ = true;
+        }
+    
+        bool IsConsistent() const {
+            return consistent_;
+        }
+    
+        void SyncHappened() {
+            consistent_ = true;
+            changed_ = false;
         }
 
     private:
-        ConsistController& cc_;
-        bool commited_;
+        bool changed_;
+        bool consistent_;
     };
-
-    ConsistController()
-        : consistent_(false) {}
-    
-    void ChangeHappened() {
-        changed_ = true;
-    }
-    
-    bool IsConsistent() const {
-        return consistent_;
-    }
-    
-    void SyncHappened() {
-        consistent_ = true;
-        changed_ = false;
-    }
-
-private:
-    bool changed_;
-    bool consistent_;
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Manager
@@ -962,6 +977,72 @@ Error DBViewerImpl::MakeKeyError(const RelFields& key,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// QuotaController
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    /// Database space quota controller. Full of heuristics.
+    class QuotaController {
+    public:
+        QuotaController(const string& schema_name);
+        void DataWereAdded(unsigned long rows_count, unsigned long long size);
+        void Check(Work& work);
+
+    private:
+        const string schema_name_;
+        unsigned long long total_size_;
+        unsigned long long added_size_;
+        unsigned long changed_rows_count_;
+
+        unsigned long long CalculateTotalSize(Work& work) const;
+    };
+}
+
+
+QuotaController::QuotaController(const string& schema_name)
+    : schema_name_(schema_name)
+    , total_size_(TOTAL_SIZE_QUOTA)
+    , added_size_(0)
+    , changed_rows_count_(0)
+{
+}
+
+
+void QuotaController::DataWereAdded(unsigned long rows_count,
+                                    unsigned long long size)
+{
+    changed_rows_count_ += rows_count;
+    added_size_ += size;
+}
+
+
+void QuotaController::Check(Work& work)
+{
+    if (changed_rows_count_ > CHANGED_ROWS_COUNT_LIMIT ||
+        (total_size_ + ADDED_SIZE_MULTIPLICATOR * added_size_ >=
+         TOTAL_SIZE_QUOTA)) {
+        total_size_ = CalculateTotalSize(work);
+        added_size_ = 0;
+        changed_rows_count_ = 0;
+    }
+    if (total_size_ >= TOTAL_SIZE_QUOTA)
+        throw Error("Database size quota exceeded, "
+                    "updates and inserts are forbidden");
+}
+
+
+unsigned long long QuotaController::CalculateTotalSize(Work& work) const
+{
+    static const format query("SELECT ku.get_schema_size('%1%');");
+    pqxx::result pqxx_result(work.exec((format(query) % schema_name_).str()));
+    KU_ASSERT(pqxx_result.size() == 1 &&
+              pqxx_result[0].size() == 1 &&
+              !pqxx_result[0][0].is_null());
+    return lexical_cast<unsigned long long>(pqxx_result[0][0].c_str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Access::Data
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -970,15 +1051,18 @@ struct ku::Access::Data {
     Manager& manager;
     Querist& querist;
     Quoter quoter;
+    QuotaController& quota_controller;
     Work& work;
 
     Data(Manager& manager,
          Querist& querist,
          const Quoter& quoter,
+         QuotaController& quota_controller,
          Work& work)
         : manager(manager)
         , querist(querist)
         , quoter(quoter)
+        , quota_controller(quota_controller)
         , work(work) {}
 };
 
@@ -1001,6 +1085,7 @@ private:
     scoped_ptr<Manager> manager_ptr_;
     scoped_ptr<DBViewerImpl> db_viewer_ptr_;
     scoped_ptr<Querist> querist_ptr_;
+    QuotaController quota_controller_;
 };
 
 
@@ -1009,6 +1094,7 @@ DB::Impl::Impl(const string& opt,
                int try_count)
     : conn_(opt)
     , try_count_(try_count)
+    , quota_controller_(schema_name)
 {
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
     {
@@ -1028,6 +1114,7 @@ void DB::Impl::Perform(Transactor& transactor) {
         Access::Data access_data(*manager_ptr_,
                                  *querist_ptr_,
                                  Quoter(conn_),
+                                 quota_controller_,
                                  work);
         Access access(access_data);
         try {
@@ -1153,36 +1240,44 @@ unsigned long Access::Update(const std::string& rel_name,
                              const Values& params,
                              const WhereSpecifiers& where_specifiers)
 {
+    data_.quota_controller.Check(data_.work);
+    
     const RichHeader& rich_header(GetRelRichHeader(rel_name));
-    BOOST_FOREACH(const StringMap::value_type& field_expr, field_expr_map)
+    unsigned long long size = 0;
+    BOOST_FOREACH(const StringMap::value_type& field_expr, field_expr_map) {
         rich_header.find(field_expr.first);
+        // FIXME it's wrong estimation for expressions
+        size += field_expr.second.size();
+    }
+    unsigned long rows_count;
     pqxx::subtransaction sub_work(data_.work);
     try {
-        unsigned long result = data_.querist.Update(sub_work, rel_name,
-                                                    field_expr_map,
-                                                    params, where_specifiers);
-        sub_work.commit();
-        return result;
+        rows_count = data_.querist.Update(sub_work, rel_name,
+                                          field_expr_map,
+                                          params, where_specifiers);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(err.what());
     }
+    data_.quota_controller.DataWereAdded(rows_count, size);
+    sub_work.commit();
+    return rows_count;
 }
 
 
 unsigned long Access::Delete(const std::string& rel_name,
                              const WhereSpecifiers& where_specifiers)
 {
+    unsigned long rows_count;
     pqxx::subtransaction sub_work(data_.work);
     try {
-        unsigned long result = data_.querist.Delete(sub_work, rel_name,
-                                                    where_specifiers);
-        sub_work.commit();
-        return result;
+        rows_count = data_.querist.Delete(sub_work, rel_name, where_specifiers);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(err.what());
     }    
+    sub_work.commit();
+    return rows_count;
 }    
 
 
@@ -1194,50 +1289,60 @@ Values Access::Insert(const std::string& rel_name, const ValueMap& value_map)
     static const format default_cmd(
         "INSERT INTO \"%1%\" DEFAULT VALUES RETURNING *;");
 
+    data_.quota_controller.Check(data_.work);
+    
     const RelMeta& rel_meta(data_.manager.GetMeta().GetRelMeta(rel_name));
     const RichHeader& rich_header(rel_meta.GetRichHeader());
     string sql_str;
+    unsigned long long size = 0;
     if (rich_header.empty()) {
         if (!value_map.empty())
             throw Error("Non empty insert into zero-column relation");
         sql_str = (format(empty_cmd) % rel_name).str();
-    } else if (!value_map.empty()) {
-        BOOST_FOREACH(const ValueMap::value_type& name_value, value_map)
-            rich_header.find(name_value.first);
-        ostringstream names_oss, values_oss;
-        OmitInvoker print_names_sep((SepPrinter(names_oss)));
-        OmitInvoker print_values_sep((SepPrinter(values_oss)));
-        BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
-            ValueMap::const_iterator itr(value_map.find(rich_attr.GetName()));
-            if (itr == value_map.end()) {
-                if (rich_attr.GetTrait() != Type::SERIAL &&
-                    !rich_attr.GetDefaultPtr())
-                    throw Error("Value of field " +
-                                rich_attr.GetName() +
-                                " must be supplied");
-            } else {
-                print_names_sep();
-                names_oss << Quoted(rich_attr.GetName());
-                print_values_sep();
-                Value casted_value(itr->second.Cast(rich_attr.GetType()));
-                values_oss << data_.quoter(casted_value.GetPgLiter());
-            }
-        }
-        sql_str = (format(cmd)
-                   % rel_name
-                   % names_oss.str()
-                   % values_oss.str()).str();
     } else {
-        sql_str = (format(default_cmd) % rel_name).str();
+        if (!value_map.empty()) {
+            BOOST_FOREACH(const ValueMap::value_type& name_value, value_map)
+                rich_header.find(name_value.first);
+            ostringstream names_oss, values_oss;
+            OmitInvoker print_names_sep((SepPrinter(names_oss)));
+            OmitInvoker print_values_sep((SepPrinter(values_oss)));
+            BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
+                ValueMap::const_iterator itr(
+                    value_map.find(rich_attr.GetName()));
+                if (itr == value_map.end()) {
+                    if (rich_attr.GetTrait() != Type::SERIAL &&
+                        !rich_attr.GetDefaultPtr())
+                        throw Error("Value of field " +
+                                    rich_attr.GetName() +
+                                    " must be supplied");
+                } else {
+                    print_names_sep();
+                    names_oss << Quoted(rich_attr.GetName());
+                    print_values_sep();
+                    Value casted_value(itr->second.Cast(rich_attr.GetType()));
+                    values_oss << data_.quoter(casted_value.GetPgLiter());
+                }
+            }
+            sql_str = (format(cmd)
+                       % rel_name
+                       % names_oss.str()
+                       % values_oss.str()).str();
+            size += values_oss.str().size();
+        } else {
+            sql_str = (format(default_cmd) % rel_name).str();
+        }
+        BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
+            const Value* default_ptr = rich_attr.GetDefaultPtr();
+            if (default_ptr)
+                size += (default_ptr->GetType() == Type::STRING
+                         ? default_ptr->GetString().size()
+                         : 16); // other types occupy constant amount of space
+        }
     }
+    pqxx::result pqxx_result;
     pqxx::subtransaction sub_work(data_.work);
     try {
-        pqxx::result pqxx_result(sub_work.exec(sql_str));
-        sub_work.commit();
-        if (rich_header.empty())
-            return Values();
-        KU_ASSERT(pqxx_result.size() == 1);
-        return GetTupleValues(pqxx_result[0], rel_meta.GetHeader());
+        pqxx_result = sub_work.exec(sql_str);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(err.what());
@@ -1245,5 +1350,11 @@ Values Access::Insert(const std::string& rel_name, const ValueMap& value_map)
         KU_ASSERT(string(err.what()).substr(0, 14) == "ERROR:  Empty ");
         sub_work.abort();
         throw Error(err.what());
-    }        
+    }
+    data_.quota_controller.DataWereAdded(1, size);
+    sub_work.commit();
+    if (rich_header.empty())
+        return Values();
+    KU_ASSERT(pqxx_result.size() == 1);
+    return GetTupleValues(pqxx_result[0], rel_meta.GetHeader());
 }
