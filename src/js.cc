@@ -166,18 +166,16 @@ namespace
         DECLARE_JS_CLASS(AppBg);
 
         AppBg(AppAccessor& app_accessor,
-              const string& root_path,
+              FSBg& fs_bg,
               const string& app_name);
 
     private:
         AppAccessor& app_accessor_;
-        string root_path_;
+        FSBg& fs_bg_;
         string app_name_;
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, CallCb,
                              const Arguments&) const;
-
-        bool GetFullPath(const string& rel_path, string& full_path) const;
     };
 }
 
@@ -189,10 +187,10 @@ DEFINE_JS_CLASS(AppBg, "App", /*object_template*/, proto_template)
 
 
 AppBg::AppBg(AppAccessor& app_accessor,
-             const string& root_path,
+             FSBg& fs_bg,
              const string& app_name)
     : app_accessor_(app_accessor)
-    , root_path_(root_path)
+    , fs_bg_(fs_bg)
     , app_name_(app_name)
 {
 }
@@ -203,24 +201,23 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AppBg, CallCb,
 {
     JS_CHECK(args.Length() > 0 && args.Length() < 4,
              "call() takes one, two or three arguments");
-    Strings file_pathes;
-    const Chars* data_ptr = 0;
 
+    vector<Handle<v8::Value> > file_values;
     if (args.Length() > 1) {
         int32_t length = GetArrayLikeLength(args[1]);
         JS_TYPE_CHECK(length != -1,
                       "Second call() argument must be array-like");
-        file_pathes.reserve(length);
+        file_values.reserve(length);
         for (int32_t i = 0; i < length; ++i) {
-            Handle<v8::Value> item(GetArrayLikeItem(args[1], i));
-            if (item.IsEmpty())
+            file_values.push_back(GetArrayLikeItem(args[1], i));
+            if (file_values.back().IsEmpty())
                 return Handle<v8::Value>();
-            string full_path;
-            JS_CAN_THROW(GetFullPath(Stringify(item), full_path));
-            file_pathes.push_back(full_path);
         }
     }
+    FSBg::FileAccessor file_accessor(fs_bg_, file_values);
+    JS_CAN_THROW(file_accessor.CheckValid());
 
+    const Chars* data_ptr = 0;
     Chars data;
     if (args.Length() > 2) {
         const DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(args[2]);
@@ -234,11 +231,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AppBg, CallCb,
     }
         
     Chars result;
-    AppAccessor::Status status = app_accessor_.Process(app_name_,
-                                                       data_ptr,
-                                                       file_pathes,
-                                                       Stringify(args[0]),
-                                                       result);
+    AppAccessor::Status status = (
+        app_accessor_.Process(app_name_,
+                              data_ptr,
+                              file_accessor.GetFullPathes(),
+                              Stringify(args[0]),
+                              result));
     switch (status) {
     case AppAccessor::OK:
         KU_ASSERT(result.size() >= 3);
@@ -263,29 +261,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AppBg, CallCb,
     return Handle<v8::Value>();
 }
 
-
-bool AppBg::GetFullPath(const string& rel_path, string& full_path) const
-{
-    int depth = GetPathDepth(rel_path);
-    if (depth <= 0) {
-        JS_THROW(Error, "Bad file path");
-        return false;
-    }
-    full_path = root_path_ + '/' + rel_path;
-    struct stat st;
-    if (stat(full_path.c_str(), &st) == -1) {
-        KU_ASSERT(errno == ENOENT);
-        JS_THROW(Error, "No such file: " + rel_path);
-        return false;
-    }
-    if (S_ISDIR(st.st_mode)) {
-        JS_THROW(Error, "Can't pass directories");
-        return false;
-    }
-    KU_ASSERT(S_ISREG(st.st_mode));
-    return true;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // AppCatalogBg
 ////////////////////////////////////////////////////////////////////////////////
@@ -297,11 +272,11 @@ namespace
     public:
         DECLARE_JS_CLASS(AppCatalogBg);
 
-        AppCatalogBg(AppAccessor& app_accessor, const string& root_path);
+        AppCatalogBg(AppAccessor& app_accessor, FSBg& fs_bg);
 
     private:
         AppAccessor& app_accessor_;
-        string root_path_;
+        FSBg& fs_bg_;
         
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetAppCb,
                              Local<String>,
@@ -321,9 +296,9 @@ DEFINE_JS_CLASS(AppCatalogBg, "Apps",
 }
 
 
-AppCatalogBg::AppCatalogBg(AppAccessor& app_accessor, const string& root_path)
+AppCatalogBg::AppCatalogBg(AppAccessor& app_accessor, FSBg& fs_bg)
     : app_accessor_(app_accessor)
-    , root_path_(root_path)
+    , fs_bg_(fs_bg)
 {
 }
 
@@ -332,7 +307,7 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, AppCatalogBg, GetAppCb,
                     Local<String>, property,
                     const AccessorInfo&, /*info*/) const
 {
-    return JSNew<AppBg>(ref(app_accessor_), root_path_, Stringify(property));
+    return JSNew<AppBg>(ref(app_accessor_), ref(fs_bg_), Stringify(property));
 }
 
 
@@ -747,7 +722,7 @@ Program::Impl::Impl(const string& code_dir,
     , db_bg_(access_holder_)
     , rel_catalog_bg_(access_holder_)
     , fs_bg_(media_dir)
-    , app_catalog_bg_(app_accessor, media_dir)
+    , app_catalog_bg_(app_accessor, fs_bg_)
 {
     HandleScope handle_scope;
     context_ = Context::New(NULL, GlobalBg::GetJSClass().GetObjectTemplate());

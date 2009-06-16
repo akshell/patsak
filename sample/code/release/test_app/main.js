@@ -732,6 +732,7 @@ file_test_suite.testRead = function ()
     checkThrows("fs.read('does_not_exists')");
     checkThrows("fs.read('dir1')");
     checkThrows("fs.read('//..//test_app/dir1/subdir/hello')");
+    checkThrows("fs.read('/dir1/../../file')");
     checkThrows("fs.read('////')");
     checkThrows(function () {
                     var path = '';
@@ -819,6 +820,26 @@ file_test_suite.testRename = function ()
     fs.rename('dir1', 'dir2/dir3');
     checkEqualTo("fs.read('dir2/dir3/subdir/hello')", 'hello world!');
     fs.rename('dir2/dir3', 'dir1');
+};
+
+
+file_test_suite.testQuota = function ()
+{
+    var array = [];
+    for (var i = 0; i < 1024 * 1024; ++i)
+        array.push('x');
+    var str = array.join('');
+    checkThrows(function () {
+                    for (var i = 0; i < 11; ++i)
+                        fs.write('file' + i, str);
+                });
+    for (i = 0; i < 10; ++i)
+        fs.rm('file' + i);
+    check("!fs.exists('file10')");
+    checkThrows(function () {
+                    var big_str = [str, str, str, str, str].join('');
+                    fs.write('big_file', big_str);
+                });
 };
 
 ////////////////////////////////////////////////////////////////////////////////

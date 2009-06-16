@@ -7,6 +7,7 @@
 #include "js-file.h"
 
 #include <boost/lexical_cast.hpp>
+#include <boost/foreach.hpp>
 
 #include <string.h>
 #include <sys/types.h>
@@ -31,6 +32,9 @@ using boost::lexical_cast;
 namespace
 {
     const int MAX_DIR_DEPTH = 30;
+    const unsigned DIRECTORY_SIZE = 4 * 1024;
+    const unsigned long long MAX_TOTAL_SIZE = 10 * 1024 * 1024;
+    const unsigned long long MAX_FILE_SIZE = 4 * 1024 * 1024;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,7 +86,7 @@ size_t DataStringResource::length() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DataBg
+// DataBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_JS_CLASS(DataBg, "Data", /*object_template*/, proto_template)
@@ -121,7 +125,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DataBg, ToStringCb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// TmpFileBg
+// TmpFileBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_JS_CLASS(TmpFileBg, "TmpFile", /*object_template*/, /*proto_template*/)
@@ -219,15 +223,6 @@ bool FSManager::List(Strings& items) const
 }
 
 
-auto_ptr<struct stat> FSManager::GetStat() const
-{
-    auto_ptr<struct stat> result(new struct stat());
-    if (stat(path_.c_str(), result.get()) == -1)
-        return auto_ptr<struct stat>();
-    return result;
-}
-
-
 bool FSManager::MkDir() const
 {
     JS_ERRNO_CHECK(!mkdir(path_.c_str(), S_IRWXU));
@@ -270,9 +265,57 @@ bool FSManager::CopyFile(const string& dest) const
     return true;
 }
 
+
+auto_ptr<struct stat> FSManager::GetStat() const
+{
+    auto_ptr<struct stat> result(new struct stat());
+    if (stat(path_.c_str(), result.get()) == -1)
+        return auto_ptr<struct stat>();
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-// FSBg
+// FSBg definitions
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    unsigned long long CalcTotalSize(const string& path)
+    {
+        struct stat st;
+        if (stat(path.c_str(), &st) == -1)
+            return 0;
+        unsigned long long result = st.st_blocks * 512;
+        if (S_ISDIR(st.st_mode)) {
+            DIR* dir_ptr = opendir(path.c_str());
+            KU_ASSERT(dir_ptr);
+            while (struct dirent* dirent_ptr = readdir(dir_ptr)) {
+                string name(dirent_ptr->d_name);
+                if (name != "." && name != "..")
+                    result += CalcTotalSize(path + '/' + name);
+            }
+        }
+        return result;
+    }
+
+
+    unsigned long long GetFileSize(const string& path)
+    {
+        struct stat st;
+        if (stat(path.c_str(), &st) == -1)
+            return 0;
+        return st.st_blocks * 512;
+    }
+    
+    
+    void MarkTmpFileRemoved(Handle<v8::Value> value)
+    {
+        TmpFileBg* tmp_file_bg_ptr = TmpFileBg::GetJSClass().Cast(value);
+        if (tmp_file_bg_ptr)
+            tmp_file_bg_ptr->ClearPath();
+    }
+}
+
 
 DEFINE_JS_CLASS(FSBg, "FS", /*object_template*/, proto_template)
 {
@@ -293,6 +336,7 @@ DEFINE_JS_CLASS(FSBg, "FS", /*object_template*/, proto_template)
 
 FSBg::FSBg(const string& root_path)
     : root_path_(root_path)
+    , total_size_(CalcTotalSize(root_path))
 {
 }
 
@@ -334,6 +378,17 @@ bool FSBg::ReadPath(Handle<v8::Value> value,
     }
     path = root_path_ + '/' + rel_path;
     return true;
+}
+
+
+bool FSBg::CheckTotalSize() const
+{
+    if (total_size_ < MAX_TOTAL_SIZE)
+        return true;
+    JS_THROW(Error,
+             "File storage quota exceeded, write and mkdir are forbidden" +
+             lexical_cast<string>(total_size_));
+    return false;
 }
 
 
@@ -395,51 +450,59 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsFileCb,
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, MkDirCb,
-                    const Arguments&, args) const
+                    const Arguments&, args)
 {
     JS_CHECK_LENGTH(args, 1);
+    JS_CAN_THROW(CheckTotalSize());
     string path;
     JS_CAN_THROW(ReadPath(args[0], path, false));
     JS_CAN_THROW(FSManager(path).MkDir());
+    total_size_ += DIRECTORY_SIZE;
     return Undefined();
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, WriteCb,
-                    const Arguments&, args) const
+                    const Arguments&, args)
 {
     JS_CHECK_LENGTH(args, 2);
+    JS_CAN_THROW(CheckTotalSize());
     string path;
     JS_CAN_THROW(ReadPath(args[0], path, false));
+    unsigned long long old_size = GetFileSize(path);
+    
     DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(args[1]);
+    auto_ptr<String::AsciiValue> ascii_value_ptr;
+    const char* data_ptr;
+    size_t size;
     if (data_bg_ptr) {
-        const Chars& data(data_bg_ptr->GetData());
-        JS_CAN_THROW(FSManager(path).Write(&data[0], data.size()));
+        data_ptr = &(data_bg_ptr->GetData()[0]);
+        size = data_bg_ptr->GetData().size();
     } else {
-        String::AsciiValue ascii_value(args[1]);
-        JS_CAN_THROW(FSManager(path).Write(*ascii_value, ascii_value.length()));
+        ascii_value_ptr.reset(new String::AsciiValue(args[1]));
+        data_ptr = **ascii_value_ptr;
+        size = ascii_value_ptr->length();
     }
+    
+    JS_CHECK(size < MAX_FILE_SIZE, ("Max file size is " +
+                                    lexical_cast<string>(MAX_FILE_SIZE) +
+                                    " bytes"));
+    JS_CAN_THROW(FSManager(path).Write(data_ptr, size));
+    total_size_ += GetFileSize(path);
+    total_size_ -= old_size;
     return Undefined();
 }
 
 
-namespace
-{
-    void MarkTmpFileRemoved(Handle<v8::Value> value)
-    {
-        TmpFileBg* tmp_file_bg_ptr = TmpFileBg::GetJSClass().Cast(value);
-        if (tmp_file_bg_ptr)
-            tmp_file_bg_ptr->ClearPath();
-    }
-}
-
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RmCb,
-                    const Arguments&, args) const
+                    const Arguments&, args)
 {
     JS_CHECK_LENGTH(args, 1);
     string path;
-    JS_CAN_THROW(ReadPath(args[0], path, false) &&
-                 FSManager(path).Rm());
+    JS_CAN_THROW(ReadPath(args[0], path, false));
+    unsigned long long size = GetFileSize(path);
+    JS_CAN_THROW(FSManager(path).Rm());
+    total_size_ -= size;
     MarkTmpFileRemoved(args[0]);
     return Undefined();
 }
@@ -459,18 +522,74 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RenameCb,
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, CopyFileCb,
-                    const Arguments&, args) const
+                    const Arguments&, args)
 {
     JS_CHECK_LENGTH(args, 2);
     string from_path, to_path;
     JS_CAN_THROW(ReadPath(args[0], from_path, false) &&
                  ReadPath(args[1], to_path, false) &&
                  FSManager(from_path).CopyFile(to_path));
+    total_size_ += GetFileSize(to_path);
     return Undefined();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// ReadFileData
+// FSBg::FileAccessor definitions
+////////////////////////////////////////////////////////////////////////////////
+
+FSBg::FileAccessor::FileAccessor(FSBg& fs_bg,
+                                 const vector<Handle<v8::Value> >& values)
+    : fs_bg_(fs_bg)
+    , is_valid_(false)
+    , initial_size_(0)
+{
+    full_pathes_.reserve(values.size());
+    BOOST_FOREACH(const Handle<v8::Value>& value, values) {
+        string full_path;
+        if (!fs_bg.ReadPath(value, full_path, false))
+            return;
+        struct stat st;
+        if (stat(full_path.c_str(), &st) == -1) {
+            JS_THROW(Error, "File does not exist");
+            return;
+        }
+        if (!S_ISREG(st.st_mode)) {
+            JS_THROW(Error, "Directory could not be passed");
+            return;
+        }
+        initial_size_ += st.st_blocks * 512;
+        full_pathes_.push_back(full_path);
+    }
+    is_valid_ = true;
+}
+
+
+FSBg::FileAccessor::~FileAccessor()
+{
+    if (!is_valid_)
+        return;
+    unsigned long long size = 0;
+    BOOST_FOREACH(const string& full_path, full_pathes_)
+        size += GetFileSize(full_path);
+    fs_bg_.total_size_ += size;
+    fs_bg_.total_size_ -= initial_size_;
+}
+
+
+bool FSBg::FileAccessor::CheckValid() const
+{
+    return is_valid_;
+}
+
+
+const Strings& FSBg::FileAccessor::GetFullPathes() const
+{
+    KU_ASSERT(is_valid_);
+    return full_pathes_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ReadFileData and GetPathDepth definitions
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ku::ReadFileData(const std::string& path, Chars& data)

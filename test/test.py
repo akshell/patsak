@@ -164,6 +164,10 @@ class Test(unittest.TestCase):
         return result
 
     def testReleaseServer(self):
+        # populating media dir with initial data to test FSBg initialization
+        os.mkdir(MEDIA_DIR + '/release/test_app/dir')
+        open(MEDIA_DIR + '/release/test_app/dir/file', 'w').write('hello')
+        
         popen = subprocess.Popen([self._exe_path,
                                   '--config-file', CONFIG_PATH,
                                   '--socket-dir', SOCKET_DIR,

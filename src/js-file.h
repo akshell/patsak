@@ -50,6 +50,8 @@ namespace ku
     /// File system accessor background
     class FSBg {
     public:
+        class FileAccessor;
+        
         DECLARE_JS_CLASS(FSBg);
 
         FSBg(const std::string& root_path);
@@ -57,10 +59,12 @@ namespace ku
         
     private:
         const std::string root_path_;
+        unsigned long long total_size_;
 
         bool ReadPath(v8::Handle<v8::Value> value,
                       std::string& path,
                       bool can_be_root) const;
+        bool CheckTotalSize() const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ReadCb,
                              const v8::Arguments&) const;
@@ -78,19 +82,37 @@ namespace ku
                              const v8::Arguments&) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, MkDirCb,
-                             const v8::Arguments&) const;
+                             const v8::Arguments&);
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, WriteCb,
-                             const v8::Arguments&) const;
+                             const v8::Arguments&);
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RmCb,
-                             const v8::Arguments&) const;
+                             const v8::Arguments&);
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RenameCb,
                              const v8::Arguments&) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CopyFileCb,
-                             const v8::Arguments&) const;
+                             const v8::Arguments&);
+    };
+
+
+    /// Interface for access to full media files pathes.
+    /// Controls changes in file size after external operations.
+    class FSBg::FileAccessor {
+    public:
+        FileAccessor(FSBg& fs_bg,
+                     const std::vector<v8::Handle<v8::Value> >& values);
+        ~FileAccessor();
+        bool CheckValid() const;
+        const Strings& GetFullPathes() const;
+
+    private:
+        FSBg& fs_bg_;
+        bool is_valid_;
+        unsigned long long initial_size_;
+        Strings full_pathes_;
     };
     
 
