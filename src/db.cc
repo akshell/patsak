@@ -31,6 +31,7 @@ namespace
     const size_t MAX_NAME_SIZE = 60;
     const size_t MAX_ATTR_NUMBER = 500;
     const size_t MAX_REL_NUMBER = 500;
+    const size_t MAX_STRING_SIZE = 100 * 1024;
     
 #ifdef TEST
     const unsigned ADDED_SIZE_MULTIPLICATOR = 16;
@@ -648,6 +649,11 @@ void RelCreator::PrintHeader(ostream& os,
             os << " DEFAULT nextval('\""
                << rel_meta_.GetName() << '@' << rich_attr.GetName()
                << "\"')";
+        if (rich_attr.GetType() == Type::STRING)
+            os << " CHECK (bit_length("
+               << Quoted(rich_attr.GetName())
+               << ") < " << 8 * MAX_STRING_SIZE
+               << ')';
     }
 }
 

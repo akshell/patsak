@@ -660,6 +660,18 @@ db_test_suite.testRelNumber = function ()
                         rels['r' + i].drop();
                 });
 };
+
+
+db_test_suite.testStringLength = function ()
+{
+    db.createRel('Str', {s: string});
+    var array = [];
+    for (var i = 0; i < 100*1024; ++i)
+        array.push('x');
+    checkThrows(function () { rels.Str.insert({s: array.join('')}); });
+    rels.Str.drop();
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 // Init tests
 ////////////////////////////////////////////////////////////////////////////////
