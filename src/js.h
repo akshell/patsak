@@ -71,6 +71,8 @@ namespace ku
 
         std::auto_ptr<Response> Eval(const std::string& user,
                                      const Chars& expr);
+
+        bool IsOperable() const;
         
     private:
         class Impl;

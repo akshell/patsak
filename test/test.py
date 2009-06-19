@@ -112,6 +112,8 @@ class Test(unittest.TestCase):
                          'LINE 1\n'
                          'COLUMN 0\n')
         self.assertEqual(self._eval('2+2').data, '4')
+        self.assertEqual(self._eval('s="x"; while(1) s+=s').data,
+                         'EXCEPTION Out of memory\n')
         self._check_launch(['--test',
                             '--media-dir', MEDIA_DIR,
                             '--expr', '2+2',
@@ -260,8 +262,10 @@ class Test(unittest.TestCase):
         self.assertEqual(self._talk_through_socket(socket_path,
                                                    'PROCESS\nREQUEST 1\n1'),
                          'ERROR\n_main is not a function')
-        self.assertEqual(self._talk_through_socket(socket_path, 'STOP'),
-                         'OK\n')
+        self.assertEqual(
+            self._talk_through_socket(socket_path,
+                                      'PROCESS s="x"; while(1) s+=s'),
+            'ERROR\nEXCEPTION Out of memory\n')
         self.assertEqual(popen.wait(), 0)
 
         

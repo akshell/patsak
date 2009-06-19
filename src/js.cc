@@ -34,6 +34,12 @@ using boost::ptr_vector;
 using boost::ref;
 
 
+namespace
+{
+    const int MAX_YOUNG_SPACE_SIZE =  2 * 1024 * 1024;
+    const int MAX_OLD_SPACE_SIZE   = 32 * 1024 * 1024;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // CodeLoader
 ////////////////////////////////////////////////////////////////////////////////
@@ -592,6 +598,8 @@ string ExceptionResponse::MakeExceptionDescr(Handle<v8::Value> exception,
             << "\nCOLUMN " << message->GetStartColumn() << '\n';
     } else if (!exception.IsEmpty()) {
         oss << "EXCEPTION " << Stringify(exception) << '\n';
+    } else if (Context::GetCurrent()->HasOutOfMemoryException()) {
+        oss << "EXCEPTION Out of memory\n";
     }
     return oss.str();
 }
@@ -679,6 +687,7 @@ public:
                                auto_ptr<Chars> data_ptr);
 
     auto_ptr<Response> Eval(const string& user, const Chars& expr);
+    bool IsOperable() const;
     
 private:
     bool initialized_;
@@ -724,8 +733,15 @@ Program::Impl::Impl(const string& code_dir,
     , fs_bg_(media_dir)
     , app_catalog_bg_(app_accessor, fs_bg_)
 {
+    ResourceConstraints rc;
+    rc.set_max_young_space_size(MAX_YOUNG_SPACE_SIZE);
+    rc.set_max_old_space_size(MAX_OLD_SPACE_SIZE);
+    bool ret = v8::SetResourceConstraints(&rc);
+    KU_ASSERT(ret);
+    
     HandleScope handle_scope;
     context_ = Context::New(NULL, GlobalBg::GetJSClass().GetObjectTemplate());
+    V8::IgnoreOutOfMemoryException();
     Handle<Object> global_proto(context_->Global()->GetPrototype()->ToObject());
     global_proto->SetInternalField(0, External::New(&global_bg_));
     SetInternal(global_proto, "ak", &ak_bg_);
@@ -765,6 +781,12 @@ auto_ptr<Response> Program::Impl::Eval(const string& user, const Chars& expr)
     return Call(user, expr,
                 Strings(), auto_ptr<Chars>(),
                 context_->Global(), "eval");
+}
+
+
+bool Program::Impl::IsOperable() const
+{
+    return !context_->HasOutOfMemoryException();
 }
 
 
@@ -870,4 +892,10 @@ auto_ptr<Response> Program::Process(const string& user,
 auto_ptr<Response> Program::Eval(const string& user, const Chars& expr)
 {
     return pimpl_->Eval(user, expr);
+}
+
+
+bool Program::IsOperable() const
+{
+    return pimpl_->IsOperable();
 }

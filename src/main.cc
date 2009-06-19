@@ -478,7 +478,7 @@ bool RequestHandler::Handle()
         is_ >> request;
         if (request == "PROCESS") {
             HandleProcess();
-            return true;
+            return program_.IsOperable();
         }
         if (request == "STATUS") {
             Write("OK\n");
