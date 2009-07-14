@@ -460,8 +460,12 @@ GlobalBg::GlobalBg(CodeLoader& code_loader)
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, GlobalBg, ImportCb,
                     const Arguments&, args) const
 {
-    JS_CHECK_LENGTH(args, 2);
-    return code_loader_.Import(Stringify(args[0]), Stringify(args[1]));
+    JS_CHECK(args.Length() == 1 || args.Length() == 2,
+             "import() takes one or two arguments");
+    return code_loader_.Import(Stringify(args[0]),
+                               args.Length() < 2
+                               ? "main.js"
+                               : Stringify(args[1]));
 }
 
 

@@ -130,6 +130,7 @@ base_test_suite.testImport = function ()
 {
     checkThrows("import('no_such_lib', 'xxx.js')");
     checkEqualTo("import('lib/0.1/', '42.js')", 42);
+    checkEqualTo("import('lib/0.1/')", 'main');
 };
 
 
