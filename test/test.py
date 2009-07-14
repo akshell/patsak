@@ -233,9 +233,7 @@ class Test(unittest.TestCase):
         self.assertEqual(talk('PROCESS\nSTRANGE_CMD\n'),
                          'FAIL\nUnexpected command: STRANGE_CMD')
         self.assertEqual(talk('PROCESS\nFILE\tpish\nREQUEST 2+2'),
-                         'FAIL\nBad FILE command')
-        self.assertEqual(talk('PROCESS\nUSER\tpish\nEXPR 3\n2+2'),
-                         'FAIL\nBad USER command')
+                         'FAIL\nBad command tail')
         self.assertEqual(talk('PROCESS\nDATA 1\n1\nEXPR 3\n2+2'),
                          'FAIL\nDATA is not supported by EXPR')
         self.assertEqual(talk('PROCESS\nFILE file\nEXPR 3\n2+2'),

@@ -860,7 +860,8 @@ call_test_suite.testCall = function ()
                  },
                  '{"user":"' + ak._user + '",'+
                  '"arg":"hello world!","data":"yo!!!",' +
-                 '"file_contents":["wuzzup","yo ho ho"]}');
+                 '"file_contents":["wuzzup","yo ho ho"],' +
+                 '"requester_app":"test_app"}');
     check("!fs.exists('file1') && !fs.exists('file2')");
     checkThrows("apps.no_such_app.call('hi')");
     check("'another_app' in apps");
@@ -874,7 +875,10 @@ call_test_suite.testCall = function ()
             return result;
         },
         '{"user":"' + ak._user + '",' +
-        '"arg":"","data":"text","file_contents":[]}');
+        '"arg":"",' +
+        '"data":"text",' +
+        '"file_contents":[],' +
+        '"requester_app":"test_app"}');
     checkThrows("apps['invalid/app/name'].call('')");
     checkThrows("apps.test_app.call('2+2')");
     checkThrows("apps.throwing_app.call('')");

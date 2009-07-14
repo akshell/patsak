@@ -362,6 +362,7 @@ AppAccessor::Status AppAccessorImpl::Process(const string& app_name,
     }
 
     string request_header("\nUSER " + user_ +
+                          "\nAPP " + self_name_ +
                           "\nREQUEST " +
                           lexical_cast<string>(request.size()) +
                           '\n');
@@ -445,7 +446,7 @@ namespace
         };
         
         Program& program_;
-        string& user_;
+        string& user_; // user_ is a reference! AppAccessorImpl reads it.
         stream_protocol::socket& socket_;
         asio::streambuf buf_;
         istream is_;
@@ -455,6 +456,7 @@ namespace
         void NextLine();
         void ReadLine();
         void Read(size_t size);
+        string ReadCommandTail();
     };
 }
 
@@ -532,21 +534,19 @@ void RequestHandler::HandleProcess()
         }
         Strings file_pathes;
         while (command == "FILE") {
-            if (is_.get() != ' ')
-                throw ProcessingError("Bad FILE command");
-            file_pathes.push_back(string());
-            getline(is_, file_pathes.back());
-            ReadLine();
+            file_pathes.push_back(ReadCommandTail());
             is_ >> command;
         }
         if (command == "USER") {
-            if (is_.get() != ' ')
-                throw ProcessingError("Bad USER command");
-            getline(is_, user_);
-            ReadLine();
+            user_ = ReadCommandTail();
             is_ >> command;
         } else {
             user_ = "";
+        }
+        string requester_app;
+        if (command == "APP") {
+            requester_app = ReadCommandTail();
+            is_ >> command;
         }
         if (command != "REQUEST" && command != "EXPR")
             throw ProcessingError("Unexpected command: " + command);
@@ -566,7 +566,8 @@ void RequestHandler::HandleProcess()
             response_ptr = program_.Process(user_,
                                             input,
                                             file_pathes,
-                                            data_ptr);
+                                            data_ptr,
+                                            requester_app);
         }
     }
     KU_ASSERT(response_ptr.get());
@@ -618,6 +619,17 @@ void RequestHandler::Read(size_t size)
 {
     if (size > buf_.size())
         asio::read(socket_, buf_, TransferController(size - buf_.size()));
+}
+
+
+string RequestHandler::ReadCommandTail()
+{
+    if (is_.get() != ' ')
+        throw ProcessingError("Bad command tail");
+    string result;
+    getline(is_, result);
+    ReadLine();
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

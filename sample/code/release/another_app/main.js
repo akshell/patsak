@@ -11,5 +11,6 @@ ak._main = function (arg)
     return JSON.stringify({user: ak._user,
                            arg: arg,
                            data: ak._data.toString(),
-                           file_contents: file_contents});
+                           file_contents: file_contents,
+                           requester_app: ak._requester_app});
 };

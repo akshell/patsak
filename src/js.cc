@@ -684,7 +684,8 @@ public:
     auto_ptr<Response> Process(const string& user,
                                const Chars& request,
                                const Strings& pathes,
-                               auto_ptr<Chars> data_ptr);
+                               auto_ptr<Chars> data_ptr,
+                               const string& requester_app);
 
     auto_ptr<Response> Eval(const string& user, const Chars& expr);
     bool IsOperable() const;
@@ -713,6 +714,7 @@ private:
                             const Chars& input,
                             const Strings& file_pathes,
                             auto_ptr<Chars> data_ptr,
+                            const string& requester_app,
                             Handle<Object> object,
                             const string& func_name);
 };
@@ -769,9 +771,12 @@ Program::Impl::~Impl()
 auto_ptr<Response> Program::Impl::Process(const string& user,
                                           const Chars& request,
                                           const Strings& file_pathes,
-                                          auto_ptr<Chars> data_ptr)
+                                          auto_ptr<Chars> data_ptr,
+                                          const string& requester_app)
 {
-    return Call(user, request, file_pathes, data_ptr, ak_, "_main");
+    return Call(user, request,
+                file_pathes, data_ptr, requester_app,
+                ak_, "_main");
 }
 
 
@@ -779,7 +784,7 @@ auto_ptr<Response> Program::Impl::Eval(const string& user, const Chars& expr)
 {
     HandleScope handle_scope;
     return Call(user, expr,
-                Strings(), auto_ptr<Chars>(),
+                Strings(), auto_ptr<Chars>(), "",
                 context_->Global(), "eval");
 }
 
@@ -794,6 +799,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
                                        const Chars& input,
                                        const Strings& file_pathes,
                                        auto_ptr<Chars> data_ptr,
+                                       const string& requester_app,
                                        Handle<Object> object,
                                        const string& func_name)
 {
@@ -838,6 +844,9 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     ak_->Set(String::NewSymbol("_files"), file_array, DontEnum);
 
     ak_->Set(String::NewSymbol("_user"), String::New(user.c_str()), DontEnum);
+    ak_->Set(String::NewSymbol("_requester_app"),
+             String::New(requester_app.c_str()),
+             DontEnum);
 
     Caller caller(access_holder_,
                   Handle<Function>::Cast(func_value),
@@ -883,9 +892,10 @@ Program::~Program()
 auto_ptr<Response> Program::Process(const string& user,
                                     const Chars& request,
                                     const Strings& file_pathes,
-                                    auto_ptr<Chars> data_ptr)
+                                    auto_ptr<Chars> data_ptr,
+                                    const string& requester_app)
 {
-    return pimpl_->Process(user, request, file_pathes, data_ptr);
+    return pimpl_->Process(user, request, file_pathes, data_ptr, requester_app);
 }
 
 

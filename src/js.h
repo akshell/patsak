@@ -67,7 +67,8 @@ namespace ku
             const std::string& user,
             const Chars& request,
             const Strings& file_pathes = Strings(),
-            std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>());
+            std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>(),
+            const std::string& requester_app = "");
 
         std::auto_ptr<Response> Eval(const std::string& user,
                                      const Chars& expr);
