@@ -1,10 +1,5 @@
---------------------------------------------------------------------------------
--- ku schema
---------------------------------------------------------------------------------
 
 CREATE SCHEMA ku;
-
-
 SET search_path TO ku;
 
 
@@ -59,13 +54,6 @@ $$ LANGUAGE SQL IMMUTABLE;
 CREATE OR REPLACE FUNCTION mod(a float8, b float8) RETURNS float8 AS $$
     SELECT $1 - trunc($1/$2) * $2;
 $$ LANGUAGE SQL IMMUTABLE;
-
-
-CREATE OPERATOR % (
-    leftarg = float8,
-    rightarg = float8,
-    procedure = mod
-);
 
 
 CREATE OR REPLACE FUNCTION eval(t text) RETURNS text AS $$
@@ -127,13 +115,3 @@ CREATE OR REPLACE FUNCTION get_schema_size(prefix text) RETURNS numeric AS $$
     WHERE pg_namespace.nspname = $1
     AND pg_class.relnamespace = pg_namespace.oid;
 $$ LANGUAGE SQL VOLATILE;
-
---------------------------------------------------------------------------------
--- public schema
---------------------------------------------------------------------------------
-
-CREATE OPERATOR public.% (
-    leftarg = float8,
-    rightarg = float8,
-    procedure = ku.mod
-);

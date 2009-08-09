@@ -768,7 +768,7 @@ namespace
 
 
 DBFixture::DBFixture()
-    : db("dbname=test_patsak password=1q2w3e", "public")
+    : db("dbname=test_patsak password=1q2w3e", "test")
 {
     DeleteRels(GetRelNames());
     BOOST_REQUIRE(GetRelNames().empty());

@@ -335,7 +335,11 @@ namespace ku
             JS_THROW(Error, "Illegal operation");                       \
             return ret_type();                                          \
         }                                                               \
-        return bg_ptr__->name##Impl(arg);                               \
+        try {                                                           \
+            return bg_ptr__->name##Impl(arg);                           \
+        } catch (const std::exception& err) {                           \
+            ku::Fail(err.what());                                       \
+        }                                                               \
     }                                                                   \
     ret_type cls::name##Impl(arg_type arg_name)
 
@@ -350,7 +354,11 @@ namespace ku
             JS_THROW(Error, "Illegal operation");                       \
             return ret_type();                                          \
         }                                                               \
-        return bg_ptr__->name##Impl(arg1, arg2);                        \
+        try {                                                           \
+            return bg_ptr__->name##Impl(arg1, arg2);                    \
+        } catch (const std::exception& err) {                           \
+            ku::Fail(err.what());                                       \
+        }                                                               \
     }                                                                   \
     ret_type cls::name##Impl(arg1_type arg1_name, arg2_type arg2_name)
 
