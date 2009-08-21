@@ -297,6 +297,7 @@ namespace
 DEFINE_JS_CLASS(AppCatalogBg, "Apps",
                 object_template, /*proto_template*/)
 {
+    AppBg::GetJSClass();
     object_template->SetNamedPropertyHandler(GetAppCb, 0, HasAppCb);
 }
 

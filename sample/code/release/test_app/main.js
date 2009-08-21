@@ -385,10 +385,10 @@ db_test_suite.testInsert = function ()
     checkThrows("rels.Empty._insert({x: 5})");
     checkEqualTo("items(rels.User._insert({name: 'xxx', age: 0}))",
                 [['id', 3], ['name', 'xxx'], ['age', 0], ['flooder', true]]);
-    rels.User._where('name == $', 'xxx')._delete();
+    rels.User._where('name == $', 'xxx')._del();
     checkEqualTo("items(rels.Empty._insert({}))", []);
     checkThrows("rels.Empty._insert({})");
-    rels.Empty._all()._delete();
+    rels.Empty._all()._del();
 };
 
 
@@ -506,13 +506,13 @@ db_test_suite.testDelete = function ()
 {
     var initial = rels.User._all();
     initial._perform();
-    checkThrows("rels.User._all()._delete()");
+    checkThrows("rels.User._all()._del()");
     var tricky_name = 'xx\'y\'zz\'';
     rels.User._insert({id: 3, name: tricky_name, age: 15, flooder: true});
-    checkThrows("rels.User._where('age == 15')._delete(0)");
+    checkThrows("rels.User._where('age == 15')._del(0)");
     rels.User._by('name')._where('id == 3')._update({name: 'name + 1'});
     checkEqualTo("rels.User.whose('id == 3')['name']", tricky_name + 1);
-    checkEqualTo("rels.User._where('age == 15')._delete()", 1);
+    checkEqualTo("rels.User._where('age == 15')._del()", 1);
     checkEqualTo("rels.User.field('id').sort()", [0, 1, 2]);
 };
 

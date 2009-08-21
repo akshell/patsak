@@ -814,7 +814,7 @@ namespace
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, UpdateCb,
                              const Arguments&) const;
         
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DeleteCb,
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DelCb,
                              const Arguments&) const;
     };
 }
@@ -824,7 +824,7 @@ DEFINE_JS_CLASS(SubRelBg, "SubRel", object_template, proto_template)
 {
     InitObjectTemplate(object_template);
     SetFunction(proto_template, "_update", UpdateCb);
-    SetFunction(proto_template, "_delete", DeleteCb);
+    SetFunction(proto_template, "_del", DelCb);
 }
 
 
@@ -890,7 +890,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, UpdateCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, DeleteCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, DelCb,
                     const Arguments&, args) const
 {
     JS_CHECK_LENGTH(args, 0);
