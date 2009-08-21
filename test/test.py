@@ -209,14 +209,14 @@ class Test(unittest.TestCase):
         open(wuzzup_path, 'w').write('wuzzup!!1')
         self.assertEqual(talk('PROCESS\n\nFILE /does_not_exist\n'
                               'FILE ' + wuzzup_path + '\n'
-                              'REQUEST 24\nak.fs.read(ak._files[1])'),
+                              'REQUEST 25\nak.fs._read(ak._files[1])'),
                          'OK\nwuzzup!!1')
         self.assert_(os.path.exists(wuzzup_path))
         self.assert_('Temp file is already removed' in
                      talk('PROCESS\nFILE ' + wuzzup_path + '\n' +
-                          'REQUEST 51\n'
-                          'ak.fs.remove(ak._files[0]);'
-                          'ak.fs.read(ak._files[0])'))
+                          'REQUEST 53\n'
+                          'ak.fs._remove(ak._files[0]);'
+                          'ak.fs._read(ak._files[0])'))
         self.assert_(not os.path.exists(wuzzup_path))
 
         sock = self._connect(socket_path)

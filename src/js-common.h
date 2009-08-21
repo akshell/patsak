@@ -115,6 +115,16 @@ namespace ku
         v8::Handle<v8::Array> keys_;
         size_t size_;
     };
+
+
+    inline void SetFunction(v8::Handle<v8::Template> template_,
+                            const std::string& name,
+                            v8::InvocationCallback callback)
+    {
+        template_->Set(v8::String::NewSymbol(name.c_str()),
+                       v8::FunctionTemplate::New(callback),
+                       v8::DontEnum);
+    }
 }
 
 

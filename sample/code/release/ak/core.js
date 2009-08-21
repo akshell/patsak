@@ -4,32 +4,31 @@
 /// \file core.js
 /// Core ak functionality
 
-
-ak.SubRel.prototype.__proto__ = ak.Query.prototype;
-
-
-Date.prototype.toString = Date.prototype.toUTCString;
-
-
-ak.NONE = 0;
-ak.READ_ONLY   = 1 << 0;
-ak.DONT_ENUM   = 1 << 1;
-ak.DONT_DELETE = 1 << 2;
-
-
-ak.setObjectProp(Object.prototype,
-                 'setProp',
-                 ak.DONT_ENUM,
-                 function (name, attrs, value) {
-                     return ak.setObjectProp(this, name, attrs, value);
-                 });
-
-
 (function ()
 {
+    ak.SubRel.prototype.__proto__ = ak.Query.prototype;
+
+
+    Date.prototype.toString = Date.prototype.toUTCString;
+
+
+    ak.NONE = 0;
+    ak.READ_ONLY   = 1 << 0;
+    ak.DONT_ENUM   = 1 << 1;
+    ak.DONT_DELETE = 1 << 2;
+
+
+    ak._setObjectProp(Object.prototype,
+                      'setProp',
+                      ak.DONT_ENUM,
+                      function (name, attrs, value) {
+                          return ak._setObjectProp(this, name, attrs, value);
+                      });
+
+
     function whose()
     {
-        var query = this.constructor.prototype.where.apply(this, arguments);
+        var query = this.constructor.prototype._where.apply(this, arguments);
         if (query.length != 1)
             throw Error('whose() query got ' + query.length + ' tuples');
         return query[0];
@@ -45,7 +44,7 @@ ak.setObjectProp(Object.prototype,
             throw Error('field() requires exactly one argument');
         if (typeof(field_name) == 'object' && field_name.length)
             throw TypeError('field() argument must not be array-like');
-        var query = ak.Query.prototype.only.call(this, field_name);
+        var query = ak.Query.prototype._only.call(this, field_name);
         var result = [];
         for (var i = 0; i < query.length; ++i)
             result.push(query[i][field_name]);
@@ -64,7 +63,7 @@ ak.setObjectProp(Object.prototype,
             args[0][field] = '$' + (++index);
             args.push(obj[field]);
         }
-        return ak.SubRel.prototype.update.apply(this, args);
+        return ak.SubRel.prototype._update.apply(this, args);
     }
 
 
@@ -74,26 +73,31 @@ ak.setObjectProp(Object.prototype,
     function makeRelDelegation(func_name)
     {
         ak.Rel.prototype[func_name] = function () {
-            return ak.SubRel.prototype[func_name].apply(this.all(), arguments);
+            return ak.SubRel.prototype[func_name].apply(this._all(), arguments);
         };
     }
 
-    makeRelDelegation('where');
+    makeRelDelegation('_where');
     makeRelDelegation('whose');
-    makeRelDelegation('only');
-    makeRelDelegation('by');
+    makeRelDelegation('_only');
+    makeRelDelegation('_by');
     makeRelDelegation('field');
-    makeRelDelegation('update');
+    makeRelDelegation('_update');
     makeRelDelegation('updateByValues');
-    makeRelDelegation('delete');
+    makeRelDelegation('_delete');
+
+
+    ak.fs.remove = function (path) {
+        if (ak.fs._isDir(path)) {
+            var children = ak.fs._list(path);
+            for (var i = 0; i < children.length; ++i)
+                arguments.callee(path + '/' + children[i]);
+        }
+        ak.fs._remove(path);
+    };
+
+
+    ak.Data.prototype.setProp('toString',
+                              ak.DONT_ENUM,
+                              ak.Data.prototype._toString);
 })();
-
-
-ak.fs.remove = function (path) {
-    if (ak.fs.isDir(path)) {
-        var children = ak.fs.list(path);
-        for (var i = 0; i < children.length; ++i)
-            arguments.callee(path + '/' + children[i]);
-    }
-    ak.fs.rm(path);
-};

@@ -81,13 +81,13 @@ namespace ku
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, IsFileCb,
                              const v8::Arguments&) const;
         
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, MkDirCb,
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, MakeDirCb,
                              const v8::Arguments&);
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, WriteCb,
                              const v8::Arguments&);
         
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RmCb,
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RemoveCb,
                              const v8::Arguments&);
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RenameCb,

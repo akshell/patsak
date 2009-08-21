@@ -188,7 +188,7 @@ namespace
 
 DEFINE_JS_CLASS(AppBg, "App", /*object_template*/, proto_template)
 {
-    proto_template->Set("call", FunctionTemplate::New(CallCb));
+    SetFunction(proto_template, "_call", CallCb);
 }
 
 
@@ -206,13 +206,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AppBg, CallCb,
                     const Arguments&, args) const
 {
     JS_CHECK(args.Length() > 0 && args.Length() < 4,
-             "call() takes one, two or three arguments");
+             "One, two or three arguments required");
 
     vector<Handle<v8::Value> > file_values;
     if (args.Length() > 1) {
         int32_t length = GetArrayLikeLength(args[1]);
-        JS_TYPE_CHECK(length != -1,
-                      "Second call() argument must be array-like");
+        JS_TYPE_CHECK(length != -1, "Call file list must be array-like");
         file_values.reserve(length);
         for (int32_t i = 0; i < length; ++i) {
             file_values.push_back(GetArrayLikeItem(args[1], i));
@@ -377,17 +376,14 @@ namespace
                            const string& name)
     {
         holder_template->Set(name.c_str(),
-                            BgT::GetJSClass().GetObjectTemplate());
+                             BgT::GetJSClass().GetObjectTemplate());
     }
 }
 
 DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 {
-    proto_template->Set(String::NewSymbol("_print"),
-                        FunctionTemplate::New(PrintCb),
-                        ReadOnly | DontEnum | DontDelete);
-    proto_template->Set("setObjectProp",
-                         FunctionTemplate::New(SetObjectPropCb));
+    SetFunction(proto_template, "_print", PrintCb);
+    SetFunction(proto_template, "_setObjectProp", SetObjectPropCb);
     SetObjectTemplate<DBBg>(object_template, "db");
     SetObjectTemplate<RelCatalogBg>(object_template, "rels");
     SetObjectTemplate<TypeCatalogBg>(object_template, "types");
@@ -421,11 +417,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetObjectPropCb,
                     const Arguments&, args) const
 {
     JS_CHECK_LENGTH(args, 4);
-    JS_TYPE_CHECK(args[0]->IsObject(),
-                  "First setObjectProp() argument must be object");
+    JS_TYPE_CHECK(args[0]->IsObject(), "Can't set property of non-object");
     Handle<Object> object(args[0]->ToObject());
-    JS_TYPE_CHECK(args[2]->IsInt32(),
-                  "Third setObjectProp() argument must be integer");
+    JS_TYPE_CHECK(args[2]->IsInt32(), "Property attribute must be integer");
     int32_t attributes = args[2]->Int32Value();
     JS_CHECK(attributes >= 0 && attributes < 8,
              "Property attribute must be a "
@@ -848,7 +842,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     ak_->Set(String::NewSymbol("_files"), file_array, DontEnum);
 
     ak_->Set(String::NewSymbol("_user"), String::New(user.c_str()), DontEnum);
-    ak_->Set(String::NewSymbol("_requester_app"),
+    ak_->Set(String::NewSymbol("_requesterApp"),
              String::New(requester_app.c_str()),
              DontEnum);
 

@@ -243,7 +243,7 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, SerialCb,
                              const Arguments&) const;
 
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ByDefaultCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, DefaultCb,
                              const Arguments&) const;
 
         Handle<v8::Value> NewWithAddedConstr(AddedConstrPtr ac_ptr) const;
@@ -251,7 +251,7 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, UniqueCb,
                              const Arguments&) const;
 
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ForeignKeyCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ForeignCb,
                              const Arguments&) const;
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, CheckCb,
@@ -263,12 +263,12 @@ namespace
 DEFINE_JS_CLASS(TypeBg, "Type", object_template, proto_template)
 {
     object_template->SetAccessor(String::NewSymbol("name"), GetNameCb);
-    proto_template->Set("int", FunctionTemplate::New(IntCb));
-    proto_template->Set("serial", FunctionTemplate::New(SerialCb));
-    proto_template->Set("byDefault", FunctionTemplate::New(ByDefaultCb));
-    proto_template->Set("unique", FunctionTemplate::New(UniqueCb));
-    proto_template->Set("foreignKey", FunctionTemplate::New(ForeignKeyCb));
-    proto_template->Set("check", FunctionTemplate::New(CheckCb));
+    SetFunction(proto_template, "_int", IntCb);
+    SetFunction(proto_template, "_serial", SerialCb);
+    SetFunction(proto_template, "_default", DefaultCb);
+    SetFunction(proto_template, "_unique", UniqueCb);
+    SetFunction(proto_template, "_foreign", ForeignCb);
+    SetFunction(proto_template, "_check", CheckCb);
 }
 
 
@@ -340,18 +340,16 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, SerialCb,
 {
     JS_CHECK_LENGTH(args, 0);
     JS_CHECK(trait_ == Type::COMMON, "Trait redefinition");
-    JS_CHECK(!default_ptr_,
-             "byDefault() and serial() are incompatible");
+    JS_CHECK(!default_ptr_, "Default and serial are incompatible");
     return JSNew<TypeBg>(type_, Type::SERIAL, default_ptr_, ac_ptrs_);
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, ByDefaultCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, DefaultCb,
                     const Arguments&, args) const
 {
     JS_CHECK_LENGTH(args, 1);
-    JS_CHECK(trait_ != Type::SERIAL,
-             "byDefault() and serial() are incompatible");
+    JS_CHECK(trait_ != Type::SERIAL, "Default and serial are incompatible");
     shared_ptr<ku::Value> default_ptr(new ku::Value(ReadKuValue(args[0])));
     return JSNew<TypeBg>(type_, trait_, default_ptr, ac_ptrs_);
 }
@@ -375,7 +373,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, UniqueCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, ForeignKeyCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, ForeignCb,
                     const Arguments&, args) const
 {
     JS_CHECK_LENGTH(args, 2);
@@ -603,21 +601,10 @@ DEFINE_JS_CLASS(QueryBg, "Query", object_template, proto_template)
 {
     TupleBg::GetJSClass();
     InitObjectTemplate(object_template);
-    proto_template->Set(String::NewSymbol("perform"),
-                        FunctionTemplate::New(PerformCb),
-                        DontEnum);
-
-    proto_template->Set(String::NewSymbol("only"),
-                        FunctionTemplate::New(OnlyCb),
-                        DontEnum);
-
-    proto_template->Set(String::NewSymbol("where"),
-                        FunctionTemplate::New(WhereCb),
-                        DontEnum);
-
-    proto_template->Set(String::NewSymbol("by"),
-                        FunctionTemplate::New(ByCb),
-                        DontEnum);
+    SetFunction(proto_template, "_perform", PerformCb);
+    SetFunction(proto_template, "_only", OnlyCb);
+    SetFunction(proto_template, "_where", WhereCb);
+    SetFunction(proto_template, "_by", ByCb);
 }
 
 
@@ -766,7 +753,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, OnlyCb,
 template <typename SpecT>
 Handle<v8::Value> QueryBg::GenericSpecify(const Arguments& args) const
 {
-    JS_CHECK(args.Length() >= 1, "at least one argument required");
+    JS_CHECK(args.Length() >= 1, "At least one argument required");
     string expr_str = Stringify(args[0]);
     Values params;
     params.reserve(args.Length() - 1);
@@ -827,7 +814,7 @@ namespace
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, UpdateCb,
                              const Arguments&) const;
         
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DelCb,
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DeleteCb,
                              const Arguments&) const;
     };
 }
@@ -836,14 +823,8 @@ namespace
 DEFINE_JS_CLASS(SubRelBg, "SubRel", object_template, proto_template)
 {
     InitObjectTemplate(object_template);
-    
-    proto_template->Set(String::NewSymbol("update"),
-                        FunctionTemplate::New(UpdateCb),
-                        DontEnum);
-
-    proto_template->Set(String::NewSymbol("del"),
-                        FunctionTemplate::New(DelCb),
-                        DontEnum);
+    SetFunction(proto_template, "_update", UpdateCb);
+    SetFunction(proto_template, "_delete", DeleteCb);
 }
 
 
@@ -886,10 +867,8 @@ WhereSpecifiers SubRelBg::GetWhereSpecifiers() const
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, UpdateCb,
                     const Arguments&, args) const
 {
-    JS_CHECK(args.Length(),
-             "update() must have at least one arguments");
-    JS_TYPE_CHECK(args[0]->IsObject(),
-                  "First update() argument must be object");
+    JS_CHECK(args.Length(), "At least one argument required");
+    JS_TYPE_CHECK(args[0]->IsObject(), "Update argument must be an object");
     StringMap field_expr_map;
     PropEnumerator prop_enumerator(args[0]->ToObject());
     for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
@@ -911,7 +890,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, UpdateCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, DelCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, DeleteCb,
                     const Arguments&, args) const
 {
     JS_CHECK_LENGTH(args, 0);
@@ -965,9 +944,9 @@ DEFINE_JS_CLASS(ConstrCatalogBg, "Constrs",
                 /*object_template*/, proto_template)
 {
     ConstrBg::GetJSClass();
-    proto_template->Set("unique", FunctionTemplate::New(UniqueCb));
-    proto_template->Set("foreignKey", FunctionTemplate::New(ForeignKeyCb));
-    proto_template->Set("check", FunctionTemplate::New(CheckCb));
+    SetFunction(proto_template, "_unique", UniqueCb);
+    SetFunction(proto_template, "_foreign", ForeignCb);
+    SetFunction(proto_template, "_check", CheckCb);
 }
 
 
@@ -980,7 +959,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, UniqueCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, ForeignKeyCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, ForeignCb,
                     const Arguments&, args) const
 {
     JS_CHECK_LENGTH(args, 3);
@@ -1071,7 +1050,7 @@ RelCreator::RelCreator(Access& access)
 
 Handle<v8::Value> RelCreator::operator()(const Arguments& args) const
 {
-    JS_CHECK(args.Length() >= 2, "createRel() must have at least two arguments");
+    JS_CHECK(args.Length() >= 2, "At least two arguments required");
     string name;
     RichHeader rich_header;
     Constrs constrs;
@@ -1088,7 +1067,7 @@ bool RelCreator::ReadHeader(Handle<v8::Value> value,
                             Constrs& constrs)
 {
     if (!value->IsObject()) {
-        JS_THROW(TypeError, "Second createRel() argument must be object");
+        JS_THROW(TypeError, "Relation definition must be an object");
         return false;
     }
     Handle<Object> object(value->ToObject());
@@ -1119,9 +1098,7 @@ bool RelCreator::ReadConstrs(const Arguments& args, Constrs& constrs)
     for (int i = 2; i < args.Length(); ++i) {
         const ConstrBg* constr_bg_ptr = ConstrBg::GetJSClass().Cast(args[i]);
         if (!constr_bg_ptr) {
-            JS_THROW(TypeError,
-                     "createRel arguments starting from the "
-                     "third must be constraints");
+            JS_THROW(TypeError, "Constraint object was expected");
             return false;
         }
         constrs.push_back(constr_bg_ptr->GetConstr());
@@ -1136,9 +1113,9 @@ bool RelCreator::ReadConstrs(const Arguments& args, Constrs& constrs)
 DEFINE_JS_CLASS(DBBg, "DB", /*object_template*/, proto_template)
 {
     QueryBg::GetJSClass();
-    proto_template->Set("query", FunctionTemplate::New(QueryCb));
-    proto_template->Set("createRel", FunctionTemplate::New(CreateRelCb));
-    proto_template->Set("dropRels", FunctionTemplate::New(DropRelsCb));
+    SetFunction(proto_template, "_query", QueryCb);
+    SetFunction(proto_template, "_createRel", CreateRelCb);
+    SetFunction(proto_template, "_dropRels", DropRelsCb);
 }
 
 
@@ -1151,7 +1128,7 @@ DBBg::DBBg(const AccessHolder& access_holder)
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, QueryCb,
                     const Arguments&, args) const
 {
-    JS_CHECK(args.Length() >= 1, "query() must have at least one argument");
+    JS_CHECK(args.Length() >= 1, "At least one argument required");
     string query_str(Stringify(args[0]));
     Values params;
     params.reserve(args.Length() - 1);
@@ -1206,7 +1183,7 @@ Inserter::Inserter(Access& access, const string& rel_name)
 Handle<v8::Value> Inserter::operator()(const Arguments& args) const
 {
     JS_CHECK_LENGTH(args, 1);
-    JS_TYPE_CHECK(args[0]->IsObject(), "insert() argument must be object");
+    JS_TYPE_CHECK(args[0]->IsObject(), "Insert argument must be an object");
     Handle<Object> object(args[0]->ToObject());
     PropEnumerator prop_enumerator(object);
     ValueMap value_map;
@@ -1274,7 +1251,7 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetUniquesCb,
                              const Arguments&) const;
 
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetForeignKeysCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetForeignsCb,
                              const Arguments&) const;
     };
 }
@@ -1286,15 +1263,14 @@ DEFINE_JS_CLASS(RelBg, "Rel", object_template, proto_template)
     QueryBg::GetJSClass().AddSubClass(SubRelBg::GetJSClass());
     object_template->SetAccessor(String::NewSymbol("name"), GetNameCb);
     object_template->SetAccessor(String::NewSymbol("header"), GetHeaderCb);
-    proto_template->Set("insert", FunctionTemplate::New(InsertCb));
-    proto_template->Set("drop", FunctionTemplate::New(DropCb));
-    proto_template->Set("all", FunctionTemplate::New(AllCb));
-    proto_template->Set("getInts", FunctionTemplate::New(GetIntsCb));
-    proto_template->Set("getSerials", FunctionTemplate::New(GetSerialsCb));
-    proto_template->Set("getDefaults", FunctionTemplate::New(GetDefaultsCb));
-    proto_template->Set("getUniques", FunctionTemplate::New(GetUniquesCb));
-    proto_template->Set("getForeignKeys",
-                        FunctionTemplate::New(GetForeignKeysCb));
+    SetFunction(proto_template, "_insert", InsertCb);
+    SetFunction(proto_template, "_drop", DropCb);
+    SetFunction(proto_template, "_all", AllCb);
+    SetFunction(proto_template, "_getInts", GetIntsCb);
+    SetFunction(proto_template, "_getSerials", GetSerialsCb);
+    SetFunction(proto_template, "_getDefaults", GetDefaultsCb);
+    SetFunction(proto_template, "_getUniques", GetUniquesCb);
+    SetFunction(proto_template, "_getForeigns", GetForeignsCb);
 }
 
 
@@ -1414,7 +1390,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetUniquesCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetForeignKeysCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetForeignsCb,
                     const Arguments&, args) const
 {
     JS_CHECK_LENGTH(args, 0);
@@ -1425,11 +1401,11 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetForeignKeysCb,
         const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
         if (foreign_key_ptr) {
             Handle<Object> object(Object::New());
-            object->Set(String::NewSymbol("key_fields"),
+            object->Set(String::NewSymbol("keyFields"),
                         MakeV8Array(foreign_key_ptr->key_field_names));
-            object->Set(String::NewSymbol("ref_rel"),
+            object->Set(String::NewSymbol("refRel"),
                         String::New(foreign_key_ptr->ref_rel_name.c_str()));
-            object->Set(String::NewSymbol("ref_fields"),
+            object->Set(String::NewSymbol("refFields"),
                         MakeV8Array(foreign_key_ptr->ref_field_names));
             result->Set(Integer::New(i++), object);
         }

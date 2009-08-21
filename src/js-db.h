@@ -114,7 +114,7 @@ namespace ku
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, UniqueCb,
                              const v8::Arguments&) const;
 
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ForeignKeyCb,
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ForeignCb,
                              const v8::Arguments&) const;
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CheckCb,

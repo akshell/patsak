@@ -91,9 +91,7 @@ size_t DataStringResource::length() const
 
 DEFINE_JS_CLASS(DataBg, "Data", /*object_template*/, proto_template)
 {
-    proto_template->Set(String::NewSymbol("toString"),
-                        FunctionTemplate::New(ToStringCb),
-                        DontEnum);
+    SetFunction(proto_template, "_toString", ToStringCb);
 }
 
 
@@ -165,7 +163,7 @@ namespace
         bool List(Strings& items) const;
         bool MkDir() const;
         bool Write(const char* data_ptr, size_t size) const;
-        bool Rm() const;
+        bool Remove() const;
         bool Rename(const string& dest) const;
         bool CopyFile(const string& dest) const;
         
@@ -241,7 +239,7 @@ bool FSManager::Write(const char* data_ptr, size_t size) const
 }
 
 
-bool FSManager::Rm() const
+bool FSManager::Remove() const
 {
     JS_ERRNO_CHECK(!remove(path_.c_str()));
     return true;
@@ -321,16 +319,16 @@ DEFINE_JS_CLASS(FSBg, "FS", /*object_template*/, proto_template)
 {
     TmpFileBg::GetJSClass();
     DataBg::GetJSClass();
-    proto_template->Set("read", FunctionTemplate::New(ReadCb));
-    proto_template->Set("list", FunctionTemplate::New(ListCb));
-    proto_template->Set("exists", FunctionTemplate::New(ExistsCb));
-    proto_template->Set("isDir", FunctionTemplate::New(IsDirCb));
-    proto_template->Set("isFile", FunctionTemplate::New(IsFileCb));
-    proto_template->Set("mkdir", FunctionTemplate::New(MkDirCb));
-    proto_template->Set("write", FunctionTemplate::New(WriteCb));
-    proto_template->Set("rm", FunctionTemplate::New(RmCb));
-    proto_template->Set("rename", FunctionTemplate::New(RenameCb));
-    proto_template->Set("copyFile", FunctionTemplate::New(CopyFileCb));
+    SetFunction(proto_template, "_read", ReadCb);
+    SetFunction(proto_template, "_list", ListCb);
+    SetFunction(proto_template, "_exists", ExistsCb);
+    SetFunction(proto_template, "_isDir", IsDirCb);
+    SetFunction(proto_template, "_isFile", IsFileCb);
+    SetFunction(proto_template, "_makeDir", MakeDirCb);
+    SetFunction(proto_template, "_write", WriteCb);
+    SetFunction(proto_template, "_remove", RemoveCb);
+    SetFunction(proto_template, "_rename", RenameCb);
+    SetFunction(proto_template, "_copyFile", CopyFileCb);
 }
 
 
@@ -449,7 +447,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsFileCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, MkDirCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, MakeDirCb,
                     const Arguments&, args)
 {
     JS_CHECK_LENGTH(args, 1);
@@ -494,14 +492,14 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, WriteCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RmCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RemoveCb,
                     const Arguments&, args)
 {
     JS_CHECK_LENGTH(args, 1);
     string path;
     JS_CAN_THROW(ReadPath(args[0], path, false));
     unsigned long long size = GetFileSize(path);
-    JS_CAN_THROW(FSManager(path).Rm());
+    JS_CAN_THROW(FSManager(path).Remove());
     total_size_ -= size;
     MarkTmpFileRemoved(args[0]);
     return Undefined();
