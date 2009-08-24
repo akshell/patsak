@@ -55,11 +55,12 @@ namespace ku
     /// JavaScript program abstraction
     class Program {
     public:
-        Program(const std::string& code_dir,
+        Program(const std::string& app_name,
+                const std::string& code_dir,
                 const std::string& include_dir,
                 const std::string& media_dir,
                 DB& db,
-                AppAccessor& app_evaluator);
+                AppAccessor& app_accessor);
         
         ~Program();
         

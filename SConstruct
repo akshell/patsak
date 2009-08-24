@@ -47,7 +47,7 @@ def invoke_script(dir, obj_dir, exports):
 
 objects = invoke_script('src', '', 'env')
 test_objects = invoke_script('test', 'test', 'test_env')
-js_files = SConscript('sample/code/release/SConscript', duplicate=False)
+sample_files = SConscript('sample/code/release/SConscript', duplicate=False)
 
 main_obj = env.Object(target=join('obj', env['mode'], 'main.o'),
                       source='src/main.cc')
@@ -79,7 +79,7 @@ env.AlwaysBuild(env.Alias('clean', None, 'rm -rf obj exe cov doc'))
 
 if env['mode'] == 'cov':
     cov_info = env.Command('cov/cov.info',
-                           [all, js_files, 'test/test.py'],
+                           [all, sample_files, 'test/test.py'],
                            'rm obj/cov/*.gcda obj/cov/test/*.gcda;'
                            'python test/test.py exe/cov;'
                            'lcov -d obj/cov/ -c -b . -o $TARGET')

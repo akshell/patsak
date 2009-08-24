@@ -1,6 +1,12 @@
 
-import('ak', 'core.js');
-import('ak', 'mochi-kit.js');
+function include(app_name, path)
+{
+    return ak._compile(ak._readCode(app_name, path),
+                       app_name + ':' + path)._run();
+}
+
+include('ak', 'core.js');
+include('ak', 'mochi-kit.js');
 
 
 var db = ak.db;
@@ -15,7 +21,8 @@ function print(x) {
     ak._print(x);
 }
 
-function println() {
+
+function println(x) {
     ak._print(x + '\n');
 }
 
@@ -37,7 +44,7 @@ function error(descr)
 function check(expr, descr)
 {
     if (expr instanceof Function)
-        return check(expr(), '' + expr);
+        check(expr(), '' + expr);
     if (!eval(expr)) {
         descr = descr || expr;
         error(descr + ' check failed');
@@ -112,28 +119,6 @@ function runTestSuites(test_suites)
 var base_test_suite = {};
 
 
-base_test_suite.testInclude = function ()
-{
-    check("include('hello.js') == 'hello'");
-    checkThrows("include('no-such-file.js')");
-    checkThrows("include('hello.js', 'hello.js')");
-    checkThrows("include('bug.js')");
-    checkThrows("include('bug-includer.js')");
-    checkThrows("include('../out-of-base-dir.js')");
-    checkThrows("include('unreadable.js')");
-    check("include('subdir/another-hello.js') == 'hello'");
-    checkThrows("include('self-includer.js')");
-};
-
-
-base_test_suite.testImport = function ()
-{
-    checkThrows("import('no_such_lib', 'xxx.js')");
-    checkEqualTo("import('lib/0.1/', '42.js')", 42);
-    checkEqualTo("import('lib/0.1/')", 'main');
-};
-
-
 base_test_suite.testTypes = function ()
 {
     check("types.a === undefined");
@@ -180,6 +165,57 @@ base_test_suite.testSetObjectProp = function ()
     check(function () {
               delete obj.dont_delete;
               return obj.dont_delete == 3;
+          });
+};
+
+
+base_test_suite.testAppName = function ()
+{
+    check("ak._appName == 'test_app'");
+};
+
+
+base_test_suite.testReadCode = function ()
+{
+    check("ak._readCode('subdir/hi.txt') == 'russian привет\\n'");
+    check("ak._readCode('bad_app', 'main.js') == 'wuzzup!!!!!!!!\\n'");
+    checkThrows("ak._readCode('illegal/name', 'main.js')");
+    checkThrows("ak._readCode('test_app', '')");
+    checkThrows("ak._readCode('test_app', 'subdir/../../ak/main.js')");
+    checkThrows("ak._readCode()");
+};
+
+
+base_test_suite.testCompile = function ()
+{
+    check(function () {
+              var script = ak._compile('2+2');
+              return script._run() === 4;
+          });
+    checkThrows("ak._compile()");
+    check(function () {
+              try {
+                  ak._compile('(');
+              } catch (error) {
+                  return error instanceof SyntaxError;
+              }
+              return false;
+          });
+    check(function () {
+              try {
+                  ak._compile('asdfjkl')._run();
+              } catch (error) {
+                  return error instanceof ReferenceError;
+              }
+              return false;
+          });
+    check(function () {
+              try {
+                  ak._compile('ak._compile("(")', 'just string')._run();
+              } catch (error) {
+                  return error instanceof SyntaxError;
+              }
+              return false;
           });
 };
 
@@ -355,6 +391,7 @@ db_test_suite.testDropRels = function ()
 
 db_test_suite.testQuery = function ()
 {
+    checkThrows(function () { db._query(); });
     var q = db._query('User[name, age, flooder] where id == 0');
     checkEqualTo(q, [{name: 'anton', age: 22, flooder: true}]);
     check(function () { return q[1] === undefined; });
@@ -672,35 +709,6 @@ db_test_suite.testStringLength = function ()
     checkThrows(function () { rels.Str._insert({s: array.join('')}); });
     rels.Str._drop();
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// Init tests
-////////////////////////////////////////////////////////////////////////////////
-
-(function ()
-{
-    try {
-        include('bug-includer.js');
-    } catch (err) {
-        if (err instanceof Error)
-            return;
-        throw err;
-    }
-    throw Error("include('bug-includer.js') hasn't thrown");
-})();
-
-
-(function ()
-{
-    try {
-        db._query();
-    } catch (err) {
-        if (err instanceof Error)
-            return;
-        throw err;
-    }
-    throw Error("db._query() hasn't thrown");
-})();
 
 ////////////////////////////////////////////////////////////////////////////////
 // File test suite

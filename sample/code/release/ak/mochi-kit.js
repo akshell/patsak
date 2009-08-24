@@ -4,7 +4,7 @@
 /// \file mochi-kit.js
 /// MochiKit library support
 
-include('MochiKit.js');
+ak._compile(ak._readCode('ak', 'MochiKit.js'), 'ak:MochiKit.js')._run();
 
 
 ////////////////////////////////////////////////////////////////////////////////

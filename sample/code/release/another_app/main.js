@@ -1,5 +1,5 @@
 
-import('ak', 'json2.js');
+eval(ak._readCode('ak', 'json2.js'));
 
 ak._main = function (arg)
 {
@@ -12,5 +12,5 @@ ak._main = function (arg)
                            arg: arg,
                            data: ak._data._toString(),
                            file_contents: file_contents,
-                           requester_app: ak._requesterApp});
+                           requester_app: ak._requesterAppName});
 };

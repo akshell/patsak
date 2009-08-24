@@ -889,11 +889,10 @@ auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
 auto_ptr<Program> MainRunner::InitProgram(DB& db,
                                           AppAccessor& app_accessor) const
 {
-    string code_path(code_dir_ + GetPathSuffix());
-    string media_path(media_dir_ + GetPathSuffix());
-    return auto_ptr<Program>(new Program(code_path,
+    return auto_ptr<Program>(new Program(app_name_,
+                                         code_dir_ + GetPathSuffix(),
                                          code_dir_ + "/release/",
-                                         media_path,
+                                         media_dir_ + GetPathSuffix(),
                                          db,
                                          app_accessor));
 }

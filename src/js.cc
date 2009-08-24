@@ -34,130 +34,14 @@ using boost::ptr_vector;
 using boost::ref;
 
 
+////////////////////////////////////////////////////////////////////////////////
+// Constants
+////////////////////////////////////////////////////////////////////////////////
+
 namespace
 {
     const int MAX_YOUNG_SPACE_SIZE =  2 * 1024 * 1024;
     const int MAX_OLD_SPACE_SIZE   = 32 * 1024 * 1024;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// CodeLoader
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    /// import() and include() manager
-    class CodeLoader {
-    public:
-        CodeLoader(const string& include_dir, const string& base_path);
-        // never throw
-        Handle<v8::Value> Import(const string& lib_path,
-                                 const string& file_path);
-        // never throw
-        Handle<v8::Value> Include(const string& path);
-        
-    private:
-        const string include_dir_;
-        string base_path_;
-        string curr_path_;
-        Strings work_pathes_;
-
-        static string DirName(const string& path);
-        static string Canonicalize(const string& path);
-    };
-}
-
-
-CodeLoader::CodeLoader(const string& include_dir, const string& base_path)
-    : include_dir_(Canonicalize(include_dir))
-    , base_path_(Canonicalize(base_path))
-    , curr_path_(base_path_)
-{
-    KU_ASSERT(!include_dir.empty());
-    KU_ASSERT(!base_path.empty());
-}
-
-
-Handle<v8::Value> CodeLoader::Import(const string& lib_path,
-                                     const string& file_path)
-{
-    JS_CHECK(GetPathDepth(lib_path) > 0, "Illegal lib path");
-    string lib_full_path = Canonicalize(include_dir_ + '/' + lib_path);
-    JS_CHECK(!lib_full_path.empty(), "Lib " + lib_path + " does not exist");
-    string old_base_path(base_path_);
-    string old_curr_path(curr_path_);
-    curr_path_ = base_path_ = lib_full_path;
-    Handle<v8::Value> result(Include(file_path));
-    base_path_ = old_base_path;
-    curr_path_ = old_curr_path;
-    return result;
-}
-
-
-Handle<v8::Value> CodeLoader::Include(const string& path)
-{
-    JS_CHECK(!path.empty(), "include path is empty");
-    string full_path(Canonicalize(path[0] == '/'
-                                  ? base_path_ + path
-                                  : curr_path_ + '/' + path));
-    // This conditions are checked together in order to prevent the
-    // possibility of scanning file system by such includes
-    JS_CHECK(!full_path.empty() &&
-             full_path.substr(0, base_path_.size()) == base_path_,
-             "Bad include() path: " + path);
-    BOOST_FOREACH(const string& work_path, work_pathes_)
-        JS_CHECK(full_path != work_path, "Recursive including: " + path);
-    Chars data;
-    JS_CAN_THROW(ReadFileData(full_path, data));
-    Handle<String> expr(String::New(&data[0], data.size()));
-    Handle<v8::Value> result;
-    Handle<v8::Value> exception;
-    Handle<Message> message;
-    {
-        TryCatch try_catch;
-        Handle<String> resource_name(String::New(path.c_str()));
-        Handle<Script> script = Script::Compile(expr, resource_name);
-        if (!script.IsEmpty()) {
-            string old_curr_path(curr_path_);
-            curr_path_ = DirName(full_path);
-            work_pathes_.push_back(full_path);
-            result = script->Run();
-            work_pathes_.pop_back();
-            curr_path_ = old_curr_path;
-        }
-        exception = try_catch.Exception();
-        message = try_catch.Message();
-    }
-    if (result.IsEmpty()) {
-        ostringstream oss;
-        oss << "ImportError in file " << path;
-        if (!message.IsEmpty())
-            oss << " line " << message->GetLineNumber()
-                << " column " << message->GetStartColumn()
-                << ": " << Stringify(message->Get());
-        else if (!exception.IsEmpty())
-            oss << ": " << Stringify(exception);
-        JS_THROW(Error, oss.str());
-    }
-    return result;    
-}
-
-
-string CodeLoader::DirName(const string& path)
-{
-    vector<char> path_copy(path.c_str(), path.c_str() + path.size() + 1);
-    return dirname(&path_copy[0]);
-}
-
-
-string CodeLoader::Canonicalize(const string& path)
-{
-    char* c_str = canonicalize_file_name(path.c_str());
-    if (!c_str)
-        return "";
-    string result(c_str);
-    free(c_str);
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -325,53 +209,151 @@ DEFINE_JS_CALLBACK2(Handle<Boolean>, AppCatalogBg, HasAppCb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// AKBg and GlobalBg declarations
+// CodeReader
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    /// ku background
+    /// Class for read access to code files of current and other applications
+    class CodeReader {
+    public:
+        CodeReader(const string& code_path, const string& include_path);
+
+        bool operator()(const string& path, Chars& data) const;
+
+        bool operator()(const string& app_name,
+                        const string& path,
+                        Chars& data) const;
+        
+    private:
+        string code_path_;
+        string include_path_;
+
+        bool Read(const string& base_path,
+                  const string& path,
+                  Chars& data) const;
+    };
+}
+
+
+CodeReader::CodeReader(const string& code_path, const string& include_path)
+    : code_path_(code_path), include_path_(include_path)
+{
+}
+
+
+bool CodeReader::operator()(const string& path, Chars& data) const
+{
+    return Read(code_path_, path, data);
+}
+
+
+bool CodeReader::operator()(const string& app_name,
+                            const string& path,
+                            Chars& data) const
+{
+    if (app_name.find_first_of('/') != string::npos) {
+        JS_THROW(Error, "App name could not contain slashes");
+        return false;
+    }
+    return Read(include_path_ + '/' + app_name, path, data);
+}
+
+
+bool CodeReader::Read(const string& base_path,
+                      const string& path,
+                      Chars& data) const
+{
+    if (GetPathDepth(path) <= 0) {
+        JS_THROW(Error, "Code path " + path + " is illegal");
+        return false;
+    }
+    return ReadFileData(base_path + '/' + path, data);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ScriptBg
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    /// Script background
+    class ScriptBg {
+    public:
+        DECLARE_JS_CLASS(ScriptBg);
+
+        ScriptBg(Handle<Script> script);
+        ~ScriptBg();
+
+    private:
+        Persistent<Script> script_;
+
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, RunCb,
+                             const Arguments&) const;
+    };
+}
+
+
+DEFINE_JS_CLASS(ScriptBg, "Script", /*object_template*/, proto_template)
+{
+    SetFunction(proto_template, "_run", RunCb);
+}
+
+
+ScriptBg::ScriptBg(Handle<Script> script)
+    : script_(Persistent<Script>::New(script))
+{
+}
+
+
+ScriptBg::~ScriptBg()
+{
+    script_.Dispose();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, ScriptBg, RunCb,
+                    const Arguments&, args) const
+{
+    JS_CHECK_LENGTH(args, 0);
+    return script_->Run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AKBg
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    /// ak background
     class AKBg {
     public:
         DECLARE_JS_CLASS(AKBg);
 
-        AKBg();
+        AKBg(const CodeReader& code_reader);
         
         void InitConstructors(Handle<Object> ak) const;
         
     private:
+        const CodeReader& code_reader_;
+        
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, PrintCb,
                              const Arguments&) const;
         
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, SetObjectPropCb,
                              const Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadCodeCb,
+                             const Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, CompileCb,
+                             const Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, InitCb,
+                             const Arguments&) const;
     };
 
 
-    /// Global background
-    class GlobalBg {
-    public:
-        DECLARE_JS_CLASS(GlobalBg);
-        
-        GlobalBg(CodeLoader& code_loader);
-        
-    private:
-        CodeLoader& code_loader_;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, IncludeCb,
-                             const Arguments&) const;
-        
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ImportCb,
-                             const Arguments&) const;
-    };    
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AKBg definitions
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
     template <typename BgT>
     void SetObjectTemplate(Handle<ObjectTemplate> holder_template,
                            const string& name)
@@ -381,10 +363,15 @@ namespace
     }
 }
 
+
 DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 {
+    ScriptBg::GetJSClass();
     SetFunction(proto_template, "_print", PrintCb);
     SetFunction(proto_template, "_setObjectProp", SetObjectPropCb);
+    SetFunction(proto_template, "_readCode", ReadCodeCb);
+    SetFunction(proto_template, "_compile", CompileCb);
+    SetFunction(proto_template, "_init", InitCb);
     SetObjectTemplate<DBBg>(object_template, "db");
     SetObjectTemplate<RelCatalogBg>(object_template, "rels");
     SetObjectTemplate<TypeCatalogBg>(object_template, "types");
@@ -394,7 +381,8 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 }
 
 
-AKBg::AKBg()
+AKBg::AKBg(const CodeReader& code_reader)
+    : code_reader_(code_reader)
 {
 }
 
@@ -429,46 +417,80 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetObjectPropCb,
     return Undefined();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// GlobalBg definitions
-////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(GlobalBg, "Global", object_template, proto_template)
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ReadCodeCb,
+                    const Arguments&, args) const
 {
-    proto_template->Set("import", FunctionTemplate::New(ImportCb));
-    proto_template->Set("include", FunctionTemplate::New(IncludeCb));
+    Chars data;
+    if (args.Length() == 1)
+        JS_CAN_THROW(code_reader_(Stringify(args[0]),
+                                  data));
+    else if (args.Length() == 2)
+        JS_CAN_THROW(code_reader_(Stringify(args[0]),
+                                  Stringify(args[1]),
+                                  data));
+    else
+        JS_CHECK(false, "One or two arguments required");
+    return String::New(&data[0], data.size());
+}
 
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, CompileCb,
+                    const Arguments&, args) const
+{
+    Handle<Script> script;
+    if (args.Length() == 1)
+        script = Script::Compile(args[0]->ToString());
+    else if (args.Length() == 2)
+        script = Script::Compile(args[0]->ToString(), args[1]);
+    else
+        JS_CHECK(false, "One or two arguments required");
+    if (script.IsEmpty())
+        return Handle<v8::Value>();
+    return JSNew<ScriptBg>(script);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, InitCb,
+                    const Arguments&, args) const
+{
+    // On JavaScript:
+    // ak._init = function (path) {
+    //   return ak._compile(ak._readCode(path), path)._run();
+    // }
+    
+    JS_CHECK_LENGTH(args, 1);
+    Chars data;
+    JS_CAN_THROW(code_reader_(Stringify(args[0]), data));
+    Handle<Script> script = Script::Compile(String::New(&data[0], data.size()),
+                                            args[0]);
+    if (script.IsEmpty())
+        return Handle<v8::Value>();
+    return script->Run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GlobalBg
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    /// Global background
+    class GlobalBg {
+    public:
+        DECLARE_JS_CLASS(GlobalBg);
+        GlobalBg() {}
+    };    
+}
+
+
+DEFINE_JS_CLASS(GlobalBg, "Global", object_template, /*proto_template*/)
+{
     Handle<ObjectTemplate>
         ak_object_template(AKBg::GetJSClass().GetObjectTemplate());
     object_template->Set(String::NewSymbol("ak"),
                          ak_object_template,
                          ReadOnly | DontDelete);
-}
-
-
-GlobalBg::GlobalBg(CodeLoader& code_loader)
-    : code_loader_(code_loader)
-{
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, GlobalBg, ImportCb,
-                    const Arguments&, args) const
-{
-    JS_CHECK(args.Length() == 1 || args.Length() == 2,
-             "import() takes one or two arguments");
-    return code_loader_.Import(Stringify(args[0]),
-                               args.Length() < 2
-                               ? "main.js"
-                               : Stringify(args[1]));
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, GlobalBg, IncludeCb,
-                    const Arguments&, args) const
-{
-    JS_CHECK_LENGTH(args, 1);
-    return code_loader_.Include(Stringify(args[0]));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -646,7 +668,9 @@ void Caller::operator()(Access& access)
     AccessHolder::Scope access_scope(access_holder_, access);
     TryCatch try_catch;
     Handle<v8::Value> result(function_->Call(object_, 1, &arg_));
-    if (result.IsEmpty())
+    // I don't know the difference in these conditions but together
+    // they handle all cases
+    if (try_catch.HasCaught() || result.IsEmpty())
         response_ptr_.reset(new ExceptionResponse(try_catch.Exception(),
                                                   try_catch.Message()));
     else
@@ -672,7 +696,8 @@ auto_ptr<Response> Caller::GetResult()
 
 class Program::Impl {
 public:
-    Impl(const string& file_dir,
+    Impl(const string& app_name,
+         const string& code_dir,
          const string& include_dir,
          const string& media_dir,
          DB& db,
@@ -693,7 +718,7 @@ private:
     bool initialized_;
     DB& db_;
     AccessHolder access_holder_;
-    CodeLoader code_loader_;
+    CodeReader code_reader_;
     GlobalBg global_bg_;
     AKBg ak_bg_;
     DBBg db_bg_;
@@ -719,16 +744,17 @@ private:
 };
 
 
-Program::Impl::Impl(const string& code_dir,
+Program::Impl::Impl(const string& app_name,
+                    const string& code_dir,
                     const string& include_dir,
                     const string& media_dir,
                     DB& db,
                     AppAccessor& app_accessor)
     : initialized_(false)
     , db_(db)
-    , code_loader_(include_dir, code_dir)
-    , global_bg_(code_loader_)
-    , ak_bg_()
+    , code_reader_(code_dir, include_dir)
+    , global_bg_()
+    , ak_bg_(code_reader_)
     , db_bg_(access_holder_)
     , rel_catalog_bg_(access_holder_)
     , fs_bg_(media_dir)
@@ -757,6 +783,9 @@ Program::Impl::Impl(const string& code_dir,
 
     Context::Scope context_scope(context_);
     ak_bg_.InitConstructors(ak_);
+    ak_->Set(String::NewSymbol("_appName"),
+             String::New(app_name.c_str()),
+             DontEnum);
 }
 
 
@@ -805,16 +834,15 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     HandleScope handle_scope;
     Context::Scope context_scope(context_);
     if (!initialized_) {
-        Handle<Function> include_func(
-            Handle<Function>::Cast(
-                context_->Global()->Get(String::NewSymbol("include"))));
-        KU_ASSERT(!include_func.IsEmpty());
-        Caller include_caller(access_holder_,
-                              include_func,
-                              context_->Global(),
-                              String::New("main.js"));
-        db_.Perform(include_caller);
-        auto_ptr<Response> response_ptr(include_caller.GetResult());
+        Handle<Function> init_func(Handle<Function>::Cast(
+                                       ak_->Get(String::NewSymbol("_init"))));
+        KU_ASSERT(!init_func.IsEmpty());
+        Caller init_caller(access_holder_,
+                           init_func,
+                           ak_,
+                           String::New("main.js"));
+        db_.Perform(init_caller);
+        auto_ptr<Response> response_ptr(init_caller.GetResult());
         if (response_ptr->GetStatus() != "OK")
             return response_ptr;
         initialized_ = true;
@@ -843,7 +871,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     ak_->Set(String::NewSymbol("_files"), file_array, DontEnum);
 
     ak_->Set(String::NewSymbol("_user"), String::New(user.c_str()), DontEnum);
-    ak_->Set(String::NewSymbol("_requesterApp"),
+    ak_->Set(String::NewSymbol("_requesterAppName"),
              String::New(requester_app.c_str()),
              DontEnum);
 
@@ -873,12 +901,18 @@ void Program::Impl::SetInternal(Handle<Object> object,
 // Program
 ////////////////////////////////////////////////////////////////////////////////
 
-Program::Program(const string& code_dir,
+Program::Program(const string& app_name,
+                 const string& code_dir,
                  const string& include_dir,
                  const string& media_dir,
                  DB& db,
                  AppAccessor& app_accessor)
-    : pimpl_(new Impl(code_dir, include_dir, media_dir, db, app_accessor))
+    : pimpl_(new Impl(app_name,
+                      code_dir,
+                      include_dir,
+                      media_dir,
+                      db,
+                      app_accessor))
 {
 }
 
