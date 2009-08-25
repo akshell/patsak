@@ -38,6 +38,10 @@ using boost::ref;
 // Constants
 ////////////////////////////////////////////////////////////////////////////////
 
+// File generated from init.js script by xxd -i, INIT_JS is defined here
+#include "init.js.h"
+
+
 namespace
 {
     const int MAX_YOUNG_SPACE_SIZE =  2 * 1024 * 1024;
@@ -786,6 +790,12 @@ Program::Impl::Impl(const string& app_name,
     ak_->Set(String::NewSymbol("_appName"),
              String::New(app_name.c_str()),
              DontEnum);
+    // Run init.js script
+    Handle<Script> script(Script::Compile(String::New(INIT_JS,
+                                                      sizeof(INIT_JS))));
+    KU_ASSERT(!script.IsEmpty());
+    Handle<v8::Value> init_ret(script->Run());
+    KU_ASSERT(!init_ret.IsEmpty());
 }
 
 

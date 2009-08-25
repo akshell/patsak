@@ -1,12 +1,6 @@
 
-function include(app_name, path)
-{
-    return ak._compile(ak._readCode(app_name, path),
-                       app_name + ':' + path)._run();
-}
-
-include('ak', 'core.js');
-include('ak', 'mochi-kit.js');
+ak.include('ak', 'core.js');
+ak.include('ak', 'mochi-kit.js');
 
 
 var db = ak.db;
@@ -119,6 +113,22 @@ function runTestSuites(test_suites)
 var base_test_suite = {};
 
 
+base_test_suite.testInclude = function ()
+{
+    check("ak.include('hello.js') == 'hello'");
+    checkThrows("ak.include()");
+    checkThrows("ak.include('no-such-file.js')");
+    checkThrows("ak.include('bug.js')");
+    checkThrows("ak.include('bug-includer.js')");
+    checkThrows("ak.include('../out-of-base-dir.js')");
+    checkThrows("ak.include('self-includer.js')");
+    checkThrows("ak.include('cycle-includer1.js')");
+    checkThrows("ak.include('no_such_lib', 'xxx.js')");
+    checkEqualTo("ak.include('lib/0.1/', '/42.js')", 42);
+    checkEqualTo("ak.include('lib', '0.1/42.js')", 42);
+};
+
+
 base_test_suite.testTypes = function ()
 {
     check("types.a === undefined");
@@ -183,6 +193,10 @@ base_test_suite.testReadCode = function ()
     checkThrows("ak._readCode('test_app', '')");
     checkThrows("ak._readCode('test_app', 'subdir/../../ak/main.js')");
     checkThrows("ak._readCode()");
+    check(function () {
+              return (ak._readCode('subdir/hi.txt') ==
+                      ak.readCode('test_app/subdir', 'hi.txt'));
+          });
 };
 
 

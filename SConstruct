@@ -33,6 +33,7 @@ MODE_FLAGS = {
 
 env = Environment(**COMMON_FLAGS)
 env.Append(**MODE_FLAGS[env['mode']])
+env.Append(CPPPATH=['.'])
 
 test_env = env.Clone()
 test_env.Append(LIBS=['boost_unit_test_framework'])
