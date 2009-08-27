@@ -1,1 +1,1 @@
-var answer = ak.include('answer.js');
+var answer = ak.include('test_app', 'answer.js');
