@@ -131,6 +131,7 @@ base_test_suite.testInclude = function ()
     checkThrows("ak.include('')");
     checkThrows("ak.include('..')");
     checkThrows("ak.include('subdir/..')");
+    checkThrows("ak.include('main.js')");
 };
 
 

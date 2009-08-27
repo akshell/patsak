@@ -260,6 +260,9 @@ class Test(unittest.TestCase):
         self.assertEqual(self._talk_through_socket(socket_path,
                                                    'PROCESS\nREQUEST 1\n1'),
                          'ERROR\n_main is not a function')
+        self.assertEqual(self._talk_through_socket(socket_path,
+                                                   'PROCESS answer'),
+                         'OK\n42')
         self.assertEqual(
             self._talk_through_socket(socket_path,
                                       'PROCESS s="x"; while(1) s+=s'),

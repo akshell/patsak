@@ -22,10 +22,17 @@
     default:
       var libPath = arguments[0] + '';
       var idx = libPath.indexOf('/');
-      if (idx == -1)
-        return [libPath, arguments[1] + ''];
-      return [libPath.substring(0, idx),
-              libPath.substring(idx + 1) + '/' + arguments[1]];
+      var appName, fullPath;
+      if (idx == -1) {
+        appName = libPath;
+        fullPath = arguments[1] + '';
+      } else {
+        appName = libPath.substring(0, idx);
+        fullPath = libPath.substring(idx + 1) + '/' + arguments[1];
+      }
+      if (appName == ak._appName)
+        appName = '';
+      return [appName, fullPath];
     }
   }
 
@@ -62,7 +69,7 @@
   }
 
 
-  var includeStack = [];
+  var includeStack = ['/main.js'];
   var includeResults = {};
 
 

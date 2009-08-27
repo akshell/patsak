@@ -1,4 +1,1 @@
-
-function main() {
-    return 0;
-}
+var answer = ak.include('answer.js');
