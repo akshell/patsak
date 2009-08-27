@@ -14,7 +14,11 @@
     case 1:
       var filePath = arguments[0];
       return [baseAppName,
-              filePath[0] == '/' ? filePath + '' : basePath + '/' + filePath];
+              (filePath
+               ? (filePath[0] == '/'
+                  ? filePath + ''
+                  : basePath + '/' + filePath)
+               : '')];
     default:
       var libPath = arguments[0] + '';
       var idx = libPath.indexOf('/');
@@ -33,14 +37,42 @@
   };
 
 
+  function canonicalize(path) {
+    var bits = path.split('/');
+    var resultBits = [];
+    function checkNonEmpty() {
+      if (!resultBits.length)
+        throw new Error('Code path "' + path + '" is illegal');
+    }
+    for (var i = 0; i < bits.length; ++i) {
+      switch (bits[i]) {
+      case '':
+      case '.':
+        break;
+      case '..':
+        checkNonEmpty();
+        resultBits.pop();
+        break;
+      default:
+        resultBits.push(bits[i]);
+      };
+    }
+    checkNonEmpty();
+    return resultBits.join('/');
+  }
+
+
   var includeStack = [];
+  var includeResults = {};
 
 
   ak.include = function (/* [libPath,] filePath */) {
     var ret = handlePathes.apply(this, arguments);
-    var appName = ret[0], fullPath = ret[1];
+    var appName = ret[0], fullPath = canonicalize(ret[1]);
 
-    var identifier = appName + ':' + fullPath;
+    var identifier = appName + '/' + fullPath;
+    if (identifier in includeResults)
+      return includeResults[identifier];
     for (var i = 0; i < includeStack.length; ++i)
       if (includeStack[i] == identifier)
         throw new Error('Recursive including of file "' + fullPath + '"' +
@@ -60,7 +92,9 @@
                                   appName + ':' + fullPath)
                     : ak._compile(ak._readCode(fullPath),
                                   fullPath));
-      return script._run();
+      var result = script._run();
+      includeResults[identifier] = result;
+      return result;
     } finally {
       baseAppName = oldBaseAppName;
       basePath = oldBasePath;

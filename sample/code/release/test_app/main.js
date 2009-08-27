@@ -126,6 +126,11 @@ base_test_suite.testInclude = function ()
     checkThrows("ak.include('no_such_lib', 'xxx.js')");
     checkEqualTo("ak.include('lib/0.1/', '/42.js')", 42);
     checkEqualTo("ak.include('lib', '0.1/42.js')", 42);
+    ak.include('//subdir///once.js');
+    ak.include('subdir/../subdir//./once.js');
+    checkThrows("ak.include('')");
+    checkThrows("ak.include('..')");
+    checkThrows("ak.include('subdir/..')");
 };
 
 
