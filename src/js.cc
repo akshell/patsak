@@ -352,9 +352,6 @@ namespace
         
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, CompileCb,
                              const Arguments&) const;
-        
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, InitCb,
-                             const Arguments&) const;
     };
 
 
@@ -375,7 +372,6 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
     SetFunction(proto_template, "_setObjectProp", SetObjectPropCb);
     SetFunction(proto_template, "_readCode", ReadCodeCb);
     SetFunction(proto_template, "_compile", CompileCb);
-    SetFunction(proto_template, "_init", InitCb);
     SetObjectTemplate<DBBg>(object_template, "db");
     SetObjectTemplate<RelCatalogBg>(object_template, "rels");
     SetObjectTemplate<TypeCatalogBg>(object_template, "types");
@@ -452,25 +448,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, CompileCb,
     if (script.IsEmpty())
         return Handle<v8::Value>();
     return JSNew<ScriptBg>(script);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, InitCb,
-                    const Arguments&, args) const
-{
-    // On JavaScript:
-    // ak._init = function (path) {
-    //   return ak._compile(ak._readCode(path), path)._run();
-    // }
-    
-    JS_CHECK_LENGTH(args, 1);
-    Chars data;
-    JS_CAN_THROW(code_reader_(Stringify(args[0]), data));
-    Handle<Script> script = Script::Compile(String::New(&data[0], data.size()),
-                                            args[0]);
-    if (script.IsEmpty())
-        return Handle<v8::Value>();
-    return script->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -844,15 +821,15 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     HandleScope handle_scope;
     Context::Scope context_scope(context_);
     if (!initialized_) {
-        Handle<Function> init_func(Handle<Function>::Cast(
-                                       ak_->Get(String::NewSymbol("_init"))));
-        KU_ASSERT(!init_func.IsEmpty());
-        Caller init_caller(access_holder_,
-                           init_func,
-                           ak_,
-                           String::New("main.js"));
-        db_.Perform(init_caller);
-        auto_ptr<Response> response_ptr(init_caller.GetResult());
+        Handle<Function> include_func(
+            Handle<Function>::Cast(ak_->Get(String::NewSymbol("include"))));
+        KU_ASSERT(!include_func.IsEmpty());
+        Caller include_caller(access_holder_,
+                              include_func,
+                              ak_,
+                              String::New("__main__.js"));
+        db_.Perform(include_caller);
+        auto_ptr<Response> response_ptr(include_caller.GetResult());
         if (response_ptr->GetStatus() != "OK")
             return response_ptr;
         initialized_ = true;

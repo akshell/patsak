@@ -4,7 +4,8 @@
 (function ()
 {
   var baseAppName = '';
-  var basePath = '';
+  var baseDir = '';
+  var currDir = '';
 
 
   function handlePathes(/* [libPath,] filePath */) {
@@ -16,8 +17,8 @@
       return [baseAppName,
               (filePath
                ? (filePath[0] == '/'
-                  ? filePath + ''
-                  : basePath + '/' + filePath)
+                  ? baseDir + filePath
+                  : currDir + '/' + filePath)
                : '')];
     default:
       var libPath = arguments[0] + '';
@@ -69,7 +70,7 @@
   }
 
 
-  var includeStack = ['/main.js'];
+  var includeStack = [];
   var includeResults = {};
 
 
@@ -85,14 +86,18 @@
         throw new Error('Recursive including of file "' + fullPath + '"' +
                         (appName ? ' of ' + appName + ' app': ''));
 
-    var oldBasePath = basePath;
-    var idx = fullPath.lastIndexOf('/');
-    var newBasePath = idx == -1 ? '' : fullPath.substring(0, idx);
+    var oldCurrDir = currDir;
+    var oldBaseDir = baseDir;
     var oldBaseAppName = baseAppName;
+    
+    var idx = fullPath.lastIndexOf('/');
+    var newCurrDir = idx == -1 ? '' : fullPath.substring(0, idx);
+    var newBaseDir = arguments.length > 1 ? newCurrDir : baseDir;
 
     includeStack.push(identifier);
     baseAppName = appName;
-    basePath = newBasePath;
+    currDir = newCurrDir;
+    baseDir = newBaseDir;
     try {
       var script = (appName
                     ? ak._compile(ak._readCode(appName, fullPath),
@@ -104,8 +109,15 @@
       return result;
     } finally {
       baseAppName = oldBaseAppName;
-      basePath = oldBasePath;
+      currDir = oldCurrDir;
+      baseDir = oldBaseDir;
       includeStack.pop();
     }
   };
+
+
+  ak.use = function (libPath) {
+    return ak.include(libPath, '__init__.js');
+  };
+
 })();

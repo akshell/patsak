@@ -116,6 +116,7 @@ var base_test_suite = {};
 base_test_suite.testInclude = function ()
 {
     check("ak.include('hello.js') == 'hello'");
+    check("ak.include('subdir/another-hello.js') == 'hello'");
     checkThrows("ak.include()");
     checkThrows("ak.include('no-such-file.js')");
     checkThrows("ak.include('bug.js')");
@@ -131,7 +132,13 @@ base_test_suite.testInclude = function ()
     checkThrows("ak.include('')");
     checkThrows("ak.include('..')");
     checkThrows("ak.include('subdir/..')");
-    checkThrows("ak.include('main.js')");
+    check("ak.include('__main__.js') == '__main__.js value'");
+};
+
+
+base_test_suite.testUse = function ()
+{
+    check("ak.use('lib/0.1') == 42");
 };
 
 
@@ -194,7 +201,7 @@ base_test_suite.testAppName = function ()
 base_test_suite.testReadCode = function ()
 {
     check("ak._readCode('subdir/hi.txt') == 'russian привет\\n'");
-    check("ak._readCode('bad_app', 'main.js') == 'wuzzup!!!!!!!!\\n'");
+    check("ak._readCode('bad_app', '__main__.js') == 'wuzzup!!!!!!!!\\n'");
     checkThrows("ak._readCode('illegal/name', 'main.js')");
     checkThrows("ak._readCode('test_app', '')");
     checkThrows("ak._readCode('test_app', 'subdir/../../ak/main.js')");
@@ -938,19 +945,10 @@ function main()
 }
 
 
-function bug()
-{
-    throw 42;
-}
-
-
-function fileTest()
-{
-
-}
-
-
 ak._main = function (expr)
 {
     return eval(expr);
 };
+
+
+'__main__.js value';

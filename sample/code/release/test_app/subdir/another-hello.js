@@ -1,0 +1,1 @@
+ak.include('../hello.js');
