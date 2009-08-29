@@ -119,7 +119,10 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DataBg, ToStringCb,
                     const Arguments&, args) const
 {
     JS_CHECK_LENGTH(args, 0);
-    return String::NewExternal(new DataStringResource(data_ptr_));
+    // TODO NewExternal seems to be broken in new v8 (trunk rev. 2780)
+    // This is a quick and dirty fix, rethink it.
+//     return String::NewExternal(new DataStringResource(data_ptr_));
+    return String::New(&data_ptr_->front(), data_ptr_->size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

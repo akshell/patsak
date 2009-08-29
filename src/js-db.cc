@@ -438,7 +438,7 @@ DEFINE_JS_CALLBACK2(Handle<Boolean>, TypeCatalogBg, HasTypeCb,
 DEFINE_JS_CALLBACK1(Handle<Array>, TypeCatalogBg, EnumTypesCb,
                     const AccessorInfo&, /*info*/) const
 {
-    Handle<Array> result(Array::New());
+    Handle<Array> result(Array::New(3));
     result->Set(Number::New(0), String::NewSymbol("number"));
     result->Set(Number::New(1), String::NewSymbol("string"));
     result->Set(Number::New(2), String::NewSymbol("boolean"));
@@ -1458,7 +1458,7 @@ DEFINE_JS_CALLBACK1(Handle<Array>, RelCatalogBg, EnumRelsCb,
                     const AccessorInfo&, /*info*/) const
 {
     StringSet rel_name_set(access_holder_->GetRelNames());
-    Handle<Array> result(Array::New());
+    Handle<Array> result(Array::New(rel_name_set.size()));
     for (size_t i = 0; i < rel_name_set.size(); ++i)
         result->Set(Integer::New(i), String::New(rel_name_set[i].c_str()));
     return result;
