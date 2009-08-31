@@ -364,11 +364,11 @@ bool FSBg::ReadPath(Handle<v8::Value> value,
     int depth = GetPathDepth(rel_path);
     if (depth < 0) {
         JS_THROW(Error,
-                 "Path " + rel_path + " leads beyond the root directory");
+                 "Path \"" + rel_path + "\" leads beyond the root directory");
         return false;
     }
     if (!can_be_root && !depth) {
-        JS_THROW(Error, "Path " + rel_path + " is empty");
+        JS_THROW(Error, "Path \"" + rel_path + "\" is empty");
         return false;
     }
     if (depth > MAX_DIR_DEPTH) {
@@ -387,8 +387,7 @@ bool FSBg::CheckTotalSize() const
     if (total_size_ < MAX_TOTAL_SIZE)
         return true;
     JS_THROW(Error,
-             "File storage quota exceeded, write and mkdir are forbidden" +
-             lexical_cast<string>(total_size_));
+             "File storage quota exceeded, write and mkdir are forbidden");
     return false;
 }
 

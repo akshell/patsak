@@ -1,0 +1,20 @@
+
+# (c) 2009 by Anton Korenyushkin
+
+files = ([File('release/' + path) for path in
+          ['test_app/__main__.js',
+           'test_app/subdir/hi.txt',
+           'another_app/__main__.js',
+           'ak/MochiKit.js',
+           'ak/core.js',
+           'ak/mochi-kit.js',
+           'blocking_app/__main__.js',
+           'bad_app/__main__.js',
+           'throwing_app/__main__.js',
+           ]] +
+         [File('spots/test_app/test_user/test_spot/' + path) for path in
+          ['__main__.js',
+           'answer.js'
+           ]])
+
+Return('files')

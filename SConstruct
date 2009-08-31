@@ -48,7 +48,7 @@ def invoke_script(dir, obj_dir, exports):
 
 objects = invoke_script('src', '', 'env')
 test_objects = invoke_script('test', 'test', 'test_env')
-sample_files = SConscript('sample/code/release/SConscript', duplicate=False)
+sample_files = SConscript('sample/code/SConscript', duplicate=False)
 
 main_obj = env.Object(target=join('obj', env['mode'], 'main.o'),
                       source='src/main.cc')

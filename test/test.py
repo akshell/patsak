@@ -107,13 +107,13 @@ class Test(unittest.TestCase):
         pish_result = self._eval('pish')
         self.assertEqual(pish_result.status, 'ERROR')
         self.assertEqual(pish_result.data,
-                         'EXCEPTION Uncaught ReferenceError: '
-                         'pish is not defined\n'
-                         'LINE 1\n'
-                         'COLUMN 0\n')
+                         'Line 1, column 0\n'
+                         'ReferenceError: pish is not defined\n'
+                         '    at eval at eval (native)\n'
+                         '    at eval (native)')
         self.assertEqual(self._eval('2+2').data, '4')
         self.assertEqual(self._eval('s="x"; while(1) s+=s').data,
-                         'EXCEPTION Out of memory\n')
+                         '<Out of memory>')
         self._check_launch(['--test',
                             '--media-dir', MEDIA_DIR,
                             '--expr', '2+2',
@@ -259,14 +259,14 @@ class Test(unittest.TestCase):
                                    APP_NAME, USER_NAME, SPOT_NAME)
         self.assertEqual(self._talk_through_socket(socket_path,
                                                    'PROCESS\nREQUEST 1\n1'),
-                         'ERROR\n_main is not a function')
+                         'ERROR\n"_main" is not a function')
         self.assertEqual(self._talk_through_socket(socket_path,
                                                    'PROCESS answer'),
                          'OK\n42')
         self.assertEqual(
             self._talk_through_socket(socket_path,
                                       'PROCESS s="x"; while(1) s+=s'),
-            'ERROR\nEXCEPTION Out of memory\n')
+            'ERROR\n<Out of memory>')
         self.assertEqual(popen.wait(), 0)
 
         

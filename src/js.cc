@@ -136,7 +136,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AppBg, CallCb,
         if (string(&result[0], 3) == "OK\n")
             return String::New(&result[3], result.size() - 3);
         KU_ASSERT(string(&result[0], 6) == "ERROR\n");
-        JS_THROW(Error, "Exception occured in " + app_name_ + " app");
+        JS_THROW(Error, "Exception occured in \"" + app_name_ + "\" app");
         break;
     case AppAccessor::NO_SUCH_APP:
         JS_THROW(Error, "No such app");
@@ -269,7 +269,7 @@ bool CodeReader::Read(const string& base_path,
                       Chars& data) const
 {
     if (GetPathDepth(path) <= 0) {
-        JS_THROW(Error, "Code path " + path + " is illegal");
+        JS_THROW(Error, "Code path \"" + path + "\" is illegal");
         return false;
     }
     return ReadFileData(base_path + '/' + path, data);
@@ -571,38 +571,46 @@ namespace
 {
     class ExceptionResponse : public ErrorResponse {
     public:
-        ExceptionResponse(Handle<v8::Value> exception, Handle<Message> message);
+        ExceptionResponse(const TryCatch& try_catch);
         
     private:
-        static string MakeExceptionDescr(Handle<v8::Value> exception,
-                                         Handle<Message> message);
+        static string MakeExceptionDescr(const TryCatch& try_catch);
     };
 }
 
 
-ExceptionResponse::ExceptionResponse(Handle<v8::Value> exception,
-                                     Handle<Message> message)
-    : ErrorResponse(MakeExceptionDescr(exception, message))
+ExceptionResponse::ExceptionResponse(const TryCatch& try_catch)
+    : ErrorResponse(MakeExceptionDescr(try_catch))
 {
 }
 
 
-string ExceptionResponse::MakeExceptionDescr(Handle<v8::Value> exception,
-                                             Handle<Message> message)
+string ExceptionResponse::MakeExceptionDescr(const TryCatch& try_catch)
 {
     ostringstream oss;
+    Handle<Message> message(try_catch.Message());
     if (!message.IsEmpty()) {
-        oss << "EXCEPTION " << Stringify(message->Get());
         Handle<v8::Value> resource_name(message->GetScriptResourceName());
         if (!resource_name->IsUndefined())
-            oss << "\nFILE " << Stringify(message->GetScriptResourceName());
-        oss << "\nLINE " << message->GetLineNumber()
-            << "\nCOLUMN " << message->GetStartColumn() << '\n';
-    } else if (!exception.IsEmpty()) {
-        oss << "EXCEPTION " << Stringify(exception) << '\n';
-    } else if (Context::GetCurrent()->HasOutOfMemoryException()) {
-        oss << "EXCEPTION Out of memory\n";
+            oss << "File \"" << Stringify(message->GetScriptResourceName())
+                << "\", line ";
+        else
+            oss << "Line ";
+        oss <<  message->GetLineNumber()
+            << ", column " << message->GetStartColumn() << '\n';
     }
+    Handle<v8::Value> stack_trace(try_catch.StackTrace());
+    Handle<v8::Value> exception(try_catch.Exception());
+    if (!stack_trace.IsEmpty())
+        oss << Stringify(stack_trace);
+    else if (!message.IsEmpty())
+        oss << Stringify(message->Get());
+    else if (!exception.IsEmpty())
+        oss << Stringify(exception);
+    else if (Context::GetCurrent()->HasOutOfMemoryException())
+        oss << "<Out of memory>";
+    else
+        oss << "<Unknown exception>";
     return oss.str();
 }
 
@@ -652,8 +660,7 @@ void Caller::operator()(Access& access)
     // I don't know the difference in these conditions but together
     // they handle all cases
     if (try_catch.HasCaught() || result.IsEmpty())
-        response_ptr_.reset(new ExceptionResponse(try_catch.Exception(),
-                                                  try_catch.Message()));
+        response_ptr_.reset(new ExceptionResponse(try_catch));
     else
         response_ptr_.reset(new OkResponse(result));
 }
@@ -838,7 +845,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     Handle<v8::Value> func_value(object->Get(String::NewSymbol(func_name.c_str())));
     if (func_value.IsEmpty() || !func_value->IsFunction())
         return auto_ptr<Response>(
-            new ErrorResponse(func_name + " is not a function"));
+            new ErrorResponse('"' + func_name + "\" is not a function"));
     
     Handle<v8::Value> data_value;
     if (data_ptr.get())

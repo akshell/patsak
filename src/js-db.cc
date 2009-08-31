@@ -1079,7 +1079,8 @@ bool RelCreator::ReadHeader(Handle<v8::Value> value,
             return false;
         const TypeBg* type_bg_ptr = TypeBg::GetJSClass().Cast(prop.value);
         if (!type_bg_ptr) {
-            JS_THROW(Error, "Non type expression: " + Stringify(prop.value));
+            JS_THROW(Error,
+                     '"' + Stringify(prop.value) + "\" is not a type expr");
             return false;
         }
         rich_header.add_sure(RichAttr(name,
