@@ -1,1 +1,2 @@
-'hello'
+check("ak.path == 'hello.js'");
+'hello';

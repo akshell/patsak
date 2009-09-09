@@ -1,4 +1,6 @@
 
+// (c) 2009 by Anton Korenyushkin
+
 ak.include('ak', 'core.js');
 ak.include('ak', 'mochi-kit.js');
 
@@ -113,8 +115,12 @@ function runTestSuites(test_suites)
 var base_test_suite = {};
 
 
+var path = ak.path;
+
 base_test_suite.testInclude = function ()
 {
+    check("path == '__main__.js'");
+    check("ak.path === undefined");
     check("ak.include('hello.js') == 'hello'");
     check("ak.include('subdir/another-hello.js') == 'hello'");
     checkThrows("ak.include()");
@@ -206,10 +212,6 @@ base_test_suite.testReadCode = function ()
     checkThrows("ak._readCode('test_app', '')");
     checkThrows("ak._readCode('test_app', 'subdir/../../ak/main.js')");
     checkThrows("ak._readCode()");
-    check(function () {
-              return (ak._readCode('subdir/hi.txt') ==
-                      ak.readCode('test_app/subdir', 'hi.txt'));
-          });
 };
 
 

@@ -38,8 +38,8 @@ using boost::ref;
 // Constants
 ////////////////////////////////////////////////////////////////////////////////
 
-// File generated from init.js script by xxd -i, INIT_JS is defined here
-#include "init.js.h"
+// File generated from include.js script by xxd -i, INCLUDE_JS is defined here
+#include "include.js.h"
 
 
 namespace
@@ -774,9 +774,10 @@ Program::Impl::Impl(const string& app_name,
     ak_->Set(String::NewSymbol("_appName"),
              String::New(app_name.c_str()),
              DontEnum);
-    // Run init.js script
-    Handle<Script> script(Script::Compile(String::New(INIT_JS,
-                                                      sizeof(INIT_JS))));
+    // Run include.js script
+    Handle<Script> script(Script::Compile(String::New(INCLUDE_JS,
+                                                      sizeof(INCLUDE_JS)),
+                                          String::New("native include.js")));
     KU_ASSERT(!script.IsEmpty());
     Handle<v8::Value> init_ret(script->Run());
     KU_ASSERT(!init_ret.IsEmpty());
