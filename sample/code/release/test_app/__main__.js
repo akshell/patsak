@@ -248,6 +248,19 @@ base_test_suite.testCompile = function ()
           });
 };
 
+
+base_test_suite.testHash = function ()
+{
+    checkThrows("ak._hash()");
+    check("ak._hash(undefined) == 0");
+    check("ak._hash(null) == 0");
+    check("ak._hash(42) == 0");
+    check("ak._hash('foo') == 0");
+    check("ak._hash('') == 0");
+    check("ak._hash({}) > 0");
+    check("ak._hash(function () {}) > 0");
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 // DB test suite
 ////////////////////////////////////////////////////////////////////////////////

@@ -352,6 +352,9 @@ namespace
         
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, CompileCb,
                              const Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, HashCb,
+                             const Arguments&) const;
     };
 
 
@@ -372,6 +375,7 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
     SetFunction(proto_template, "_setObjectProp", SetObjectPropCb);
     SetFunction(proto_template, "_readCode", ReadCodeCb);
     SetFunction(proto_template, "_compile", CompileCb);
+    SetFunction(proto_template, "_hash", HashCb);
     SetObjectTemplate<DBBg>(object_template, "db");
     SetObjectTemplate<RelCatalogBg>(object_template, "rels");
     SetObjectTemplate<TypeCatalogBg>(object_template, "types");
@@ -448,6 +452,17 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, CompileCb,
     if (script.IsEmpty())
         return Handle<v8::Value>();
     return JSNew<ScriptBg>(script);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, HashCb,
+                    const Arguments&, args) const
+{
+    JS_CHECK_LENGTH(args, 1);
+    int hash = (args[0]->IsObject()
+                ? args[0]->ToObject()->GetIdentityHash()
+                : 0);
+    return Integer::New(hash);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
