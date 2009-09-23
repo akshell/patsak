@@ -874,7 +874,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     vector<Handle<Object> > files;
     files.reserve(file_pathes.size());
     for (size_t i = 0; i < file_pathes.size(); ++i) {
-        Handle<Object> file(JSNew<TmpFileBg>(file_pathes[i]));
+        Handle<Object> file(JSNew<TempFileBg>(file_pathes[i]));
         files.push_back(file);
         file_array->Set(Integer::New(i), file);
     }
@@ -893,7 +893,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     auto_ptr<Response> result(caller.GetResult());
     
     BOOST_FOREACH(Handle<Object> file, files)
-        TmpFileBg::GetJSClass().Cast(file)->ClearPath();
+        TempFileBg::GetJSClass().Cast(file)->ClearPath();
     
     return result;    
 }

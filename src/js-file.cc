@@ -126,27 +126,27 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DataBg, ToStringCb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// TmpFileBg definitions
+// TempFileBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(TmpFileBg, "TmpFile", /*object_template*/, /*proto_template*/)
+DEFINE_JS_CLASS(TempFileBg, "TempFile", /*object_template*/, /*proto_template*/)
 {
 }
 
 
-TmpFileBg::TmpFileBg(const string& path)
+TempFileBg::TempFileBg(const string& path)
     : path_(path)
 {
 }
 
 
-string TmpFileBg::GetPath() const
+string TempFileBg::GetPath() const
 {
     return path_;
 }
 
 
-void TmpFileBg::ClearPath()
+void TempFileBg::ClearPath()
 {
     path_.clear();
 }
@@ -309,9 +309,9 @@ namespace
     }
     
     
-    void MarkTmpFileRemoved(Handle<v8::Value> value)
+    void MarkTempFileRemoved(Handle<v8::Value> value)
     {
-        TmpFileBg* tmp_file_bg_ptr = TmpFileBg::GetJSClass().Cast(value);
+        TempFileBg* tmp_file_bg_ptr = TempFileBg::GetJSClass().Cast(value);
         if (tmp_file_bg_ptr)
             tmp_file_bg_ptr->ClearPath();
     }
@@ -320,7 +320,7 @@ namespace
 
 DEFINE_JS_CLASS(FSBg, "FS", /*object_template*/, proto_template)
 {
-    TmpFileBg::GetJSClass();
+    TempFileBg::GetJSClass();
     DataBg::GetJSClass();
     SetFunction(proto_template, "_read", ReadCb);
     SetFunction(proto_template, "_list", ListCb);
@@ -351,9 +351,9 @@ bool FSBg::ReadPath(Handle<v8::Value> value,
                     string& path,
                     bool can_be_root) const
 {
-    TmpFileBg* tmp_file_bg_ptr = TmpFileBg::GetJSClass().Cast(value);
-    if (tmp_file_bg_ptr) {
-        path = tmp_file_bg_ptr->GetPath();
+    TempFileBg* temp_file_bg_ptr = TempFileBg::GetJSClass().Cast(value);
+    if (temp_file_bg_ptr) {
+        path = temp_file_bg_ptr->GetPath();
         if (path.empty()) {
             JS_THROW(Error, "Temp file is already removed");
             return false;
@@ -503,7 +503,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RemoveCb,
     unsigned long long size = GetFileSize(path);
     JS_CAN_THROW(FSManager(path).Remove());
     total_size_ -= size;
-    MarkTmpFileRemoved(args[0]);
+    MarkTempFileRemoved(args[0]);
     return Undefined();
 }
 
@@ -516,7 +516,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RenameCb,
     JS_CAN_THROW(ReadPath(args[0], from_path, false) &&
                  ReadPath(args[1], to_path, false) &&
                  FSManager(from_path).Rename(to_path));
-    MarkTmpFileRemoved(args[0]);
+    MarkTempFileRemoved(args[0]);
     return Undefined();
 }
 

@@ -34,11 +34,11 @@ namespace ku
 
 
     /// Temprorary file background
-    class TmpFileBg {
+    class TempFileBg {
     public:
-        DECLARE_JS_CLASS(TmpFileBg);
+        DECLARE_JS_CLASS(TempFileBg);
 
-        TmpFileBg(const std::string& path);
+        TempFileBg(const std::string& path);
         std::string GetPath() const;
         void ClearPath();
 
