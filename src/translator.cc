@@ -11,8 +11,6 @@
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include <sstream>
-
 
 using namespace std;
 using namespace ku;
@@ -212,7 +210,7 @@ const Header& Control::LookupBind(const RangeVar& rv) const
             if (bind_unit.rv == rv)
                 return bind_unit.header;
     }
-    throw Error("Rangevar " + rv.GetName() + " is unbound");
+    throw Error(Error::QUERY, "Rangevar \"" + rv.GetName() + "\" is unbound");
     
 }
 
@@ -296,11 +294,12 @@ Control& Control::operator<<(const PgLiter& pg_liter)
 void Control::CheckParam(size_t pos) const
 {
     if (pos == 0)
-        throw Error("Position 0 is invalid");
+        throw Error(Error::QUERY, "Position 0 is invalid");
     if (pos > param_types_.size())
-        throw Error("Position " +
-                    lexical_cast<string>(pos) +
-                    " is out of range");
+        throw Error(Error::QUERY,
+                    ("Position " +
+                     lexical_cast<string>(pos) +
+                     " is out of range"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -539,9 +538,10 @@ const Header& ProtoTranslator::GetResult() const
 void ProtoTranslator::AddAttr(const Attr& attr)
 {
     if (!header_.add_unsure(attr))
-        throw Error("Attribute with name " +
-                    attr.GetName() +
-                    " appeared twice");
+        throw Error(Error::QUERY,
+                    ("Attribute with name \"" +
+                     attr.GetName() +
+                     "\" appeared twice"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -671,7 +671,7 @@ FieldTranslator::FieldTranslator(Control& control,
     , print_where_sep_(SepPrinter(where_oss_, " AND "))
 {
     if (multi_field_.IsMulti())
-        throw Error("Multifield used as an expression");
+        throw Error(Error::QUERY, "Multifield used as an expression");
 }
 
 
@@ -696,7 +696,9 @@ const RangeVar& FieldTranslator::GetRangeVar() const
         return multi_field_.rv;
     if (this_rv_ptr_)
         return *this_rv_ptr_;
-    throw Error("No this rangevar in context of a field " + GetFieldName());
+    throw Error(Error::QUERY,
+                ("No this rangevar in context of a field \"" +
+                 GetFieldName() + '"'));
 }
 
 
@@ -704,8 +706,9 @@ Type FieldTranslator::TranslateForeignField()
 {
     const Base* base_ptr = boost::get<Base>(&GetRangeVar().GetRel());
     if (!base_ptr)
-        throw Error("Operator -> used on non-base rangevar " +
-                    GetRangeVar().GetName());
+        throw Error(Error::QUERY,
+                    ("Operator -> used on non-base rangevar \"" +
+                     GetRangeVar().GetName() + '"'));
     string curr_rel_name(base_ptr->name);
     for (MultiField::Path::const_iterator itr = multi_field_.path.begin();
          itr != multi_field_.path.end() - 1;
@@ -904,11 +907,12 @@ Header RelTranslator::operator()(const Union& un) const
     control_ << " UNION ";
     Header right_header = control_.TranslateRel(un.right);
     if (left_header != right_header)
-        throw Error("Union headers " +
-                    lexical_cast<string>(left_header) +
-                    " and " +
-                    lexical_cast<string>(right_header) +
-                    " does not match");
+        throw Error(Error::QUERY,
+                    ("Union headers " +
+                     lexical_cast<string>(left_header) +
+                     " and " +
+                     lexical_cast<string>(right_header) +
+                     " does not match"));
     return left_header;
 }
 
@@ -1058,7 +1062,7 @@ Translator::TranslateUpdate(const TranslateItem& update_item,
                             const TranslateItems& where_items) const
 {
     if (field_expr_map.empty())
-        throw Error("Empty update field set");
+        throw Error(Error::USAGE, "Empty update field set");
     const string& rel_name(update_item.ku_str);
     ostringstream oss;
     oss << "UPDATE " << Quoted(rel_name) << " SET ";

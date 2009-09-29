@@ -4,13 +4,13 @@
 /// \file db.cc
 /// Database access interface impl
 
-#include "db.h"
 #include "querist.h"
 #include "translator.h"
 #include "utils.h"
 
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
+
 
 using namespace std;
 using namespace ku;
@@ -365,17 +365,18 @@ void DBMeta::CreateRel(Work& work,
     if (rel_metas_.size() >= MAX_REL_NUMBER) {
         static const string message(
             (format("Maximum relation number is %1%") % MAX_REL_NUMBER).str());
-        throw Error(message);
+        throw Error(Error::DB_QUOTA, message);
     }
     CheckNameSize(rel_name);
     if (rich_header.size() > MAX_ATTR_NUMBER) {
         static const string message(
             (format("Maximum attribute number is %1%") %
              MAX_ATTR_NUMBER).str());
-        throw Error(message);
+        throw Error(Error::DB_QUOTA, message);
     }
     if (GetRelMetaIdx(rel_name) != static_cast<size_t>(-1))
-        throw Error("Relation " + rel_name + " already exists");
+        throw Error(Error::RELATION_EXISTS,
+                    "Relation \"" + rel_name + "\" already exists");
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
         CheckNameSize(rich_attr.GetName());
     RelMeta rel_meta(rel_name, rich_header, constrs);
@@ -414,7 +415,8 @@ size_t DBMeta::GetRelMetaIdxChecked(const string& rel_name) const
 {
     size_t result = GetRelMetaIdx(rel_name);
     if (result == static_cast<size_t>(-1))
-        throw Error("Relation " + rel_name + " does not exist in metadata");
+        throw Error(Error::NO_SUCH_RELATION,
+                    "No such relation: \"" + rel_name + '"');
     return result;
 }
 
@@ -426,7 +428,7 @@ void DBMeta::CheckNameSize(const string& name)
             (format("Relation and attribute name length must be "
                     "no more than %1% characters") %
              MAX_NAME_SIZE).str());
-        throw Error(message);
+        throw Error(Error::DB_QUOTA, message);
     }
 }
 
@@ -552,17 +554,18 @@ namespace
 
         void operator()(const Unique& unique) const {
             if (unique.field_names.empty())
-                throw Error("Empty unique field set");
+                throw Error(Error::USAGE, "Empty unique field set");
             BOOST_FOREACH(const string& field_name, unique.field_names)
                 rel_meta_.GetRichHeader().find(field_name);
         }
 
         void operator()(const ForeignKey& foreign_key) const {
             if (foreign_key.key_field_names.empty())
-                throw Error("Foreign key with empty key field set");
+                throw Error(Error::USAGE,
+                            "Foreign key with empty key field set");
             if (foreign_key.key_field_names.size() !=
                 foreign_key.ref_field_names.size())
-                throw Error("Ref-key fields size mismatch");
+                throw Error(Error::USAGE, "Ref-key fields size mismatch");
 
             const RichHeader& key_rich_header(rel_meta_.GetRichHeader());
             const RelMeta&
@@ -583,14 +586,15 @@ namespace
                 if (key_field_type != ref_field_type ||
                     !Type::TraitsAreCompatible(key_field_trait,
                                                ref_field_trait))
-                    throw Error("Foreign key field types mismatch: " +
-                                rel_meta_.GetName() + '.' +
-                                key_field_name + " is " +
-                                key_field_type.GetKuStr(key_field_trait) +
-                                ", " +
-                                foreign_key.ref_rel_name + '.' +
-                                ref_field_name + " is " +
-                                ref_field_type.GetKuStr(ref_field_trait));
+                    throw Error(Error::USAGE,
+                                ("Foreign key field types mismatch: \"" +
+                                 rel_meta_.GetName() + '.' +
+                                 key_field_name + "\" is " +
+                                 key_field_type.GetKuStr(key_field_trait) +
+                                 ", \"" +
+                                 foreign_key.ref_rel_name + '.' +
+                                 ref_field_name + "\" is " +
+                                 ref_field_type.GetKuStr(ref_field_trait)));
             }
             
             BOOST_FOREACH(const Constr& constr, ref_rel_meta.GetConstrs()) {
@@ -599,7 +603,7 @@ namespace
                     unique_ptr->field_names == foreign_key.ref_field_names)
                     return;
             }
-            throw Error("Foreign key ref fields must be unique");
+            throw Error(Error::USAGE, "Foreign key ref fields must be unique");
         }
 
         void operator()(const Check& /*check*/) const {}
@@ -652,7 +656,7 @@ void RelCreator::PrintHeader(ostream& os,
         if (rich_attr.GetType() == Type::STRING)
             os << " CHECK (bit_length("
                << Quoted(rich_attr.GetName())
-               << ") < " << 8 * MAX_STRING_SIZE
+               << ") <= " << 8 * MAX_STRING_SIZE
                << ')';
     }
 }
@@ -780,12 +784,13 @@ void RelsDeleter::CheckDependencies() const
             const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
             if (foreign_key_ptr &&
                 IsSetForDelition(foreign_key_ptr->ref_rel_name))
-                throw Error("Attempt to delete a group of relations "
-                            "with a relation " +
-                            foreign_key_ptr->ref_rel_name +
-                            " but without a relation " +
-                            rel_meta.GetName() +
-                            " it is dependent on");
+                throw Error(Error::RELATION_DEPENDENCY,
+                            ("Attempt to delete a group of relations "
+                             "with a relation \"" +
+                             foreign_key_ptr->ref_rel_name +
+                             "\" but without a relation \"" +
+                             rel_meta.GetName() +
+                             "\" it is dependent on"));
         }
     }
 }
@@ -980,12 +985,13 @@ Error DBViewerImpl::MakeKeyError(const RelFields& key,
                                  const string& message) const
 {
     ostringstream oss;
+    oss << "Relation \"" << key.rel_name << "\" " << message << ' ';
     OmitInvoker print_sep((SepPrinter(oss)));
     BOOST_FOREACH(const string& field, key.field_names) {
         print_sep();
         oss << field;
     }
-    return Error("Relation " + key.rel_name + ' ' + message + ' ' + oss.str());
+    return Error(Error::QUERY, oss.str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1039,8 +1045,9 @@ void QuotaController::Check(Work& work)
         changed_rows_count_ = 0;
     }
     if (total_size_ >= TOTAL_SIZE_QUOTA)
-        throw Error("Database size quota exceeded, "
-                    "updates and inserts are forbidden");
+        throw Error(Error::DB_QUOTA,
+                    ("Database size quota exceeded, "
+                     "updates and inserts are forbidden"));
 }
 
 
@@ -1155,11 +1162,7 @@ void DB::Impl::Perform(Transactor& transactor) {
 
 DB::DB(const std::string& opt, const std::string& schema_name)
 {
-    try {
-        pimpl_.reset(new Impl(opt, schema_name));
-    } catch (const pqxx::pqxx_exception& err) {
-        Fail(err.base().what());
-    }   
+    pimpl_.reset(new Impl(opt, schema_name));
 }
 
 
@@ -1269,7 +1272,11 @@ unsigned long Access::Update(const std::string& rel_name,
                                           params, where_specifiers);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
-        throw Error(err.what());
+        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
+    } catch (const pqxx::data_exception& err) {
+        KU_ASSERT(string(err.what()) == "ERROR:  integer out of range\n");
+        sub_work.abort();
+        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
     }
     data_.quota_controller.DataWereAdded(rows_count, size);
     sub_work.commit();
@@ -1286,7 +1293,7 @@ unsigned long Access::Delete(const std::string& rel_name,
         rows_count = data_.querist.Delete(sub_work, rel_name, where_specifiers);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
-        throw Error(err.what());
+        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
     }    
     sub_work.commit();
     return rows_count;
@@ -1309,7 +1316,8 @@ Values Access::Insert(const std::string& rel_name, const ValueMap& value_map)
     unsigned long long size = 0;
     if (rich_header.empty()) {
         if (!value_map.empty())
-            throw Error("Non empty insert into zero-column relation");
+            throw Error(Error::FIELD,
+                        "Non empty insert into zero-column relation");
         sql_str = (format(empty_cmd) % rel_name).str();
     } else {
         if (!value_map.empty()) {
@@ -1324,9 +1332,10 @@ Values Access::Insert(const std::string& rel_name, const ValueMap& value_map)
                 if (itr == value_map.end()) {
                     if (rich_attr.GetTrait() != Type::SERIAL &&
                         !rich_attr.GetDefaultPtr())
-                        throw Error("Value of field " +
-                                    rich_attr.GetName() +
-                                    " must be supplied");
+                        throw Error(Error::FIELD,
+                                    ("Value of field \"" +
+                                     rich_attr.GetName() +
+                                     "\" must be supplied"));
                 } else {
                     print_names_sep();
                     names_oss << Quoted(rich_attr.GetName());
@@ -1357,11 +1366,15 @@ Values Access::Insert(const std::string& rel_name, const ValueMap& value_map)
         pqxx_result = sub_work.exec(sql_str);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
-        throw Error(err.what());
+        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
+    } catch (const pqxx::data_exception& err) {
+        KU_ASSERT(string(err.what()) == "ERROR:  integer out of range\n");
+        sub_work.abort();
+        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
     } catch (const pqxx::sql_error& err) {
         KU_ASSERT(string(err.what()).substr(0, 14) == "ERROR:  Empty ");
         sub_work.abort();
-        throw Error(err.what());
+        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
     }
     data_.quota_controller.DataWereAdded(1, size);
     sub_work.commit();

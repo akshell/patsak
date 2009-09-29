@@ -1,10 +1,9 @@
 
 // (c) 2008 by Anton Korenyushkin
 
-/// \file type.cc
-/// Ku type abstraction definitions
+/// \file common.cc
+/// Common ku abstractions definitions
 
-#include "type.h"
 #include "error.h"
 #include "utils.h"
 
@@ -12,9 +11,6 @@
 #include <boost/lexical_cast.hpp>
 #include "boost/date_time/posix_time/posix_time.hpp"
 
-#include <set>
-#include <ostream>
-#include <limits>
 
 using namespace std;
 using namespace ku;
@@ -219,10 +215,10 @@ Type UnaryOp::GetOpType() const
     case PLUS:
     case MINUS:
         return Type::NUMBER;
-    case NEG:
+    default:
+        KU_ASSERT(tag_ == NEG);
         return Type::BOOLEAN;
     }   
-    KU_ASSERT(false);
 }
 
 
@@ -233,10 +229,10 @@ string UnaryOp::GetPgStr() const
         return "+";
     case MINUS:
         return "-";
-    case NEG:
+    default:
+        KU_ASSERT(tag_ == NEG);
         return "NOT";
     }    
-    KU_ASSERT(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,7 +272,10 @@ namespace
         }
         
         virtual PgLiter GetPgLiter() const {
-            return PgLiter(GetString(), false);
+            return PgLiter((repr_ == repr_
+                            ? lexical_cast<string>(repr_)
+                            : "'NaN'::float8"),
+                           false);
         }
         
         virtual double GetDouble() const {
@@ -284,7 +283,7 @@ namespace
         }
         
         virtual string GetString() const {
-            return lexical_cast<string>(repr_);
+            return repr_ == repr_ ? lexical_cast<string>(repr_) : "NaN";
         }
         
         virtual bool GetBool() const {
@@ -441,7 +440,9 @@ namespace
         if (type == Type::STRING) {
             return new StringValue(s);
         } else if (type == Type::NUMBER) {
-            return new NumberValue(lexical_cast<double>(s));
+            return new NumberValue(s.substr(0, 5) == "'NaN'"
+                                   ? numeric_limits<double>::quiet_NaN()
+                                   : lexical_cast<double>(s));
         } else if (type == Type::BOOLEAN) {
             KU_ASSERT(s == "true" || s == "false");
             return new BooleanValue(s == "true");
@@ -542,9 +543,9 @@ Value Value::Cast(Type cast_type) const
         return Value(cast_type, GetString());
     if (cast_type == Type::BOOLEAN)
         return Value(cast_type, GetBool());
-    if (cast_type == Type::DATE)
-        throw Error("It's impossible to convert any type to date");
-    KU_ASSERT(false);
+    KU_ASSERT(cast_type == Type::DATE);
+    throw Error(Error::TYPE,
+                "It's impossible to convert any type to date");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -557,7 +558,8 @@ ostream& ku::operator<<(ostream& os, const Header& header)
     OmitInvoker print_sep((SepPrinter(os)));
     BOOST_FOREACH(const Attr& attr, header) {
         print_sep();
-        os << attr.GetName() << ':' << Quoted(attr.GetType().GetKuStr());
+        os << '"' << attr.GetName() << "\": "
+           << Quoted(attr.GetType().GetKuStr());
     }   
     os << '}';
     return os;

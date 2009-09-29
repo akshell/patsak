@@ -11,20 +11,12 @@
 #include <boost/program_options.hpp>
 #include <boost/assign/std/vector.hpp>
 #include <boost/bind.hpp>
-#include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/foreach.hpp>
 
 #include <sys/file.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/wait.h>
-#include <fcntl.h>
-#include <iostream>
 #include <fstream>
-#include <string>
-#include <cstdio>
 
 
 using namespace std;
@@ -318,7 +310,7 @@ AppAccessor::Status AppAccessorImpl::Process(const string& app_name,
         app_name == "."  || app_name == "..")
         return INVALID_APP_NAME;
     if (app_name == self_name_)
-        return SELF_CALL;
+        return SELF_REQUEST;
     
     stream_protocol::endpoint endpoint(socket_dir_ + "/release/" + app_name);
     stream_protocol::socket socket(io_service_);

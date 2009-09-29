@@ -8,10 +8,8 @@
 #define JS_FILE_H
 
 #include "js-common.h"
-#include "common.h"
 
 #include <boost/shared_ptr.hpp>
-#include <boost/utility.hpp>
 
 
 namespace ku
@@ -61,10 +59,9 @@ namespace ku
         const std::string root_path_;
         unsigned long long total_size_;
 
-        bool ReadPath(v8::Handle<v8::Value> value,
-                      std::string& path,
-                      bool can_be_root) const;
-        bool CheckTotalSize() const;
+        std::string ReadPath(v8::Handle<v8::Value> value,
+                             bool can_be_root) const;
+        void CheckTotalSize() const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ReadCb,
                              const v8::Arguments&) const;
@@ -105,19 +102,17 @@ namespace ku
         FileAccessor(FSBg& fs_bg,
                      const std::vector<v8::Handle<v8::Value> >& values);
         ~FileAccessor();
-        bool CheckValid() const;
         const Strings& GetFullPathes() const;
 
     private:
         FSBg& fs_bg_;
-        bool is_valid_;
         unsigned long long initial_size_;
         Strings full_pathes_;
     };
     
 
-    /// Try to read whole file into the vector. Return true on success.
-    bool ReadFileData(const std::string& path, Chars& data);
+    /// Try to read whole file into the vector.
+    Chars ReadFileData(const std::string& path);
 
 
     /// Calculate the depth of directory nesting for relative or absolute path.

@@ -1,20 +1,17 @@
 
 // (c) 2009 by Anton Korenyushkin
 
-/// \file error.cc
-/// Error handling stuff definitions
+/// \file debug.cc
+/// Debugging stuff definitions
 
-#include "error.h"
+#include "debug.h"
 
 #include <boost/lexical_cast.hpp>
 #include <boost/utility.hpp>
 #include <boost/scoped_ptr.hpp>
-#include <boost/date_time/time_clock.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/date_time/local_time/local_time.hpp>
 
 #include <execinfo.h>
-#include <stdlib.h>
-#include <fstream>
 
 
 using namespace std;
@@ -22,9 +19,19 @@ using namespace ku;
 using boost::lexical_cast;
 using boost::noncopyable;
 using boost::scoped_ptr;
-using boost::date_time::second_clock;
 using boost::posix_time::ptime;
+using boost::local_time::posix_time_zone;
+using boost::local_time::time_zone_ptr;
+using boost::local_time::local_sec_clock;
 
+////////////////////////////////////////////////////////////////////////////////
+// Constants
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    const int MAX_BACKTRACE_SIZE = 4 * 1024;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // TheLogger
@@ -47,6 +54,15 @@ namespace
         TheLogger() {}
         ~TheLogger();
     };
+
+
+    // Time zone management on linux is so tricky
+    // that I preferred to handcode my time zone.
+    ptime GetMoscowTime() {
+        static const time_zone_ptr zone_ptr(
+            new posix_time_zone("MSK+3MSD+01,M3.5.0/02:00,M10.5.0/02:00"));
+        return local_sec_clock::local_time(zone_ptr).local_time();
+    }
 }
 
 
@@ -76,7 +92,7 @@ void TheLogger::OpenFile(const string& file_name)
 void TheLogger::Log(const string& message) const
 {
     ostream& os(ofs_ptr_ ? *ofs_ptr_ : cerr);
-    os << second_clock<ptime>::local_time()
+    os << GetMoscowTime()
        << ' '
        << message
        << '\n';
@@ -98,22 +114,25 @@ void TheLogger::Close()
 // Free functions
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef NDEBUG
-void FailOnAssertion__(const char* cond,
-                       const char* file,
-                       int line,
-                       const char* pretty_function)
+string ku::Backtrace()
 {
-    Fail(string(file) + ':' +
-         lexical_cast<string>(line) + ": " +
-         pretty_function + ": " +
-         "Assertion `" + cond + "' failed."
 #ifdef BACKTRACE
-         + '\n' +Backtrace()
+    void* buffer[MAX_BACKTRACE_SIZE];
+    size_t size = backtrace(buffer, MAX_BACKTRACE_SIZE);
+    char** symbols_ptr = backtrace_symbols(buffer, size);
+    if (!symbols_ptr)
+        return "Failed to get backtrace!!!\n";
+    string result;
+    for (size_t i = 0; i < size; ++i) {
+        result += symbols_ptr[i];
+        result += '\n';
+    }
+    free(symbols_ptr);
+    return result;
+#else
+    return "";
 #endif
-        );
 }
-#endif
 
 
 void ku::Log(const string& message)
@@ -128,28 +147,25 @@ void ku::OpenLogFile(const string& file_name)
 }
 
 
-#ifdef BACKTRACE
-string ku::Backtrace()
-{
-    void* buffer[512];
-    size_t size = backtrace(buffer, 512);
-    char** symbols_ptr = backtrace_symbols(buffer, size);
-    if (!symbols_ptr)
-        return "Failed to get backtrace!!!\n";
-    string result;
-    for (size_t i = 0; i < size; ++i) {
-        result += symbols_ptr[i];
-        result += '\n';
-    }
-    free(symbols_ptr);
-    return result;
-}
-#endif
-
-
 void ku::Fail(const string& message)
 {
-    Log("Fail: " + message);
+    Log("Fail: " + message
+#ifdef BACKTRACE
+        + '\n' + Backtrace()
+#endif
+        );
     TheLogger::GetInstance().Close();
     exit(1);
+}
+
+
+void ku::FailOnAssertion(const char* cond,
+                         const char* file,
+                         int line,
+                         const char* pretty_function)
+{
+    Fail(string(file) + ':' +
+         lexical_cast<string>(line) + ": " +
+         pretty_function + ": " +
+         "Assertion `" + cond + "' failed.");
 }

@@ -3,12 +3,81 @@
 
 (function ()
 {
+  //////////////////////////////////////////////////////////////////////////////
+  // Errors
+  //////////////////////////////////////////////////////////////////////////////
+
+  Error.stackTraceLimit = 1000;
+
+
+  function defineErrorClass(name, parent) {
+    var fullName = name + 'Error';
+    var result = function (message) {
+      Error.captureStackTrace(this);
+      this.message = message + '';
+    };
+    result.__name__ = result.prototype.name = 'ak.' + fullName;
+    result.prototype.__proto__ = parent.prototype;
+    ak[fullName] = result;
+    return result;
+  }
+
+
+  defineErrorClass('Core', Error);
+
+  defineErrorClass('Usage', ak.CoreError);
+  defineErrorClass('DB', ak.CoreError);
+  defineErrorClass('FS', ak.CoreError);
+  defineErrorClass('App', ak.CoreError);
+
+
+  ak._setObjectProp(
+    ak, '_errors', 7,
+    [
+      TypeError,
+
+      ak.CoreError,
+
+      ak.UsageError,
+      ak.DBError,
+      ak.FSError,
+      ak.AppError,
+
+      defineErrorClass('DBQuota', ak.DBError),
+      defineErrorClass('RelationExists', ak.DBError),
+      defineErrorClass('NoSuchRelation', ak.DBError),
+      defineErrorClass('RelationDependency', ak.DBError),
+      defineErrorClass('ConstraintViolation', ak.DBError),
+      defineErrorClass('Field', ak.DBError),
+      defineErrorClass('Query', ak.DBError),
+
+      defineErrorClass('FSQuota', ak.FSError),
+      defineErrorClass('Path', ak.FSError),
+      defineErrorClass('EntryExists', ak.FSError),
+      defineErrorClass('NoSuchEntry', ak.FSError),
+      defineErrorClass('EntryIsDir', ak.FSError),
+      defineErrorClass('EntryIsNotDir', ak.FSError),
+      defineErrorClass('DirIsNotEmpty', ak.FSError),
+      defineErrorClass('TempFileRemoved', ak.FSError),
+      defineErrorClass('CyclicInclude', ak.FSError),
+
+      defineErrorClass('AppException', ak.AppError),
+      defineErrorClass('NoSuchApp', ak.AppError),
+      defineErrorClass('InvalidAppName', ak.AppError),
+      defineErrorClass('SelfRequest', ak.AppError),
+      defineErrorClass('RequestTimedOut', ak.AppError)
+    ]);
+
+  //////////////////////////////////////////////////////////////////////////////
+  // include and use
+  //////////////////////////////////////////////////////////////////////////////
+
   function canonicalize(path) {
     var bits = path.split('/');
     var resultBits = [];
     function checkNonEmpty() {
       if (!resultBits.length)
-        throw new Error('Code path "' + path + '" is illegal');
+        throw new ak.PathError('Code path "' + path + '" is illegal');
     }
     for (var i = 0; i < bits.length; ++i) {
       switch (bits[i]) {
@@ -45,8 +114,9 @@
       return includeResults[identifier];
     for (var i = 0; i < includeStack.length; ++i)
       if (includeStack[i] == identifier)
-        throw new Error('Recursive including of file "' + path + '"' +
-                        (app ? ' of ' + app + ' app': ''));
+        throw new ak.CyclicIncludeError(
+          'Recursive include of file "' + path + '"' +
+          (app ? ' of ' + app + ' app': ''));
 
     var oldCurrDir = currDir;
     var oldBaseDir = baseDir;
@@ -83,7 +153,7 @@
     var app, path;
     switch (arguments.length) {
     case 0:
-      throw new Error('At least one argument required');
+      throw new ak.UsageError('At least one argument required');
     case 1:
       var filePath = arguments[0] + '';
       app = baseApp;

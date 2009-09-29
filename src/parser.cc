@@ -11,8 +11,6 @@
 #include <boost/spirit/phoenix.hpp>
 #include <boost/foreach.hpp>
 
-#include <ostream>
-#include <string>
 
 using namespace std;
 using namespace boost::spirit;
@@ -139,7 +137,7 @@ namespace
         template <typename ContT, typename ItemT>
         void operator()(ContT& c, const ItemT& item) const {
             if (!c.add_unsure(item))
-                throw Error("Duplicating items in a list");
+                throw Error(Error::QUERY, "Duplicating items in a list");
         }
     };
 
@@ -271,7 +269,7 @@ Rel Parser::ParseRel(const string& str)
     if (!parse(str.c_str(),
                rel_rule[var(rel_wrapper) = arg1] >> end_p,
                space_p).full)
-        throw Error(string("Wrong syntax: ") + str);
+        throw Error(Error::QUERY, string("Wrong syntax: \"") + str + '"');
     return rel_wrapper.Get();
 }
 
@@ -283,7 +281,7 @@ Expr Parser::ParseExpr(const string& str)
     if (!parse(str.c_str(),
                expr[var(expr_wrapper) = arg1] >> end_p,
                space_p).full)
-        throw Error(string("Wrong syntax: \"") + str + '"');
+        throw Error(Error::QUERY, string("Wrong syntax: \"") + str + '"');
     return expr_wrapper.Get();
 }
 

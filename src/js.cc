@@ -5,32 +5,21 @@
 /// JavaScript interpreter impl
 
 #include "js.h"
-#include "js-common.h"
 #include "js-db.h"
 #include "js-file.h"
 #include "db.h"
 
 #include <boost/foreach.hpp>
-#include <boost/utility.hpp>
-#include <boost/ptr_container/ptr_vector.hpp>
 #include <boost/ref.hpp>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <errno.h>
-#include <libgen.h>
-#include <vector>
 #include <sstream>
 #include <iostream>
-#include <memory>
 
 
 using namespace ku;
 using namespace std;
 using namespace v8;
 using boost::noncopyable;
-using boost::ptr_vector;
 using boost::ref;
 
 
@@ -38,8 +27,8 @@ using boost::ref;
 // Constants
 ////////////////////////////////////////////////////////////////////////////////
 
-// File generated from include.js script by xxd -i, INCLUDE_JS is defined here
-#include "include.js.h"
+// File generated from init.js script by xxd -i, INIT_JS is defined here
+#include "init.js.h"
 
 
 namespace
@@ -68,7 +57,7 @@ namespace
         FSBg& fs_bg_;
         string app_name_;
 
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, CallCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestCb,
                              const Arguments&) const;
     };
 }
@@ -76,7 +65,7 @@ namespace
 
 DEFINE_JS_CLASS(AppBg, "App", /*object_template*/, proto_template)
 {
-    SetFunction(proto_template, "_call", CallCb);
+    SetFunction(proto_template, "_request", RequestCb);
 }
 
 
@@ -90,26 +79,21 @@ AppBg::AppBg(AppAccessor& app_accessor,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AppBg, CallCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AppBg, RequestCb,
                     const Arguments&, args) const
 {
-    JS_CHECK(args.Length() > 0 && args.Length() < 4,
-             "One, two or three arguments required");
-
+    CheckArgsLength(args, 1);
     vector<Handle<v8::Value> > file_values;
     if (args.Length() > 1) {
         int32_t length = GetArrayLikeLength(args[1]);
-        JS_TYPE_CHECK(length != -1, "Call file list must be array-like");
+        if (length == -1)
+            throw Error(Error::TYPE, "Request file list must be array-like");
         file_values.reserve(length);
-        for (int32_t i = 0; i < length; ++i) {
+        for (int32_t i = 0; i < length; ++i)
             file_values.push_back(GetArrayLikeItem(args[1], i));
-            if (file_values.back().IsEmpty())
-                return Handle<v8::Value>();
-        }
     }
     FSBg::FileAccessor file_accessor(fs_bg_, file_values);
-    JS_CAN_THROW(file_accessor.CheckValid());
-
+    
     const Chars* data_ptr = 0;
     Chars data;
     if (args.Length() > 2) {
@@ -136,22 +120,20 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AppBg, CallCb,
         if (string(&result[0], 3) == "OK\n")
             return String::New(&result[3], result.size() - 3);
         KU_ASSERT(string(&result[0], 6) == "ERROR\n");
-        JS_THROW(Error, "Exception occured in \"" + app_name_ + "\" app");
-        break;
+        throw Error(Error::APP_EXCEPTION,
+                    "Exception occured in \"" + app_name_ + "\" app");
     case AppAccessor::NO_SUCH_APP:
-        JS_THROW(Error, "No such app");
-        break;
+        throw Error(Error::NO_SUCH_APP,
+                    "No such app: \"" + app_name_ + '"');
     case AppAccessor::INVALID_APP_NAME:
-        JS_THROW(Error, "Invalid app name");
-        break;
-    case AppAccessor::SELF_CALL:
-        JS_THROW(Error, "Self call is forbidden");
-        break;
+        throw Error(Error::INVALID_APP_NAME,
+                    "Invalid app name: \"" + app_name_ + '"');
+    case AppAccessor::SELF_REQUEST:
+        throw Error(Error::SELF_REQUEST, "Self request is forbidden");
     default:
         KU_ASSERT(status == AppAccessor::TIMED_OUT);
-        JS_THROW(Error, "Timed out");
+        throw Error(Error::REQUEST_TIMED_OUT, "Request timed out");
     }        
-    return Handle<v8::Value>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,20 +204,14 @@ namespace
     class CodeReader {
     public:
         CodeReader(const string& code_path, const string& include_path);
-
-        bool operator()(const string& path, Chars& data) const;
-
-        bool operator()(const string& app_name,
-                        const string& path,
-                        Chars& data) const;
+        Chars operator()(const string& path) const;
+        Chars operator()(const string& app_name, const string& path) const;
         
     private:
         string code_path_;
         string include_path_;
 
-        bool Read(const string& base_path,
-                  const string& path,
-                  Chars& data) const;
+        Chars Read(const string& base_path, const string& path) const;
     };
 }
 
@@ -246,33 +222,26 @@ CodeReader::CodeReader(const string& code_path, const string& include_path)
 }
 
 
-bool CodeReader::operator()(const string& path, Chars& data) const
+Chars CodeReader::operator()(const string& path) const
 {
-    return Read(code_path_, path, data);
+    return Read(code_path_, path);
 }
 
 
-bool CodeReader::operator()(const string& app_name,
-                            const string& path,
-                            Chars& data) const
+Chars CodeReader::operator()(const string& app_name, const string& path) const
 {
-    if (app_name.find_first_of('/') != string::npos) {
-        JS_THROW(Error, "App name could not contain slashes");
-        return false;
-    }
-    return Read(include_path_ + '/' + app_name, path, data);
+    if (app_name.find_first_of('/') != string::npos)
+        throw Error(Error::INVALID_APP_NAME,
+                    "App name could not contain slashes");
+    return Read(include_path_ + '/' + app_name, path);
 }
 
 
-bool CodeReader::Read(const string& base_path,
-                      const string& path,
-                      Chars& data) const
+Chars CodeReader::Read(const string& base_path, const string& path) const
 {
-    if (GetPathDepth(path) <= 0) {
-        JS_THROW(Error, "Code path \"" + path + "\" is illegal");
-        return false;
-    }
-    return ReadFileData(base_path + '/' + path, data);
+    if (GetPathDepth(path) <= 0)
+        throw Error(Error::PATH, "Code path \"" + path + "\" is illegal");
+    return ReadFileData(base_path + '/' + path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -317,9 +286,8 @@ ScriptBg::~ScriptBg()
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, ScriptBg, RunCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);
     return script_->Run();
 }
 
@@ -400,7 +368,7 @@ void AKBg::InitConstructors(Handle<Object> ak) const
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, PrintCb,
                     const Arguments&, args) const
 {
-    JS_CHECK_LENGTH(args, 1);
+    CheckArgsLength(args, 1);
     cerr << Stringify(args[0]);
     return Undefined();
 }
@@ -409,14 +377,17 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, PrintCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetObjectPropCb,
                     const Arguments&, args) const
 {
-    JS_CHECK_LENGTH(args, 4);
-    JS_TYPE_CHECK(args[0]->IsObject(), "Can't set property of non-object");
+    CheckArgsLength(args, 4);
+    if (!args[0]->IsObject())
+        throw Error(Error::TYPE, "Can't set property of non-object");
     Handle<Object> object(args[0]->ToObject());
-    JS_TYPE_CHECK(args[2]->IsInt32(), "Property attribute must be integer");
+    if (!args[2]->IsInt32())
+        throw Error(Error::TYPE, "Property attribute must be integer");
     int32_t attributes = args[2]->Int32Value();
-    JS_CHECK(attributes >= 0 && attributes < 8,
-             "Property attribute must be a "
-             "non-negative integer less than 8");
+    if (attributes < 0 || attributes >= 8)
+        throw Error(Error::USAGE,
+                    ("Property attribute must be a "
+                     "non-negative integer less than 8"));
     object->Set(args[1], args[3], static_cast<PropertyAttribute>(attributes));
     return Undefined();
 }
@@ -425,16 +396,10 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetObjectPropCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ReadCodeCb,
                     const Arguments&, args) const
 {
-    Chars data;
-    if (args.Length() == 1)
-        JS_CAN_THROW(code_reader_(Stringify(args[0]),
-                                  data));
-    else if (args.Length() == 2)
-        JS_CAN_THROW(code_reader_(Stringify(args[0]),
-                                  Stringify(args[1]),
-                                  data));
-    else
-        JS_CHECK(false, "One or two arguments required");
+    CheckArgsLength(args, 1);
+    Chars data = (args.Length() == 1
+                  ? code_reader_(Stringify(args[0]))
+                  : code_reader_(Stringify(args[0]), Stringify(args[1])));
     return String::New(&data[0], data.size());
 }
 
@@ -442,13 +407,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ReadCodeCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, CompileCb,
                     const Arguments&, args) const
 {
+    CheckArgsLength(args, 1);
     Handle<Script> script;
     if (args.Length() == 1)
         script = Script::Compile(args[0]->ToString());
-    else if (args.Length() == 2)
-        script = Script::Compile(args[0]->ToString(), args[1]);
     else
-        JS_CHECK(false, "One or two arguments required");
+        script = Script::Compile(args[0]->ToString(), args[1]);
     if (script.IsEmpty())
         return Handle<v8::Value>();
     return JSNew<ScriptBg>(script);
@@ -458,7 +422,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, CompileCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, HashCb,
                     const Arguments&, args) const
 {
-    JS_CHECK_LENGTH(args, 1);
+    CheckArgsLength(args, 1);
     int hash = (args[0]->IsObject()
                 ? args[0]->ToObject()->GetIdentityHash()
                 : 0);
@@ -789,10 +753,10 @@ Program::Impl::Impl(const string& app_name,
     ak_->Set(String::NewSymbol("_appName"),
              String::New(app_name.c_str()),
              DontEnum);
-    // Run include.js script
-    Handle<Script> script(Script::Compile(String::New(INCLUDE_JS,
-                                                      sizeof(INCLUDE_JS)),
-                                          String::New("native include.js")));
+    // Run init.js script
+    Handle<Script> script(Script::Compile(String::New(INIT_JS,
+                                                      sizeof(INIT_JS)),
+                                          String::New("native init.js")));
     KU_ASSERT(!script.IsEmpty());
     Handle<v8::Value> init_ret(script->Run());
     KU_ASSERT(!init_ret.IsEmpty());

@@ -7,12 +7,12 @@
 #ifndef ORSET_H
 #define ORSET_H
 
-
-#include "error.h"
+#include "debug.h"
 
 #include <vector>
-#include <functional>
 #include <algorithm>
+#include <stdexcept>
+#include <memory>
 
 
 namespace ku
@@ -24,9 +24,7 @@ namespace ku
             return CompT()(item, key);
         }
 
-        std::exception not_found_exception(const T& /*key*/) const {
-            return std::runtime_error("item_finder: key not found");
-        }
+        void not_found(const T& /*key*/) const {}
     };
 
     
@@ -114,16 +112,20 @@ namespace ku
         T& find(const typename FindT::second_argument_type& key) {
             typename base::iterator
                 itr(std::find_if(begin(), end(), std::bind2nd(FindT(), key)));
-            if (itr == end())
-                throw FindT().not_found_exception(key);
+            if (itr == end()) {
+                FindT().not_found(key);
+                throw std::runtime_error("key not found");
+            }
             return *itr;
         }
 
         const T& find(const typename FindT::second_argument_type& key) const {
             typename base::const_iterator
                 itr(std::find_if(begin(), end(), std::bind2nd(FindT(), key)));
-            if (itr == end())
-                throw FindT().not_found_exception(key);
+            if (itr == end()) {
+                FindT().not_found(key);
+                throw std::runtime_error("key not found");
+            }
             return *itr;
         }
     };

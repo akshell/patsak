@@ -1,4 +1,4 @@
 
 ak._main = function () {
-    return ak.apps.test_app.call('2+2');
+    return ak.apps.test_app._request('2+2');
 };

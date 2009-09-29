@@ -8,7 +8,6 @@
 #define BOOST_TEST_MODULE Main
 
 
-#include "../src/error.h"
 #include "../src/parser.h"
 #include "../src/db.h"
 #include "../src/translator.h"
@@ -19,18 +18,9 @@
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/utility.hpp>
 #include <pqxx/connection>
 
-#include <string>
-#include <vector>
 #include <fstream>
-#include <iostream>
-#include <iterator>
-#include <algorithm>
-#include <set>
-#include <map>
-#include <functional>
 
 using namespace std;
 using namespace ku;
@@ -232,6 +222,8 @@ BOOST_AUTO_TEST_CASE(orset_test)
     BOOST_CHECK(a == orset<int>(v.begin(), v.end(), false));
     b.add_sure(5);
     BOOST_CHECK(a != b);
+    BOOST_CHECK_THROW(a.find(42), runtime_error);
+    BOOST_CHECK_THROW(const_cast<const orset<int>&>(a).find(42), runtime_error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -643,7 +635,7 @@ namespace
             BOOST_REQUIRE(query_result_ptr_.get());
             Table result(query_result_ptr_->GetHeader());
             for (size_t idx = 0; idx < query_result_ptr_->GetSize(); ++idx)
-                result.AddRow(query_result_ptr_->GetValues(idx));
+                result.AddRow(*query_result_ptr_->GetValuesPtr(idx));
             return result;
         }
 
@@ -1182,7 +1174,9 @@ namespace
             QueryResult query_result(access.Query(query_str_,
                                                   Values(),
                                                   Specifiers()));
-            query_result.GetValues(query_result.GetSize());
+            auto_ptr<Values> values_ptr(
+                query_result.GetValuesPtr(query_result.GetSize()));
+            BOOST_CHECK(!values_ptr.get());
         }
 
     private:
@@ -1202,7 +1196,7 @@ BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
                       &ReadTableFromString)();
 
     BadIndexGetter bad_index_getter("s");
-    BOOST_CHECK_THROW(db.Perform(bad_index_getter), Error);
+    db.Perform(bad_index_getter);
 
     LoadRelFromString("str", "val\nstring\n---\n'test\\\"");
     BOOST_CHECK(Query("str").GetValuesSet().at(0).at(0) ==

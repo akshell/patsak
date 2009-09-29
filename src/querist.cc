@@ -10,10 +10,8 @@
 #include "utils.h"
 
 #include <boost/lexical_cast.hpp>
-#include <boost/operators.hpp>
 #include <boost/utility.hpp>
 
-#include <map>
 
 using namespace ku;
 using namespace std;
@@ -147,15 +145,17 @@ size_t QueryResult::GetSize() const
 }
 
 
-Values QueryResult::GetValues(size_t idx) const
+auto_ptr<Values> QueryResult::GetValuesPtr(size_t idx) const
 {
     if (idx >= GetSize())
-        throw Error("Values index out of bounds");
+        return auto_ptr<Values>();
     if (impl_ptr_->GetHeader().empty()) {
         KU_ASSERT(GetSize() == 1);
-        return Values();
+        return auto_ptr<Values>(new Values());
     }
-    return GetTupleValues(impl_ptr_->GetPqxxResult()[idx], GetHeader());
+    return auto_ptr<Values>(
+        new Values(GetTupleValues(impl_ptr_->GetPqxxResult()[idx],
+                                  GetHeader())));
 }
 
 

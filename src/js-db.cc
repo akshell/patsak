@@ -6,11 +6,9 @@
 
 #include "js-db.h"
 #include "db.h"
-#include "common.h"
 
 #include <boost/foreach.hpp>
 #include <boost/ref.hpp>
-#include <boost/shared_ptr.hpp>
 
 
 using namespace std;
@@ -39,28 +37,20 @@ namespace
 
 namespace
 {
-    bool ReadIdentifier(Handle<v8::Value> value, string& id)
+    void CheckIsIdentifier(const string& str)
     {
-        id = Stringify(value);
-        if (id.empty()) {
-            JS_THROW(Error, "Identifier can't be empty");
-            return false;
-        }
+        if (str.empty())
+            throw Error(Error::USAGE, "Identifier can't be empty");
         const locale& loc(locale::classic());
-        if (id[0] != '_' && !isalpha(id[0], loc)) {
-            JS_THROW(Error,
-                     "First identifier character must be "
-                     "a letter or underscore");
-            return false;
-        }
-        for (size_t i = 1; i < id.size(); ++i) {
-            if (id[i] != '_' && !isalnum(id[i], loc)) {
-                JS_THROW(Error, "Identifier must consist only of "
-                         "letters, digits or underscores");
-                return false;
-            }
-        }
-        return true;
+        if (str[0] != '_' && !isalpha(str[0], loc))
+            throw Error(Error::USAGE,
+                        ("First identifier character must be "
+                         "a letter or underscore"));
+        for (size_t i = 1; i < str.size(); ++i)
+            if (str[i] != '_' && !isalnum(str[i], loc))
+                throw Error(Error::USAGE,
+                            ("Identifier must consist only of "
+                             "letters, digits or underscores"));
     }
 
     
@@ -102,41 +92,34 @@ namespace
     }
 
     
-    bool ReadStringSet(v8::Handle<v8::Value> value, StringSet& string_set)
+    StringSet ReadStringSet(v8::Handle<v8::Value> value)
     {
-        string_set.clear();
+        StringSet result;
         int32_t length = GetArrayLikeLength(value);
-        if (length == -1)
-            string_set.add_sure(Stringify(value));
-        else {
-            string_set.reserve(length);
+        if (length == -1) {
+            result.add_sure(Stringify(value));
+        } else {
+            result.reserve(length);
             for (int32_t i = 0; i < length; ++i) {
                 Handle<v8::Value> item(GetArrayLikeItem(value, i));
-                if (item.IsEmpty())
-                    return false;
-                if (!string_set.add_unsure(Stringify(item))) {
-                    JS_THROW(Error, "Duplicating names");
-                    return false;
-                }
+                if (!result.add_unsure(Stringify(item)))
+                    throw Error(Error::USAGE, "Duplicating names");
             }
         }
-        return true;
+        return result;
     }
 
 
-    bool ReadStringSet(const Arguments& args, StringSet& string_set)
+    StringSet ReadStringSet(const Arguments& args)
     {
         if (args.Length() == 1)
-            return ReadStringSet(args[0], string_set);
-        string_set.clear();
-        string_set.reserve(args.Length());
-        for (int i = 0; i < args.Length(); ++i) {
-            if (!string_set.add_unsure(Stringify(args[i]))) {
-                JS_THROW(Error, "Dumplicating names");
-                return false;
-            }
-        }
-        return true;
+            return ReadStringSet(args[0]);
+        StringSet result;
+        result.reserve(args.Length());
+        for (int i = 0; i < args.Length(); ++i)
+            if (!result.add_unsure(Stringify(args[i])))
+                throw Error(Error::USAGE, "Dumplicating names");
+        return result;
     }
 }    
 
@@ -327,20 +310,21 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, TypeBg, GetNameCb,
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, IntCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);
-    JS_CHECK(trait_ == Type::COMMON, "Trait redefinition");
+    if (trait_ != Type::COMMON)
+        throw Error(Error::USAGE, "Trait redefinition");
     return JSNew<TypeBg>(type_, Type::INT, default_ptr_, ac_ptrs_);
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, SerialCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);
-    JS_CHECK(trait_ == Type::COMMON, "Trait redefinition");
-    JS_CHECK(!default_ptr_, "Default and serial are incompatible");
+    if (trait_ != Type::COMMON)
+        throw Error(Error::USAGE, "Trait redefinition");
+    if (default_ptr_)
+        throw Error(Error::USAGE, "Default and serial are incompatible");
     return JSNew<TypeBg>(type_, Type::SERIAL, default_ptr_, ac_ptrs_);
 }
 
@@ -348,8 +332,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, SerialCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, DefaultCb,
                     const Arguments&, args) const
 {
-    JS_CHECK_LENGTH(args, 1);
-    JS_CHECK(trait_ != Type::SERIAL, "Default and serial are incompatible");
+    CheckArgsLength(args, 1);
+    if (trait_ == Type::SERIAL)
+        throw Error(Error::USAGE, "Default and serial are incompatible");
     shared_ptr<ku::Value> default_ptr(new ku::Value(ReadKuValue(args[0])));
     return JSNew<TypeBg>(type_, trait_, default_ptr, ac_ptrs_);
 }
@@ -366,9 +351,8 @@ Handle<v8::Value> TypeBg::NewWithAddedConstr(AddedConstrPtr ac_ptr) const
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, UniqueCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);
     return NewWithAddedConstr(AddedConstrPtr(new AddedUnique()));
 }
 
@@ -376,7 +360,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, UniqueCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, ForeignCb,
                     const Arguments&, args) const
 {
-    JS_CHECK_LENGTH(args, 2);
+    CheckArgsLength(args, 2);
     AddedConstrPtr ac_ptr(new AddedForeignKey(Stringify(args[0]),
                                               Stringify(args[1])));
     return NewWithAddedConstr(ac_ptr);
@@ -386,7 +370,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, ForeignCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, CheckCb,
                     const Arguments&, args) const
 {
-    JS_CHECK_LENGTH(args, 1);
+    CheckArgsLength(args, 1);
     AddedConstrPtr ac_ptr(new AddedCheck(Stringify(args[0])));
     return NewWithAddedConstr(ac_ptr);
 }
@@ -562,7 +546,7 @@ namespace
         Specifiers specifiers_;
         auto_ptr<QueryResult> query_result_ptr_;
 
-        bool InitQueryResult();
+        const QueryResult& GetQueryResult();
 
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetLengthCb,
                              Local<String>, const AccessorInfo&);
@@ -662,22 +646,17 @@ const Specifiers& QueryBg::GetSpecifiers() const
 }
 
 
-bool QueryBg::InitQueryResult()
+const QueryResult& QueryBg::GetQueryResult()
 {
-    if (query_result_ptr_.get())
-        return true;
-    try {
+    if (!query_result_ptr_.get()) {
         QueryResult query_result(access_holder_->Query(query_str_,
                                                        params_,
                                                        specifiers_));
         query_result_ptr_.reset(new QueryResult(query_result));
         V8::AdjustAmountOfExternalAllocatedMemory(
             MEMORY_MULTIPLIER * query_result.GetMemoryUsage());
-        return true;
-    } catch (Error& err) {
-        JS_THROW(Error, err.what());
-        return false;
     }
+    return *query_result_ptr_;
 }
 
 
@@ -685,8 +664,7 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, QueryBg, GetLengthCb,
                     Local<String>, /*property*/,
                     const AccessorInfo&, /*info*/)
 {
-    JS_CAN_THROW(InitQueryResult());
-    return Integer::New(query_result_ptr_->GetSize());
+    return Integer::New(GetQueryResult().GetSize());
 }
 
 
@@ -694,11 +672,10 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, QueryBg, GetTupleCb,
                     uint32_t, index,
                     const AccessorInfo&, /*info*/)
 {
-    JS_CAN_THROW(InitQueryResult());
-    if (index >= query_result_ptr_->GetSize())
+    auto_ptr<Values> values_ptr(GetQueryResult().GetValuesPtr(index));
+    if (!values_ptr.get())
         return Handle<v8::Value>();
-    return JSNew<TupleBg>(*query_result_ptr_,
-                          query_result_ptr_->GetValues(index));
+    return JSNew<TupleBg>(GetQueryResult(), *values_ptr);
 }
 
 
@@ -728,10 +705,9 @@ DEFINE_JS_CALLBACK1(Handle<Array>, QueryBg, EnumTuplesCb,
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, PerformCb,
-                    const Arguments&, args)
+                    const Arguments&, /*args*/)
 {
-    JS_CHECK_LENGTH(args, 0);
-    JS_CAN_THROW(InitQueryResult());
+    GetQueryResult();
     return Undefined();
 }
 
@@ -739,8 +715,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, PerformCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, OnlyCb,
                     const Arguments&, args) const
 {
-    StringSet field_names;
-    JS_CAN_THROW(ReadStringSet(args, field_names));
+    StringSet field_names(ReadStringSet(args));
     Specifiers new_specifiers(specifiers_);
     new_specifiers.push_back(OnlySpecifier(field_names));
     return JSNew<QueryBg>(ref(access_holder_),
@@ -753,7 +728,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, OnlyCb,
 template <typename SpecT>
 Handle<v8::Value> QueryBg::GenericSpecify(const Arguments& args) const
 {
-    JS_CHECK(args.Length() >= 1, "At least one argument required");
+    CheckArgsLength(args,  1);
     string expr_str = Stringify(args[0]);
     Values params;
     params.reserve(args.Length() - 1);
@@ -867,8 +842,9 @@ WhereSpecifiers SubRelBg::GetWhereSpecifiers() const
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, UpdateCb,
                     const Arguments&, args) const
 {
-    JS_CHECK(args.Length(), "At least one argument required");
-    JS_TYPE_CHECK(args[0]->IsObject(), "Update argument must be an object");
+    CheckArgsLength(args, 1);
+    if (!args[0]->IsObject())
+        throw Error(Error::TYPE, "Update argument must be an object");
     StringMap field_expr_map;
     PropEnumerator prop_enumerator(args[0]->ToObject());
     for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
@@ -880,24 +856,19 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, UpdateCb,
     params.reserve(args.Length() - 1);
     for (int i = 1; i < args.Length(); ++i)
         params.push_back(ReadKuValue(args[i]));
-    unsigned long rows_number;
-    JS_PROPAGATE(
-        rows_number = GetAccessHolder()->Update(GetRelName(),
-                                                field_expr_map,
-                                                params,
-                                                GetWhereSpecifiers()));
+    unsigned long rows_number = GetAccessHolder()->Update(GetRelName(),
+                                                          field_expr_map,
+                                                          params,
+                                                          GetWhereSpecifiers());
     return Number::New(static_cast<double>(rows_number));
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, DelCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);
-    unsigned long rows_number;
-    JS_PROPAGATE(
-        rows_number = GetAccessHolder()->Delete(GetRelName(),
-                                                GetWhereSpecifiers()));
+    unsigned long rows_number = GetAccessHolder()->Delete(GetRelName(),
+                                                          GetWhereSpecifiers());
     return Number::New(static_cast<double>(rows_number));
 }
 
@@ -953,8 +924,7 @@ DEFINE_JS_CLASS(ConstrCatalogBg, "Constrs",
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, UniqueCb,
                     const Arguments&, args) const
 {
-    StringSet field_names;
-    JS_CAN_THROW(ReadStringSet(args, field_names));
+    StringSet field_names(ReadStringSet(args));
     return JSNew<ConstrBg>(Unique(field_names));
 }
 
@@ -962,10 +932,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, UniqueCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, ForeignCb,
                     const Arguments&, args) const
 {
-    JS_CHECK_LENGTH(args, 3);
-    StringSet key_field_names, ref_field_names;
-    JS_CAN_THROW(ReadStringSet(args[0], key_field_names) &&
-                 ReadStringSet(args[2], ref_field_names));
+    CheckArgsLength(args, 3);
+    StringSet key_field_names(ReadStringSet(args[0]));
+    StringSet ref_field_names(ReadStringSet(args[2]));
     return JSNew<ConstrBg>(ForeignKey(key_field_names,
                                       Stringify(args[1]),
                                       ref_field_names));
@@ -975,7 +944,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, ForeignCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, CheckCb,
                     const Arguments&, args) const
 {
-    JS_CHECK_LENGTH(args, 1);
+    CheckArgsLength(args, 1);
     return JSNew<ConstrBg>(Check(Stringify(args[0])));
 }
 
@@ -1018,96 +987,6 @@ Access* AccessHolder::operator->() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// RelCreator
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    /// Relation creator functor
-    class RelCreator {
-    public:
-        RelCreator(Access& access);
-        Handle<v8::Value> operator()(const Arguments& args) const;
-
-    private:
-        Access& access_;
-
-        static bool ReadHeader(Handle<v8::Value> value,
-                               RichHeader& rich_header,
-                               Constrs& constrs);
-        
-        static bool ReadConstrs(const Arguments& args, Constrs& constrs);
-        
-    };
-}
-
-
-RelCreator::RelCreator(Access& access)
-    : access_(access)
-{
-}
-
-
-Handle<v8::Value> RelCreator::operator()(const Arguments& args) const
-{
-    JS_CHECK(args.Length() >= 2, "At least two arguments required");
-    string name;
-    RichHeader rich_header;
-    Constrs constrs;
-    JS_CAN_THROW(ReadIdentifier(args[0], name) &&
-                 ReadHeader(args[1], rich_header, constrs) &&
-                 ReadConstrs(args, constrs));
-    JS_PROPAGATE(access_.CreateRel(name, rich_header, constrs));
-    return Undefined();
-}
-
-
-bool RelCreator::ReadHeader(Handle<v8::Value> value,
-                            RichHeader& rich_header,
-                            Constrs& constrs)
-{
-    if (!value->IsObject()) {
-        JS_THROW(TypeError, "Relation definition must be an object");
-        return false;
-    }
-    Handle<Object> object(value->ToObject());
-    PropEnumerator prop_enumerator(object);
-    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
-        Prop prop(prop_enumerator.GetProp(i));
-        string name;
-        if (!ReadIdentifier(prop.key, name))
-            return false;
-        const TypeBg* type_bg_ptr = TypeBg::GetJSClass().Cast(prop.value);
-        if (!type_bg_ptr) {
-            JS_THROW(Error,
-                     '"' + Stringify(prop.value) + "\" is not a type expr");
-            return false;
-        }
-        rich_header.add_sure(RichAttr(name,
-                                      type_bg_ptr->GetType(),
-                                      type_bg_ptr->GetTrait(),
-                                      type_bg_ptr->GetDefaultPtr()));
-        type_bg_ptr->CollectConstrs(name, constrs);
-    }
-    return true;
-}
-
-
-bool RelCreator::ReadConstrs(const Arguments& args, Constrs& constrs)
-{
-    constrs.reserve(constrs.size() + args.Length() - 2);
-    for (int i = 2; i < args.Length(); ++i) {
-        const ConstrBg* constr_bg_ptr = ConstrBg::GetJSClass().Cast(args[i]);
-        if (!constr_bg_ptr) {
-            JS_THROW(TypeError, "Constraint object was expected");
-            return false;
-        }
-        constrs.push_back(constr_bg_ptr->GetConstr());
-    }
-    return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // DBBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1129,7 +1008,7 @@ DBBg::DBBg(const AccessHolder& access_holder)
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, QueryCb,
                     const Arguments&, args) const
 {
-    JS_CHECK(args.Length() >= 1, "At least one argument required");
+    CheckArgsLength(args, 1);
     string query_str(Stringify(args[0]));
     Values params;
     params.reserve(args.Length() - 1);
@@ -1142,16 +1021,39 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, QueryCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateRelCb,
                     const Arguments&, args) const
 {
-    return RelCreator(*access_holder_)(args);
+    CheckArgsLength(args, 2);
+    string name(Stringify(args[0]));
+    CheckIsIdentifier(name);
+    if (!args[1]->IsObject())
+        throw Error(Error::TYPE, "Relation definition must be an object");
+    RichHeader rich_header;
+    Constrs constrs;
+    Handle<Object> object(args[1]->ToObject());
+    PropEnumerator prop_enumerator(object);
+    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
+        Prop prop(prop_enumerator.GetProp(i));
+        string name(Stringify(prop.key));
+        CheckIsIdentifier(name);
+        const TypeBg& type_bg(GetBg<TypeBg>(prop.value));
+        rich_header.add_sure(RichAttr(name,
+                                      type_bg.GetType(),
+                                      type_bg.GetTrait(),
+                                      type_bg.GetDefaultPtr()));
+        type_bg.CollectConstrs(name, constrs);
+    }
+    constrs.reserve(constrs.size() + args.Length() - 2);
+    for (int i = 2; i < args.Length(); ++i)
+        constrs.push_back(GetBg<ConstrBg>(args[i]).GetConstr());
+    access_holder_->CreateRel(name, rich_header, constrs);
+    return Undefined();
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropRelsCb,
                     const Arguments&, args) const
 {
-    StringSet rel_names;
-    JS_CAN_THROW(ReadStringSet(args, rel_names));
-    JS_PROPAGATE(access_holder_->DeleteRels(rel_names));
+    StringSet rel_names(ReadStringSet(args));
+    access_holder_->DeleteRels(rel_names);
     return Undefined();
 }
 
@@ -1183,27 +1085,24 @@ Inserter::Inserter(Access& access, const string& rel_name)
 
 Handle<v8::Value> Inserter::operator()(const Arguments& args) const
 {
-    JS_CHECK_LENGTH(args, 1);
-    JS_TYPE_CHECK(args[0]->IsObject(), "Insert argument must be an object");
+    CheckArgsLength(args, 1);
+    if (!args[0]->IsObject())
+        throw Error(Error::TYPE, "Insert argument must be an object");
     Handle<Object> object(args[0]->ToObject());
     PropEnumerator prop_enumerator(object);
     ValueMap value_map;
     for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
         Prop prop(prop_enumerator.GetProp(i));
-        string name;
-        JS_CAN_THROW(ReadIdentifier(prop.key, name));
+        string name(Stringify(prop.key));
+        CheckIsIdentifier(name);
         value_map.insert(ValueMap::value_type(name, ReadKuValue(prop.value)));
     }
-    Values values;
-    const RichHeader* rich_header_ptr = 0;
-    JS_PROPAGATE(
-        rich_header_ptr = &access_.GetRelRichHeader(rel_name_);
-        values = access_.Insert(rel_name_, value_map);
-        );
-    KU_ASSERT(values.size() == rich_header_ptr->size());
+    const RichHeader& rich_header(access_.GetRelRichHeader(rel_name_));
+    Values values(access_.Insert(rel_name_, value_map));
+    KU_ASSERT(values.size() == rich_header.size());
     Handle<Object> result(Object::New());
     for (size_t i = 0; i < values.size(); ++i)
-        result->Set(String::New((*rich_header_ptr)[i].GetName().c_str()),
+        result->Set(String::New(rich_header[i].GetName().c_str()),
                     MakeV8Value(values[i]));
     return result;
 }
@@ -1311,18 +1210,16 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, InsertCb,
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, DropCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);    
-    JS_PROPAGATE(access_holder_->DeleteRel(name_));
+    access_holder_->DeleteRel(name_);
     return Undefined();
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, AllCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);    
     return JSNew<SubRelBg>(ref(access_holder_),
                            name_,
                            Specifiers());
@@ -1330,9 +1227,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, AllCb,
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetIntsCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);
     const RichHeader& rich_header(access_holder_->GetRelRichHeader(name_));
     Handle<Array> result(Array::New());
     int32_t i = 0;
@@ -1346,9 +1242,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetIntsCb,
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetSerialsCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);
     const RichHeader& rich_header(access_holder_->GetRelRichHeader(name_));
     Handle<Array> result(Array::New());
     int32_t i = 0;
@@ -1361,9 +1256,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetSerialsCb,
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetDefaultsCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);
     const RichHeader& rich_header(access_holder_->GetRelRichHeader(name_));
     Handle<Object> result(Object::New());
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
@@ -1375,9 +1269,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetDefaultsCb,
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetUniquesCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);
     Handle<Array> result(Array::New());
     int32_t i = 0;
     const Constrs& constrs(access_holder_->GetRelConstrs(name_));
@@ -1392,9 +1285,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetUniquesCb,
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetForeignsCb,
-                    const Arguments&, args) const
+                    const Arguments&, /*args*/) const
 {
-    JS_CHECK_LENGTH(args, 0);
     Handle<Array> result(Array::New());
     int32_t i = 0;
     const Constrs& constrs(access_holder_->GetRelConstrs(name_));

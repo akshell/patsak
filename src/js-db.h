@@ -8,9 +8,6 @@
 #define JS_DB_H
 
 #include "js-common.h"
-#include "common.h"
-
-#include <boost/utility.hpp>
 
 
 namespace ku

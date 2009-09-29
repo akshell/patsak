@@ -60,9 +60,8 @@ function checkEqualTo(expr, value)
 }
 
 
-function checkThrows(expr, cls)
+function checkThrow(cls, expr)
 {
-    cls = cls || Error;
     try {
         if (expr instanceof Function)
             expr();
@@ -123,21 +122,21 @@ base_test_suite.testInclude = function ()
     check("ak.path === undefined");
     check("ak.include('hello.js') == 'hello'");
     check("ak.include('subdir/another-hello.js') == 'hello'");
-    checkThrows("ak.include()");
-    checkThrows("ak.include('no-such-file.js')");
-    checkThrows("ak.include('bug.js')");
-    checkThrows("ak.include('bug-includer.js')");
-    checkThrows("ak.include('../out-of-base-dir.js')");
-    checkThrows("ak.include('self-includer.js')");
-    checkThrows("ak.include('cycle-includer1.js')");
-    checkThrows("ak.include('no_such_lib', 'xxx.js')");
+    checkThrow(ak.UsageError, "ak.include()");
+    checkThrow(ak.NoSuchEntryError, "ak.include('no-such-file.js')");
+    checkThrow(SyntaxError, "ak.include('bug.js')");
+    checkThrow(SyntaxError, "ak.include('bug-includer.js')");
+    checkThrow(ak.PathError, "ak.include('../out-of-base-dir.js')");
+    checkThrow(ak.CyclicIncludeError, "ak.include('self-includer.js')");
+    checkThrow(ak.CyclicIncludeError, "ak.include('cycle-includer1.js')");
+    checkThrow(ak.NoSuchEntryError, "ak.include('no_such_lib', 'xxx.js')");
     checkEqualTo("ak.include('lib/0.1/', '/42.js')", 42);
     checkEqualTo("ak.include('lib', '0.1/42.js')", 42);
     ak.include('//subdir///once.js');
     ak.include('subdir/../subdir//./once.js');
-    checkThrows("ak.include('')");
-    checkThrows("ak.include('..')");
-    checkThrows("ak.include('subdir/..')");
+    checkThrow(ak.PathError, "ak.include('')");
+    checkThrow(ak.PathError, "ak.include('..')");
+    checkThrow(ak.PathError, "ak.include('subdir/..')");
     check("ak.include('__main__.js') == '__main__.js value'");
 };
 
@@ -178,13 +177,15 @@ base_test_suite.testConstructors = function ()
 base_test_suite.testSetObjectProp = function ()
 {
     var obj = {};
-    checkThrows("ak._setObjectProp()");
-    checkThrows("ak._setObjectProp(1, 'f', 0, 42)");
+    checkThrow(ak.UsageError, "ak._setObjectProp()");
+    checkThrow(TypeError, "ak._setObjectProp(1, 'f', 0, 42)");
     ak._setObjectProp(obj, 'read_only', ak.READ_ONLY, 1);
     obj.setProp('dont_enum', ak.DONT_ENUM, 2);
     obj.setProp('dont_delete', ak.DONT_DELETE, 3);
-    checkThrows(function () { ak._setObjectProp(obj, 'field', {}, 42); });
-    checkThrows(function () { ak._setObjectProp(obj, 'field', 8, 42); });
+    checkThrow(TypeError,
+               function () { ak._setObjectProp(obj, 'field', {}, 42); });
+    checkThrow(ak.UsageError,
+               function () { ak._setObjectProp(obj, 'field', 8, 42); });
     check(function () {
               obj.read_only = 5;
               return obj.read_only == 1;
@@ -208,10 +209,11 @@ base_test_suite.testReadCode = function ()
 {
     check("ak._readCode('subdir/hi.txt') == 'russian привет\\n'");
     check("ak._readCode('bad_app', '__main__.js') == 'wuzzup!!!!!!!!\\n'");
-    checkThrows("ak._readCode('illegal/name', 'main.js')");
-    checkThrows("ak._readCode('test_app', '')");
-    checkThrows("ak._readCode('test_app', 'subdir/../../ak/main.js')");
-    checkThrows("ak._readCode()");
+    checkThrow(ak.InvalidAppNameError,
+               "ak._readCode('illegal/name', 'main.js')");
+    checkThrow(ak.PathError, "ak._readCode('test_app', '')");
+    checkThrow(ak.PathError, "ak._readCode('test_app', 'subdir/../../ak/main.js')");
+    checkThrow(ak.UsageError, "ak._readCode()");
 };
 
 
@@ -221,7 +223,7 @@ base_test_suite.testCompile = function ()
               var script = ak._compile('2+2');
               return script._run() === 4;
           });
-    checkThrows("ak._compile()");
+    checkThrow(ak.UsageError, "ak._compile()");
     check(function () {
               try {
                   ak._compile('(');
@@ -251,7 +253,7 @@ base_test_suite.testCompile = function ()
 
 base_test_suite.testHash = function ()
 {
-    checkThrows("ak._hash()");
+    checkThrow(ak.UsageError, "ak._hash()");
     check("ak._hash(undefined) == 0");
     check("ak._hash(null) == 0");
     check("ak._hash(42) == 0");
@@ -259,6 +261,16 @@ base_test_suite.testHash = function ()
     check("ak._hash('') == 0");
     check("ak._hash({}) > 0");
     check("ak._hash(function () {}) > 0");
+};
+
+
+base_test_suite.testErrors = function ()
+{
+    check("new ak.CoreError() instanceof Error");
+    check("ak.CoreError.__name__ == 'ak.CoreError'");
+    check("ak.CoreError.prototype.name == 'ak.CoreError'");
+    check("new ak.DBError() instanceof ak.CoreError");
+    check("new ak.FieldError() instanceof ak.DBError");
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,7 +310,7 @@ db_test_suite.setUp = function ()
                    author: number._int()._foreign('User', 'id'),
                    post: number._int()._foreign('Post', 'id')});
 
-    rels.User._insert({name: 'anton', age: 22, flooder: true});
+    rels.User._insert({name: 'anton', age: 22, flooder: 15});
     rels.User._insert({name: 'marina', age: 25, flooder: false});
     rels.User._insert({name: 'den', age: 23});
 
@@ -306,7 +318,7 @@ db_test_suite.setUp = function ()
     rels.Post._insert({title: 'second', text: 'hi', author: 1});
     rels.Post._insert({title: 'third', text: 'yo!', author: 0});
 
-    rels.Comment._insert({text: ':-*', author: 1, post: 0});
+    rels.Comment._insert({text: 42, author: 1, post: 0});
     rels.Comment._insert({text: 'rrr', author: 0, post: 0});
     rels.Comment._insert({text: 'ololo', author: 2, post: 2});
 };
@@ -328,18 +340,19 @@ db_test_suite.testConstructors = function ()
 
 db_test_suite.testCreateRel = function ()
 {
-    checkThrows("db._createRel('illegal')");
-    checkThrows("db._createRel('illegal', 'str')");
-    checkThrows("db._createRel('illegal', {'field': 15})");
-    checkThrows("db._createRel('@', {})");
-    checkThrows("db._createRel('1a', {})");
-    checkThrows("db._createRel('ab#cd', {})");
-    checkThrows("db._createRel('', {})");
-    checkThrows("db._createRel('User', {})");
-    checkThrows(function () {
-                    var obj = {length: 15};
-                    db._createRel('illegal', {x: number}, constrs._unique(obj));
-                });
+    checkThrow(ak.UsageError, "db._createRel('illegal')");
+    checkThrow(TypeError, "db._createRel('illegal', 'str')");
+    checkThrow(TypeError, "db._createRel('illegal', {'field': 15})");
+    checkThrow(ak.UsageError, "db._createRel('@', {})");
+    checkThrow(ak.UsageError, "db._createRel('1a', {})");
+    checkThrow(ak.UsageError, "db._createRel('ab#cd', {})");
+    checkThrow(ak.UsageError, "db._createRel('', {})");
+    checkThrow(ak.RelationExistsError, "db._createRel('User', {})");
+    checkThrow(TypeError,
+               function () {
+                   var obj = {length: 15};
+                   db._createRel('illegal', {x: number}, constrs._unique(obj));
+               });
 
     var obj = {toString: function () { return 'x'; }};
     db._createRel('legal', {x: number}, constrs._unique(obj));
@@ -353,63 +366,79 @@ db_test_suite.testCreateRel = function ()
     db._createRel('legal', {x: number}, constrs._unique(obj));
     rels.legal._drop();
 
-    checkThrows(function () {
-                    db._createRel('illegal', {x: number}, constrs._unique([]));
-                });
+    checkThrow(ak.UsageError,
+               function () {
+                   db._createRel('illegal', {x: number}, constrs._unique([]));
+               });
 
-    checkThrows(function () {
-                    db._createRel('illegal',
-                                  {x: number, y: number},
-                                  constrs._foreign(['x', 'y'], 'User', 'id'));
-                });
+    checkThrow(ak.UsageError,
+               function () {
+                   db._createRel('illegal',
+                                 {x: number, y: number},
+                                 constrs._foreign(['x', 'y'], 'User', 'id'));
+               });
 
-    checkThrows(function () {
-                    var obj = {length: 1};
-                    db._createRel('illegal',
-                                  {undefined: number},
-                                  constrs._foreign(obj, 'Post', 'id'));
-                });
-    checkThrows(function () {
-                    db._createRel('illegal',
-                                  {x: number, y: number},
-                                  constrs._foreign(['x', 'y'],
-                                                   'Post',
-                                                   ['id', 'author']));
-                });
-    checkThrows(function () {
-                    var name = '';
-                    for (var i = 0; i < 61; ++i)
-                        name += 'x';
-                    db._createRel(name, {});
-                });
-    checkThrows(function () {
-                    attrs = {};
-                    for (var i = 0; i < 1000; ++i)
-                        attrs['attr' + i] = number;
-                    db._createRel('illegal', attrs);
-                });
+    checkThrow(TypeError,
+               function () {
+                   var obj = {length: 1};
+                   db._createRel('illegal',
+                                 {undefined: number},
+                                 constrs._foreign(obj, 'Post', 'id'));
+               });
+    checkThrow(ak.UsageError,
+               function () {
+                   db._createRel('illegal',
+                                 {x: number, y: number},
+                                 constrs._foreign(['x', 'y'],
+                                                  'Post',
+                                                  ['id', 'author']));
+               });
+    checkThrow(ak.DBQuotaError,
+               function () {
+                   var name = '';
+                   for (var i = 0; i < 61; ++i)
+                       name += 'x';
+                   db._createRel(name, {});
+               });
+    checkThrow(ak.DBQuotaError,
+               function () {
+                   attrs = {};
+                   for (var i = 0; i < 1000; ++i)
+                       attrs['attr' + i] = number;
+                   db._createRel('illegal', attrs);
+               });
+    db._createRel('legal', {x: ak.types.boolean._default(new Date())});
+    rels.legal._insert({});
+    check("rels.legal._all()[0].x === true");
+    rels.legal._drop();
+    checkThrow(TypeError, "db._createRel('illegal', {x: date._default(42)})");
 };
 
 
 db_test_suite.testConstr = function ()
 {
-    checkThrows("db._createRel('illegal', {}, constrs._unique())");
-    checkThrows("constrs._foreign('a', 'b')");
-    checkThrows("constrs._check('a', 'b')");
-    checkThrows("constrs._unique(['a', 'a'])");
-    checkThrows("constrs._unique('a', 'a')");
+    checkThrow(ak.UsageError,
+               "db._createRel('illegal', {}, constrs._unique())");
+    checkThrow(ak.UsageError,
+               "constrs._foreign('a', 'b')");
+    checkThrow(ak.UsageError,
+               "constrs._unique(['a', 'a'])");
+    checkThrow(ak.UsageError,
+               "constrs._unique('a', 'a')");
     constrs._check('field != 0');
-    checkThrows("db._createRel('ill', {x: number}, {})");
-    checkThrows(function () {
-                    db._createRel('ill',
-                                  {x: number},
-                                  constrs._foreign([], 'User', []));
-                });
-    checkThrows(function () {
-                    db._createRel('ill',
-                                  {x: number},
-                                  constrs._foreign('x', 'User', 'age'));
-                });
+    checkThrow(TypeError, "db._createRel('ill', {x: number}, {})");
+    checkThrow(ak.UsageError,
+               function () {
+                   db._createRel('ill',
+                                 {x: number},
+                                 constrs._foreign([], 'User', []));
+               });
+    checkThrow(ak.UsageError,
+               function () {
+                   db._createRel('ill',
+                                 {x: number},
+                                 constrs._foreign('x', 'User', 'age'));
+               });
 };
 
 
@@ -418,55 +447,65 @@ db_test_suite.testDropRels = function ()
     db._createRel('NewRel', {x: number});
     rels.NewRel._drop();
     check("!('NewRel' in rels)");
-    checkThrows("rels.User._drop(1)");
-    checkThrows("rels.User._drop()");
-    checkThrows("db._dropRels('User', 'Post')");
-    checkThrows("db._dropRels('Comment', 'Comment')");
-    checkThrows("db._dropRels(['Comment', 'Comment'])");
+    checkThrow(ak.RelationDependencyError, "rels.User._drop()");
+    checkThrow(ak.RelationDependencyError, "db._dropRels('User', 'Post')");
+    checkThrow(ak.UsageError,
+               "db._dropRels('Comment', 'Comment')");
+    checkThrow(ak.UsageError,
+               "db._dropRels(['Comment', 'Comment'])");
 
     db._createRel('rel1', {x: number}, constrs._unique('x'));
     db._createRel('rel2', {x: number}, constrs._foreign('x', 'rel1', 'x'));
-    checkThrows("rels.rel1._drop()");
+    checkThrow(ak.RelationDependencyError, "rels.rel1._drop()");
     db._dropRels('rel1', 'rel2');
 };
 
 
 db_test_suite.testQuery = function ()
 {
-    checkThrows(function () { db._query(); });
-    var q = db._query('User[name, age, flooder] where id == 0');
+    var q = db._query('User[name, age, flooder] where +id == "0"');
     checkEqualTo(q, [{name: 'anton', age: 22, flooder: true}]);
     check(function () { return q[1] === undefined; });
     check(function () { return (0 in q) && !(1 in q); });
     checkEqualTo(function () { return keys(q); }, [0]);
-    checkThrows("db._query()");
-    checkThrows("db._query('dfsa')._perform()");
-    checkThrows("db._query('dfsa').length");
-    checkThrows("db._query('dfsa')[0]");
+    checkThrow(ak.UsageError, "db._query()");
+    checkThrow(ak.NoSuchRelationError, "db._query('dfsa')._perform()");
+    checkThrow(ak.NoSuchRelationError, "db._query('dfsa').length");
+    checkThrow(ak.NoSuchRelationError, "db._query('dfsa')[0]");
     check("!(0 in db._query('dfsa'))");
     check("compare(keys(db._query('dfsa')), []) == 0");
-    checkThrows("db._query('User')._perform(1)");
     check("db._query('User')._perform() === undefined");
     checkEqualTo(function () {
                      return db._query('Post.author->name where id == $', 0);
                  },
                  [{name: 'anton'}]);
+    checkThrow(ak.FieldError, "db._query('User.asdf')._perform()");
 };
 
 
 db_test_suite.testInsert = function ()
 {
-    checkThrows("rels.User._insert()");
-    checkThrows("rels.User._insert(15)", TypeError);
-    checkThrows("rels.User._insert({'@': 'abc'})");
-    checkThrows("rels.Comment._insert({id: 2, text: 'yo', author: 5, post: 0})");
-    checkThrows("rels.User._insert({id: 2})");
-    checkThrows("rels.Empty._insert({x: 5})");
-    checkEqualTo("items(rels.User._insert({name: 'xxx', age: 0}))",
-                [['id', 3], ['name', 'xxx'], ['age', 0], ['flooder', true]]);
-    rels.User._where('name == $', 'xxx')._del();
+    checkThrow(ak.UsageError, "rels.User._insert()");
+    checkThrow(TypeError, "rels.User._insert(15)");
+    checkThrow(ak.UsageError, "rels.User._insert({'@': 'abc'})");
+    checkThrow(ak.ConstraintViolationError,
+               "rels.Comment._insert({id: 2, text: 'yo', author: 5, post: 0})");
+    checkThrow(ak.FieldError,
+               "rels.User._insert({id: 2})");
+    checkThrow(ak.FieldError,
+               "rels.Empty._insert({x: 5})");
+    checkEqualTo(
+        "items(rels.User._insert({name: 'xxx', age: false}))",
+        [['id', 3], ['name', 'xxx'], ['age', 0], ['flooder', true]]);
+    var tuple = rels.User._insert({id: 4, name: 'yyy', age: 'asdf'});
+    check(isNaN(tuple.age));
+    checkThrow(ak.ConstraintViolationError,
+               "rels.User._insert({id: 'asdf', name: 'zzz', age: 42})");
+    checkThrow(ak.ConstraintViolationError,
+               "rels.User._insert({name: 'zzz', age: 42})");
+    rels.User._where('id >= 3')._del();
     checkEqualTo("items(rels.Empty._insert({}))", []);
-    checkThrows("rels.Empty._insert({})");
+    checkThrow(ak.ConstraintViolationError, "rels.Empty._insert({})");
     rels.Empty._all()._del();
 };
 
@@ -502,7 +541,7 @@ db_test_suite.testWhere = function ()
                              ._where('id == $1 && name == $2', 0, 'anton'));
                  },
                  [{id: 0, name: 'anton'}]);
-    checkThrows("db._query('User')._where()");
+    checkThrow(ak.UsageError, "db._query('User')._where()");
     checkEqualTo("rels.User._where('forsome (x in {}) true').length", 3);
 };
 
@@ -511,7 +550,7 @@ db_test_suite.testWhose = function ()
 {
     checkEqualTo("db._query('User[id, name]').whose('id == $', 1)",
                  {id: 1, name: 'marina'});
-    checkThrows("db._query('User').whose(true)");
+    checkThrow(Error, "db._query('User').whose(true)");
 };
 
 
@@ -533,16 +572,16 @@ db_test_suite.testBy = function ()
 
 db_test_suite.testOnly = function ()
 {
-    checkThrows(function () {
-                    var obj = {length: 1};
-                    db._query('User')._only(obj);
-                });
+    checkThrow(TypeError,
+               function () {
+                   var obj = {length: 1};
+                   db._query('User')._only(obj);
+               });
 };
 
 
 db_test_suite.testAll = function ()
 {
-    checkThrows("rels.User._all(1)");
     check("rels.User._all().field('id').sort()", [0, 1, 2]);
     check("rels.User._all()._where('!(id % 2)')._by('-id').field('name')",
           ['den', 'anton']);
@@ -557,13 +596,14 @@ db_test_suite.testUpdate = function ()
 {
     var initial = rels.User._all();
     initial._perform();
-    checkThrows("rels.User._where('id == 0')._update({})");
-    checkThrows("rels.User._where('id == 0')._update()");
-    checkThrows("rels.User._where('id == 0')._update(1)");
+    checkThrow(ak.UsageError, "rels.User._where('id == 0')._update({})");
+    checkThrow(ak.UsageError, "rels.User._where('id == 0')._update()");
+    checkThrow(TypeError, "rels.User._where('id == 0')._update(1)");
+    checkThrow(ak.ConstraintViolationError,
+               "rels.User._where('id == 0')._update({id: '$'}, 'asdf')");
     checkEqualTo("rels.User._where('id == 0')._update({name: '$'}, 'ANTON')",
                  1);
     check("rels.User.whose('id == 0')['name'] == 'ANTON'");
-    checkThrows("rels.User._all()._update({}");
     var rows_number = rels.User
                           ._where('name != $', 'marina')
                           ._by('id')._update({age: 'age + $1',
@@ -572,7 +612,8 @@ db_test_suite.testUpdate = function ()
                                               'yo!');
     check(rows_number == 2);
     for (var i = 0; i < 10; ++ i)
-        checkThrows(
+        checkThrow(
+            ak.ConstraintViolationError,
             "rels.User._where('name == $', 'den').updateByValues({id: 4})");
     forEach(initial, function (tuple) {
                 rels.User._where('id == $', tuple.id).updateByValues(tuple);
@@ -585,10 +626,9 @@ db_test_suite.testDelete = function ()
 {
     var initial = rels.User._all();
     initial._perform();
-    checkThrows("rels.User._all()._del()");
+    checkThrow(ak.ConstraintViolationError, "rels.User._all()._del()");
     var tricky_name = 'xx\'y\'zz\'';
     rels.User._insert({id: 3, name: tricky_name, age: 15, flooder: true});
-    checkThrows("rels.User._where('age == 15')._del(0)");
     rels.User._by('name')._where('id == 3')._update({name: 'name + 1'});
     checkEqualTo("rels.User.whose('id == 3')['name']", tricky_name + 1);
     checkEqualTo("rels.User._where('age == 15')._del()", 1);
@@ -621,10 +661,11 @@ db_test_suite.testCheck = function ()
     db._createRel('dummy', {b: boolean, s: string},
                   constrs._check('b || s == "hello"'));
     rels.silly._insert({n: 0});
-    checkThrows("rels.r._insert({n: 42})");
+    checkThrow(ak.ConstraintViolationError, "rels.silly._insert({n: 42})");
     rels.dummy._insert({b: true, s: 'hi'});
     rels.dummy._insert({b: false, s: 'hello'});
-    checkThrows("rels.dummy._insert({b: false, s: 'oops'})");
+    checkThrow(ak.ConstraintViolationError,
+               "rels.dummy._insert({b: false, s: 'oops'})");
     rels.silly._drop();
     rels.dummy._drop();
 };
@@ -638,7 +679,8 @@ db_test_suite.testDate = function ()
     rels.d1._insert({d: some_date});
     checkEqualTo("rels.d1.field('d')", [some_date]);
     db._createRel('d2', {d: date}, constrs._foreign('d', 'd1', 'd'));
-    checkThrows(function () { rels.d2._insert({d: other_date}); });
+    checkThrow(ak.ConstraintViolationError,
+               function () { rels.d2._insert({d: other_date}); });
     rels.d1._insert({d: other_date});
     checkEqualTo("rels.d1._by('-d').field('d')", [some_date, other_date]);
     rels.d2._insert({d: other_date});
@@ -659,7 +701,7 @@ db_test_suite.testDefault = function ()
                   ['n', 42],
                   ['s', 'hello, world!']]);
     rels.def._insert({});
-    checkThrows("rels.def._insert({})");
+    checkThrow(ak.ConstraintViolationError, "rels.def._insert({})");
     rels.def._insert({b: false});
     rels.def._insert({n: 0, s: 'hi'});
     checkEqualTo("rels.def._by('b')._by('n')",
@@ -672,11 +714,11 @@ db_test_suite.testDefault = function ()
 
 db_test_suite.testIntSerial = function ()
 {
-    checkThrows("number._serial()._default(42)");
-    checkThrows("number._default(42)._serial()");
-    checkThrows("number._serial()._int()");
-    checkThrows("number._serial()._serial()");
-    checkThrows("number._int()._int()");
+    checkThrow(ak.UsageError, "number._serial()._default(42)");
+    checkThrow(ak.UsageError, "number._default(42)._serial()");
+    checkThrow(ak.UsageError, "number._serial()._int()");
+    checkThrow(ak.UsageError, "number._serial()._serial()");
+    checkThrow(ak.UsageError, "number._int()._int()");
     checkEqualTo("rels.Comment._getInts().sort()", ['author', 'id', 'post']);
     db._createRel('r', {x: number._serial(),
                         y: number._serial(),
@@ -731,25 +773,35 @@ db_test_suite.testForeignKey = function ()
 
 db_test_suite.testRelNumber = function ()
 {
-    checkThrows(function () {
-                    for (var i = 0; i < 500; ++i)
-                        db._createRel('r' + i, {});
-                });
-    checkThrows(function () {
-                    for (var i = 0; i < 500; ++i)
-                        rels['r' + i]._drop();
-                });
+    checkThrow(ak.DBQuotaError,
+               function () {
+                   for (var i = 0; i < 500; ++i)
+                       db._createRel('r' + i, {});
+               });
+    checkThrow(TypeError,
+               function () {
+                   for (var i = 0; i < 500; ++i)
+                       rels['r' + i]._drop();
+               });
 };
 
 
-db_test_suite.testStringLength = function ()
+db_test_suite.testQuota = function ()
 {
-    db._createRel('Str', {s: string});
+    db._createRel('R', {i: number._int(), s: string});
     var array = [];
-    for (var i = 0; i < 100*1024; ++i)
+    for (var i = 0; i < 100 * 1024; ++i)
         array.push('x');
-    checkThrows(function () { rels.Str._insert({s: array.join('')}); });
-    rels.Str._drop();
+    var str = array.join('');
+    checkThrow(ak.ConstraintViolationError,
+               function () { rels.R._insert({i: 0, s: str + 'x'}); });
+    // Slow DB size quota test, uncomment to run
+//     checkThrow(ak.DBQuotaError,
+//                function () {
+//                    for (var i = 0; ; ++i)
+//                        rels.R._insert({i: i, s: str});
+//                });
+    rels.R._drop();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -780,23 +832,25 @@ file_test_suite.testRead = function ()
 {
     checkEqualTo("fs._read('//dir1////subdir/hello')",
                  'hello world!');
-    checkThrows("fs._read('does_not_exists')");
-    checkThrows("fs._read('dir1')");
-    checkThrows("fs._read('//..//test_app/dir1/subdir/hello')");
-    checkThrows("fs._read('/dir1/../../file')");
-    checkThrows("fs._read('////')");
-    checkThrows(function () {
-                    var path = '';
-                    for (var i = 0; i < 40; ++i)
-                        path += '/dir';
-                    fs._read(path);
-                });
+    checkThrow(ak.NoSuchEntryError, "fs._read('does_not_exists')");
+    checkThrow(ak.EntryIsDirError, "fs._read('dir1')");
+    checkThrow(ak.PathError, "fs._read('//..//test_app/dir1/subdir/hello')");
+    checkThrow(ak.PathError, "fs._read('/dir1/../../file')");
+    checkThrow(ak.PathError, "fs._read('////')");
+    checkThrow(ak.PathError,
+               function () {
+                   var path = '';
+                   for (var i = 0; i < 40; ++i)
+                       path += '/dir';
+                   fs._read(path);
+               });
 };
 
 
 file_test_suite.testList = function ()
 {
     checkEqualTo("fs._list('').sort()", ['dir1', 'dir2', 'file']);
+    checkThrow(ak.NoSuchEntryError, "fs._list('no_such_dir')");
 };
 
 
@@ -826,7 +880,7 @@ file_test_suite.testIsFile = function ()
 };
 
 
-file_test_suite.testRm = function ()
+file_test_suite.testRemove = function ()
 {
     fs._write('new-file', 'data');
     fs._remove('new-file');
@@ -834,6 +888,7 @@ file_test_suite.testRm = function ()
     fs._remove('dir2/new-dir');
     checkEqualTo("fs._list('').sort()", ['dir1', 'dir2', 'file']);
     checkEqualTo("fs._list('dir2')", []);
+    checkThrow(ak.DirIsNotEmptyError, "fs._remove('dir1')");
 };
 
 
@@ -844,15 +899,24 @@ file_test_suite.testWrite = function ()
     fs._write('hello', fs._read('dir1/subdir/hello'));
     checkEqualTo("fs._read('hello')", 'hello world!');
     fs._remove('wuzzup');
+    checkThrow(ak.EntryIsNotDirError, "fs._write('file/xxx', '')");
+    checkThrow(ak.PathError,
+               function () {
+                   var array = [];
+                   for (var i = 0; i < 1000; ++i)
+                       array.push('x');
+                   fs._write(array.join(''), '');
+               });
 };
 
 
-file_test_suite.testMkDir = function ()
+file_test_suite.testMakeDir = function ()
 {
     fs._makeDir('dir2/ddd');
     checkEqualTo("fs._list('dir2')", ['ddd']);
     checkEqualTo("fs._list('dir2/ddd')", []);
     fs._remove('dir2/ddd');
+    checkThrow(ak.EntryExistsError, "fs._makeDir('file')");
 };
 
 
@@ -861,8 +925,8 @@ file_test_suite.testCopyFile = function ()
     fs._copyFile('dir1/subdir/hello', 'dir2/hello');
     checkEqualTo("fs._read('dir2/hello')", 'hello world!');
     fs._remove('dir2/hello');
-    checkThrows("fs._copyFile('no_such', 'never_created')");
-    checkThrows("fs._copyFile('file', 'dir1/subdir')");
+    checkThrow(ak.NoSuchEntryError, "fs._copyFile('no_such', 'never_created')");
+    checkThrow(ak.EntryIsDirError, "fs._copyFile('file', 'dir1/subdir')");
 };
 
 
@@ -871,6 +935,7 @@ file_test_suite.testRename = function ()
     fs._rename('dir1', 'dir2/dir3');
     checkEqualTo("fs._read('dir2/dir3/subdir/hello')", 'hello world!');
     fs._rename('dir2/dir3', 'dir1');
+    checkThrow(ak.NoSuchEntryError, "fs._rename('no_such_file', 'xxx')");
 };
 
 
@@ -880,17 +945,19 @@ file_test_suite.testQuota = function ()
     for (var i = 0; i < 1024 * 1024; ++i)
         array.push('x');
     var str = array.join('');
-    checkThrows(function () {
-                    for (var i = 0; i < 11; ++i)
-                        fs._write('file' + i, str);
-                });
+    checkThrow(ak.FSQuotaError,
+               function () {
+                   for (var i = 0; i < 11; ++i)
+                       fs._write('file' + i, str);
+               });
     for (i = 0; i < 10; ++i)
         fs._remove('file' + i);
     check("!fs._exists('file10')");
-    checkThrows(function () {
-                    var big_str = [str, str, str, str, str].join('');
-                    fs._write('big_file', big_str);
-                });
+    checkThrow(ak.FSQuotaError,
+               function () {
+                   var big_str = [str, str, str, str, str].join('');
+                   fs._write('big_file', big_str);
+               });
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -900,28 +967,28 @@ file_test_suite.testQuota = function ()
 var call_test_suite = {};
 
 
-call_test_suite.testCall = function ()
+call_test_suite.testRequest = function ()
 {
     fs._write('file1', 'wuzzup');
     fs._write('file2', 'yo ho ho');
     checkEqualTo(function () {
-                     return apps.another_app._call('hello world!',
-                                                   ['file1', 'file2'],
-                                                   'yo!!!');
+                     return apps.another_app._request('hello world!',
+                                                      ['file1', 'file2'],
+                                                      'yo!!!');
                  },
                  '{"user":"' + ak._user + '",'+
                  '"arg":"hello world!","data":"yo!!!",' +
                  '"file_contents":["wuzzup","yo ho ho"],' +
                  '"requester_app":"test_app"}');
     check("!fs._exists('file1') && !fs._exists('file2')");
-    checkThrows("apps.no_such_app._call('hi')");
+    checkThrow(ak.NoSuchAppError, "apps.no_such_app._request('hi')");
     check("'another_app' in apps");
     check("!('no_such_app' in apps)");
-    checkThrows("apps.another_app._call('', {length: 1})");
+    checkThrow(TypeError, "apps.another_app._request('', {length: 1})");
     checkEqualTo(
         function () {
             fs._write('file3', 'text');
-            var result = apps.another_app._call('', [], fs._read('file3'));
+            var result = apps.another_app._request('', [], fs._read('file3'));
             fs.remove('file3');
             return result;
         },
@@ -930,20 +997,23 @@ call_test_suite.testCall = function ()
         '"data":"text",' +
         '"file_contents":[],' +
         '"requester_app":"test_app"}');
-    checkThrows("apps['invalid/app/name']._call('')");
-    checkThrows("apps.test_app._call('2+2')");
-    checkThrows("apps.throwing_app._call('')");
-    checkThrows("apps.blocking_app._call('')");
-    checkThrows("apps.another_app._call('', ['..'])");
-    checkThrows("apps.another_app._call('', ['no-such-file'])");
-    checkThrows(function () {
-                    fs._makeDir('dir');
-                    try {
-                        apps.another_app._call('', ['dir']);
-                    } finally {
-                        fs.remove('dir');
-                    }
-                });
+    checkThrow(ak.InvalidAppNameError, "apps['invalid/app/name']._request('')");
+    checkThrow(ak.SelfRequestError, "apps.test_app._request('2+2')");
+    checkThrow(ak.AppExceptionError, "apps.throwing_app._request('')");
+    checkThrow(ak.RequestTimedOutError, "apps.blocking_app._request('')");
+    checkThrow(ak.PathError, "apps.another_app._request('', ['..'])");
+    checkThrow(ak.NoSuchEntryError,
+               "apps.another_app._request('', ['no-such-file'])");
+    checkThrow(ak.EntryIsDirError,
+               function () {
+                   fs._makeDir('dir');
+                   try {
+                       apps.another_app._request('', ['dir']);
+                   } finally {
+                       fs.remove('dir');
+                   }
+               });
+    checkThrow(TypeError, "apps.another_app._request('hi', 42)");
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -952,10 +1022,12 @@ call_test_suite.testCall = function ()
 
 function main()
 {
-    runTestSuites([base_test_suite,
-                   db_test_suite,
-                   file_test_suite,
-                   call_test_suite]);
+    runTestSuites([
+                      base_test_suite,
+                      db_test_suite,
+                      file_test_suite,
+                      call_test_suite
+                  ]);
     return error_count;
 }
 

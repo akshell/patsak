@@ -9,12 +9,8 @@
 
 #include "common.h"
 
-#include <boost/scoped_ptr.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/variant.hpp>
-
-#include <string>
-#include <vector>
 
 
 namespace ku
@@ -160,7 +156,7 @@ namespace ku
         QueryResult(const Impl* impl_ptr);
         ~QueryResult();
         size_t GetSize() const;
-        Values GetValues(size_t idx) const;
+        std::auto_ptr<Values> GetValuesPtr(size_t idx) const;
         const Header& GetHeader() const;
         size_t GetMemoryUsage() const;
         

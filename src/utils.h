@@ -13,7 +13,6 @@
 #include <boost/variant.hpp>
 
 #include <ostream>
-#include <string>
 
 
 namespace ku

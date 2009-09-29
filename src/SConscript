@@ -3,8 +3,8 @@
 
 Import("env")
 
-env.Command('include.js.h', 'include.js', '\
-(echo "namespace\\n{\\nconst char INCLUDE_JS[] = {";\
+env.Command('init.js.h', 'init.js', '\
+(echo "namespace\\n{\\nconst char INIT_JS[] = {";\
  xxd -i < $SOURCES;\
  echo "};\\n}";\
 ) > $TARGET')
@@ -13,13 +13,13 @@ sources = [
     'db.cc',
     'parser.cc',
     'translator.cc',
-    'type.cc',
+    'common.cc',
     'js.cc',
     'js-common.cc',
     'js-file.cc',
     'js-db.cc',
     'querist.cc',
-    'error.cc',
+    'debug.cc',
     ]
 
 objects = [env.Object(source)

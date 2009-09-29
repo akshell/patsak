@@ -11,11 +11,7 @@
 
 #include <boost/variant.hpp>
 #include <boost/shared_ptr.hpp>
-#include <boost/operators.hpp>
 
-#include <string>
-#include <vector>
-#include <iosfwd>
 
 namespace ku
 {

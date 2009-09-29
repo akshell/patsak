@@ -9,12 +9,6 @@
 
 #include "common.h"
 
-#include <boost/scoped_ptr.hpp>
-
-#include <string>
-#include <iosfwd>
-#include <memory>
-
 
 namespace ku
 {
@@ -38,7 +32,7 @@ namespace ku
             OK,
             NO_SUCH_APP,
             INVALID_APP_NAME,
-            SELF_CALL,
+            SELF_REQUEST,
             TIMED_OUT
         };
         
