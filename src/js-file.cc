@@ -13,12 +13,12 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <dirent.h>
+#include <iconv.h>
 
 
 using namespace ku;
 using namespace v8;
 using namespace std;
-using boost::shared_ptr;
 using boost::lexical_cast;
 
 
@@ -42,7 +42,7 @@ namespace
 {
     Error MakeErrnoError()
     {
-        Error::Tag tag;
+        Error::Tag tag = Error::FS;
         switch (errno) {
         case EEXIST:       tag = Error::ENTRY_EXISTS;     break;
         case ENOENT:       tag = Error::NO_SUCH_ENTRY;    break;
@@ -50,6 +50,8 @@ namespace
         case ENOTDIR:      tag = Error::ENTRY_IS_NOT_DIR; break;
         case ENAMETOOLONG: tag = Error::PATH;             break;
         case ENOTEMPTY:    tag = Error::DIR_IS_NOT_EMPTY; break;
+        case EILSEQ:
+        case EINVAL:       tag = Error::CONVERSION;       break;
         }
         return Error(tag, strerror(errno));
     }
@@ -124,12 +126,30 @@ const Chars& DataBg::GetData() const
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, DataBg, ToStringCb,
-                    const Arguments&, /*args*/) const
+                    const Arguments&, args) const
 {
     // TODO NewExternal seems to be broken in new v8 (trunk rev. 2780)
-    // This is a quick and dirty fix, rethink it.
-//     return String::NewExternal(new DataStringResource(data_ptr_));
-    return String::New(&data_ptr_->front(), data_ptr_->size());
+    // May be DataStringResource should be re-enabled for optimization reasons
+
+    string encoding(args.Length() ? Stringify(args[0]).c_str() : "UTF-8");
+    iconv_t cd = iconv_open("UTF-16LE", encoding.c_str());
+    if (cd == reinterpret_cast<iconv_t>(-1))
+        throw (errno == EINVAL
+               ? Error(Error::USAGE,
+                       "Conversion from \"" + encoding + "\" is not supported")
+               : MakeErrnoError());
+    Chars buf(data_ptr_->size() * 2);
+    char* in_ptr = &data_ptr_->front();
+    size_t in_left = data_ptr_->size();
+    char* out_ptr = &buf[0];
+    size_t out_left = buf.size();
+    size_t ret = iconv(cd, &in_ptr, &in_left, &out_ptr, &out_left);
+    iconv_close(cd);
+    if (ret == static_cast<size_t>(-1))
+        throw MakeErrnoError();
+    size_t length = buf.size() - out_left;
+    KU_ASSERT(length % 2 == 0);
+    return String::New(reinterpret_cast<uint16_t*>(&buf[0]), length / 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -454,16 +474,16 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, WriteCb,
     unsigned long long old_size = GetFileSize(path);
     
     DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(args[1]);
-    auto_ptr<String::AsciiValue> ascii_value_ptr;
+    auto_ptr<String::Utf8Value> utf8_value_ptr;
     const char* data_ptr;
     size_t size;
     if (data_bg_ptr) {
         data_ptr = &(data_bg_ptr->GetData()[0]);
         size = data_bg_ptr->GetData().size();
     } else {
-        ascii_value_ptr.reset(new String::AsciiValue(args[1]));
-        data_ptr = **ascii_value_ptr;
-        size = ascii_value_ptr->length();
+        utf8_value_ptr.reset(new String::Utf8Value(args[1]));
+        data_ptr = **utf8_value_ptr;
+        size = utf8_value_ptr->length();
     }
     
     if (size > MAX_FILE_SIZE)

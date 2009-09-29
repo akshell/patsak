@@ -60,6 +60,7 @@
       defineErrorClass('DirIsNotEmpty', ak.FSError),
       defineErrorClass('TempFileRemoved', ak.FSError),
       defineErrorClass('CyclicInclude', ak.FSError),
+      defineErrorClass('Conversion', ak.FSError),
 
       defineErrorClass('AppException', ak.AppError),
       defineErrorClass('NoSuchApp', ak.AppError),

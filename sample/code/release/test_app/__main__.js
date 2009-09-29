@@ -819,6 +819,7 @@ file_test_suite.setUp = function ()
     fs._makeDir('dir1/subdir');
     fs._write('file', 'some text');
     fs._write('dir1/subdir/hello', 'hello world!');
+    fs._write('dir1/subdir/привет', 'привет!');
 };
 
 
@@ -832,6 +833,10 @@ file_test_suite.testRead = function ()
 {
     checkEqualTo("fs._read('//dir1////subdir/hello')",
                  'hello world!');
+    var data = fs._read('/dir1/subdir/привет');
+    checkEqualTo(data, 'привет!');
+    checkThrow(ak.ConversionError, function () { data.toString('UTF-32'); });
+    checkThrow(ak.UsageError, function () { data.toString('NO_SUCH_ENC'); });
     checkThrow(ak.NoSuchEntryError, "fs._read('does_not_exists')");
     checkThrow(ak.EntryIsDirError, "fs._read('dir1')");
     checkThrow(ak.PathError, "fs._read('//..//test_app/dir1/subdir/hello')");

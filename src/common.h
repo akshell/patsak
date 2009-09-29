@@ -50,6 +50,7 @@ namespace ku
             DIR_IS_NOT_EMPTY,
             TEMP_FILE_REMOVED,
             CYCLIC_INCLUDE,
+            CONVERSION,
             
             APP_EXCEPTION,
             NO_SUCH_APP,
