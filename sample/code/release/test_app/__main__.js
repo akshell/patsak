@@ -488,7 +488,7 @@ db_test_suite.testInsert = function ()
     checkThrow(ak.UsageError, "rels.User._insert()");
     checkThrow(TypeError, "rels.User._insert(15)");
     checkThrow(ak.UsageError, "rels.User._insert({'@': 'abc'})");
-    checkThrow(ak.ConstraintViolationError,
+    checkThrow(ak.ConstraintError,
                "rels.Comment._insert({id: 2, text: 'yo', author: 5, post: 0})");
     checkThrow(ak.FieldError,
                "rels.User._insert({id: 2})");
@@ -499,13 +499,13 @@ db_test_suite.testInsert = function ()
         [['id', 3], ['name', 'xxx'], ['age', 0], ['flooder', true]]);
     var tuple = rels.User._insert({id: 4, name: 'yyy', age: 'asdf'});
     check(isNaN(tuple.age));
-    checkThrow(ak.ConstraintViolationError,
+    checkThrow(ak.ConstraintError,
                "rels.User._insert({id: 'asdf', name: 'zzz', age: 42})");
-    checkThrow(ak.ConstraintViolationError,
+    checkThrow(ak.ConstraintError,
                "rels.User._insert({name: 'zzz', age: 42})");
     rels.User._where('id >= 3')._del();
     checkEqualTo("items(rels.Empty._insert({}))", []);
-    checkThrow(ak.ConstraintViolationError, "rels.Empty._insert({})");
+    checkThrow(ak.ConstraintError, "rels.Empty._insert({})");
     rels.Empty._all()._del();
 };
 
@@ -599,7 +599,7 @@ db_test_suite.testUpdate = function ()
     checkThrow(ak.UsageError, "rels.User._where('id == 0')._update({})");
     checkThrow(ak.UsageError, "rels.User._where('id == 0')._update()");
     checkThrow(TypeError, "rels.User._where('id == 0')._update(1)");
-    checkThrow(ak.ConstraintViolationError,
+    checkThrow(ak.ConstraintError,
                "rels.User._where('id == 0')._update({id: '$'}, 'asdf')");
     checkEqualTo("rels.User._where('id == 0')._update({name: '$'}, 'ANTON')",
                  1);
@@ -613,7 +613,7 @@ db_test_suite.testUpdate = function ()
     check(rows_number == 2);
     for (var i = 0; i < 10; ++ i)
         checkThrow(
-            ak.ConstraintViolationError,
+            ak.ConstraintError,
             "rels.User._where('name == $', 'den').updateByValues({id: 4})");
     forEach(initial, function (tuple) {
                 rels.User._where('id == $', tuple.id).updateByValues(tuple);
@@ -626,7 +626,7 @@ db_test_suite.testDelete = function ()
 {
     var initial = rels.User._all();
     initial._perform();
-    checkThrow(ak.ConstraintViolationError, "rels.User._all()._del()");
+    checkThrow(ak.ConstraintError, "rels.User._all()._del()");
     var tricky_name = 'xx\'y\'zz\'';
     rels.User._insert({id: 3, name: tricky_name, age: 15, flooder: true});
     rels.User._by('name')._where('id == 3')._update({name: 'name + 1'});
@@ -661,11 +661,10 @@ db_test_suite.testCheck = function ()
     db._createRel('dummy', {b: boolean, s: string},
                   constrs._check('b || s == "hello"'));
     rels.silly._insert({n: 0});
-    checkThrow(ak.ConstraintViolationError, "rels.silly._insert({n: 42})");
+    checkThrow(ak.ConstraintError, "rels.silly._insert({n: 42})");
     rels.dummy._insert({b: true, s: 'hi'});
     rels.dummy._insert({b: false, s: 'hello'});
-    checkThrow(ak.ConstraintViolationError,
-               "rels.dummy._insert({b: false, s: 'oops'})");
+    checkThrow(ak.ConstraintError, "rels.dummy._insert({b: false, s: 'oops'})");
     rels.silly._drop();
     rels.dummy._drop();
 };
@@ -679,7 +678,7 @@ db_test_suite.testDate = function ()
     rels.d1._insert({d: some_date});
     checkEqualTo("rels.d1.field('d')", [some_date]);
     db._createRel('d2', {d: date}, constrs._foreign('d', 'd1', 'd'));
-    checkThrow(ak.ConstraintViolationError,
+    checkThrow(ak.ConstraintError,
                function () { rels.d2._insert({d: other_date}); });
     rels.d1._insert({d: other_date});
     checkEqualTo("rels.d1._by('-d').field('d')", [some_date, other_date]);
@@ -701,7 +700,7 @@ db_test_suite.testDefault = function ()
                   ['n', 42],
                   ['s', 'hello, world!']]);
     rels.def._insert({});
-    checkThrow(ak.ConstraintViolationError, "rels.def._insert({})");
+    checkThrow(ak.ConstraintError, "rels.def._insert({})");
     rels.def._insert({b: false});
     rels.def._insert({n: 0, s: 'hi'});
     checkEqualTo("rels.def._by('b')._by('n')",
@@ -793,7 +792,7 @@ db_test_suite.testQuota = function ()
     for (var i = 0; i < 100 * 1024; ++i)
         array.push('x');
     var str = array.join('');
-    checkThrow(ak.ConstraintViolationError,
+    checkThrow(ak.ConstraintError,
                function () { rels.R._insert({i: 0, s: str + 'x'}); });
     // Slow DB size quota test, uncomment to run
 //     checkThrow(ak.DBQuotaError,

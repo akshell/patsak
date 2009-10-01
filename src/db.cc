@@ -1272,11 +1272,11 @@ unsigned long Access::Update(const std::string& rel_name,
                                           params, where_specifiers);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
-        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
+        throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::data_exception& err) {
         KU_ASSERT(string(err.what()) == "ERROR:  integer out of range\n");
         sub_work.abort();
-        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
+        throw Error(Error::CONSTRAINT, err.what());
     }
     data_.quota_controller.DataWereAdded(rows_count, size);
     sub_work.commit();
@@ -1293,7 +1293,7 @@ unsigned long Access::Delete(const std::string& rel_name,
         rows_count = data_.querist.Delete(sub_work, rel_name, where_specifiers);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
-        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
+        throw Error(Error::CONSTRAINT, err.what());
     }    
     sub_work.commit();
     return rows_count;
@@ -1366,15 +1366,15 @@ Values Access::Insert(const std::string& rel_name, const ValueMap& value_map)
         pqxx_result = sub_work.exec(sql_str);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
-        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
+        throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::data_exception& err) {
         KU_ASSERT(string(err.what()) == "ERROR:  integer out of range\n");
         sub_work.abort();
-        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
+        throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::sql_error& err) {
         KU_ASSERT(string(err.what()).substr(0, 14) == "ERROR:  Empty ");
         sub_work.abort();
-        throw Error(Error::CONSTRAINT_VIOLATION, err.what());
+        throw Error(Error::CONSTRAINT, err.what());
     }
     data_.quota_controller.DataWereAdded(1, size);
     sub_work.commit();

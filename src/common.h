@@ -37,7 +37,7 @@ namespace ku
             RELATION_EXISTS,
             NO_SUCH_RELATION,
             RELATION_DEPENDENCY,
-            CONSTRAINT_VIOLATION,
+            CONSTRAINT,
             FIELD,
             QUERY,
 

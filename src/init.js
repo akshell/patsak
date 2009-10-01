@@ -47,7 +47,7 @@
       defineErrorClass('RelationExists', ak.DBError),
       defineErrorClass('NoSuchRelation', ak.DBError),
       defineErrorClass('RelationDependency', ak.DBError),
-      defineErrorClass('ConstraintViolation', ak.DBError),
+      defineErrorClass('Constraint', ak.DBError),
       defineErrorClass('Field', ak.DBError),
       defineErrorClass('Query', ak.DBError),
 
