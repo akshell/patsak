@@ -50,7 +50,7 @@ string ku::Stringify(Handle<v8::Value> value)
 void ku::CheckArgsLength(const Arguments& args, int length) {
     if (args.Length() < length)
         throw Error(Error::USAGE,
-                    ("At least" +
+                    ("At least " +
                      lexical_cast<string>(length) +
                      " arguments required"));
 }
