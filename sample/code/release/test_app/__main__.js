@@ -258,8 +258,8 @@ base_test_suite.testHash = function () {
 
 
 base_test_suite.testErrors = function () {
-  check("new ak.AKError() instanceof Error");
-  check("new ak.CoreError() instanceof ak.AKError");
+  check("new ak.BaseError() instanceof Error");
+  check("new ak.CoreError() instanceof ak.BaseError");
   check("ak.CoreError.__name__ == 'ak.CoreError'");
   check("ak.CoreError.prototype.name == 'ak.CoreError'");
   check("new ak.DBError() instanceof ak.CoreError");

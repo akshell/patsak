@@ -26,7 +26,7 @@ namespace ku
         enum Tag {
             TYPE,
 
-            AK,
+            BASE,
             CORE,
             
             USAGE,

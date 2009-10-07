@@ -23,9 +23,9 @@
   }
 
 
-  defineErrorClass('AK', Error);
+  defineErrorClass('Base', Error);
 
-  defineErrorClass('Core', ak.AKError);
+  defineErrorClass('Core', ak.BaseError);
 
   defineErrorClass('Usage', ak.CoreError);
   defineErrorClass('DB', ak.CoreError);
@@ -38,7 +38,7 @@
     [
       TypeError,
 
-      ak.AKError,
+      ak.BaseError,
 
       ak.CoreError,
 
