@@ -16,24 +16,25 @@ namespace ku
     /// of subclass of this type.
     class DBViewer {
     public:
-        struct RelFields {
-            std::string rel_name;
+        struct RelVarFields {
+            std::string rel_var_name;
             StringSet field_names;
 
-            RelFields(const std::string& rel_name, const StringSet& field_names)
-                : rel_name(rel_name), field_names(field_names) {}
+            RelVarFields(const std::string& rel_var_name,
+                         const StringSet& field_names)
+                : rel_var_name(rel_var_name), field_names(field_names) {}
         };
         
         virtual ~DBViewer() {}
 
-        virtual
-        const Header& GetRelHeader(const std::string& rel_name) const = 0;
+        virtual const Header&
+        GetRelVarHeader(const std::string& rel_var_name) const = 0;
         
         virtual
         std::string Quote(const PgLiter& pg_liter) const = 0;
 
         virtual
-        RelFields GetReference(const RelFields& key) const = 0;
+        RelVarFields GetReference(const RelVarFields& key) const = 0;
     };
 
 
@@ -83,12 +84,12 @@ namespace ku
             const TranslateItems& where_items = TranslateItems()) const;
 
         std::string TranslateDelete(
-            const std::string& rel_name,
+            const std::string& rel_var_name,
             const TranslateItems& where_items = TranslateItems()) const;
 
         std::string TranslateExpr(
             const std::string& ku_expr_str,
-            const std::string& rel_name,
+            const std::string& rel_var_name,
             const Header& rel_header) const;
                        
     private:

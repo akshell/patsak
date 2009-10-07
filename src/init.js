@@ -23,7 +23,9 @@
   }
 
 
-  defineErrorClass('Core', Error);
+  defineErrorClass('AK', Error);
+
+  defineErrorClass('Core', ak.AKError);
 
   defineErrorClass('Usage', ak.CoreError);
   defineErrorClass('DB', ak.CoreError);
@@ -36,6 +38,8 @@
     [
       TypeError,
 
+      ak.AKError,
+
       ak.CoreError,
 
       ak.UsageError,
@@ -44,9 +48,9 @@
       ak.AppError,
 
       defineErrorClass('DBQuota', ak.DBError),
-      defineErrorClass('RelationExists', ak.DBError),
-      defineErrorClass('NoSuchRelation', ak.DBError),
-      defineErrorClass('RelationDependency', ak.DBError),
+      defineErrorClass('RelVarExists', ak.DBError),
+      defineErrorClass('NoSuchRelVar', ak.DBError),
+      defineErrorClass('RelVarDependency', ak.DBError),
       defineErrorClass('Constraint', ak.DBError),
       defineErrorClass('Field', ak.DBError),
       defineErrorClass('Query', ak.DBError),
@@ -135,8 +139,8 @@
     ak.path = path;
     try {
       var script = (app
-                    ? ak._compile(ak._readCode(app, path), app + ':' + path)
-                    : ak._compile(ak._readCode(path), path));
+                    ? new ak.Script(ak._readCode(app, path), app + ':' + path)
+                    : new ak.Script(ak._readCode(path), path));
       var result = script._run();
       includeResults[identifier] = result;
       return result;

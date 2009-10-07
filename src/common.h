@@ -26,6 +26,7 @@ namespace ku
         enum Tag {
             TYPE,
 
+            AK,
             CORE,
             
             USAGE,
@@ -34,9 +35,9 @@ namespace ku
             APP,
 
             DB_QUOTA,
-            RELATION_EXISTS,
-            NO_SUCH_RELATION,
-            RELATION_DEPENDENCY,
+            REL_VAR_EXISTS,
+            NO_SUCH_REL_VAR,
+            REL_VAR_DEPENDENCY,
             CONSTRAINT,
             FIELD,
             QUERY,
@@ -89,7 +90,7 @@ namespace ku
         /// Additional type information
         enum Trait {
             COMMON,
-            INT,
+            INTEGER,
             SERIAL
         };
 

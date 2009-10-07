@@ -54,7 +54,7 @@ string Type::GetKuStr(Trait trait) const
     KU_ASSERT(tag_ < DUMMY && IsApplicable(trait));
     if (trait == COMMON)
         return ku_strs[tag_];
-    return string("number.") + (trait == INT ? "int" : "serial");
+    return string("number.") + (trait == INTEGER ? "integer" : "serial");
 }
 
 

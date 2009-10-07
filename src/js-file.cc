@@ -419,7 +419,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ListCb,
     CheckArgsLength(args, 1);
     string path(ReadPath(args[0], true));
     Strings items(FSManager(path).List());
-    Handle<Array> result(Array::New());
+    Handle<Array> result(Array::New(items.size()));
     for (size_t i = 0; i < items.size(); ++i)
         result->Set(Integer::New(i), String::New(items[i].c_str()));
     return result;

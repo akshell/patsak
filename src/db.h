@@ -75,19 +75,19 @@ namespace ku
 
     struct ForeignKey {
         StringSet key_field_names;
-        std::string ref_rel_name;
+        std::string ref_rel_var_name;
         StringSet ref_field_names;
 
         ForeignKey(const StringSet& key_field_names,
-                   const std::string& ref_rel_name,
+                   const std::string& ref_rel_var_name,
                    const StringSet& ref_field_names)
             : key_field_names(key_field_names)
-            , ref_rel_name(ref_rel_name)
+            , ref_rel_var_name(ref_rel_var_name)
             , ref_field_names(ref_field_names) {}
         
         bool operator==(const ForeignKey& other) const {
             return (key_field_names == other.key_field_names &&
-                    ref_rel_name == other.ref_rel_name &&
+                    ref_rel_var_name == other.ref_rel_var_name &&
                     ref_field_names == other.ref_field_names);
         }        
     };
@@ -195,34 +195,37 @@ namespace ku
         struct Data;
         
         explicit Access(Data& data);
-        StringSet GetRelNames() const;
-        bool HasRel(const std::string& rel_name) const;
-        const RichHeader& GetRelRichHeader(const std::string& rel_name) const;
+        StringSet GetRelVarNames() const;
+        bool HasRelVar(const std::string& rel_var_name) const;
+
+        const RichHeader&
+        GetRelVarRichHeader(const std::string& rel_var_name) const;
 
         /// Relation constraints do not save their order after
         /// store/load from DB. Check constraints are not restored at all.
-        const Constrs& GetRelConstrs(const std::string& rel_name) const;
+        const Constrs& GetRelVarConstrs(const std::string& rel_var_name) const;
         
-        void CreateRel(const std::string& name,
-                       const RichHeader& rich_header,
-                       const Constrs& constrs);
+        void CreateRelVar(const std::string& name,
+                          const RichHeader& rich_header,
+                          const Constrs& constrs);
         
-        void DeleteRels(const StringSet& rel_names);
-        void DeleteRel(const std::string& rel_name);
+        void DropRelVars(const StringSet& rel_var_names);
+        void DropRelVar(const std::string& rel_var_name);
         
         QueryResult Query(const std::string& query_str,
                           const Values& params,
                           const Specifiers& specifiers) const;
 
-        unsigned long Update(const std::string& rel_name,
+        unsigned long Update(const std::string& rel_var_name,
                              const StringMap& field_expr_map,
                              const Values& params,
                              const WhereSpecifiers& where_specifiers);
 
-        unsigned long Delete(const std::string& rel_name,
+        unsigned long Delete(const std::string& rel_var_name,
                              const WhereSpecifiers& where_specifiers);
         
-        Values Insert(const std::string& rel_name, const ValueMap& value_map);
+        Values Insert(const std::string& rel_var_name,
+                      const ValueMap& value_map);
 
     private:
         Data& data_;

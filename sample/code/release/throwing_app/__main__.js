@@ -1,4 +1,4 @@
 
 ak._main = function () {
-    throw 42;
+  throw 42;
 };

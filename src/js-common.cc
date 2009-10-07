@@ -99,9 +99,10 @@ void ku::SetFunction(Handle<Template> template_,
 // JSClassBase
 ////////////////////////////////////////////////////////////////////////////////
 
-JSClassBase::JSClassBase(const std::string& name)
+JSClassBase::JSClassBase(const std::string& name,
+                         v8::InvocationCallback constructor)
     : name_(name)
-    , function_template_(FunctionTemplate::New())
+    , function_template_(FunctionTemplate::New(constructor))
 {
     GetInstancePtrs().push_back(this);
     function_template_->SetClassName(String::New(name.c_str()));
@@ -169,9 +170,13 @@ void* JSClassBase::Cast(Handle<v8::Value> value)
 
 void JSClassBase::InitConstructors(Handle<Object> holder)
 {
-    BOOST_FOREACH(JSClassBase* class_ptr, GetInstancePtrs())
-        holder->Set(String::NewSymbol(class_ptr->name_.c_str()),
-                    class_ptr->GetFunction());
+    BOOST_FOREACH(JSClassBase* class_ptr, GetInstancePtrs()) {
+        const string& name(class_ptr->GetName());
+        KU_ASSERT(name.size());
+        holder->Set(String::New(name.c_str()),
+                    class_ptr->GetFunction(),
+                    (name[0] == '_' ? DontEnum : None));
+    }
 }
 
 

@@ -125,8 +125,10 @@ namespace
                                   Type needed_type);
         Type GetParamType(size_t pos) const;
         void PrintParam(size_t pos);
-        const Header& GetRelHeader(const string& rel_name) const;
-        DBViewer::RelFields GetReference(const DBViewer::RelFields& key) const;
+        const Header& GetRelVarHeader(const string& rel_var_name) const;
+
+        DBViewer::RelVarFields
+        GetReference(const DBViewer::RelVarFields& key) const;
 
         template <typename T>
         Control& operator<<(const T& t);
@@ -258,13 +260,14 @@ void Control::PrintParam(size_t pos)
 }
 
 
-const Header& Control::GetRelHeader(const string& rel_name) const
+const Header& Control::GetRelVarHeader(const string& rel_var_name) const
 {
-    return db_viewer_.GetRelHeader(rel_name);
+    return db_viewer_.GetRelVarHeader(rel_var_name);
 }
 
 
-DBViewer::RelFields Control::GetReference(const DBViewer::RelFields& key) const
+DBViewer::RelVarFields
+Control::GetReference(const DBViewer::RelVarFields& key) const
 {
     return db_viewer_.GetReference(key);
 }
@@ -655,7 +658,7 @@ namespace
         const RangeVar& GetRangeVar() const;
         Type TranslateForeignField();
         Type TranslateSelfField() const;
-        string FollowReference(const string& rel_name,
+        string FollowReference(const string& rel_var_name,
                                const StringSet& field_names);
     };
 }
@@ -709,17 +712,18 @@ Type FieldTranslator::TranslateForeignField()
         throw Error(Error::QUERY,
                     ("Operator -> used on non-base rangevar \"" +
                      GetRangeVar().GetName() + '"'));
-    string curr_rel_name(base_ptr->name);
+    string curr_rel_var_name(base_ptr->name);
     for (MultiField::Path::const_iterator itr = multi_field_.path.begin();
          itr != multi_field_.path.end() - 1;
          ++itr)
-        curr_rel_name = FollowReference(curr_rel_name, *itr);
+        curr_rel_var_name = FollowReference(curr_rel_var_name, *itr);
     control_ << "(SELECT "
-             << Quoted(curr_rel_name) << '.' << Quoted(GetFieldName())
+             << Quoted(curr_rel_var_name) << '.' << Quoted(GetFieldName())
              << " FROM " << from_oss_.str()
              << " WHERE " << where_oss_.str()
              << ')';
-    return GetAttrType(control_.GetRelHeader(curr_rel_name), GetFieldName());
+    return GetAttrType(control_.GetRelVarHeader(curr_rel_var_name),
+                       GetFieldName());
 }
 
 
@@ -732,23 +736,24 @@ Type FieldTranslator::TranslateSelfField() const
 }
 
 
-string FieldTranslator::FollowReference(const string& rel_name,
+string FieldTranslator::FollowReference(const string& rel_var_name,
                                         const StringSet& field_names)
 {
-    DBViewer::RelFields key(rel_name, field_names);
-    DBViewer::RelFields ref(control_.GetReference(key));
+    DBViewer::RelVarFields key(rel_var_name, field_names);
+    DBViewer::RelVarFields ref(control_.GetReference(key));
     KU_ASSERT(ref.field_names.size() == field_names.size());
 
     print_from_sep_();
-    from_oss_ << Quoted(ref.rel_name);
+    from_oss_ << Quoted(ref.rel_var_name);
     for (size_t i = 0; i < field_names.size(); ++i) {
         print_where_sep_();
-        where_oss_ << Quoted(rel_name) << '.' << Quoted(field_names[i])
+        where_oss_ << Quoted(rel_var_name) << '.' << Quoted(field_names[i])
                    << " = "
-                   << Quoted(ref.rel_name) << '.' << Quoted(ref.field_names[i]);
+                   << Quoted(ref.rel_var_name)
+                   << '.' << Quoted(ref.field_names[i]);
     }
     
-    return ref.rel_name;
+    return ref.rel_var_name;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -866,7 +871,7 @@ Type ExprTranslator::operator()(const Cond& cond) const
 Header RelTranslator::operator()(const Base& base) const
 {
     control_ << Quoted(base.name);
-    return control_.GetRelHeader(base.name);
+    return control_.GetRelVarHeader(base.name);
 }
 
 
@@ -1063,17 +1068,17 @@ Translator::TranslateUpdate(const TranslateItem& update_item,
 {
     if (field_expr_map.empty())
         throw Error(Error::USAGE, "Empty update field set");
-    const string& rel_name(update_item.ku_str);
+    const string& rel_var_name(update_item.ku_str);
     ostringstream oss;
-    oss << "UPDATE " << Quoted(rel_name) << " SET ";
-    const Header& header(db_viewer_.GetRelHeader(rel_name));
+    oss << "UPDATE " << Quoted(rel_var_name) << " SET ";
+    const Header& header(db_viewer_.GetRelVarHeader(rel_var_name));
 
     OmitInvoker print_sep((SepPrinter(oss)));
     BOOST_FOREACH(const StringMap::value_type& field_expr, field_expr_map) {
         print_sep();
         oss << Quoted(field_expr.first) << " = ";
         oss << ::TranslateExpr(db_viewer_,
-                               rel_name,
+                               rel_var_name,
                                header,
                                TranslateItem(field_expr.second,
                                              update_item.param_types,
@@ -1084,7 +1089,7 @@ Translator::TranslateUpdate(const TranslateItem& update_item,
     
     if (!where_items.empty()) {
         oss << " WHERE ";
-        PrintExprItems(oss, db_viewer_, rel_name, header, where_items,
+        PrintExprItems(oss, db_viewer_, rel_var_name, header, where_items,
                        Type::BOOLEAN, " AND ");
     }
 
@@ -1093,15 +1098,15 @@ Translator::TranslateUpdate(const TranslateItem& update_item,
 
 
 string
-Translator::TranslateDelete(const string& rel_name,
+Translator::TranslateDelete(const string& rel_var_name,
                             const TranslateItems& where_items) const
 {
     ostringstream oss;
-    oss << "DELETE FROM " << Quoted(rel_name);
-    const Header& header(db_viewer_.GetRelHeader(rel_name));
+    oss << "DELETE FROM " << Quoted(rel_var_name);
+    const Header& header(db_viewer_.GetRelVarHeader(rel_var_name));
     if (!where_items.empty()) {
         oss << " WHERE ";
-        PrintExprItems(oss, db_viewer_, rel_name, header, where_items,
+        PrintExprItems(oss, db_viewer_, rel_var_name, header, where_items,
                        Type::BOOLEAN, " AND ");
     }
     return oss.str();
@@ -1109,11 +1114,11 @@ Translator::TranslateDelete(const string& rel_name,
 
 
 string Translator::TranslateExpr(const string& ku_expr_str,
-                                 const string& rel_name,
+                                 const string& rel_var_name,
                                  const Header& rel_header) const
 {
     return ::TranslateExpr(db_viewer_,
-                           rel_name,
+                           rel_var_name,
                            rel_header,
                            TranslateItem(ku_expr_str),
                            Type::BOOLEAN);

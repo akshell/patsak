@@ -89,11 +89,14 @@ namespace ku
         std::string GetName() const;
         v8::Handle<v8::ObjectTemplate> GetObjectTemplate() const;
         static void InitConstructors(v8::Handle<v8::Object> holder);
+        v8::Handle<v8::Function> GetFunction();
         
     protected:
-        JSClassBase(const std::string& name);
+        JSClassBase(const std::string& name,
+                    v8::InvocationCallback constructor = 0);
+        
         ~JSClassBase();
-        v8::Handle<v8::Function> GetFunction();
+        
         void AddSubClass(const JSClassBase& subclass);
         void* Cast(v8::Handle<v8::Value> value);
         v8::Handle<v8::ObjectTemplate> GetProtoTemplate() const;
@@ -113,10 +116,13 @@ namespace ku
     template <typename T>
     class JSClass : public JSClassBase {
     public:
-        JSClass(const std::string& name);
+        JSClass(const std::string& name,
+                v8::InvocationCallback constructor = 0);
 
         v8::Handle<v8::Object> Instantiate(T* bg_ptr);
+        void Attach(v8::Handle<v8::Object> object, T* bg_ptr);
         T* Cast(v8::Handle<v8::Value> value);
+        
         template<typename U>
         void AddSubClass(const JSClass<U>& subclass);
 
@@ -128,8 +134,9 @@ namespace ku
 
 
 template <typename T>
-ku::JSClass<T>::JSClass(const std::string& name)
-    : JSClassBase(name)
+ku::JSClass<T>::JSClass(const std::string& name,
+                        v8::InvocationCallback constructor)
+    : JSClassBase(name, constructor)
 {
     T::AdjustTemplates(GetObjectTemplate(), GetProtoTemplate());
 }
@@ -138,11 +145,17 @@ ku::JSClass<T>::JSClass(const std::string& name)
 template <typename T>
 v8::Handle<v8::Object> ku::JSClass<T>::Instantiate(T* bg_ptr)
 {
-    v8::Persistent<v8::Object>
-        result(v8::Persistent<v8::Object>::New(GetFunction()->NewInstance()));
-    result.MakeWeak(bg_ptr, DeleteCb);
-    result->SetInternalField(0, v8::External::New(bg_ptr));
+    v8::Handle<v8::Object> result(GetFunction()->NewInstance());
+    Attach(result, bg_ptr);
     return result;
+}
+
+
+template <typename T>
+void ku::JSClass<T>::Attach(v8::Handle<v8::Object> object, T* bg_ptr)
+{
+    v8::Persistent<v8::Object>::New(object).MakeWeak(bg_ptr, DeleteCb);
+    object->SetInternalField(0, v8::External::New(bg_ptr));
 }
 
 
@@ -228,6 +241,15 @@ namespace ku
 }
 
 
+#define JS_CATCH(ret_type)                                              \
+    catch (const ku::Error& err) {                                      \
+        ku::ThrowError(err);                                            \
+        return ret_type();                                              \
+    } catch (const std::exception& err) {                               \
+        ku::Fail(err.what());                                           \
+    }
+
+
 #define DECLARE_JS_CLASS(cls)                                           \
     static ku::JSClass<cls>& GetJSClass();                              \
     static void AdjustTemplates(v8::Handle<v8::ObjectTemplate>,         \
@@ -236,8 +258,8 @@ namespace ku
 
 #define DEFINE_JS_CLASS(cls, name, object_template, proto_template)     \
     ku::JSClass<cls>& cls::GetJSClass() {                               \
-        static ku::JSClass<cls> js_class__(name);                       \
-        return js_class__;                                              \
+        static ku::JSClass<cls> result(name);                           \
+        return result;                                                  \
     }                                                                   \
     void cls::AdjustTemplates(v8::Handle<v8::ObjectTemplate> object_template, \
                               v8::Handle<v8::ObjectTemplate> proto_template)
@@ -259,12 +281,7 @@ namespace ku
     {                                                                   \
         try {                                                           \
             return ku::GetBg<cls>(arg.Holder()).name##Impl(arg);        \
-        } catch (const ku::Error& err) {                                \
-            ku::ThrowError(err);                                        \
-            return ret_type();                                          \
-        } catch (const std::exception& err) {                           \
-            ku::Fail(err.what());                                       \
-        }                                                               \
+        } JS_CATCH(ret_type)                                            \
     }                                                                   \
     ret_type cls::name##Impl(arg_type arg_name)
 
@@ -276,12 +293,7 @@ namespace ku
     {                                                                   \
         try {                                                           \
             return ku::GetBg<cls>(arg2.Holder()).name##Impl(arg1, arg2);\
-        } catch (const ku::Error& err) {                                \
-            ku::ThrowError(err);                                        \
-            return ret_type();                                          \
-        } catch (const std::exception& err) {                           \
-            ku::Fail(err.what());                                       \
-        }                                                               \
+        } JS_CATCH(ret_type)                                            \
     }                                                                   \
     ret_type cls::name##Impl(arg1_type arg1_name, arg2_type arg2_name)
 

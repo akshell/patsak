@@ -38,163 +38,6 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// AppBg
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    /// Application background
-    class AppBg {
-    public:
-        DECLARE_JS_CLASS(AppBg);
-
-        AppBg(AppAccessor& app_accessor,
-              FSBg& fs_bg,
-              const string& app_name);
-
-    private:
-        AppAccessor& app_accessor_;
-        FSBg& fs_bg_;
-        string app_name_;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestCb,
-                             const Arguments&) const;
-    };
-}
-
-
-DEFINE_JS_CLASS(AppBg, "App", /*object_template*/, proto_template)
-{
-    SetFunction(proto_template, "_request", RequestCb);
-}
-
-
-AppBg::AppBg(AppAccessor& app_accessor,
-             FSBg& fs_bg,
-             const string& app_name)
-    : app_accessor_(app_accessor)
-    , fs_bg_(fs_bg)
-    , app_name_(app_name)
-{
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AppBg, RequestCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    vector<Handle<v8::Value> > file_values;
-    if (args.Length() > 1) {
-        int32_t length = GetArrayLikeLength(args[1]);
-        if (length == -1)
-            throw Error(Error::TYPE, "Request file list must be array-like");
-        file_values.reserve(length);
-        for (int32_t i = 0; i < length; ++i)
-            file_values.push_back(GetArrayLikeItem(args[1], i));
-    }
-    FSBg::FileAccessor file_accessor(fs_bg_, file_values);
-    
-    const Chars* data_ptr = 0;
-    Chars data;
-    if (args.Length() > 2) {
-        const DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(args[2]);
-        if (data_bg_ptr) {
-            data_ptr = &data_bg_ptr->GetData();
-        } else {
-            String::Utf8Value utf8_value(args[2]);
-            data.assign(*utf8_value, *utf8_value + utf8_value.length());
-            data_ptr = &data;
-        }
-    }
-        
-    Chars result;
-    AppAccessor::Status status = (
-        app_accessor_.Process(app_name_,
-                              data_ptr,
-                              file_accessor.GetFullPathes(),
-                              Stringify(args[0]),
-                              result));
-    switch (status) {
-    case AppAccessor::OK:
-        KU_ASSERT(result.size() >= 3);
-        if (string(&result[0], 3) == "OK\n")
-            return String::New(&result[3], result.size() - 3);
-        KU_ASSERT(string(&result[0], 6) == "ERROR\n");
-        throw Error(Error::APP_EXCEPTION,
-                    "Exception occured in \"" + app_name_ + "\" app");
-    case AppAccessor::NO_SUCH_APP:
-        throw Error(Error::NO_SUCH_APP,
-                    "No such app: \"" + app_name_ + '"');
-    case AppAccessor::INVALID_APP_NAME:
-        throw Error(Error::INVALID_APP_NAME,
-                    "Invalid app name: \"" + app_name_ + '"');
-    case AppAccessor::SELF_REQUEST:
-        throw Error(Error::SELF_REQUEST, "Self request is forbidden");
-    default:
-        KU_ASSERT(status == AppAccessor::TIMED_OUT);
-        throw Error(Error::REQUEST_TIMED_OUT, "Request timed out");
-    }        
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AppCatalogBg
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    /// ak.apps background
-    class AppCatalogBg {
-    public:
-        DECLARE_JS_CLASS(AppCatalogBg);
-
-        AppCatalogBg(AppAccessor& app_accessor, FSBg& fs_bg);
-
-    private:
-        AppAccessor& app_accessor_;
-        FSBg& fs_bg_;
-        
-        DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetAppCb,
-                             Local<String>,
-                             const AccessorInfo&) const;
-
-        DECLARE_JS_CALLBACK2(Handle<Boolean>, HasAppCb,
-                             Local<String>,
-                             const AccessorInfo&) const;
-    };
-}
-
-
-DEFINE_JS_CLASS(AppCatalogBg, "Apps",
-                object_template, /*proto_template*/)
-{
-    AppBg::GetJSClass();
-    object_template->SetNamedPropertyHandler(GetAppCb, 0, HasAppCb);
-}
-
-
-AppCatalogBg::AppCatalogBg(AppAccessor& app_accessor, FSBg& fs_bg)
-    : app_accessor_(app_accessor)
-    , fs_bg_(fs_bg)
-{
-}
-
-
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, AppCatalogBg, GetAppCb,
-                    Local<String>, property,
-                    const AccessorInfo&, /*info*/) const
-{
-    return JSNew<AppBg>(ref(app_accessor_), ref(fs_bg_), Stringify(property));
-}
-
-
-DEFINE_JS_CALLBACK2(Handle<Boolean>, AppCatalogBg, HasAppCb,
-                    Local<String>, property,
-                    const AccessorInfo&, /*info*/) const
-{
-    return Boolean::New(app_accessor_.Exists(Stringify(property)));
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // CodeReader
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -261,15 +104,48 @@ namespace
     private:
         Persistent<Script> script_;
 
+        static Handle<v8::Value> ConstructorCb(const Arguments& args);
+
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, RunCb,
                              const Arguments&) const;
     };
 }
 
 
-DEFINE_JS_CLASS(ScriptBg, "Script", /*object_template*/, proto_template)
+JSClass<ScriptBg>& ScriptBg::GetJSClass() {
+    static JSClass<ScriptBg> result("Script", ConstructorCb);
+    return result;
+}
+
+
+void ScriptBg::AdjustTemplates(Handle<ObjectTemplate> /*object_template*/,
+                               Handle<ObjectTemplate> proto_template)
 {
     SetFunction(proto_template, "_run", RunCb);
+}
+
+
+Handle<v8::Value> ScriptBg::ConstructorCb(const Arguments& args)
+{
+    if (!args.IsConstructCall()) {
+        vector<Handle<v8::Value> > arguments;
+        arguments.reserve(args.Length());
+        for (int i = 0; i < args.Length(); ++i)
+            arguments.push_back(args[i]);
+        return ScriptBg::GetJSClass().GetFunction()->NewInstance(args.Length(),
+                                                                 &arguments[0]);
+    }
+    try {
+        CheckArgsLength(args, 1);
+        Handle<Script> script(
+            args.Length() == 1
+            ? Script::Compile(args[0]->ToString())
+            : Script::Compile(args[0]->ToString(), args[1]));
+        if (!script.IsEmpty())
+            ScriptBg::GetJSClass().Attach(args.This(),
+                                          new ScriptBg(script));
+        return Handle<v8::Value>();
+    } JS_CATCH(Handle<v8::Value>);
 }
 
 
@@ -302,12 +178,14 @@ namespace
     public:
         DECLARE_JS_CLASS(AKBg);
 
-        AKBg(const CodeReader& code_reader);
-        
-        void InitConstructors(Handle<Object> ak) const;
+        AKBg(const CodeReader& code_reader,
+             AppAccessor& app_accessor,
+             FSBg& fs_bg);
         
     private:
         const CodeReader& code_reader_;
+        AppAccessor& app_accessor_;
+        FSBg& fs_bg_;
         
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, PrintCb,
                              const Arguments&) const;
@@ -318,10 +196,13 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadCodeCb,
                              const Arguments&) const;
         
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, CompileCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, HashCb,
                              const Arguments&) const;
         
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, HashCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ConstructCb,
+                             const Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestCb,
                              const Arguments&) const;
     };
 
@@ -342,26 +223,22 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
     SetFunction(proto_template, "_print", PrintCb);
     SetFunction(proto_template, "_setObjectProp", SetObjectPropCb);
     SetFunction(proto_template, "_readCode", ReadCodeCb);
-    SetFunction(proto_template, "_compile", CompileCb);
     SetFunction(proto_template, "_hash", HashCb);
+    SetFunction(proto_template, "_construct", ConstructCb);
+    SetFunction(proto_template, "_request", RequestCb);
+    SetObjectTemplate<DBMediatorBg>(object_template, "_dbMediator");
     SetObjectTemplate<DBBg>(object_template, "db");
-    SetObjectTemplate<RelCatalogBg>(object_template, "rels");
-    SetObjectTemplate<TypeCatalogBg>(object_template, "types");
-    SetObjectTemplate<ConstrCatalogBg>(object_template, "constrs");
     SetObjectTemplate<FSBg>(object_template, "fs");
-    SetObjectTemplate<AppCatalogBg>(object_template, "apps");
 }
 
 
-AKBg::AKBg(const CodeReader& code_reader)
+AKBg::AKBg(const CodeReader& code_reader,
+           AppAccessor& app_accessor,
+           FSBg& fs_bg)
     : code_reader_(code_reader)
+    , app_accessor_(app_accessor)
+    , fs_bg_(fs_bg)
 {
-}
-
-
-void AKBg::InitConstructors(Handle<Object> ak) const
-{
-    JSClassBase::InitConstructors(ak);
 }
 
 
@@ -404,21 +281,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ReadCodeCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, CompileCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    Handle<Script> script;
-    if (args.Length() == 1)
-        script = Script::Compile(args[0]->ToString());
-    else
-        script = Script::Compile(args[0]->ToString(), args[1]);
-    if (script.IsEmpty())
-        return Handle<v8::Value>();
-    return JSNew<ScriptBg>(script);
-}
-
-
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, HashCb,
                     const Arguments&, args) const
 {
@@ -427,6 +289,85 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, HashCb,
                 ? args[0]->ToObject()->GetIdentityHash()
                 : 0);
     return Integer::New(hash);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ConstructCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 2);
+    if (!args[0]->IsFunction ())
+        throw Error(Error::USAGE, "First argument must be function");
+    Handle<Function> constructor(Handle<Function>::Cast(args[0]));
+    int32_t length = GetArrayLikeLength(args[1]);
+    if (length == -1)
+        throw Error(Error::USAGE, "Second argument must be array-like");
+    vector<Handle<v8::Value> > arguments;
+    arguments.reserve(length);
+    for (int32_t i = 0; i < length; ++i)
+        arguments.push_back(GetArrayLikeItem(args[1], i));
+    return constructor->NewInstance(length, &arguments[0]);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 2);
+    string app_name(Stringify(args[0]));
+    string request(Stringify(args[1]));
+    
+    vector<Handle<v8::Value> > file_values;
+    if (args.Length() > 2) {
+        int32_t length = GetArrayLikeLength(args[2]);
+        if (length == -1)
+            throw Error(Error::TYPE, "Request file list must be array-like");
+        file_values.reserve(length);
+        for (int32_t i = 0; i < length; ++i)
+            file_values.push_back(GetArrayLikeItem(args[2], i));
+    }
+    FSBg::FileAccessor file_accessor(fs_bg_, file_values);
+    
+    const Chars* data_ptr = 0;
+    Chars data;
+    if (args.Length() > 3) {
+        const DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(args[3]);
+        if (data_bg_ptr) {
+            data_ptr = &data_bg_ptr->GetData();
+        } else {
+            String::Utf8Value utf8_value(args[3]);
+            data.assign(*utf8_value, *utf8_value + utf8_value.length());
+            data_ptr = &data;
+        }
+    }
+        
+    Chars result;
+    AppAccessor::Status status = (
+        app_accessor_.Process(app_name,
+                              data_ptr,
+                              file_accessor.GetFullPathes(),
+                              request,
+                              result));
+    switch (status) {
+    case AppAccessor::OK:
+        KU_ASSERT(result.size() >= 3);
+        if (string(&result[0], 3) == "OK\n")
+            return String::New(&result[3], result.size() - 3);
+        KU_ASSERT(string(&result[0], 6) == "ERROR\n");
+        throw Error(Error::APP_EXCEPTION,
+                    "Exception occured in \"" + app_name + "\" app");
+    case AppAccessor::NO_SUCH_APP:
+        throw Error(Error::NO_SUCH_APP,
+                    "No such app: \"" + app_name + '"');
+    case AppAccessor::INVALID_APP_NAME:
+        throw Error(Error::INVALID_APP_NAME,
+                    "Invalid app name: \"" + app_name + '"');
+    case AppAccessor::SELF_REQUEST:
+        throw Error(Error::SELF_REQUEST, "Self request is forbidden");
+    default:
+        KU_ASSERT(status == AppAccessor::TIMED_OUT);
+        throw Error(Error::REQUEST_TIMED_OUT, "Request timed out");
+    }        
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -601,8 +542,7 @@ namespace
 {
     class Caller : public Transactor {
     public:
-        Caller(AccessHolder& access_holder,
-               Handle<Function> function,
+        Caller(Handle<Function> function,
                Handle<Object> object,
                Handle<v8::Value> arg);
         virtual void operator()(Access& access);
@@ -610,7 +550,6 @@ namespace
         auto_ptr<Response> GetResult();
 
     private:
-        AccessHolder& access_holder_;
         Handle<Function> function_;
         Handle<Object> object_;
         Handle<v8::Value> arg_;
@@ -619,12 +558,10 @@ namespace
 }
 
 
-Caller::Caller(AccessHolder& access_holder,
-               Handle<Function> function,
+Caller::Caller(Handle<Function> function,
                Handle<Object> object,
                Handle<v8::Value> arg)
-    : access_holder_(access_holder)
-    , function_(function)
+    : function_(function)
     , object_(object)
     , arg_(arg)
 {
@@ -633,7 +570,7 @@ Caller::Caller(AccessHolder& access_holder,
 
 void Caller::operator()(Access& access)
 {
-    AccessHolder::Scope access_scope(access_holder_, access);
+    AccessHolder::Scope access_scope(access);
     TryCatch try_catch;
     Handle<v8::Value> result(function_->Call(object_, 1, &arg_));
     // I don't know the difference in these conditions but together
@@ -684,16 +621,12 @@ public:
 private:
     bool initialized_;
     DB& db_;
-    AccessHolder access_holder_;
     CodeReader code_reader_;
-    GlobalBg global_bg_;
-    AKBg ak_bg_;
+    DBMediatorBg db_mediator_bg_;
     DBBg db_bg_;
-    TypeCatalogBg type_catalog_bg_;
-    RelCatalogBg rel_catalog_bg_;
-    ConstrCatalogBg constr_catalog_bg_;
     FSBg fs_bg_;
-    AppCatalogBg app_catalog_bg_;
+    AKBg ak_bg_;
+    GlobalBg global_bg_;
     Persistent<Context> context_;
     Persistent<Object> ak_;
 
@@ -720,12 +653,8 @@ Program::Impl::Impl(const string& app_name,
     : initialized_(false)
     , db_(db)
     , code_reader_(code_dir, include_dir)
-    , global_bg_()
-    , ak_bg_(code_reader_)
-    , db_bg_(access_holder_)
-    , rel_catalog_bg_(access_holder_)
     , fs_bg_(media_dir)
-    , app_catalog_bg_(app_accessor, fs_bg_)
+    , ak_bg_(code_reader_, app_accessor, fs_bg_)
 {
     ResourceConstraints rc;
     rc.set_max_young_space_size(MAX_YOUNG_SPACE_SIZE);
@@ -741,18 +670,17 @@ Program::Impl::Impl(const string& app_name,
     SetInternal(global_proto, "ak", &ak_bg_);
     ak_ = Persistent<Object>::New(
         global_proto->Get(String::NewSymbol("ak"))->ToObject());
+    SetInternal(ak_, "_dbMediator", &db_mediator_bg_);
     SetInternal(ak_, "db", &db_bg_);
-    SetInternal(ak_, "types", &type_catalog_bg_);
-    SetInternal(ak_, "rels", &rel_catalog_bg_);
-    SetInternal(ak_, "constrs", &constr_catalog_bg_);
     SetInternal(ak_, "fs", &fs_bg_);
-    SetInternal(ak_, "apps", &app_catalog_bg_);
 
     Context::Scope context_scope(context_);
-    ak_bg_.InitConstructors(ak_);
+    JSClassBase::InitConstructors(ak_);
     ak_->Set(String::NewSymbol("_appName"),
              String::New(app_name.c_str()),
              DontEnum);
+    db_mediator_bg_.Init(
+        ak_->Get(String::NewSymbol("_dbMediator"))->ToObject());
     // Run init.js script
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
                                                       sizeof(INIT_JS)),
@@ -811,8 +739,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         Handle<Function> include_func(
             Handle<Function>::Cast(ak_->Get(String::NewSymbol("include"))));
         KU_ASSERT(!include_func.IsEmpty());
-        Caller include_caller(access_holder_,
-                              include_func,
+        Caller include_caller(include_func,
                               ak_,
                               String::New("__main__.js"));
         db_.Perform(include_caller);
@@ -822,7 +749,8 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         initialized_ = true;
     }
     
-    Handle<v8::Value> func_value(object->Get(String::NewSymbol(func_name.c_str())));
+    Handle<v8::Value> func_value(
+        object->Get(String::NewSymbol(func_name.c_str())));
     if (func_value.IsEmpty() || !func_value->IsFunction())
         return auto_ptr<Response>(
             new ErrorResponse('"' + func_name + "\" is not a function"));
@@ -834,7 +762,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         data_value = Null();
     ak_->Set(String::NewSymbol("_data"), data_value, DontEnum);
 
-    Handle<Array> file_array(Array::New());
+    Handle<Array> file_array(Array::New(file_pathes.size()));
     vector<Handle<Object> > files;
     files.reserve(file_pathes.size());
     for (size_t i = 0; i < file_pathes.size(); ++i) {
@@ -849,8 +777,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
              String::New(requester_app.c_str()),
              DontEnum);
 
-    Caller caller(access_holder_,
-                  Handle<Function>::Cast(func_value),
+    Caller caller(Handle<Function>::Cast(func_value),
                   object,
                   String::New(&input[0], input.size()));
     db_.Perform(caller);

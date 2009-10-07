@@ -480,8 +480,8 @@ void Table::ReadMetaData(istream& is)
                     break;
                 key_field_names.add_sure(name);
             }
-            string ref_rel_name;
-            line_iss >> ref_rel_name;
+            string ref_rel_var_name;
+            line_iss >> ref_rel_var_name;
             string delimiter;
             line_iss >> delimiter;
             BOOST_REQUIRE(delimiter == "-");
@@ -494,7 +494,7 @@ void Table::ReadMetaData(istream& is)
                 ref_field_names.add_sure(name);
             }
             constrs_.push_back(ForeignKey(key_field_names,
-                                          ref_rel_name,
+                                          ref_rel_var_name,
                                           ref_field_names));
         } else if (constr_name == "unique") {
             StringSet field_names;
@@ -522,7 +522,7 @@ void Table::ReadMetaData(istream& is)
             rich_attr = RichAttr(rich_attr.GetName(),
                                  rich_attr.GetType(),
                                  constr_name == "int"
-                                 ? Type::INT
+                                 ? Type::INTEGER
                                  : Type::SERIAL,
                                  rich_attr.GetDefaultPtr());
         } else {
@@ -588,16 +588,16 @@ void Table::AddAllUniqueConstr()
 
 namespace
 {
-    class RelCreator : public Transactor {
+    class RelVarCreator : public Transactor {
     public:
-        RelCreator(const string& rel_name, const Table& table)
-            : rel_name_(rel_name), table_(table) {}
+        RelVarCreator(const string& rel_var_name, const Table& table)
+            : rel_var_name_(rel_var_name), table_(table) {}
 
         virtual void operator()(Access& access) {
             const RichHeader& rich_header(table_.GetRichHeader());
-            access.CreateRel(rel_name_,
-                             rich_header,
-                             table_.GetConstrs());
+            access.CreateRelVar(rel_var_name_,
+                                rich_header,
+                                table_.GetConstrs());
             BOOST_FOREACH(const Values& values, table_.GetValuesSet()) {
                 assert(values.size() == rich_header.size());
                 ValueMap value_map;
@@ -605,12 +605,12 @@ namespace
                     value_map.insert(
                         ValueMap::value_type(rich_header[i].GetName(),
                                              values[i]));
-                access.Insert(rel_name_, value_map);
+                access.Insert(rel_var_name_, value_map);
             }
         }
 
     private:
-        string rel_name_;
+        string rel_var_name_;
         Table table_;
     };
 
@@ -647,18 +647,18 @@ namespace
     };
     
 
-    class RelDumper : public Transactor {
+    class RelVarDumper : public Transactor {
     public:
-        RelDumper(const string& rel_name)
-            : rel_name_(rel_name)
-            , querier_(rel_name)
+        RelVarDumper(const string& rel_var_name)
+            : rel_var_name_(rel_var_name)
+            , querier_(rel_var_name)
             , rich_header_ptr_(0)
             , constrs_ptr_(0) {}
 
         virtual void operator()(Access& access) {
             querier_(access);
-            constrs_ptr_ = &access.GetRelConstrs(rel_name_);
-            rich_header_ptr_ = &access.GetRelRichHeader(rel_name_);
+            constrs_ptr_ = &access.GetRelVarConstrs(rel_var_name_);
+            rich_header_ptr_ = &access.GetRelVarRichHeader(rel_var_name_);
         }
 
         Table GetTable() const {
@@ -680,7 +680,7 @@ namespace
         }
 
     private:
-        string rel_name_;
+        string rel_var_name_;
         Querier querier_;
         const RichHeader* rich_header_ptr_;
         const Constrs* constrs_ptr_;
@@ -689,43 +689,44 @@ namespace
 
     class ValuesInserter : public Transactor {
     public:
-        ValuesInserter(const string& rel_name, const Values& values)
-            : rel_name_(rel_name), values_(values) {}
+        ValuesInserter(const string& rel_var_name, const Values& values)
+            : rel_var_name_(rel_var_name), values_(values) {}
 
         virtual void operator()(Access& access) {
-            const RichHeader& rich_header(access.GetRelRichHeader(rel_name_));
+            const RichHeader& rich_header(
+                access.GetRelVarRichHeader(rel_var_name_));
             assert(values_.size() == rich_header.size());
             ValueMap value_map;
             for (size_t i = 0; i < rich_header.size(); ++i)
                 value_map.insert(ValueMap::value_type(rich_header[i].GetName(),
                                                       values_[i]));
-            access.Insert(rel_name_, value_map);
+            access.Insert(rel_var_name_, value_map);
         }
 
     private:
-        string rel_name_;
+        string rel_var_name_;
         Values values_;
     };    
 
     
-    class RelsDeleter : public Transactor {
+    class RelVarsDropper : public Transactor {
     public:
-        RelsDeleter(const StringSet& rel_names)
-            : rel_names_(rel_names) {}
+        RelVarsDropper(const StringSet& rel_var_names)
+            : rel_var_names_(rel_var_names) {}
         
         virtual void operator()(Access& access) {
-            access.DeleteRels(rel_names_);
+            access.DropRelVars(rel_var_names_);
         }
 
     private:
-        StringSet rel_names_;
+        StringSet rel_var_names_;
     };
 
 
-    class RelNamesGetter : public Transactor {
+    class RelVarNamesGetter : public Transactor {
     public:
         virtual void operator()(Access& access) {
-            result_ = access.GetRelNames();
+            result_ = access.GetRelVarNames();
         }
 
         const StringSet& GetResult() const {
@@ -742,19 +743,20 @@ namespace
         DB db;
         
         DBFixture();
-        void LoadRelFromFile(const string& rel_name);
-        void LoadRelFromString(const string& rel_name, const string& str);
+        void LoadRelVarFromFile(const string& rel_var_name);
+        void LoadRelVarFromString(const string& rel_var_name,
+                                  const string& str);
         Table Query(const string& query);
         Table ComplexQuery(const string& query,
                            const Values& params,
                            const Specifiers& specifiers);
-        Table DumpRel(const string& rel_name);
-        void InsertValues(const string& rel_name, const Values& values);
-        void CreateRel(const string& rel_name, const Table& table);
-        StringSet GetRelNames();
-        const RichHeader& GetRelRichHeader(const string& rel_name);
-        void DeleteRels(const StringSet& rel_names);
-        const Constrs& GetRelConstrs(const string& rel_name);
+        Table DumpRelVar(const string& rel_var_name);
+        void InsertValues(const string& rel_var_name, const Values& values);
+        void CreateRelVar(const string& rel_var_name, const Table& table);
+        StringSet GetRelVarNames();
+        const RichHeader& GetRelVarRichHeader(const string& rel_var_name);
+        void DeleteRelVars(const StringSet& rel_var_names);
+        const Constrs& GetRelVarConstrs(const string& rel_var_name);
     };
 }
 
@@ -762,20 +764,22 @@ namespace
 DBFixture::DBFixture()
     : db("dbname=test_patsak password=1q2w3e", "test")
 {
-    DeleteRels(GetRelNames());
-    BOOST_REQUIRE(GetRelNames().empty());
+    DeleteRelVars(GetRelVarNames());
+    BOOST_REQUIRE(GetRelVarNames().empty());
 }
 
 
-void DBFixture::LoadRelFromFile(const string& rel_name)
+void DBFixture::LoadRelVarFromFile(const string& rel_var_name)
 {
-    CreateRel(rel_name, ReadTableFromFile("test/" + rel_name + ".table"));
+    CreateRelVar(rel_var_name,
+                 ReadTableFromFile("test/" + rel_var_name + ".table"));
 }
 
 
-void DBFixture::LoadRelFromString(const string& rel_name, const string& str)
+void DBFixture::LoadRelVarFromString(const string& rel_var_name,
+                                     const string& str)
 {
-    CreateRel(rel_name, ReadTableFromString(str));
+    CreateRelVar(rel_var_name, ReadTableFromString(str));
 }
 
 
@@ -795,55 +799,55 @@ Table DBFixture::ComplexQuery(const string& query,
 }
 
 
-Table DBFixture::DumpRel(const string& rel_name)
+Table DBFixture::DumpRelVar(const string& rel_var_name)
 {
-    RelDumper rel_dumper(rel_name);
+    RelVarDumper rel_dumper(rel_var_name);
     db.Perform(rel_dumper);
     return rel_dumper.GetTable();
 }
 
 
-void DBFixture::InsertValues(const string& rel_name, const Values& values)
+void DBFixture::InsertValues(const string& rel_var_name, const Values& values)
 {
-    ValuesInserter values_inserter(rel_name, values);
+    ValuesInserter values_inserter(rel_var_name, values);
     db.Perform(values_inserter);
 }
 
 
-void DBFixture::CreateRel(const string& rel_name, const Table& table)
+void DBFixture::CreateRelVar(const string& rel_var_name, const Table& table)
 {
-    RelCreator rel_creator(rel_name, table);
+    RelVarCreator rel_creator(rel_var_name, table);
     db.Perform(rel_creator);
-    BOOST_CHECK(DumpRel(rel_name) == table);
+    BOOST_CHECK(DumpRelVar(rel_var_name) == table);
 }
 
 
-StringSet DBFixture::GetRelNames()
+StringSet DBFixture::GetRelVarNames()
 {
-    RelNamesGetter rel_names_getter;
-    db.Perform(rel_names_getter);
-    return rel_names_getter.GetResult();
+    RelVarNamesGetter rel_var_names_getter;
+    db.Perform(rel_var_names_getter);
+    return rel_var_names_getter.GetResult();
 }
 
 
-const RichHeader& DBFixture::GetRelRichHeader(const string& rel_name)
+const RichHeader& DBFixture::GetRelVarRichHeader(const string& rel_var_name)
 {
-    RelDumper rel_dumper(rel_name);
+    RelVarDumper rel_dumper(rel_var_name);
     db.Perform(rel_dumper);
     return rel_dumper.GetRichHeader();
 }
 
 
-void DBFixture::DeleteRels(const StringSet& rel_names)
+void DBFixture::DeleteRelVars(const StringSet& rel_var_names)
 {
-    RelsDeleter rels_deleter(rel_names);
-    db.Perform(rels_deleter);
+    RelVarsDropper rels_dropper(rel_var_names);
+    db.Perform(rels_dropper);
 }
 
 
-const Constrs& DBFixture::GetRelConstrs(const string& rel_name)
+const Constrs& DBFixture::GetRelVarConstrs(const string& rel_var_name)
 {
-    RelDumper rel_dumper(rel_name);
+    RelVarDumper rel_dumper(rel_var_name);
     db.Perform(rel_dumper);
     return rel_dumper.GetConstrs();
 }
@@ -860,8 +864,8 @@ namespace
             : good_name_(good_name), bad_name_(bad_name) {}
         
         virtual void operator()(Access& access) {
-            access.DeleteRel(good_name_);
-            access.GetRelRichHeader(bad_name_); // should fail
+            access.DropRelVar(good_name_);
+            access.GetRelVarRichHeader(bad_name_); // should fail
         }
 
     private:
@@ -872,15 +876,15 @@ namespace
 
     class ThrowingTransactor : public Transactor {
     public:
-        ThrowingTransactor(int throw_count, const string& rel_name)
+        ThrowingTransactor(int throw_count, const string& rel_var_name)
             : throw_count_(throw_count)
             , count_(0)
-            , rel_name_(rel_name) {}
+            , rel_var_name_(rel_var_name) {}
 
         virtual void operator()(Access& access) {
             ++count_;
             if (throw_count_-- > 0) {
-                access.DeleteRel(rel_name_);
+                access.DropRelVar(rel_var_name_);
                 throw pqxx::failure("Must never appear");
             }
         }
@@ -895,16 +899,16 @@ namespace
 
     private:
         int throw_count_, count_;
-        string rel_name_;
+        string rel_var_name_;
     };
 }
 
 
 BOOST_FIXTURE_TEST_CASE(db_test, DBFixture)
 {
-    LoadRelFromFile("User");
-    LoadRelFromFile("Post");
-    LoadRelFromFile("Comment");
+    LoadRelVarFromFile("User");
+    LoadRelVarFromFile("Post");
+    LoadRelVarFromFile("Comment");
 
     Header date_header;
     date_header.add_sure(Attr("d", Type::DATE));
@@ -912,22 +916,22 @@ BOOST_FIXTURE_TEST_CASE(db_test, DBFixture)
     Values row;
     row.push_back(Value(Type::DATE, "2009-03-04 17:41:05.915"));
     date_table.AddRow(row);
-    CreateRel("Date", date_table);
+    CreateRelVar("Date", date_table);
     
-    StringSet rel_names(GetRelNames());
+    StringSet rel_var_names(GetRelVarNames());
 
-    DeleteRels(StringSet());
+    DeleteRelVars(StringSet());
     StringSet user_n_post;
     user_n_post.add_sure("User");
     user_n_post.add_sure("Post");
-    BOOST_REQUIRE_THROW(DeleteRels(user_n_post), Error);
-    BOOST_REQUIRE(GetRelNames() == rel_names);
+    BOOST_REQUIRE_THROW(DeleteRelVars(user_n_post), Error);
+    BOOST_REQUIRE(GetRelVarNames() == rel_var_names);
 
     // Check Transactor throwing capabilities
         
     BadTransactor bad_transactor("Comment", "abracadabra");
     BOOST_REQUIRE_THROW(db.Perform(bad_transactor), Error);
-    BOOST_REQUIRE(GetRelNames() == rel_names);
+    BOOST_REQUIRE(GetRelVarNames() == rel_var_names);
     
     ThrowingTransactor throwing_transactor(2, "Comment");
     db.Perform(throwing_transactor);
@@ -946,11 +950,12 @@ namespace
             : db_fixture_(db_fixture)
             , conn_("dbname=test_patsak password=1q2w3e") {}
 
-        virtual const Header& GetRelHeader(const string& rel_name) const {
+        virtual const Header&
+        GetRelVarHeader(const string& rel_var_name) const {
             headers_.push_back(Header());
             Header& header(headers_.back());
             const RichHeader&
-                rich_header(db_fixture_.GetRelRichHeader(rel_name));
+                rich_header(db_fixture_.GetRelVarRichHeader(rel_var_name));
             header.reserve(rich_header.size());
             BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
                 header.add_sure(Attr(rich_attr.GetName(), rich_attr.GetType()));
@@ -963,15 +968,15 @@ namespace
                     : pg_liter.str);
         }
 
-        virtual RelFields GetReference(const RelFields& key) const {
+        virtual RelVarFields GetReference(const RelVarFields& key) const {
             BOOST_FOREACH(const Constr& constr,
-                          db_fixture_.GetRelConstrs(key.rel_name)) {
+                          db_fixture_.GetRelVarConstrs(key.rel_var_name)) {
                 const ForeignKey*
                     foreign_key_ptr = boost::get<ForeignKey>(&constr);
                 if (foreign_key_ptr &&
                     foreign_key_ptr->key_field_names == key.field_names)
-                    return RelFields(foreign_key_ptr->ref_rel_name,
-                                     foreign_key_ptr->ref_field_names);
+                    return RelVarFields(foreign_key_ptr->ref_rel_var_name,
+                                        foreign_key_ptr->ref_field_names);
             }
             BOOST_FAIL("Reference was not found");
             throw 1; // NEVER REACHED
@@ -1001,9 +1006,9 @@ namespace
 
 BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
 {
-    LoadRelFromFile("User");
-    LoadRelFromFile("Post");
-    LoadRelFromFile("Comment");
+    LoadRelVarFromFile("User");
+    LoadRelVarFromFile("Post");
+    LoadRelVarFromFile("Comment");
     
     TestDBViewer db_viewer(*this);
     Translator translator(db_viewer);
@@ -1187,9 +1192,9 @@ namespace
 
 BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
 {
-    LoadRelFromFile("s");
-    LoadRelFromFile("p");
-    LoadRelFromFile("sp");
+    LoadRelVarFromFile("s");
+    LoadRelVarFromFile("p");
+    LoadRelVarFromFile("sp");
 
     FileTester<Table>("test/query.test",
                       bind(&DBFixture::Query, this, _1),
@@ -1198,28 +1203,28 @@ BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
     BadIndexGetter bad_index_getter("s");
     db.Perform(bad_index_getter);
 
-    LoadRelFromString("str", "val\nstring\n---\n'test\\\"");
+    LoadRelVarFromString("str", "val\nstring\n---\n'test\\\"");
     BOOST_CHECK(Query("str").GetValuesSet().at(0).at(0) ==
                 Value(Type::STRING, "'test\\\""));
 
-    LoadRelFromString("num", "val\nnumber\n---");
+    LoadRelVarFromString("num", "val\nnumber\n---");
     Values cast_values;
     cast_values.push_back(Value(Type::STRING, "125.3"));
     InsertValues("num", cast_values);
     BOOST_CHECK(Query("num").GetValuesSet().at(0).at(0) ==
                 Value(Type::NUMBER, 125.3));    
 
-    CreateRel("empty", Table(Header()));
+    CreateRelVar("empty", Table(Header()));
     InsertValues("empty", Values());
     BOOST_CHECK_THROW(InsertValues("empty", Values()), Error);
     BOOST_CHECK(Query("empty").GetValuesSet().size() == 1);
 
-    LoadRelFromString("bool", "val\nboolean\n---\ntrue\nfalse");
+    LoadRelVarFromString("bool", "val\nboolean\n---\ntrue\nfalse");
 
     BOOST_CHECK_THROW(Query("sp[sid, pid]->sname"), Error);
 
-    LoadRelFromString("s_p_ref",
-                      "id\nnumber\nfk id - s - sid\nfk id - p - pid\n---");
+    LoadRelVarFromString("s_p_ref",
+                         "id\nnumber\nfk id - s - sid\nfk id - p - pid\n---");
     BOOST_CHECK_THROW(Query("s_p_ref.id->city"), Error);
 
     Specifiers specifiers;

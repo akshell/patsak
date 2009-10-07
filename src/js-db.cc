@@ -84,8 +84,8 @@ namespace
 
     Handle<Array> MakeV8Array(const StringSet& string_set)
     {
-        Handle<Array> result(Array::New());
         int32_t size = static_cast<int32_t>(string_set.size());
+        Handle<Array> result(Array::New(size));
         for (int32_t i = 0; i < size; ++i)
             result->Set(Integer::New(i), String::New(string_set[i].c_str()));
         return result;
@@ -124,6 +124,85 @@ namespace
 }    
 
 ////////////////////////////////////////////////////////////////////////////////
+// AccessHolder definitions
+////////////////////////////////////////////////////////////////////////////////
+
+AccessHolder::Scope::Scope(Access& access)
+{
+    KU_ASSERT(!AccessHolder::GetInstance().access_ptr_);
+    AccessHolder::GetInstance().access_ptr_ = &access;
+}
+
+
+AccessHolder::Scope::~Scope()
+{
+    KU_ASSERT(AccessHolder::GetInstance().access_ptr_);
+    AccessHolder::GetInstance().access_ptr_ = 0;
+}
+
+
+AccessHolder& AccessHolder::GetInstance()
+{
+    static AccessHolder result;
+    return result;
+}
+
+
+AccessHolder::AccessHolder()
+    : access_ptr_(0)
+{
+}
+
+
+Access& AccessHolder::operator*() const
+{
+    KU_ASSERT(access_ptr_);
+    return *access_ptr_;
+}
+
+
+Access* AccessHolder::operator->() const
+{
+    KU_ASSERT(access_ptr_);
+    return access_ptr_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ConstrBg
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    class ConstrBg {
+    public:
+        DECLARE_JS_CLASS(ConstrBg);
+        ConstrBg(const Constr& constr);
+        const Constr& GetConstr() const;
+
+    private:
+        Constr constr_;
+    };
+}
+
+
+DEFINE_JS_CLASS(ConstrBg, "Constr", /*object_template*/, /*proto_template*/)
+{
+    // TODO
+}
+
+
+ConstrBg::ConstrBg(const Constr& constr)
+    : constr_(constr)
+{
+}
+
+
+const Constr& ConstrBg::GetConstr() const
+{
+    return constr_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // AddedConstr
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,20 +227,22 @@ namespace
 
     class AddedForeignKey : public AddedConstr {
     public:
-        AddedForeignKey(const string& ref_rel_name,
+        AddedForeignKey(const string& ref_rel_var_name,
                         const string& ref_field_name)
-            : ref_rel_name_(ref_rel_name)
+            : ref_rel_var_name_(ref_rel_var_name)
             , ref_field_name_(ref_field_name) {}
         
         virtual Constr GetConstr(const string& field_name) const {
             StringSet key_field_names, ref_field_names;
             key_field_names.add_sure(field_name);
             ref_field_names.add_sure(ref_field_name_);
-            return ForeignKey(key_field_names, ref_rel_name_, ref_field_names);
+            return ForeignKey(key_field_names,
+                              ref_rel_var_name_,
+                              ref_field_names);
         }
 
     private:
-        string ref_rel_name_;
+        string ref_rel_var_name_;
         string ref_field_name_;
     };
 
@@ -220,7 +301,7 @@ namespace
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetNameCb,
                              Local<String>, const AccessorInfo&) const;
 
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, IntCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, IntegerCb,
                              const Arguments&) const;
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, SerialCb,
@@ -246,7 +327,7 @@ namespace
 DEFINE_JS_CLASS(TypeBg, "Type", object_template, proto_template)
 {
     object_template->SetAccessor(String::NewSymbol("name"), GetNameCb);
-    SetFunction(proto_template, "_int", IntCb);
+    SetFunction(proto_template, "_integer", IntegerCb);
     SetFunction(proto_template, "_serial", SerialCb);
     SetFunction(proto_template, "_default", DefaultCb);
     SetFunction(proto_template, "_unique", UniqueCb);
@@ -309,12 +390,12 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, TypeBg, GetNameCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, IntCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, IntegerCb,
                     const Arguments&, /*args*/) const
 {
     if (trait_ != Type::COMMON)
         throw Error(Error::USAGE, "Trait redefinition");
-    return JSNew<TypeBg>(type_, Type::INT, default_ptr_, ac_ptrs_);
+    return JSNew<TypeBg>(type_, Type::INTEGER, default_ptr_, ac_ptrs_);
 }
 
 
@@ -376,171 +457,27 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, CheckCb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// TypeCatalogBg definitions
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_JS_CLASS(TypeCatalogBg, "Types",
-                object_template, /*proto_template*/)
-{
-    TypeBg::GetJSClass();
-    object_template->SetNamedPropertyHandler(GetTypeCb,
-                                             0,
-                                             HasTypeCb,
-                                             0,
-                                             EnumTypesCb);
-}
-
-
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, TypeCatalogBg, GetTypeCb,
-                    Local<String>, property,
-                    const AccessorInfo&, /*info*/) const
-{
-    string name(Stringify(property));
-    if (name == Type(Type::NUMBER).GetKuStr())
-        return JSNew<TypeBg>(Type::NUMBER);
-    if (name == Type(Type::STRING).GetKuStr())
-        return JSNew<TypeBg>(Type::STRING);
-    if (name == Type(Type::BOOLEAN).GetKuStr())
-        return JSNew<TypeBg>(Type::BOOLEAN);
-    if (name == Type(Type::DATE).GetKuStr())
-        return JSNew<TypeBg>(Type::DATE);
-    return Handle<v8::Value>();
-}
-
-
-DEFINE_JS_CALLBACK2(Handle<Boolean>, TypeCatalogBg, HasTypeCb,
-                    Local<String>, property,
-                    const AccessorInfo&, /*info*/) const
-{
-    string name(Stringify(property));
-    if (name == "number" || name == "string" || name == "boolean")
-        return Boolean::New(true);
-    return Boolean::New(false);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<Array>, TypeCatalogBg, EnumTypesCb,
-                    const AccessorInfo&, /*info*/) const
-{
-    Handle<Array> result(Array::New(3));
-    result->Set(Number::New(0), String::NewSymbol("number"));
-    result->Set(Number::New(1), String::NewSymbol("string"));
-    result->Set(Number::New(2), String::NewSymbol("boolean"));
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// TupleBg
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    /// Background of a tuple of a query result
-    class TupleBg {
-    public:
-        DECLARE_JS_CLASS(TupleBg);
-        
-        TupleBg(const QueryResult& query_result, const Values& tuple);
-
-    private:
-        QueryResult query_result_;
-        Values tuple_;
-
-        const ku::Value* FindField(const string& name) const;
-
-        DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetFieldCb,
-                             Local<String>, const AccessorInfo&) const;
-
-        DECLARE_JS_CALLBACK2(Handle<Boolean>, HasFieldCb,
-                             Local<String>, const AccessorInfo&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<Array>, EnumFieldsCb,
-                             const AccessorInfo&) const;
-    };
-}
-
-
-DEFINE_JS_CLASS(TupleBg, "Tuple", object_template, /*proto_template*/)
-{
-    object_template->SetNamedPropertyHandler(GetFieldCb,
-                                             0,
-                                             HasFieldCb,
-                                             0,
-                                             EnumFieldsCb);
-}
-
-
-TupleBg::TupleBg(const QueryResult& query_result, const Values& tuple)
-    : query_result_(query_result), tuple_(tuple)
-{
-}
-
-
-const ku::Value* TupleBg::FindField(const string& name) const
-{
-    const Header& header(query_result_.GetHeader());
-    for (size_t i = 0; i < header.size(); ++i)
-        if (header[i].GetName() == name)
-            return &tuple_[i];
-    return 0;
-}
-
-
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, TupleBg, GetFieldCb,
-                    Local<String>, property,
-                    const AccessorInfo&, /*info*/) const
-{
-    const ku::Value* ku_value_ptr = FindField(Stringify(property));
-    if (!ku_value_ptr)
-        return Handle<v8::Value>();
-    return MakeV8Value(*ku_value_ptr);
-}
-
-
-DEFINE_JS_CALLBACK2(Handle<Boolean>, TupleBg, HasFieldCb,
-                    Local<String>, property,
-                    const AccessorInfo&, /*info*/) const
-{
-    const ku::Value* ku_value_ptr = FindField(Stringify(property));
-    return Boolean::New(ku_value_ptr);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<Array>, TupleBg, EnumFieldsCb,
-                    const AccessorInfo&, /*info*/) const
-{
-    const Header& header(query_result_.GetHeader());
-    Handle<Array> result(Array::New(header.size()));
-    for (size_t i = 0; i < header.size(); ++i)
-        result->Set(Number::New(i), String::New(header[i].GetName().c_str()));
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// QueryBg
+// RelBg
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
     /// Background of a query result
-    class QueryBg {
+    class RelBg {
     public:
-        DECLARE_JS_CLASS(QueryBg);
+        DECLARE_JS_CLASS(RelBg);
         
-        QueryBg(const AccessHolder& access_holder,
-                const string& query_str,
-                const Values& params,
-                const Specifiers& specifiers);
-        virtual ~QueryBg();
+        RelBg(const string& query_str,
+              const Values& params,
+              const Specifiers& specifiers);
+        virtual ~RelBg();
 
     protected:
-        static void InitObjectTemplate(Handle<ObjectTemplate> object_template);
-        const AccessHolder& GetAccessHolder() const;
+        static void InitRelObjectTemplate(Handle<ObjectTemplate>);
         string GetQueryStr() const;
         const Specifiers& GetSpecifiers() const;
         
     private:
-        const AccessHolder& access_holder_;
         string query_str_;
         Values params_;
         Specifiers specifiers_;
@@ -553,6 +490,10 @@ namespace
 
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetTupleCb,
                              uint32_t, const AccessorInfo&);
+
+        static Handle<v8::Value> SetTupleCb(uint32_t index,
+                                            Local<v8::Value> value,
+                                            const AccessorInfo& info);
 
         DECLARE_JS_CALLBACK2(Handle<Boolean>, HasTupleCb,
                              uint32_t, const AccessorInfo&);
@@ -581,10 +522,9 @@ namespace
 }
 
 
-DEFINE_JS_CLASS(QueryBg, "Query", object_template, proto_template)
+DEFINE_JS_CLASS(RelBg, "Rel", object_template, proto_template)
 {
-    TupleBg::GetJSClass();
-    InitObjectTemplate(object_template);
+    InitRelObjectTemplate(object_template);
     SetFunction(proto_template, "_perform", PerformCb);
     SetFunction(proto_template, "_only", OnlyCb);
     SetFunction(proto_template, "_where", WhereCb);
@@ -592,18 +532,17 @@ DEFINE_JS_CLASS(QueryBg, "Query", object_template, proto_template)
 }
 
 
-QueryBg::QueryBg(const AccessHolder& access_holder,
-                 const string& query_str,
-                 const Values& params,
-                 const Specifiers& specifiers)
-    : access_holder_(access_holder)
-    , query_str_(query_str)
+RelBg::RelBg(const string& query_str,
+             const Values& params,
+             const Specifiers& specifiers)
+    : query_str_(query_str)
     , params_(params)
     , specifiers_(specifiers)
 {
 }
 
-QueryBg::~QueryBg()
+
+RelBg::~RelBg()
 {
     if (query_result_ptr_.get())
         V8::AdjustAmountOfExternalAllocatedMemory(
@@ -611,47 +550,42 @@ QueryBg::~QueryBg()
 }
 
 
-void QueryBg::InitObjectTemplate(Handle<ObjectTemplate> object_template)
+void RelBg::InitRelObjectTemplate(Handle<ObjectTemplate> object_template)
 {
     object_template->SetAccessor(String::NewSymbol("length"),
                                  &GetLengthCb,
                                  0,
                                  Handle<v8::Value>(),
                                  DEFAULT,
-                                 DontEnum);
+                                 ReadOnly |DontEnum | DontDelete);
     
     object_template->SetIndexedPropertyHandler(GetTupleCb,
-                                               0,
+                                               SetTupleCb,
                                                HasTupleCb,
                                                0,
                                                EnumTuplesCb);
 }
 
 
-const AccessHolder& QueryBg::GetAccessHolder() const
-{
-    return access_holder_;
-}
-
-
-string QueryBg::GetQueryStr() const
+string RelBg::GetQueryStr() const
 {
     return query_str_;
 }
 
 
-const Specifiers& QueryBg::GetSpecifiers() const
+const Specifiers& RelBg::GetSpecifiers() const
 {
     return specifiers_;
 }
 
 
-const QueryResult& QueryBg::GetQueryResult()
+const QueryResult& RelBg::GetQueryResult()
 {
     if (!query_result_ptr_.get()) {
-        QueryResult query_result(access_holder_->Query(query_str_,
-                                                       params_,
-                                                       specifiers_));
+        QueryResult query_result(
+            AccessHolder::GetInstance()->Query(query_str_,
+                                               params_,
+                                               specifiers_));
         query_result_ptr_.reset(new QueryResult(query_result));
         V8::AdjustAmountOfExternalAllocatedMemory(
             MEMORY_MULTIPLIER * query_result.GetMemoryUsage());
@@ -660,7 +594,7 @@ const QueryResult& QueryBg::GetQueryResult()
 }
 
 
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, QueryBg, GetLengthCb,
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelBg, GetLengthCb,
                     Local<String>, /*property*/,
                     const AccessorInfo&, /*info*/)
 {
@@ -668,18 +602,32 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, QueryBg, GetLengthCb,
 }
 
 
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, QueryBg, GetTupleCb,
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelBg, GetTupleCb,
                     uint32_t, index,
                     const AccessorInfo&, /*info*/)
 {
     auto_ptr<Values> values_ptr(GetQueryResult().GetValuesPtr(index));
     if (!values_ptr.get())
         return Handle<v8::Value>();
-    return JSNew<TupleBg>(GetQueryResult(), *values_ptr);
+    const Header& header(GetQueryResult().GetHeader());
+    KU_ASSERT(values_ptr->size() == header.size());
+    Handle<Object> result(Object::New());
+    for (size_t i = 0; i < header.size(); ++i)
+        result->Set(String::New(header[i].GetName().c_str()),
+                    MakeV8Value((*values_ptr)[i]));
+    return result;
 }
 
 
-DEFINE_JS_CALLBACK2(Handle<Boolean>, QueryBg, HasTupleCb,
+Handle<v8::Value> RelBg::SetTupleCb(uint32_t /*index*/,
+                                    Local<v8::Value> value,
+                                    const AccessorInfo& /*info*/)
+{
+    return value;
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<Boolean>, RelBg, HasTupleCb,
                     uint32_t, index,
                     const AccessorInfo&, /*info*/)
 {
@@ -690,7 +638,7 @@ DEFINE_JS_CALLBACK2(Handle<Boolean>, QueryBg, HasTupleCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<Array>, QueryBg, EnumTuplesCb,
+DEFINE_JS_CALLBACK1(Handle<Array>, RelBg, EnumTuplesCb,
                     const AccessorInfo&, /*info*/)
 {
     // TODO may it's possible to throw
@@ -704,7 +652,7 @@ DEFINE_JS_CALLBACK1(Handle<Array>, QueryBg, EnumTuplesCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, PerformCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, PerformCb,
                     const Arguments&, /*args*/)
 {
     GetQueryResult();
@@ -712,21 +660,18 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, PerformCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, OnlyCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, OnlyCb,
                     const Arguments&, args) const
 {
     StringSet field_names(ReadStringSet(args));
     Specifiers new_specifiers(specifiers_);
     new_specifiers.push_back(OnlySpecifier(field_names));
-    return JSNew<QueryBg>(ref(access_holder_),
-                          query_str_,
-                          params_,
-                          new_specifiers);
+    return JSNew<RelBg>(query_str_, params_, new_specifiers);
 }
 
 
 template <typename SpecT>
-Handle<v8::Value> QueryBg::GenericSpecify(const Arguments& args) const
+Handle<v8::Value> RelBg::GenericSpecify(const Arguments& args) const
 {
     CheckArgsLength(args,  1);
     string expr_str = Stringify(args[0]);
@@ -741,388 +686,68 @@ Handle<v8::Value> QueryBg::GenericSpecify(const Arguments& args) const
 
 
 Handle<v8::Value>
-QueryBg::InstantiateWithSpecifiers(const Specifiers& new_specifiers) const
+RelBg::InstantiateWithSpecifiers(const Specifiers& new_specifiers) const
 {
-    return JSNew<QueryBg>(ref(access_holder_),
-                          query_str_,
-                          params_,
-                          new_specifiers);
+    return JSNew<RelBg>(query_str_, params_, new_specifiers);
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, WhereCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, WhereCb,
                     const Arguments&, args) const
 {
     return GenericSpecify<WhereSpecifier>(args);
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, QueryBg, ByCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, ByCb,
                     const Arguments&, args) const
 {
     return GenericSpecify<BySpecifier>(args);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// SubRelBg
+// SelectionBg and RelVarBg declarations
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    /// Background of a subrelation
-    class SubRelBg : public QueryBg {
+    class SelectionBg : public RelBg {
     public:
-        DECLARE_JS_CLASS(SubRelBg);
+        DECLARE_JS_CLASS(SelectionBg);
         
-        SubRelBg(const AccessHolder& access_holder,
-                 const string& rel_name,
-                 const Specifiers& specifiers);
+        SelectionBg(const string& rel_var_name,
+                    const Specifiers& specifiers);
 
     private:
-        string GetRelName() const;
+        string GetRelVarName() const;
         
         virtual Handle<v8::Value>
         InstantiateWithSpecifiers(const Specifiers& new_specifiers) const;
 
         WhereSpecifiers GetWhereSpecifiers() const;
 
+        DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetRelVarCb,
+                             Local<String>, const AccessorInfo&);
+        
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, UpdateCb,
                              const Arguments&) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DelCb,
                              const Arguments&) const;
     };
-}
 
 
-DEFINE_JS_CLASS(SubRelBg, "SubRel", object_template, proto_template)
-{
-    InitObjectTemplate(object_template);
-    SetFunction(proto_template, "_update", UpdateCb);
-    SetFunction(proto_template, "_del", DelCb);
-}
-
-
-SubRelBg::SubRelBg(const AccessHolder& access_holder,
-                   const string& rel_name,
-                   const Specifiers& specifiers)
-    : QueryBg(access_holder, rel_name, Values(), specifiers)
-{
-}
-
-
-string SubRelBg::GetRelName() const
-{
-    return GetQueryStr();
-}
-
-
-Handle<v8::Value>
-SubRelBg::InstantiateWithSpecifiers(const Specifiers& new_specifiers) const
-{
-    return JSNew<SubRelBg>(ref(GetAccessHolder()),
-                           GetRelName(),
-                           new_specifiers);
-}
-
-
-WhereSpecifiers SubRelBg::GetWhereSpecifiers() const
-{
-    WhereSpecifiers result;
-    BOOST_FOREACH(const Specifier& specifier, GetSpecifiers()) {
-        const WhereSpecifier*
-            where_specifier_ptr = boost::get<WhereSpecifier>(&specifier);
-        if (where_specifier_ptr)
-            result.push_back(*where_specifier_ptr);
-    }
-    return result;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, UpdateCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    if (!args[0]->IsObject())
-        throw Error(Error::TYPE, "Update argument must be an object");
-    StringMap field_expr_map;
-    PropEnumerator prop_enumerator(args[0]->ToObject());
-    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
-        Prop prop(prop_enumerator.GetProp(i));
-        field_expr_map.insert(StringMap::value_type(Stringify(prop.key),
-                                                    Stringify(prop.value)));
-    }
-    Values params;
-    params.reserve(args.Length() - 1);
-    for (int i = 1; i < args.Length(); ++i)
-        params.push_back(ReadKuValue(args[i]));
-    unsigned long rows_number = GetAccessHolder()->Update(GetRelName(),
-                                                          field_expr_map,
-                                                          params,
-                                                          GetWhereSpecifiers());
-    return Number::New(static_cast<double>(rows_number));
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, SubRelBg, DelCb,
-                    const Arguments&, /*args*/) const
-{
-    unsigned long rows_number = GetAccessHolder()->Delete(GetRelName(),
-                                                          GetWhereSpecifiers());
-    return Number::New(static_cast<double>(rows_number));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// ConstrBg
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class ConstrBg {
+    class RelVarBg {
     public:
-        DECLARE_JS_CLASS(ConstrBg);
-        ConstrBg(const Constr& constr);
-        const Constr& GetConstr() const;
+        DECLARE_JS_CLASS(RelVarBg);
 
-    private:
-        Constr constr_;
-    };
-}
-
-
-DEFINE_JS_CLASS(ConstrBg, "Constr", /*object_template*/, /*proto_template*/)
-{
-    // TODO
-}
-
-
-ConstrBg::ConstrBg(const Constr& constr)
-    : constr_(constr)
-{
-}
-
-
-const Constr& ConstrBg::GetConstr() const
-{
-    return constr_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// ConstrCatalogBg
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_JS_CLASS(ConstrCatalogBg, "Constrs",
-                /*object_template*/, proto_template)
-{
-    ConstrBg::GetJSClass();
-    SetFunction(proto_template, "_unique", UniqueCb);
-    SetFunction(proto_template, "_foreign", ForeignCb);
-    SetFunction(proto_template, "_check", CheckCb);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, UniqueCb,
-                    const Arguments&, args) const
-{
-    StringSet field_names(ReadStringSet(args));
-    return JSNew<ConstrBg>(Unique(field_names));
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, ForeignCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 3);
-    StringSet key_field_names(ReadStringSet(args[0]));
-    StringSet ref_field_names(ReadStringSet(args[2]));
-    return JSNew<ConstrBg>(ForeignKey(key_field_names,
-                                      Stringify(args[1]),
-                                      ref_field_names));
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, ConstrCatalogBg, CheckCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    return JSNew<ConstrBg>(Check(Stringify(args[0])));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AccessHolder definitions
-////////////////////////////////////////////////////////////////////////////////
-
-AccessHolder::Scope::Scope(AccessHolder& access_holder, Access& access)
-    : access_holder_(access_holder)
-{
-    KU_ASSERT(!access_holder_.access_ptr_);
-    access_holder_.access_ptr_ = &access;
-}
-
-
-AccessHolder::Scope::~Scope()
-{
-    KU_ASSERT(access_holder_.access_ptr_);
-    access_holder_.access_ptr_ = 0;
-}
-
-
-AccessHolder::AccessHolder()
-    : access_ptr_(0)
-{
-}
-
-
-Access& AccessHolder::operator*() const
-{
-    KU_ASSERT(access_ptr_);
-    return *access_ptr_;
-}
-
-
-Access* AccessHolder::operator->() const
-{
-    KU_ASSERT(access_ptr_);
-    return access_ptr_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// DBBg definitions
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_JS_CLASS(DBBg, "DB", /*object_template*/, proto_template)
-{
-    QueryBg::GetJSClass();
-    SetFunction(proto_template, "_query", QueryCb);
-    SetFunction(proto_template, "_createRel", CreateRelCb);
-    SetFunction(proto_template, "_dropRels", DropRelsCb);
-}
-
-
-DBBg::DBBg(const AccessHolder& access_holder)
-    : access_holder_(access_holder)
-{
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, QueryCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    string query_str(Stringify(args[0]));
-    Values params;
-    params.reserve(args.Length() - 1);
-    for (int i = 1; i < args.Length(); ++i)
-        params.push_back(ReadKuValue(args[i]));
-    return JSNew<QueryBg>(ref(access_holder_), query_str, params, Specifiers());
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateRelCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 2);
-    string name(Stringify(args[0]));
-    CheckIsIdentifier(name);
-    if (!args[1]->IsObject())
-        throw Error(Error::TYPE, "Relation definition must be an object");
-    RichHeader rich_header;
-    Constrs constrs;
-    Handle<Object> object(args[1]->ToObject());
-    PropEnumerator prop_enumerator(object);
-    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
-        Prop prop(prop_enumerator.GetProp(i));
-        string name(Stringify(prop.key));
-        CheckIsIdentifier(name);
-        const TypeBg& type_bg(GetBg<TypeBg>(prop.value));
-        rich_header.add_sure(RichAttr(name,
-                                      type_bg.GetType(),
-                                      type_bg.GetTrait(),
-                                      type_bg.GetDefaultPtr()));
-        type_bg.CollectConstrs(name, constrs);
-    }
-    constrs.reserve(constrs.size() + args.Length() - 2);
-    for (int i = 2; i < args.Length(); ++i)
-        constrs.push_back(GetBg<ConstrBg>(args[i]).GetConstr());
-    access_holder_->CreateRel(name, rich_header, constrs);
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropRelsCb,
-                    const Arguments&, args) const
-{
-    StringSet rel_names(ReadStringSet(args));
-    access_holder_->DeleteRels(rel_names);
-    return Undefined();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Inserter
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    /// Tuple inserter functor
-    class Inserter {
-    public:
-        Inserter(Access& access, const string& rel_name);
-        Handle<v8::Value> operator()(const Arguments& args) const;
-
-    private:
-        Access& access_;
-        string rel_name_;
-    };
-}
-
-
-Inserter::Inserter(Access& access, const string& rel_name)
-    : access_(access)
-    , rel_name_(rel_name)
-{
-}
-
-
-Handle<v8::Value> Inserter::operator()(const Arguments& args) const
-{
-    CheckArgsLength(args, 1);
-    if (!args[0]->IsObject())
-        throw Error(Error::TYPE, "Insert argument must be an object");
-    Handle<Object> object(args[0]->ToObject());
-    PropEnumerator prop_enumerator(object);
-    ValueMap value_map;
-    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
-        Prop prop(prop_enumerator.GetProp(i));
-        string name(Stringify(prop.key));
-        CheckIsIdentifier(name);
-        value_map.insert(ValueMap::value_type(name, ReadKuValue(prop.value)));
-    }
-    const RichHeader& rich_header(access_.GetRelRichHeader(rel_name_));
-    Values values(access_.Insert(rel_name_, value_map));
-    KU_ASSERT(values.size() == rich_header.size());
-    Handle<Object> result(Object::New());
-    for (size_t i = 0; i < values.size(); ++i)
-        result->Set(String::New(rich_header[i].GetName().c_str()),
-                    MakeV8Value(values[i]));
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// RelBg
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    /// rel.* background
-    class RelBg {
-    public:
-        DECLARE_JS_CLASS(RelBg);
-
-        RelBg(const AccessHolder& access_holder, const string& name);
+        RelVarBg(const string& name);
         
     private:
-        const AccessHolder& access_holder_;
         string name_;
+        
+        const RichHeader& GetRichHeader() const;
+        const Constrs& GetConstrs() const;
 
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetNameCb,
                              Local<String>, const AccessorInfo&) const;
@@ -1130,6 +755,9 @@ namespace
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetHeaderCb,
                              Local<String>, const AccessorInfo&) const;
 
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, CreateCb,
+                             const Arguments&) const;
+        
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, InsertCb,
                              const Arguments&) const;
 
@@ -1139,7 +767,7 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, AllCb,
                              const Arguments&) const;
 
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetIntsCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetIntegersCb,
                              const Arguments&) const;
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetSerialsCb,
@@ -1156,17 +784,115 @@ namespace
     };
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// SelectionBg definitions
+////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(RelBg, "Rel", object_template, proto_template)
+DEFINE_JS_CLASS(SelectionBg, "Selection", object_template, proto_template)
 {
-    SubRelBg::GetJSClass();
-    QueryBg::GetJSClass().AddSubClass(SubRelBg::GetJSClass());
+    InitRelObjectTemplate(object_template);
+    object_template->SetAccessor(String::NewSymbol("relVar"),
+                                 GetRelVarCb,
+                                 0,
+                                 Handle<v8::Value>(),
+                                 DEFAULT,
+                                 ReadOnly | DontEnum | DontDelete);
+    SetFunction(proto_template, "_update", UpdateCb);
+    SetFunction(proto_template, "_del", DelCb);
+}
+
+
+SelectionBg::SelectionBg(const string& rel_var_name,
+                         const Specifiers& specifiers)
+    : RelBg(rel_var_name, Values(), specifiers)
+{
+}
+
+
+string SelectionBg::GetRelVarName() const
+{
+    return GetQueryStr();
+}
+
+
+Handle<v8::Value>
+SelectionBg::InstantiateWithSpecifiers(const Specifiers& new_specifiers) const
+{
+    return JSNew<SelectionBg>(GetRelVarName(), new_specifiers);
+}
+
+
+WhereSpecifiers SelectionBg::GetWhereSpecifiers() const
+{
+    WhereSpecifiers result;
+    BOOST_FOREACH(const Specifier& specifier, GetSpecifiers()) {
+        const WhereSpecifier*
+            where_specifier_ptr = boost::get<WhereSpecifier>(&specifier);
+        if (where_specifier_ptr)
+            result.push_back(*where_specifier_ptr);
+    }
+    return result;
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, SelectionBg, GetRelVarCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/)
+{
+    return JSNew<RelVarBg>(GetRelVarName());
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, SelectionBg, UpdateCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    if (!args[0]->IsObject())
+        throw Error(Error::TYPE, "Update argument must be an object");
+    StringMap field_expr_map;
+    PropEnumerator prop_enumerator(args[0]->ToObject());
+    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
+        Prop prop(prop_enumerator.GetProp(i));
+        field_expr_map.insert(StringMap::value_type(Stringify(prop.key),
+                                                    Stringify(prop.value)));
+    }
+    Values params;
+    params.reserve(args.Length() - 1);
+    for (int i = 1; i < args.Length(); ++i)
+        params.push_back(ReadKuValue(args[i]));
+    unsigned long rows_number = (
+        AccessHolder::GetInstance()->Update(GetRelVarName(),
+                                            field_expr_map,
+                                            params,
+                                            GetWhereSpecifiers()));
+    return Number::New(static_cast<double>(rows_number));
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, SelectionBg, DelCb,
+                    const Arguments&, /*args*/) const
+{
+    unsigned long rows_number = (
+        AccessHolder::GetInstance()->Delete(GetRelVarName(),
+                                            GetWhereSpecifiers()));
+    return Number::New(static_cast<double>(rows_number));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// RelVarBg definitions
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_JS_CLASS(RelVarBg, "RelVar", object_template, proto_template)
+{
+    SelectionBg::GetJSClass();
+    RelBg::GetJSClass().AddSubClass(SelectionBg::GetJSClass());
     object_template->SetAccessor(String::NewSymbol("name"), GetNameCb);
     object_template->SetAccessor(String::NewSymbol("header"), GetHeaderCb);
+    SetFunction(proto_template, "_create", CreateCb);
     SetFunction(proto_template, "_insert", InsertCb);
     SetFunction(proto_template, "_drop", DropCb);
     SetFunction(proto_template, "_all", AllCb);
-    SetFunction(proto_template, "_getInts", GetIntsCb);
+    SetFunction(proto_template, "_getIntegers", GetIntegersCb);
     SetFunction(proto_template, "_getSerials", GetSerialsCb);
     SetFunction(proto_template, "_getDefaults", GetDefaultsCb);
     SetFunction(proto_template, "_getUniques", GetUniquesCb);
@@ -1174,15 +900,26 @@ DEFINE_JS_CLASS(RelBg, "Rel", object_template, proto_template)
 }
 
 
-RelBg::RelBg(const AccessHolder& access_holder,
-                             const string& name)
-    : access_holder_(access_holder)
-    , name_(name)
+RelVarBg::RelVarBg(const string& name)
+    : name_(name)
 {
+    CheckIsIdentifier(name_);
 }
 
 
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelBg, GetNameCb,
+const RichHeader& RelVarBg::GetRichHeader() const
+{
+    return AccessHolder::GetInstance()->GetRelVarRichHeader(name_);
+}
+
+
+const Constrs& RelVarBg::GetConstrs() const
+{
+    return AccessHolder::GetInstance()->GetRelVarConstrs(name_);
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelVarBg, GetNameCb,
                     Local<String>, /*property*/,
                     const AccessorInfo&, /*info*/) const
 {
@@ -1190,50 +927,95 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelBg, GetNameCb,
 }
 
 
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelBg, GetHeaderCb,
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelVarBg, GetHeaderCb,
                     Local<String>, /*property*/,
                     const AccessorInfo&, /*info*/) const
 {
-    const RichHeader& rich_header(access_holder_->GetRelRichHeader(name_));
     Handle<Object> result(Object::New());
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
+    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader())
         result->Set(String::New(rich_attr.GetName().c_str()),
                     JSNew<TypeBg>(rich_attr.GetType()));
     return result;
 }
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, InsertCb,
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, CreateCb,
                     const Arguments&, args) const
 {
-    return Inserter(*access_holder_, name_)(args);
+    CheckArgsLength(args, 1);
+    if (!args[0]->IsObject())
+        throw Error(Error::TYPE, "RelVar declaration must be an object");
+    RichHeader rich_header;
+    Constrs constrs;
+    Handle<Object> object(args[0]->ToObject());
+    PropEnumerator prop_enumerator(object);
+    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
+        Prop prop(prop_enumerator.GetProp(i));
+        string name(Stringify(prop.key));
+        CheckIsIdentifier(name);
+        const TypeBg& type_bg(GetBg<TypeBg>(prop.value));
+        rich_header.add_sure(RichAttr(name,
+                                      type_bg.GetType(),
+                                      type_bg.GetTrait(),
+                                      type_bg.GetDefaultPtr()));
+        type_bg.CollectConstrs(name, constrs);
+    }
+    constrs.reserve(constrs.size() + args.Length() - 1);
+    for (int i = 1; i < args.Length(); ++i)
+        constrs.push_back(GetBg<ConstrBg>(args[i]).GetConstr());
+    AccessHolder::GetInstance()->CreateRelVar(name_, rich_header, constrs);
+    return args.This();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, InsertCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    if (!args[0]->IsObject())
+        throw Error(Error::TYPE, "Insert argument must be an object");
+    Handle<Object> object(args[0]->ToObject());
+    PropEnumerator prop_enumerator(object);
+    ValueMap value_map;
+    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
+        Prop prop(prop_enumerator.GetProp(i));
+        string name(Stringify(prop.key));
+        CheckIsIdentifier(name);
+        value_map.insert(ValueMap::value_type(name, ReadKuValue(prop.value)));
+    }
+    const RichHeader& rich_header(GetRichHeader());
+    Values values(AccessHolder::GetInstance()->Insert(name_, value_map));
+    KU_ASSERT(values.size() == rich_header.size());
+    Handle<Object> result(Object::New());
+    for (size_t i = 0; i < values.size(); ++i)
+        result->Set(String::New(rich_header[i].GetName().c_str()),
+                    MakeV8Value(values[i]));
+    return result;
 }    
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, DropCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, DropCb,
                     const Arguments&, /*args*/) const
 {
-    access_holder_->DeleteRel(name_);
+    AccessHolder::GetInstance()->DropRelVar(name_);
     return Undefined();
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, AllCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, AllCb,
                     const Arguments&, /*args*/) const
 {
-    return JSNew<SubRelBg>(ref(access_holder_),
-                           name_,
-                           Specifiers());
+    return JSNew<SelectionBg>(name_, Specifiers());
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetIntsCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, GetIntegersCb,
                     const Arguments&, /*args*/) const
 {
-    const RichHeader& rich_header(access_holder_->GetRelRichHeader(name_));
     Handle<Array> result(Array::New());
     int32_t i = 0;
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-        if (rich_attr.GetTrait() == Type::INT ||
+    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader())
+        if (rich_attr.GetTrait() == Type::INTEGER ||
             rich_attr.GetTrait() == Type::SERIAL)
             result->Set(Integer::New(i++),
                         String::New(rich_attr.GetName().c_str()));
@@ -1241,13 +1023,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetIntsCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetSerialsCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, GetSerialsCb,
                     const Arguments&, /*args*/) const
 {
-    const RichHeader& rich_header(access_holder_->GetRelRichHeader(name_));
     Handle<Array> result(Array::New());
     int32_t i = 0;
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
+    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader())
         if (rich_attr.GetTrait() == Type::SERIAL)
             result->Set(Integer::New(i++),
                         String::New(rich_attr.GetName().c_str()));
@@ -1255,12 +1036,11 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetSerialsCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetDefaultsCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, GetDefaultsCb,
                     const Arguments&, /*args*/) const
 {
-    const RichHeader& rich_header(access_holder_->GetRelRichHeader(name_));
     Handle<Object> result(Object::New());
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
+    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader())
         if (rich_attr.GetDefaultPtr())
             result->Set(String::New(rich_attr.GetName().c_str()),
                         MakeV8Value(*rich_attr.GetDefaultPtr()));
@@ -1268,13 +1048,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetDefaultsCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetUniquesCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, GetUniquesCb,
                     const Arguments&, /*args*/) const
 {
     Handle<Array> result(Array::New());
     int32_t i = 0;
-    const Constrs& constrs(access_holder_->GetRelConstrs(name_));
-    BOOST_FOREACH(const Constr& constr, constrs) {
+    BOOST_FOREACH(const Constr& constr, GetConstrs()) {
         const Unique* unique_ptr = boost::get<Unique>(&constr);
         if (unique_ptr)
             result->Set(Integer::New(i++),
@@ -1284,20 +1063,19 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetUniquesCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetForeignsCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, GetForeignsCb,
                     const Arguments&, /*args*/) const
 {
     Handle<Array> result(Array::New());
     int32_t i = 0;
-    const Constrs& constrs(access_holder_->GetRelConstrs(name_));
-    BOOST_FOREACH(const Constr& constr, constrs) {
+    BOOST_FOREACH(const Constr& constr, GetConstrs()) {
         const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
         if (foreign_key_ptr) {
             Handle<Object> object(Object::New());
             object->Set(String::NewSymbol("keyFields"),
                         MakeV8Array(foreign_key_ptr->key_field_names));
-            object->Set(String::NewSymbol("refRel"),
-                        String::New(foreign_key_ptr->ref_rel_name.c_str()));
+            object->Set(String::NewSymbol("refRelVar"),
+                        String::New(foreign_key_ptr->ref_rel_var_name.c_str()));
             object->Set(String::NewSymbol("refFields"),
                         MakeV8Array(foreign_key_ptr->ref_field_names));
             result->Set(Integer::New(i++), object);
@@ -1307,52 +1085,137 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, GetForeignsCb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// RelCatalogBg definitions
+// DBMediatorBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(RelCatalogBg, "Rels", object_template, /*proto_template*/)
+DEFINE_JS_CLASS(DBMediatorBg, "_DBMediator",
+                /*object_template*/, proto_template)
 {
     RelBg::GetJSClass();
-    object_template->SetNamedPropertyHandler(GetRelCb,
-                                             0,
-                                             HasRelCb,
-                                             0,
-                                             EnumRelsCb);
+    TypeBg::GetJSClass();
+    ConstrBg::GetJSClass();
+    SetFunction(proto_template, "_query", QueryCb);
+    SetFunction(proto_template, "_dropRelVars", DropRelVarsCb);
+    SetFunction(proto_template, "_unique", UniqueCb);
+    SetFunction(proto_template, "_foreign", ForeignCb);
+    SetFunction(proto_template, "_check", CheckCb);
 }
 
 
-RelCatalogBg::RelCatalogBg(const AccessHolder& access_holder)
-    : access_holder_(access_holder)
+DBMediatorBg::DBMediatorBg()
 {
 }
 
 
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelCatalogBg, GetRelCb,
+void DBMediatorBg::Init(v8::Handle<v8::Object> object) const
+{
+    object->Set(String::New("number"), JSNew<TypeBg>(Type::NUMBER), DontEnum);
+    object->Set(String::New("string"), JSNew<TypeBg>(Type::STRING), DontEnum);
+    object->Set(String::New("bool"), JSNew<TypeBg>(Type::BOOLEAN), DontEnum);
+    object->Set(String::New("date"), JSNew<TypeBg>(Type::DATE), DontEnum);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, QueryCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    string query_str(Stringify(args[0]));
+    Values params;
+    params.reserve(args.Length() - 1);
+    for (int i = 1; i < args.Length(); ++i)
+        params.push_back(ReadKuValue(args[i]));
+    return JSNew<RelBg>(query_str, params, Specifiers());
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DropRelVarsCb,
+                    const Arguments&, args) const
+{
+    StringSet rel_var_names(ReadStringSet(args));
+    AccessHolder::GetInstance()->DropRelVars(rel_var_names);
+    return Undefined();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, UniqueCb,
+                    const Arguments&, args) const
+{
+    StringSet field_names(ReadStringSet(args));
+    return JSNew<ConstrBg>(Unique(field_names));
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, ForeignCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 3);
+    StringSet key_field_names(ReadStringSet(args[0]));
+    StringSet ref_field_names(ReadStringSet(args[2]));
+    return JSNew<ConstrBg>(ForeignKey(key_field_names,
+                                      Stringify(args[1]),
+                                      ref_field_names));
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, CheckCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    return JSNew<ConstrBg>(Check(Stringify(args[0])));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DBBg definitions
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_JS_CLASS(DBBg, "DB", object_template, /*proto_template*/)
+{
+    RelVarBg::GetJSClass();
+    object_template->SetNamedPropertyHandler(GetRelVarCb,
+                                             SetRelVarCb,
+                                             HasRelVarCb,
+                                             0,
+                                             EnumRelVarsCb);
+}
+
+
+DBBg::DBBg()
+{
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, DBBg, GetRelVarCb,
                     Local<String>, property,
                     const AccessorInfo&, /*info*/) const
 {
-    string rel_name(Stringify(property));
-    if (!access_holder_->HasRel(rel_name))
-        return Handle<v8::Value>();
-    return JSNew<RelBg>(ref(access_holder_), rel_name);
+    return JSNew<RelVarBg>(Stringify(property));
 }
 
 
-DEFINE_JS_CALLBACK2(Handle<Boolean>, RelCatalogBg, HasRelCb,
+Handle<v8::Value> DBBg::SetRelVarCb(Local<String> /*property*/,
+                                    Local<v8::Value> value,
+                                    const AccessorInfo& /*info*/)
+{
+    return value;
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<Boolean>, DBBg, HasRelVarCb,
                     Local<String>, property,
                     const AccessorInfo&, /*info*/) const
 {
-    string rel_name(Stringify(property));
-    return Boolean::New(access_holder_->HasRel(rel_name));
+    return Boolean::New(
+        AccessHolder::GetInstance()->HasRelVar(Stringify(property)));
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<Array>, RelCatalogBg, EnumRelsCb,
+DEFINE_JS_CALLBACK1(Handle<Array>, DBBg, EnumRelVarsCb,
                     const AccessorInfo&, /*info*/) const
 {
-    StringSet rel_name_set(access_holder_->GetRelNames());
-    Handle<Array> result(Array::New(rel_name_set.size()));
-    for (size_t i = 0; i < rel_name_set.size(); ++i)
-        result->Set(Integer::New(i), String::New(rel_name_set[i].c_str()));
+    StringSet rel_var_name_set(AccessHolder::GetInstance()->GetRelVarNames());
+    Handle<Array> result(Array::New(rel_var_name_set.size()));
+    for (size_t i = 0; i < rel_var_name_set.size(); ++i)
+        result->Set(Integer::New(i), String::New(rel_var_name_set[i].c_str()));
     return result;
 }
