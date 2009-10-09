@@ -40,11 +40,23 @@ namespace ku
     v8::Handle<v8::Value> GetArrayLikeItem(v8::Handle<v8::Value> value,
                                            int32_t index);
 
+    v8::Handle<v8::Value> Get(v8::Handle<v8::Object> object,
+                              const std::string& name);
+
     void SetFunction(v8::Handle<v8::Template> template_,
                      const std::string& name,
                      v8::InvocationCallback callback);
 
     
+    template <typename OwnerT, typename PropT>
+    void Set(v8::Handle<OwnerT> owner,
+             const std::string& name,
+             v8::Handle<PropT> prop,
+             v8::PropertyAttribute attribs = v8::None) {
+        owner->Set(v8::String::New(name.c_str()), prop, attribs);
+    }
+
+
     struct Prop {
         v8::Handle<v8::Value> key;
         v8::Handle<v8::Value> value;

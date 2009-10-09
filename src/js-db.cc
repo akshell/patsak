@@ -82,12 +82,13 @@ namespace
     }
 
 
-    Handle<Array> MakeV8Array(const StringSet& string_set)
+    template <typename ContainerT>
+    Handle<Array> MakeV8Array(const ContainerT& container)
     {
-        int32_t size = static_cast<int32_t>(string_set.size());
+        int32_t size = static_cast<int32_t>(container.size());
         Handle<Array> result(Array::New(size));
         for (int32_t i = 0; i < size; ++i)
-            result->Set(Integer::New(i), String::New(string_set[i].c_str()));
+            result->Set(Integer::New(i), String::New(container[i].c_str()));
         return result;
     }
 
@@ -613,8 +614,7 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelBg, GetTupleCb,
     KU_ASSERT(values_ptr->size() == header.size());
     Handle<Object> result(Object::New());
     for (size_t i = 0; i < header.size(); ++i)
-        result->Set(String::New(header[i].GetName().c_str()),
-                    MakeV8Value((*values_ptr)[i]));
+        Set(result, header[i].GetName(), MakeV8Value((*values_ptr)[i]));
     return result;
 }
 
@@ -647,7 +647,7 @@ DEFINE_JS_CALLBACK1(Handle<Array>, RelBg, EnumTuplesCb,
     size_t tuples_size = query_result_ptr_->GetSize();
     Handle<Array> result(Array::New(tuples_size));
     for (size_t i = 0; i < tuples_size; ++i)
-        result->Set(Number::New(i), Number::New(i));
+        result->Set(Integer::New(i), Integer::New(i));
     return result;
 }
 
@@ -933,8 +933,7 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelVarBg, GetHeaderCb,
 {
     Handle<Object> result(Object::New());
     BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader())
-        result->Set(String::New(rich_attr.GetName().c_str()),
-                    JSNew<TypeBg>(rich_attr.GetType()));
+        Set(result, rich_attr.GetName(), JSNew<TypeBg>(rich_attr.GetType()));
     return result;
 }
 
@@ -988,8 +987,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, InsertCb,
     KU_ASSERT(values.size() == rich_header.size());
     Handle<Object> result(Object::New());
     for (size_t i = 0; i < values.size(); ++i)
-        result->Set(String::New(rich_header[i].GetName().c_str()),
-                    MakeV8Value(values[i]));
+        Set(result, rich_header[i].GetName(), MakeV8Value(values[i]));
     return result;
 }    
 
@@ -1042,8 +1040,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, GetDefaultsCb,
     Handle<Object> result(Object::New());
     BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader())
         if (rich_attr.GetDefaultPtr())
-            result->Set(String::New(rich_attr.GetName().c_str()),
-                        MakeV8Value(*rich_attr.GetDefaultPtr()));
+            Set(result, rich_attr.GetName(),
+                MakeV8Value(*rich_attr.GetDefaultPtr()));
     return result;
 }
 
@@ -1072,12 +1070,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, GetForeignsCb,
         const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
         if (foreign_key_ptr) {
             Handle<Object> object(Object::New());
-            object->Set(String::NewSymbol("keyFields"),
-                        MakeV8Array(foreign_key_ptr->key_field_names));
-            object->Set(String::NewSymbol("refRelVar"),
-                        String::New(foreign_key_ptr->ref_rel_var_name.c_str()));
-            object->Set(String::NewSymbol("refFields"),
-                        MakeV8Array(foreign_key_ptr->ref_field_names));
+            Set(object, "keyFields",
+                MakeV8Array(foreign_key_ptr->key_field_names));
+            Set(object, "refRelVar",
+                String::New(foreign_key_ptr->ref_rel_var_name.c_str()));
+            Set(object, "refFields",
+                MakeV8Array(foreign_key_ptr->ref_field_names));
             result->Set(Integer::New(i++), object);
         }
     }
@@ -1099,6 +1097,7 @@ DEFINE_JS_CLASS(DBMediatorBg, "_DBMediator",
     SetFunction(proto_template, "_unique", UniqueCb);
     SetFunction(proto_template, "_foreign", ForeignCb);
     SetFunction(proto_template, "_check", CheckCb);
+    SetFunction(proto_template, "_describeApp", DescribeAppCb);
 }
 
 
@@ -1109,10 +1108,10 @@ DBMediatorBg::DBMediatorBg()
 
 void DBMediatorBg::Init(v8::Handle<v8::Object> object) const
 {
-    object->Set(String::New("number"), JSNew<TypeBg>(Type::NUMBER), DontEnum);
-    object->Set(String::New("string"), JSNew<TypeBg>(Type::STRING), DontEnum);
-    object->Set(String::New("bool"), JSNew<TypeBg>(Type::BOOLEAN), DontEnum);
-    object->Set(String::New("date"), JSNew<TypeBg>(Type::DATE), DontEnum);
+    Set(object, "number", JSNew<TypeBg>(Type::NUMBER), DontEnum);
+    Set(object, "string", JSNew<TypeBg>(Type::STRING), DontEnum);
+    Set(object, "bool", JSNew<TypeBg>(Type::BOOLEAN), DontEnum);
+    Set(object, "date", JSNew<TypeBg>(Type::DATE), DontEnum);
 }
 
 
@@ -1163,6 +1162,22 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, CheckCb,
 {
     CheckArgsLength(args, 1);
     return JSNew<ConstrBg>(Check(Stringify(args[0])));
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DescribeAppCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    App app(AccessHolder::GetInstance()->DescribeApp(Stringify(args[0])));
+    Handle<Object> result(Object::New());
+    Set(result, "admin", String::New(app.admin.c_str()));
+    Set(result, "devs", MakeV8Array(app.devs));
+    Set(result, "email", String::New(app.email.c_str()));
+    Set(result, "summary", String::New(app.summary.c_str()));
+    Set(result, "description", String::New(app.description.c_str()));
+    Set(result, "labels", MakeV8Array(app.labels));
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

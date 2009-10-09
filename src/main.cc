@@ -114,23 +114,28 @@ Lock::~Lock()
 
 namespace
 {
+    Error TimedOut()
+    {
+        return Error(Error::REQUEST_TIMED_OUT, "Request timed out");
+    }
+
+    
     class Connector {
     public:
-        enum Result {
-            OK,
-            FAIL,
-            TIMED_OUT
-        };
-        
         Connector(stream_protocol::socket& socket);
-        Result operator()(const stream_protocol::endpoint& endpoint);
+        bool operator()(const stream_protocol::endpoint& endpoint);
 
     private:
-        static const Result INITIAL = static_cast<Result>(-1);
+        enum State {
+            INITIAL,
+            TIMED_OUT,
+            FAIL,
+            OK
+        };
         
         stream_protocol::socket& socket_;
         asio::deadline_timer timer_;
-        Result result_;
+        State state_;
 
         void HandleConnect(const asio::error_code& error);
         void HandleTimer(const asio::error_code& error);
@@ -145,34 +150,35 @@ Connector::Connector(stream_protocol::socket& socket)
 }
 
 
-Connector::Result
-Connector::operator()(const stream_protocol::endpoint& endpoint)
+bool Connector::operator()(const stream_protocol::endpoint& endpoint)
 {
     socket_.get_io_service().reset();
-    result_ = INITIAL;
+    state_ = INITIAL;
     socket_.async_connect(endpoint, bind(&Connector::HandleConnect, this, _1));
     timer_.expires_from_now(CONNECT_TIMEOUT);
     timer_.async_wait(bind(&Connector::HandleTimer, this, _1));
     socket_.get_io_service().run();
-    KU_ASSERT(result_ != INITIAL);
-    return result_;
+    KU_ASSERT(state_ != INITIAL);
+    if (state_ == TIMED_OUT)
+        throw TimedOut();
+    return state_ == OK;
 }
 
 
 void Connector::HandleConnect(const asio::error_code& error)
 {
-    if (result_ == INITIAL) {
+    if (state_ == INITIAL) {
         timer_.cancel();
-        result_ = error ? FAIL : OK;
+        state_ = error ? FAIL : OK;
     }
 }
 
 
 void Connector::HandleTimer(const asio::error_code& /*error*/)
 {
-    if (result_ == INITIAL) {
+    if (state_ == INITIAL) {
         socket_.cancel();
-        result_ = TIMED_OUT;
+        state_ = TIMED_OUT;
     }
 }
 
@@ -184,8 +190,8 @@ namespace
 {
     class Reader {
     public:
-        Reader(stream_protocol::socket& socket, Chars& data);
-        bool operator()();
+        Reader(stream_protocol::socket& socket);
+        Chars operator()();
 
     private:
         enum State {
@@ -196,9 +202,9 @@ namespace
         
         stream_protocol::socket& socket_;
         asio::streambuf buf_;
-        Chars& data_;
         asio::deadline_timer timer_;
         State state_;
+        Chars result_;
 
         void HandleRead(const asio::error_code& error, size_t size);
         void HandleTimer(const asio::error_code& error);
@@ -206,15 +212,14 @@ namespace
 }
 
 
-Reader::Reader(stream_protocol::socket& socket, Chars& data)
+Reader::Reader(stream_protocol::socket& socket)
     : socket_(socket)
-    , data_(data)
     , timer_(socket.get_io_service())
 {
 }
 
 
-bool Reader::operator()()
+Chars Reader::operator()()
 {
     state_ = INITIAL;
     async_read(socket_, buf_, bind(&Reader::HandleRead, this, _1, _2));
@@ -223,7 +228,9 @@ bool Reader::operator()()
     socket_.get_io_service().reset();
     socket_.get_io_service().run();
     KU_ASSERT(state_ != INITIAL);
-    return state_ == OK;
+    if (state_ == TIMED_OUT)
+        throw TimedOut();
+    return result_;
 }
 
 
@@ -231,9 +238,9 @@ void Reader::HandleRead(const asio::error_code& /*error*/, size_t size)
 {
     if (state_ == INITIAL) {
         timer_.cancel();
-        data_.resize(size);
+        result_.resize(size);
         buf_.commit(size);
-        istream(&buf_).read(&data_[0], size);
+        istream(&buf_).read(&result_[0], size);
         state_ = OK;
     }
 }
@@ -262,13 +269,11 @@ namespace
                         const Strings& args,
                         const string& user); // user is held by reference
         
-        virtual Status Process(const string& self_name,
-                               const Chars* data_ptr,
-                               const Strings& file_pathes,
-                               const string& request,
-                               Chars& result);
-
-        virtual bool Exists(const string& app_name);
+        virtual Chars operator()(const string& app_name,
+                                 const string& request,
+                                 const Strings& file_pathes,
+                                 const Chars* data_ptr,
+                                 const Access& access);
         
     private:
         asio::io_service io_service_;
@@ -300,38 +305,28 @@ AppAccessorImpl::AppAccessorImpl(const string& self_name,
 }
 
 
-AppAccessor::Status AppAccessorImpl::Process(const string& app_name,
-                                             const Chars* data_ptr,
-                                             const Strings& file_pathes,
-                                             const string& request,
-                                             Chars& result)
+Chars AppAccessorImpl::operator()(const string& app_name,
+                                  const string& request,
+                                  const Strings& file_pathes,
+                                  const Chars* data_ptr,
+                                  const Access& access)
 {
-    if (app_name.empty() || app_name.find('/') != string::npos ||
-        app_name == "."  || app_name == "..")
-        return INVALID_APP_NAME;
     if (app_name == self_name_)
-        return SELF_REQUEST;
+        throw Error(Error::SELF_REQUEST, "Self request is forbidden");
+    access.CheckAppExists(app_name);
     
     stream_protocol::endpoint endpoint(socket_dir_ + "/release/" + app_name);
     stream_protocol::socket socket(io_service_);
 
     Connector connector(socket);
-    Connector::Result connect_result = connector(endpoint);
-    if (connect_result == Connector::TIMED_OUT)
-        return TIMED_OUT;
-    if (connect_result == Connector::FAIL) {
+    if (!connector(endpoint)) {
         Lock(guard_dir_ + "/release/" + app_name);
-        if (!Exists(app_name))
-            return NO_SUCH_APP;
-        connect_result = connector(endpoint);
-        if (connect_result == Connector::TIMED_OUT)
-            return TIMED_OUT;
-        if (connect_result == Connector::FAIL) {
+        if (!connector(endpoint)) {
             LaunchApp(app_name);
-            connect_result = connector(endpoint);
+            bool connected = connector(endpoint);
+            KU_ASSERT(connected);
         }
     }
-    KU_ASSERT(connect_result == Connector::OK);
 
     vector<asio::const_buffer> buffers;
     buffers.reserve(file_pathes.size() + 5);
@@ -365,24 +360,7 @@ AppAccessor::Status AppAccessorImpl::Process(const string& app_name,
     asio::write(socket, buffers, asio::transfer_all(), error_code);
     KU_ASSERT(!error_code);
 
-    Reader reader(socket, result);
-    if (!reader())
-        return TIMED_OUT;
-    return OK;
-}
-
-
-bool AppAccessorImpl::Exists(const string& app_name)
-{
-    string code_path(code_dir_ + "/release/" + app_name);
-    struct stat st;
-    int ret = stat(code_path.c_str(), &st);
-    if (ret == -1) {
-        KU_ASSERT(errno == ENOENT);
-        return false;
-    }
-    KU_ASSERT(S_ISDIR(st.st_mode));
-    return true;
+    return Reader(socket)();
 }
 
 

@@ -52,22 +52,13 @@ Values ku::GetTupleValues(const pqxx::result::tuple& tuple,
     result.reserve(tuple.size());
     for (size_t i = 0; i < tuple.size(); ++i) {
         pqxx::result::field field(tuple[i]);
-        KU_ASSERT(!field.is_null());
         Type type(header[i].GetType());
-        if (type == Type::NUMBER) {
-            double d;
-            field >> d;
-            result.push_back(Value(type, d));
-        } else if (type == Type::STRING) {
-            result.push_back(Value(type, field.c_str()));        
-        } else if (type == Type::BOOLEAN) {
-            bool b;
-            field >> b;
-            result.push_back(Value(type, b));
-        } else {
-            KU_ASSERT(type == Type::DATE);
-            result.push_back(Value(type, field.c_str()));
-        }
+        if (type == Type::NUMBER)
+            result.push_back(Value(type, field.as<double>()));
+        else if (type == Type::BOOLEAN)
+            result.push_back(Value(type, field.as<bool>()));
+        else
+            result.push_back(Value(type, field.as<string>()));
     }
     return result;
 }

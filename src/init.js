@@ -68,7 +68,6 @@
 
       defineErrorClass('AppException', ak.AppError),
       defineErrorClass('NoSuchApp', ak.AppError),
-      defineErrorClass('InvalidAppName', ak.AppError),
       defineErrorClass('SelfRequest', ak.AppError),
       defineErrorClass('RequestTimedOut', ak.AppError)
     ]);

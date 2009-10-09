@@ -13,6 +13,7 @@
 namespace ku
 {
     class DB;
+    class Access;
 
 
     /// Program response interface
@@ -28,21 +29,11 @@ namespace ku
     /// Other application accessor interface
     class AppAccessor {
     public:
-        enum Status {
-            OK,
-            NO_SUCH_APP,
-            INVALID_APP_NAME,
-            SELF_REQUEST,
-            TIMED_OUT
-        };
-        
-        virtual Status Process(const std::string& app_name,
-                               const Chars* data_ptr,
-                               const Strings& file_pathes,
-                               const std::string& request,
-                               Chars& result) = 0;
-
-        virtual bool Exists(const std::string& app_name) = 0;
+        virtual Chars operator()(const std::string& app_name,
+                                 const std::string& request,
+                                 const Strings& file_pathes,
+                                 const Chars* data_ptr,
+                                 const Access& access) = 0;
     };
     
 

@@ -20,19 +20,11 @@ using boost::lexical_cast;
 // Stuff
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    Handle<Object> GetErrors()
-    {
-        return (Context::GetCurrent()->Global()
-                ->Get(String::NewSymbol("ak"))->ToObject()
-                ->Get(String::NewSymbol("_errors"))->ToObject());
-    }
-}
-
-
 void ku::ThrowError(const ku::Error& err) {
-    static Persistent<Object> errors(Persistent<Object>::New(GetErrors()));
+    static Persistent<Object> errors(
+        Persistent<Object>::New(
+            Get(Get(Context::GetCurrent()->Global(), "ak")->ToObject(),
+                "_errors")->ToObject()));
     Handle<v8::Value> message(String::New(err.what()));
     ThrowException(
         Function::Cast(*errors->Get(Integer::New(err.GetTag())))
@@ -86,13 +78,17 @@ Handle<v8::Value> ku::GetArrayLikeItem(Handle<v8::Value> value, int32_t index)
 }
 
 
+Handle<v8::Value> ku::Get(Handle<Object> object, const string& name)
+{
+    return object->Get(String::New(name.c_str()));
+}
+
+
 void ku::SetFunction(Handle<Template> template_,
                      const string& name,
                      InvocationCallback callback)
 {
-    template_->Set(String::NewSymbol(name.c_str()),
-                   FunctionTemplate::New(callback),
-                   DontEnum);
+    Set(template_, name.c_str(), FunctionTemplate::New(callback), DontEnum);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,9 +169,9 @@ void JSClassBase::InitConstructors(Handle<Object> holder)
     BOOST_FOREACH(JSClassBase* class_ptr, GetInstancePtrs()) {
         const string& name(class_ptr->GetName());
         KU_ASSERT(name.size());
-        holder->Set(String::New(name.c_str()),
-                    class_ptr->GetFunction(),
-                    (name[0] == '_' ? DontEnum : None));
+        Set(holder, name,
+            class_ptr->GetFunction(),
+            (name[0] == '_' ? DontEnum : None));
     }
 }
 

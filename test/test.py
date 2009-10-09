@@ -29,8 +29,9 @@ SPOT_NAME     = 'test_spot'
 CONFIG_PATH   = 'patsak.config'
 DB_NAME       = 'test_patsak'
 DB_PARAMS     = 'user=test password=test dbname=%s'
-RELEASE_DIR   = os.path.join(os.path.dirname(__file__),
-                             '../sample/code/release')
+TEST_DIR      = os.path.dirname(__file__)
+RELEASE_DIR   = os.path.join(TEST_DIR, '../sample/code/release')
+INIT_DB_PATH  = os.path.join(TEST_DIR, 'init-db.sql')
 
 
 class _Response:
@@ -287,6 +288,7 @@ def _create_db():
     conn.close()
     conn = psycopg2.connect(DB_PARAMS % DB_NAME)
     cursor = conn.cursor()
+    cursor.execute(open(INIT_DB_PATH).read())
     for app_name in os.listdir(RELEASE_DIR):
         if (app_name[0] == '.' or
             not os.path.isdir(os.path.join(RELEASE_DIR, app_name))):

@@ -55,7 +55,6 @@ namespace ku
             
             APP_EXCEPTION,
             NO_SUCH_APP,
-            INVALID_APP_NAME,
             SELF_REQUEST,
             REQUEST_TIMED_OUT
         };

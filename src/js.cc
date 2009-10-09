@@ -73,9 +73,7 @@ Chars CodeReader::operator()(const string& path) const
 
 Chars CodeReader::operator()(const string& app_name, const string& path) const
 {
-    if (app_name.find_first_of('/') != string::npos)
-        throw Error(Error::INVALID_APP_NAME,
-                    "App name could not contain slashes");
+    AccessHolder::GetInstance()->CheckAppExists(app_name);
     return Read(include_path_ + '/' + app_name, path);
 }
 
@@ -178,11 +176,15 @@ namespace
     public:
         DECLARE_JS_CLASS(AKBg);
 
-        AKBg(const CodeReader& code_reader,
+        AKBg(const string& app_name,
+             const CodeReader& code_reader,
              AppAccessor& app_accessor,
              FSBg& fs_bg);
+
+        void Init(Handle<Object> object) const;
         
     private:
+        string app_name_;
         const CodeReader& code_reader_;
         AppAccessor& app_accessor_;
         FSBg& fs_bg_;
@@ -211,8 +213,7 @@ namespace
     void SetObjectTemplate(Handle<ObjectTemplate> holder_template,
                            const string& name)
     {
-        holder_template->Set(name.c_str(),
-                             BgT::GetJSClass().GetObjectTemplate());
+        Set(holder_template, name, BgT::GetJSClass().GetObjectTemplate());
     }
 }
 
@@ -232,13 +233,22 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 }
 
 
-AKBg::AKBg(const CodeReader& code_reader,
+AKBg::AKBg(const string& app_name,
+           const CodeReader& code_reader,
            AppAccessor& app_accessor,
            FSBg& fs_bg)
-    : code_reader_(code_reader)
+    : app_name_(app_name)
+    , code_reader_(code_reader)
     , app_accessor_(app_accessor)
     , fs_bg_(fs_bg)
 {
+}
+
+
+void AKBg::Init(Handle<Object> object) const
+{
+    JSClassBase::InitConstructors(object);
+    Set(object, "_appName", String::New(app_name_.c_str()), DontEnum);
 }
 
 
@@ -341,33 +351,19 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestCb,
         }
     }
         
-    Chars result;
-    AppAccessor::Status status = (
-        app_accessor_.Process(app_name,
-                              data_ptr,
-                              file_accessor.GetFullPathes(),
-                              request,
-                              result));
-    switch (status) {
-    case AppAccessor::OK:
-        KU_ASSERT(result.size() >= 3);
-        if (string(&result[0], 3) == "OK\n")
-            return String::New(&result[3], result.size() - 3);
+    Chars result(app_accessor_(app_name,
+                               request,
+                               file_accessor.GetFullPathes(),
+                               data_ptr,
+                               *AccessHolder::GetInstance()));
+    KU_ASSERT(result.size() >= 3);
+    if (string(&result[0], 3) == "OK\n") {
+        return String::New(&result[3], result.size() - 3);
+    } else {
         KU_ASSERT(string(&result[0], 6) == "ERROR\n");
         throw Error(Error::APP_EXCEPTION,
                     "Exception occured in \"" + app_name + "\" app");
-    case AppAccessor::NO_SUCH_APP:
-        throw Error(Error::NO_SUCH_APP,
-                    "No such app: \"" + app_name + '"');
-    case AppAccessor::INVALID_APP_NAME:
-        throw Error(Error::INVALID_APP_NAME,
-                    "Invalid app name: \"" + app_name + '"');
-    case AppAccessor::SELF_REQUEST:
-        throw Error(Error::SELF_REQUEST, "Self request is forbidden");
-    default:
-        KU_ASSERT(status == AppAccessor::TIMED_OUT);
-        throw Error(Error::REQUEST_TIMED_OUT, "Request timed out");
-    }        
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -387,11 +383,9 @@ namespace
 
 DEFINE_JS_CLASS(GlobalBg, "Global", object_template, /*proto_template*/)
 {
-    Handle<ObjectTemplate>
-        ak_object_template(AKBg::GetJSClass().GetObjectTemplate());
-    object_template->Set(String::NewSymbol("ak"),
-                         ak_object_template,
-                         ReadOnly | DontDelete);
+    Set(object_template, "ak",
+        AKBg::GetJSClass().GetObjectTemplate(),
+        ReadOnly | DontDelete);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -654,7 +648,7 @@ Program::Impl::Impl(const string& app_name,
     , db_(db)
     , code_reader_(code_dir, include_dir)
     , fs_bg_(media_dir)
-    , ak_bg_(code_reader_, app_accessor, fs_bg_)
+    , ak_bg_(app_name, code_reader_, app_accessor, fs_bg_)
 {
     ResourceConstraints rc;
     rc.set_max_young_space_size(MAX_YOUNG_SPACE_SIZE);
@@ -668,19 +662,14 @@ Program::Impl::Impl(const string& app_name,
     Handle<Object> global_proto(context_->Global()->GetPrototype()->ToObject());
     global_proto->SetInternalField(0, External::New(&global_bg_));
     SetInternal(global_proto, "ak", &ak_bg_);
-    ak_ = Persistent<Object>::New(
-        global_proto->Get(String::NewSymbol("ak"))->ToObject());
+    ak_ = Persistent<Object>::New(Get(global_proto, "ak")->ToObject());
     SetInternal(ak_, "_dbMediator", &db_mediator_bg_);
     SetInternal(ak_, "db", &db_bg_);
     SetInternal(ak_, "fs", &fs_bg_);
 
     Context::Scope context_scope(context_);
-    JSClassBase::InitConstructors(ak_);
-    ak_->Set(String::NewSymbol("_appName"),
-             String::New(app_name.c_str()),
-             DontEnum);
-    db_mediator_bg_.Init(
-        ak_->Get(String::NewSymbol("_dbMediator"))->ToObject());
+    ak_bg_.Init(ak_);
+    db_mediator_bg_.Init(Get(ak_, "_dbMediator")->ToObject());
     // Run init.js script
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
                                                       sizeof(INIT_JS)),
@@ -737,7 +726,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     Context::Scope context_scope(context_);
     if (!initialized_) {
         Handle<Function> include_func(
-            Handle<Function>::Cast(ak_->Get(String::NewSymbol("include"))));
+            Handle<Function>::Cast(Get(ak_, "include")));
         KU_ASSERT(!include_func.IsEmpty());
         Caller include_caller(include_func,
                               ak_,
@@ -749,8 +738,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         initialized_ = true;
     }
     
-    Handle<v8::Value> func_value(
-        object->Get(String::NewSymbol(func_name.c_str())));
+    Handle<v8::Value> func_value(Get(object, func_name));
     if (func_value.IsEmpty() || !func_value->IsFunction())
         return auto_ptr<Response>(
             new ErrorResponse('"' + func_name + "\" is not a function"));
@@ -760,7 +748,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         data_value = JSNew<DataBg>(data_ptr);
     else
         data_value = Null();
-    ak_->Set(String::NewSymbol("_data"), data_value, DontEnum);
+    Set(ak_, "_data", data_value, DontEnum);
 
     Handle<Array> file_array(Array::New(file_pathes.size()));
     vector<Handle<Object> > files;
@@ -770,12 +758,10 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         files.push_back(file);
         file_array->Set(Integer::New(i), file);
     }
-    ak_->Set(String::NewSymbol("_files"), file_array, DontEnum);
+    Set(ak_, "_files", file_array, DontEnum);
 
-    ak_->Set(String::NewSymbol("_user"), String::New(user.c_str()), DontEnum);
-    ak_->Set(String::NewSymbol("_requesterAppName"),
-             String::New(requester_app.c_str()),
-             DontEnum);
+    Set(ak_, "_user", String::New(user.c_str()), DontEnum);
+    Set(ak_, "_requesterAppName", String::New(requester_app.c_str()), DontEnum);
 
     Caller caller(Handle<Function>::Cast(func_value),
                   object,
@@ -794,8 +780,7 @@ void Program::Impl::SetInternal(Handle<Object> object,
                                 const string& field,
                                 void* ptr) const
 {
-    object->Get(String::NewSymbol(field.c_str()))->
-        ToObject()->SetInternalField(0, External::New(ptr));
+    Get(object, field)->ToObject()->SetInternalField(0, External::New(ptr));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

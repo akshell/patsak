@@ -21,7 +21,8 @@ var date = ak._dbMediator.date;
   'dropRelVars',
   'unique',
   'foreign',
-  'check'
+  'check',
+  'describeApp'
 ].map(function (name) {
         ak[name] = function () {
           return ak._dbMediator['_' + name].apply(ak._dbMediator,
@@ -139,7 +140,7 @@ base_test_suite.testInclude = function ()  {
   checkThrow(ak.PathError, "ak.include('../out-of-base-dir.js')");
   checkThrow(ak.CyclicIncludeError, "ak.include('self-includer.js')");
   checkThrow(ak.CyclicIncludeError, "ak.include('cycle-includer1.js')");
-  checkThrow(ak.NoSuchEntryError, "ak.include('no_such_lib', 'xxx.js')");
+  checkThrow(ak.NoSuchAppError, "ak.include('no_such_lib', 'xxx.js')");
   checkEqualTo("ak.include('lib/0.1/', '/42.js')", 42);
   checkEqualTo("ak.include('lib', '0.1/42.js')", 42);
   ak.include('//subdir///once.js');
@@ -205,7 +206,7 @@ base_test_suite.testAppName = function () {
 base_test_suite.testReadCode = function () {
   check("ak._readCode('subdir/hi.txt') == 'russian привет\\n'");
   check("ak._readCode('bad_app', '__main__.js') == 'wuzzup!!!!!!!!\\n'");
-  checkThrow(ak.InvalidAppNameError,
+  checkThrow(ak.NoSuchAppError,
              "ak._readCode('illegal/name', 'main.js')");
   checkThrow(ak.PathError, "ak._readCode('test_app', '')");
   checkThrow(ak.PathError,
@@ -779,6 +780,26 @@ db_test_suite.testQuota = function () {
   db.R._drop();
 };
 
+
+db_test_suite.testDescribeApp = function () {
+  checkEqualTo(items(ak.describeApp('test_app')),
+               [['admin', 'test_user'],
+                ['devs', ['Odysseus', 'Achilles']],
+                ['email', 'a@b.com'],
+                ['summary', 'test app'],
+                ['description', 'test app...'],
+                ['labels', ['1', '2']]]);
+  checkEqualTo(items(ak.describeApp('another_app')),
+               [["admin", "Odysseus"],
+                ["devs", []],
+                ["email", "x@y.com"],
+                ["summary", "another app"],
+                ["description", "another app..."],
+                ["labels", ["1"]]]);
+  checkThrow(ak.NoSuchAppError, "ak.describeApp('no_such_app')");
+  checkThrow(ak.UsageError, "ak.describeApp()");
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 // File test suite
 ////////////////////////////////////////////////////////////////////////////////
@@ -965,7 +986,7 @@ request_test_suite.testRequest = function ()
       '"data":"text",' +
       '"file_contents":[],' +
       '"requester_app":"test_app"}');
-  checkThrow(ak.InvalidAppNameError, "ak._request('invalid/app/name', '')");
+  checkThrow(ak.NoSuchAppError, "ak._request('invalid/app/name', '')");
   checkThrow(ak.SelfRequestError, "ak._request('test_app', '2+2')");
   checkThrow(ak.AppExceptionError, "ak._request('throwing_app', '')");
   checkThrow(ak.RequestTimedOutError, "ak._request('blocking_app', '')");

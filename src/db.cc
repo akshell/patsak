@@ -1403,3 +1403,72 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
     KU_ASSERT(pqxx_result.size() == 1);
     return GetTupleValues(pqxx_result[0], rel_var.GetHeader());
 }
+
+
+namespace
+{
+    Error NoSuchApp(const string& name)
+    {
+        return Error(Error::NO_SUCH_APP, "No such app: \"" + name + '"');
+    }
+
+    
+    Strings StringsFromQueryResult(const pqxx::result& query_result)
+    {
+        Strings result;
+        result.reserve(query_result.size());
+        BOOST_FOREACH(const pqxx::result::tuple& tuple, query_result) {
+            KU_ASSERT(tuple.size() == 1);
+            result.push_back(tuple[0].as<string>());
+        }
+        return result;
+    }
+}
+
+
+App Access::DescribeApp(const string& name) const
+{
+    static const format app_query(
+        "SELECT app.id, u.username, app.email, app.summary, app.description "
+        "FROM public.main_app AS app, public.auth_user AS u "
+        "WHERE app.admin_id = u.id "
+        "AND app.name = %1%;");
+    static const format devs_query(
+        "SELECT u.username "
+        "FROM public.auth_user AS u, public.main_app_devs AS app_devs "
+        "WHERE u.id = app_devs.user_id "
+        "AND app_devs.app_id = %1%;");
+    static const format labels_query(
+        "SELECT label.name "
+        "FROM public.main_label AS label, public.main_app_labels AS app_labels "
+        "WHERE label.id = app_labels.label_id "
+        "AND app_labels.app_id = %1%;");
+    
+    const pqxx::result app_query_result =
+        data_.work.exec((format(app_query) % data_.work.quote(name)).str());
+    KU_ASSERT(app_query_result.size() < 2);
+    if (!app_query_result.size())
+        throw NoSuchApp(name);
+    const pqxx::result::tuple& app_tuple(app_query_result[0]);
+    unsigned app_id = app_tuple[0].as<unsigned>();
+    const pqxx::result devs_query_result =
+        data_.work.exec((format(devs_query) % app_id).str());
+    const pqxx::result labels_query_result =
+        data_.work.exec((format(labels_query) % app_id).str());
+    return App(app_tuple[1].as<string>(),
+               StringsFromQueryResult(devs_query_result),
+               app_tuple[2].as<string>(),
+               app_tuple[3].as<string>(),
+               app_tuple[4].as<string>(),
+               StringsFromQueryResult(labels_query_result));
+}
+
+
+void Access::CheckAppExists(const string& name) const
+{
+    static const format query(
+        "SELECT 1 FROM public.main_app AS app WHERE app.name = %1%;");
+    if (data_.work.exec(
+            (format(query) % data_.work.quote(name)).str()).empty())
+        throw NoSuchApp(name);
+}

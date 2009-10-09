@@ -188,6 +188,30 @@ namespace ku
     typedef orset<RichAttr, ByNameComparator<RichAttr>, ByNameFinder<RichAttr> >
     RichHeader;
 
+
+    struct App {
+        std::string admin;
+        Strings devs;
+        std::string email;
+        std::string summary;
+        std::string description;
+        Strings labels;
+
+        App(const std::string& admin,
+            const Strings& devs,
+            const std::string& email,
+            const std::string& summary,
+            const std::string& description,
+            const Strings& labels)
+            : admin(admin)
+            , devs(devs)
+            , email(email)
+            , summary(summary)
+            , description(description)
+            , labels(labels)
+            {}
+    };
+
     
     /// Transaction means of database operations
     class Access {
@@ -226,6 +250,9 @@ namespace ku
         
         Values Insert(const std::string& rel_var_name,
                       const ValueMap& value_map);
+
+        App DescribeApp(const std::string& name) const;
+        void CheckAppExists(const std::string& name) const;
 
     private:
         Data& data_;
