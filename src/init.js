@@ -173,7 +173,7 @@
         app = libPath.substring(0, idx);
         path = libPath.substring(idx + 1) + '/' + arguments[1];
       }
-      if (app == ak._appName)
+      if (app == ak.app.name)
         app = '';
     }
     return doInclude(app, path);

@@ -239,7 +239,11 @@ class Test(unittest.TestCase):
                          'FAIL\nDATA is not supported by EXPR')
         self.assertEqual(talk('PROCESS\nFILE file\nEXPR 3\n2+2'),
                          'FAIL\nFILE is not supported by EXPR')
+        self.assertEqual(talk('PROCESS\nAPP test_app\nEXPR 3\n2+2'),
+                         'FAIL\nAPP is not supported by EXPR')
         
+        self.assertEqual(talk('PROCESS ak.app.spot'),
+                         'OK\nundefined')
         self.assertEqual(talk('STOP'), 'OK\n')
         self.assertEqual(popen.wait(), 0)
 
@@ -258,16 +262,18 @@ class Test(unittest.TestCase):
         self.assertEqual(popen.stdout.readline(), 'READY\n')
         socket_path = os.path.join(SOCKET_DIR, 'spots',
                                    APP_NAME, USER_NAME, SPOT_NAME)
-        self.assertEqual(self._talk_through_socket(socket_path,
-                                                   'PROCESS\nREQUEST 1\n1'),
+        def talk(message):
+            return self._talk_through_socket(socket_path, message)
+        
+        self.assertEqual(talk('PROCESS\nREQUEST 1\n1'),
                          'ERROR\n"_main" is not a function')
-        self.assertEqual(self._talk_through_socket(socket_path,
-                                                   'PROCESS answer'),
-                         'OK\n42')
+        self.assertEqual(talk('PROCESS answer'), 'OK\n42')
         self.assertEqual(
-            self._talk_through_socket(socket_path,
-                                      'PROCESS s="x"; while(1) s+=s'),
-            'ERROR\n<Out of memory>')
+            talk('PROCESS ak.app.spot.owner + " " + ak.app.spot.name'),
+            'OK\ntest_user test_spot')
+        self.assertEqual(talk('PROCESS checkSpotRequest()'), 'OK\ntrue')
+        self.assertEqual(talk('PROCESS s="x"; while(1) s+=s'),
+                         'ERROR\n<Out of memory>')
         self.assertEqual(popen.wait(), 0)
 
         

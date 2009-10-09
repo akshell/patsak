@@ -9,7 +9,7 @@ ak._main = function (arg) {
   }
   return JSON.stringify({user: ak._user,
                          arg: arg,
-                         data: ak._data._toString(),
+                         data: ak._data ? ak._data._toString() : ak._data,
                          file_contents: file_contents,
-                         requester_app: ak._requesterAppName});
+                         issuer: ak._issuer});
 };

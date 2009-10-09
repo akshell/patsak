@@ -35,12 +35,29 @@ namespace ku
                                  const Chars* data_ptr,
                                  const Access& access) = 0;
     };
+
+
+    struct Place {
+        const std::string app_name;
+        const std::string owner_name;
+        const std::string spot_name;
+
+        Place(const std::string& app_name,
+              const std::string& owner_name,
+              const std::string& spot_name)
+            : app_name(app_name)
+            , owner_name(owner_name)
+            , spot_name(spot_name) {
+            KU_ASSERT((owner_name.empty() && spot_name.empty()) ||
+                      (!owner_name.empty() && !spot_name.empty()));
+        }
+    };
     
 
     /// JavaScript program abstraction
     class Program {
     public:
-        Program(const std::string& app_name,
+        Program(const Place& place,
                 const std::string& code_dir,
                 const std::string& include_dir,
                 const std::string& media_dir,
@@ -54,7 +71,7 @@ namespace ku
             const Chars& request,
             const Strings& file_pathes = Strings(),
             std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>(),
-            const std::string& requester_app = "");
+            std::auto_ptr<Place> issuer_place_ptr = std::auto_ptr<Place>());
 
         std::auto_ptr<Response> Eval(const std::string& user,
                                      const Chars& expr);

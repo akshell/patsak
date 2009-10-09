@@ -262,7 +262,7 @@ namespace
 {
     class AppAccessorImpl : public AppAccessor {
     public:
-        AppAccessorImpl(const string& self_name,
+        AppAccessorImpl(const Place& place,
                         const string& code_dir,
                         const string& socket_dir,
                         const string& guard_dir,
@@ -277,7 +277,7 @@ namespace
         
     private:
         asio::io_service io_service_;
-        string self_name_;
+        Place place_;
         string code_dir_;
         string socket_dir_;
         string guard_dir_;
@@ -289,13 +289,13 @@ namespace
 }
 
 
-AppAccessorImpl::AppAccessorImpl(const string& self_name,
+AppAccessorImpl::AppAccessorImpl(const Place& place,
                                  const string& code_dir,
                                  const string& socket_dir,
                                  const string& guard_dir,
                                  const Strings& args,
                                  const string& user)
-    : self_name_(self_name)
+    : place_(place)
     , code_dir_(code_dir)
     , socket_dir_(socket_dir)
     , guard_dir_(guard_dir)
@@ -311,7 +311,7 @@ Chars AppAccessorImpl::operator()(const string& app_name,
                                   const Chars* data_ptr,
                                   const Access& access)
 {
-    if (app_name == self_name_)
+    if (app_name == place_.app_name)
         throw Error(Error::SELF_REQUEST, "Self request is forbidden");
     access.CheckAppExists(app_name);
     
@@ -349,7 +349,11 @@ Chars AppAccessorImpl::operator()(const string& app_name,
     }
 
     string request_header("\nUSER " + user_ +
-                          "\nAPP " + self_name_ +
+                          "\nAPP " + place_.app_name +
+                          (place_.spot_name.empty()
+                           ? ""
+                           : ("\nOWNER " + place_.owner_name +
+                              "\nSPOT " + place_.spot_name)) +
                           "\nREQUEST " +
                           lexical_cast<string>(request.size()) +
                           '\n');
@@ -513,10 +517,20 @@ void RequestHandler::HandleProcess()
         } else {
             user_ = "";
         }
-        string requester_app;
+        auto_ptr<Place> issuer_place_ptr;
         if (command == "APP") {
-            requester_app = ReadCommandTail();
+            string app_name(ReadCommandTail());
+            string owner_name, spot_name;
             is_ >> command;
+            if (command == "OWNER") {
+                owner_name = ReadCommandTail();
+                is_ >> command;
+                if (command != "SPOT")
+                    throw ProcessingError("SPOT command was expected");
+                spot_name = ReadCommandTail();
+                is_ >> command;
+            }
+            issuer_place_ptr.reset(new Place(app_name, owner_name, spot_name));
         }
         if (command != "REQUEST" && command != "EXPR")
             throw ProcessingError("Unexpected command: " + command);
@@ -531,13 +545,15 @@ void RequestHandler::HandleProcess()
                 throw ProcessingError("DATA is not supported by EXPR");
             if (!file_pathes.empty())
                 throw ProcessingError("FILE is not supported by EXPR");
+            if (issuer_place_ptr.get())
+                throw ProcessingError("APP is not supported by EXPR");
             response_ptr = program_.Eval(user_, input);
         } else {
             response_ptr = program_.Process(user_,
                                             input,
                                             file_pathes,
                                             data_ptr,
-                                            requester_app);
+                                            issuer_place_ptr);
         }
     }
     KU_ASSERT(response_ptr.get());
@@ -631,6 +647,7 @@ namespace
         bool IsRelease() const;
         string GetPathSuffix() const;
         auto_ptr<DB> InitDB() const;
+        Place GetPlace() const;
         auto_ptr<AppAccessor> InitAppAccessor() const;
 
         auto_ptr<Program> InitProgram(DB& db,
@@ -834,6 +851,12 @@ auto_ptr<DB> MainRunner::InitDB() const
 }
 
 
+Place MainRunner::GetPlace() const
+{
+    return Place(app_name_, owner_name_, spot_name_);
+}
+
+
 auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
 {
     Strings args;
@@ -847,7 +870,7 @@ auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
         "--db-user", db_user_,
         "--db-password", db_password_,
         "--db-name", db_name_;
-    return auto_ptr<AppAccessor>(new AppAccessorImpl(app_name_,
+    return auto_ptr<AppAccessor>(new AppAccessorImpl(GetPlace(),
                                                      code_dir_,
                                                      socket_dir_,
                                                      guard_dir_,
@@ -859,7 +882,7 @@ auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
 auto_ptr<Program> MainRunner::InitProgram(DB& db,
                                           AppAccessor& app_accessor) const
 {
-    return auto_ptr<Program>(new Program(app_name_,
+    return auto_ptr<Program>(new Program(GetPlace(),
                                          code_dir_ + GetPathSuffix(),
                                          code_dir_ + "/release/",
                                          media_dir_ + GetPathSuffix(),

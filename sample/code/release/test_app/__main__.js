@@ -199,7 +199,7 @@ base_test_suite.testSetObjectProp = function () {
 
 
 base_test_suite.testAppName = function () {
-  check("ak._appName == 'test_app'");
+  check("ak.app.name == 'test_app'");
 };
 
 
@@ -969,7 +969,7 @@ request_test_suite.testRequest = function ()
                '{"user":"' + ak._user + '",'+
                '"arg":"hello world!","data":"yo!!!",' +
                '"file_contents":["wuzzup","yo ho ho"],' +
-               '"requester_app":"test_app"}');
+               '"issuer":{"name":"test_app"}}');
   check("!fs._exists('file1') && !fs._exists('file2')");
   fs.remove('hello');
   checkThrow(ak.NoSuchAppError, "ak._request('no_such_app', 'hi')");
@@ -985,7 +985,7 @@ request_test_suite.testRequest = function ()
       '"arg":"",' +
       '"data":"text",' +
       '"file_contents":[],' +
-      '"requester_app":"test_app"}');
+      '"issuer":{"name":"test_app"}}');
   checkThrow(ak.NoSuchAppError, "ak._request('invalid/app/name', '')");
   checkThrow(ak.SelfRequestError, "ak._request('test_app', '2+2')");
   checkThrow(ak.AppExceptionError, "ak._request('throwing_app', '')");

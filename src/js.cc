@@ -176,7 +176,7 @@ namespace
     public:
         DECLARE_JS_CLASS(AKBg);
 
-        AKBg(const string& app_name,
+        AKBg(const Place& place,
              const CodeReader& code_reader,
              AppAccessor& app_accessor,
              FSBg& fs_bg);
@@ -184,7 +184,7 @@ namespace
         void Init(Handle<Object> object) const;
         
     private:
-        string app_name_;
+        Place place_;
         const CodeReader& code_reader_;
         AppAccessor& app_accessor_;
         FSBg& fs_bg_;
@@ -215,6 +215,23 @@ namespace
     {
         Set(holder_template, name, BgT::GetJSClass().GetObjectTemplate());
     }
+
+
+    void SetPlace(Handle<Object> holder,
+                  const string& name,
+                  const Place& place,
+                  PropertyAttribute attribs = None)
+    {
+        Handle<Object> object(Object::New());
+        Set(object, "name", String::New(place.app_name.c_str()));
+        if (!place.spot_name.empty()) {
+            Handle<Object> spot(Object::New());
+            Set(spot, "name", String::New(place.spot_name.c_str()));
+            Set(spot, "owner", String::New(place.owner_name.c_str()));
+            Set(object, "spot", spot);
+        }
+        Set(holder, name, object, attribs);
+    }
 }
 
 
@@ -233,11 +250,11 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 }
 
 
-AKBg::AKBg(const string& app_name,
+AKBg::AKBg(const Place& place,
            const CodeReader& code_reader,
            AppAccessor& app_accessor,
            FSBg& fs_bg)
-    : app_name_(app_name)
+    : place_(place)
     , code_reader_(code_reader)
     , app_accessor_(app_accessor)
     , fs_bg_(fs_bg)
@@ -248,7 +265,7 @@ AKBg::AKBg(const string& app_name,
 void AKBg::Init(Handle<Object> object) const
 {
     JSClassBase::InitConstructors(object);
-    Set(object, "_appName", String::New(app_name_.c_str()), DontEnum);
+    SetPlace(object, "app", place_);
 }
 
 
@@ -594,7 +611,7 @@ auto_ptr<Response> Caller::GetResult()
 
 class Program::Impl {
 public:
-    Impl(const string& app_name,
+    Impl(const Place& place,
          const string& code_dir,
          const string& include_dir,
          const string& media_dir,
@@ -607,7 +624,7 @@ public:
                                const Chars& request,
                                const Strings& pathes,
                                auto_ptr<Chars> data_ptr,
-                               const string& requester_app);
+                               auto_ptr<Place> issuer_place_ptr);
 
     auto_ptr<Response> Eval(const string& user, const Chars& expr);
     bool IsOperable() const;
@@ -632,13 +649,13 @@ private:
                             const Chars& input,
                             const Strings& file_pathes,
                             auto_ptr<Chars> data_ptr,
-                            const string& requester_app,
+                            auto_ptr<Place> issuer_place_ptr,
                             Handle<Object> object,
                             const string& func_name);
 };
 
 
-Program::Impl::Impl(const string& app_name,
+Program::Impl::Impl(const Place& place,
                     const string& code_dir,
                     const string& include_dir,
                     const string& media_dir,
@@ -648,7 +665,7 @@ Program::Impl::Impl(const string& app_name,
     , db_(db)
     , code_reader_(code_dir, include_dir)
     , fs_bg_(media_dir)
-    , ak_bg_(app_name, code_reader_, app_accessor, fs_bg_)
+    , ak_bg_(place, code_reader_, app_accessor, fs_bg_)
 {
     ResourceConstraints rc;
     rc.set_max_young_space_size(MAX_YOUNG_SPACE_SIZE);
@@ -691,10 +708,10 @@ auto_ptr<Response> Program::Impl::Process(const string& user,
                                           const Chars& request,
                                           const Strings& file_pathes,
                                           auto_ptr<Chars> data_ptr,
-                                          const string& requester_app)
+                                          auto_ptr<Place> issuer_place_ptr)
 {
     return Call(user, request,
-                file_pathes, data_ptr, requester_app,
+                file_pathes, data_ptr, issuer_place_ptr,
                 ak_, "_main");
 }
 
@@ -703,7 +720,7 @@ auto_ptr<Response> Program::Impl::Eval(const string& user, const Chars& expr)
 {
     HandleScope handle_scope;
     return Call(user, expr,
-                Strings(), auto_ptr<Chars>(), "",
+                Strings(), auto_ptr<Chars>(), auto_ptr<Place>(),
                 context_->Global(), "eval");
 }
 
@@ -718,7 +735,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
                                        const Chars& input,
                                        const Strings& file_pathes,
                                        auto_ptr<Chars> data_ptr,
-                                       const string& requester_app,
+                                       auto_ptr<Place> issuer_place_ptr,
                                        Handle<Object> object,
                                        const string& func_name)
 {
@@ -761,7 +778,11 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     Set(ak_, "_files", file_array, DontEnum);
 
     Set(ak_, "_user", String::New(user.c_str()), DontEnum);
-    Set(ak_, "_requesterAppName", String::New(requester_app.c_str()), DontEnum);
+
+    if (issuer_place_ptr.get())
+        SetPlace(ak_, "_issuer", *issuer_place_ptr, DontEnum);
+    else
+        ak_->Delete(String::New("_issuer"));
 
     Caller caller(Handle<Function>::Cast(func_value),
                   object,
@@ -787,13 +808,13 @@ void Program::Impl::SetInternal(Handle<Object> object,
 // Program
 ////////////////////////////////////////////////////////////////////////////////
 
-Program::Program(const string& app_name,
+Program::Program(const Place& place,
                  const string& code_dir,
                  const string& include_dir,
                  const string& media_dir,
                  DB& db,
                  AppAccessor& app_accessor)
-    : pimpl_(new Impl(app_name,
+    : pimpl_(new Impl(place,
                       code_dir,
                       include_dir,
                       media_dir,
@@ -812,9 +833,10 @@ auto_ptr<Response> Program::Process(const string& user,
                                     const Chars& request,
                                     const Strings& file_pathes,
                                     auto_ptr<Chars> data_ptr,
-                                    const string& requester_app)
+                                    auto_ptr<Place> issuer_place_ptr)
 {
-    return pimpl_->Process(user, request, file_pathes, data_ptr, requester_app);
+    return pimpl_->Process(user, request, file_pathes,
+                           data_ptr, issuer_place_ptr);
 }
 
 
