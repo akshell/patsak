@@ -26,8 +26,8 @@
   defineErrorClass('Base', Error);
 
   defineErrorClass('Core', ak.BaseError);
+  defineErrorClass('Usage', ak.BaseError);
 
-  defineErrorClass('Usage', ak.CoreError);
   defineErrorClass('DB', ak.CoreError);
   defineErrorClass('FS', ak.CoreError);
   defineErrorClass('App', ak.CoreError);
@@ -41,8 +41,8 @@
       ak.BaseError,
 
       ak.CoreError,
-
       ak.UsageError,
+
       ak.DBError,
       ak.FSError,
       ak.AppError,
