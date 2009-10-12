@@ -933,7 +933,9 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelVarBg, GetHeaderCb,
 {
     Handle<Object> result(Object::New());
     BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader())
-        Set(result, rich_attr.GetName(), JSNew<TypeBg>(rich_attr.GetType()));
+        Set(result, rich_attr.GetName(),
+            String::New(
+                rich_attr.GetType().GetKuStr(rich_attr.GetTrait()).c_str()));
     return result;
 }
 

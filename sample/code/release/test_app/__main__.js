@@ -510,10 +510,10 @@ db_test_suite.testInsert = function () {
 db_test_suite.testRelVar = function () {
   check("db.User.name == 'User'");
   checkEqualTo("items(db.User.header).sort()",
-               [['age', number],
-                ['flooder', bool],
-                ['id', number],
-                ['name', string]]);
+               [['age', 'number'],
+                ['flooder', 'boolean'],
+                ['id', 'serial'],
+                ['name', 'string']]);
   check("'name' in db.User");
   check("'header' in db.User");
   check("'_insert' in db.User");
