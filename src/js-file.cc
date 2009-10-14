@@ -319,6 +319,7 @@ namespace
                 if (name != "." && name != "..")
                     result += CalcTotalSize(path + '/' + name);
             }
+            closedir(dir_ptr);
         }
         return result;
     }
