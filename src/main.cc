@@ -897,6 +897,7 @@ void MainRunner::RunServer(Program& program)
     stream_protocol::endpoint endpoint(socket_path);
     try {
         acceptor.open(endpoint.protocol());
+        fcntl(acceptor.native(), F_SETFD, FD_CLOEXEC);
         acceptor.bind(endpoint);
         acceptor.listen();
 
@@ -909,6 +910,7 @@ void MainRunner::RunServer(Program& program)
         for (bool go_on = true; go_on; ) {
             stream_protocol::socket socket(io_service);
             acceptor.accept(socket);
+            fcntl(socket.native(), F_SETFD, FD_CLOEXEC);
             RequestHandler request_handler(program, user_, socket);
             go_on = request_handler.Handle();
             socket.close();
