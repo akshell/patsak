@@ -271,7 +271,6 @@ class Test(unittest.TestCase):
         self.assertEqual(
             talk('PROCESS ak.app.spot.owner + " " + ak.app.spot.name'),
             'OK\ntest_user test_spot')
-        self.assertEqual(talk('PROCESS checkSpotRequest()'), 'OK\ntrue')
         self.assertEqual(talk('PROCESS s="x"; while(1) s+=s'),
                          'ERROR\n<Out of memory>')
         self.assertEqual(popen.wait(), 0)

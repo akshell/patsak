@@ -517,20 +517,10 @@ void RequestHandler::HandleProcess()
         } else {
             user_ = "";
         }
-        auto_ptr<Place> issuer_place_ptr;
+        string issuer;
         if (command == "APP") {
-            string app_name(ReadCommandTail());
-            string owner_name, spot_name;
+            issuer = ReadCommandTail();
             is_ >> command;
-            if (command == "OWNER") {
-                owner_name = ReadCommandTail();
-                is_ >> command;
-                if (command != "SPOT")
-                    throw ProcessingError("SPOT command was expected");
-                spot_name = ReadCommandTail();
-                is_ >> command;
-            }
-            issuer_place_ptr.reset(new Place(app_name, owner_name, spot_name));
         }
         if (command != "REQUEST" && command != "EXPR")
             throw ProcessingError("Unexpected command: " + command);
@@ -545,7 +535,7 @@ void RequestHandler::HandleProcess()
                 throw ProcessingError("DATA is not supported by EXPR");
             if (!file_pathes.empty())
                 throw ProcessingError("FILE is not supported by EXPR");
-            if (issuer_place_ptr.get())
+            if (!issuer.empty())
                 throw ProcessingError("APP is not supported by EXPR");
             response_ptr = program_.Eval(user_, input);
         } else {
@@ -553,7 +543,7 @@ void RequestHandler::HandleProcess()
                                             input,
                                             file_pathes,
                                             data_ptr,
-                                            issuer_place_ptr);
+                                            issuer);
         }
     }
     KU_ASSERT(response_ptr.get());

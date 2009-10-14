@@ -624,7 +624,7 @@ public:
                                const Chars& request,
                                const Strings& pathes,
                                auto_ptr<Chars> data_ptr,
-                               auto_ptr<Place> issuer_place_ptr);
+                               const string& issuer);
 
     auto_ptr<Response> Eval(const string& user, const Chars& expr);
     bool IsOperable() const;
@@ -649,7 +649,7 @@ private:
                             const Chars& input,
                             const Strings& file_pathes,
                             auto_ptr<Chars> data_ptr,
-                            auto_ptr<Place> issuer_place_ptr,
+                            const string& issuer,
                             Handle<Object> object,
                             const string& func_name);
 };
@@ -708,10 +708,10 @@ auto_ptr<Response> Program::Impl::Process(const string& user,
                                           const Chars& request,
                                           const Strings& file_pathes,
                                           auto_ptr<Chars> data_ptr,
-                                          auto_ptr<Place> issuer_place_ptr)
+                                          const string& issuer)
 {
     return Call(user, request,
-                file_pathes, data_ptr, issuer_place_ptr,
+                file_pathes, data_ptr, issuer,
                 ak_, "_main");
 }
 
@@ -720,7 +720,7 @@ auto_ptr<Response> Program::Impl::Eval(const string& user, const Chars& expr)
 {
     HandleScope handle_scope;
     return Call(user, expr,
-                Strings(), auto_ptr<Chars>(), auto_ptr<Place>(),
+                Strings(), auto_ptr<Chars>(), "",
                 context_->Global(), "eval");
 }
 
@@ -735,7 +735,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
                                        const Chars& input,
                                        const Strings& file_pathes,
                                        auto_ptr<Chars> data_ptr,
-                                       auto_ptr<Place> issuer_place_ptr,
+                                       const string& issuer,
                                        Handle<Object> object,
                                        const string& func_name)
 {
@@ -779,10 +779,10 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
 
     Set(ak_, "_user", String::New(user.c_str()), DontEnum);
 
-    if (issuer_place_ptr.get())
-        SetPlace(ak_, "_issuer", *issuer_place_ptr, DontEnum);
-    else
+    if (issuer.empty())
         ak_->Delete(String::New("_issuer"));
+    else
+        Set(ak_, "_issuer", String::New(issuer.c_str()), DontEnum);
 
     Caller caller(Handle<Function>::Cast(func_value),
                   object,
@@ -833,10 +833,9 @@ auto_ptr<Response> Program::Process(const string& user,
                                     const Chars& request,
                                     const Strings& file_pathes,
                                     auto_ptr<Chars> data_ptr,
-                                    auto_ptr<Place> issuer_place_ptr)
+                                    const string& issuer)
 {
-    return pimpl_->Process(user, request, file_pathes,
-                           data_ptr, issuer_place_ptr);
+    return pimpl_->Process(user, request, file_pathes, data_ptr, issuer);
 }
 
 

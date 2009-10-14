@@ -998,7 +998,7 @@ request_test_suite.testRequest = function ()
                '{"user":"' + ak._user + '",'+
                '"arg":"hello world!","data":"yo!!!",' +
                '"file_contents":["wuzzup","yo ho ho"],' +
-               '"issuer":{"name":"test_app"}}');
+               '"issuer":"test_app"}');
   check("!fs._exists('file1') && !fs._exists('file2')");
   fs.remove('hello');
   checkThrow(ak.NoSuchAppError, "ak._request('no_such_app', 'hi')");
@@ -1014,7 +1014,7 @@ request_test_suite.testRequest = function ()
       '"arg":"",' +
       '"data":"text",' +
       '"file_contents":[],' +
-      '"issuer":{"name":"test_app"}}');
+      '"issuer":"test_app"}');
   checkThrow(ak.NoSuchAppError, "ak._request('invalid/app/name', '')");
   checkThrow(ak.SelfRequestError, "ak._request('test_app', '2+2')");
   checkThrow(ak.ProcessingFailedError, "ak._request('throwing_app', '')");
