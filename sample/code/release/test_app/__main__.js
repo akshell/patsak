@@ -787,14 +787,14 @@ db_test_suite.testQuota = function () {
 db_test_suite.testDescribeApp = function () {
   checkEqualTo(items(ak.describeApp('test_app')),
                [['admin', 'test_user'],
-                ['devs', ['Odysseus', 'Achilles']],
+                ['developers', ['Odysseus', 'Achilles']],
                 ['email', 'a@b.com'],
                 ['summary', 'test app'],
                 ['description', 'test app...'],
                 ['labels', ['1', '2']]]);
   checkEqualTo(items(ak.describeApp('another_app')),
                [["admin", "Odysseus"],
-                ["devs", []],
+                ["developers", []],
                 ["email", "x@y.com"],
                 ["summary", "another app"],
                 ["description", "another app..."],
