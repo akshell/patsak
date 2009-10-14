@@ -1100,6 +1100,9 @@ DEFINE_JS_CLASS(DBMediatorBg, "_DBMediator",
     SetFunction(proto_template, "_foreign", ForeignCb);
     SetFunction(proto_template, "_check", CheckCb);
     SetFunction(proto_template, "_describeApp", DescribeAppCb);
+    SetFunction(proto_template, "_getAdminedApps", GetAdminedAppsCb);
+    SetFunction(proto_template, "_getDevelopedApps", GetDevelopedAppsCb);
+    SetFunction(proto_template, "_getAppsByLabel", GetAppsByLabelCb);
 }
 
 
@@ -1181,6 +1184,19 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DescribeAppCb,
     Set(result, "labels", MakeV8Array(app.labels));
     return result;
 }
+
+
+#define DEFINE_JS_CALLBACK_APPS(name)                                   \
+    DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, name##Cb,      \
+                        const Arguments&, args) const {                 \
+        CheckArgsLength(args, 1);                                       \
+        return MakeV8Array(                                             \
+            AccessHolder::GetInstance()->name(Stringify(args[0])));     \
+   }
+
+DEFINE_JS_CALLBACK_APPS(GetAdminedApps)
+DEFINE_JS_CALLBACK_APPS(GetDevelopedApps)
+DEFINE_JS_CALLBACK_APPS(GetAppsByLabel)
 
 ////////////////////////////////////////////////////////////////////////////////
 // DBBg definitions

@@ -251,8 +251,12 @@ namespace ku
         Values Insert(const std::string& rel_var_name,
                       const ValueMap& value_map);
 
-        App DescribeApp(const std::string& name) const;
         void CheckAppExists(const std::string& name) const;
+        App DescribeApp(const std::string& name) const;
+        void CheckUserExists(const std::string& name) const;
+        Strings GetAdminedApps(const std::string& user_name) const;
+        Strings GetDevelopedApps(const std::string& user_name) const;
+        Strings GetAppsByLabel(const std::string& label_name) const;
 
     private:
         Data& data_;

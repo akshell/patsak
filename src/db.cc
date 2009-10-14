@@ -1426,17 +1426,26 @@ namespace
 }
 
 
+void Access::CheckAppExists(const string& name) const
+{
+    static const format query(
+        "SELECT 1 FROM public.main_app AS app WHERE app.name = %1%;");
+    if (data_.work.exec((format(query) % data_.work.quote(name)).str()).empty())
+        throw NoSuchApp(name);
+}
+
+
 App Access::DescribeApp(const string& name) const
 {
     static const format app_query(
-        "SELECT app.id, u.username, app.email, app.summary, app.description "
-        "FROM public.main_app AS app, public.auth_user AS u "
-        "WHERE app.admin_id = u.id "
+        "SELECT app.id, usr.username, app.email, app.summary, app.description "
+        "FROM public.main_app AS app, public.auth_user AS usr "
+        "WHERE app.admin_id = usr.id "
         "AND app.name = %1%;");
     static const format devs_query(
-        "SELECT u.username "
-        "FROM public.auth_user AS u, public.main_app_devs AS app_devs "
-        "WHERE u.id = app_devs.user_id "
+        "SELECT usr.username "
+        "FROM public.auth_user AS usr, public.main_app_devs AS app_devs "
+        "WHERE usr.id = app_devs.user_id "
         "AND app_devs.app_id = %1%;");
     static const format labels_query(
         "SELECT label.name "
@@ -1464,11 +1473,64 @@ App Access::DescribeApp(const string& name) const
 }
 
 
-void Access::CheckAppExists(const string& name) const
+void Access::CheckUserExists(const string& name) const
 {
     static const format query(
-        "SELECT 1 FROM public.main_app AS app WHERE app.name = %1%;");
-    if (data_.work.exec(
-            (format(query) % data_.work.quote(name)).str()).empty())
-        throw NoSuchApp(name);
+        "SELECT 1 FROM public.auth_user as usr WHERE usr.username = %1%;");
+    if (data_.work.exec((format(query) % data_.work.quote(name)).str()).empty())
+        throw Error(Error::NO_SUCH_USER, "No such user: \"" + name + '"');
+}
+
+
+namespace
+{
+    Strings GetApps(const Access& access,
+                    Work& work,
+                    const format& query,
+                    const string& user_name)
+    {
+        const pqxx::result query_result =
+            work.exec((format(query) % work.quote(user_name)).str());
+        if (query_result.empty())
+            access.CheckUserExists(user_name);
+        return StringsFromQueryResult(query_result);
+    }
+}
+
+
+Strings Access::GetAdminedApps(const string& user_name) const
+{
+    static const format query(
+        "SELECT app.name "
+        "FROM public.main_app AS app, public.auth_user AS usr "
+        "WHERE app.admin_id = usr.id "
+        "AND usr.username = %1%;");
+    return GetApps(*this, data_.work, query, user_name);
+}
+
+
+Strings Access::GetDevelopedApps(const string& user_name) const
+{
+    static const format query(
+        "SELECT app.name "
+        "FROM public.main_app AS app, public.auth_user AS usr,"
+        "     public.main_app_devs AS devs "
+        "WHERE devs.app_id = app.id "
+        "AND devs.user_id = usr.id "
+        "AND usr.username = %1%;");
+    return GetApps(*this, data_.work, query, user_name);
+}
+
+
+Strings Access::GetAppsByLabel(const string& label_name) const
+{
+    static const format query(
+        "SELECT app.name "
+        "FROM public.main_app AS app, public.main_label AS label,"
+        "     public.main_app_labels AS app_labels "
+        "WHERE app_labels.app_id = app.id "
+        "AND app_labels.label_id = label.id "
+        "AND label.name = %1%;");
+    return StringsFromQueryResult(
+        data_.work.exec((format(query) % data_.work.quote(label_name)).str()));
 }

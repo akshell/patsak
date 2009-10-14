@@ -53,6 +53,7 @@ INSERT INTO "main_app_labels" VALUES (1, 0, 1);
 INSERT INTO "main_app_labels" VALUES (2, 1, 0);
 INSERT INTO "main_app_devs" VALUES (0, 0, 1);
 INSERT INTO "main_app_devs" VALUES (1, 0, 2);
+INSERT INTO "main_app_devs" VALUES (2, 2, 1);
 
 
 

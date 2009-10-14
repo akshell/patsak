@@ -30,7 +30,8 @@
 
   defineErrorClass('DB', ak.CoreError);
   defineErrorClass('FS', ak.CoreError);
-  defineErrorClass('App', ak.CoreError);
+  defineErrorClass('Request', ak.CoreError);
+  defineErrorClass('Metadata', ak.CoreError);
 
 
   ak._setObjectProp(
@@ -45,7 +46,8 @@
 
       ak.DBError,
       ak.FSError,
-      ak.AppError,
+      ak.RequestError,
+      ak.MetadataError,
 
       defineErrorClass('DBQuota', ak.DBError),
       defineErrorClass('RelVarExists', ak.DBError),
@@ -66,10 +68,12 @@
       defineErrorClass('CyclicInclude', ak.FSError),
       defineErrorClass('Conversion', ak.FSError),
 
-      defineErrorClass('AppException', ak.AppError),
-      defineErrorClass('NoSuchApp', ak.AppError),
-      defineErrorClass('SelfRequest', ak.AppError),
-      defineErrorClass('RequestTimedOut', ak.AppError)
+      defineErrorClass('ProcessingFailed', ak.RequestError),
+      defineErrorClass('SelfRequest', ak.RequestError),
+      defineErrorClass('RequestTimedOut', ak.RequestError),
+
+      defineErrorClass('NoSuchApp', ak.MetadataError),
+      defineErrorClass('NoSuchUser', ak.MetadataError)
     ]);
 
   //////////////////////////////////////////////////////////////////////////////

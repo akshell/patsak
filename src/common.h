@@ -32,7 +32,8 @@ namespace ku
             USAGE,
             DB,
             FS,
-            APP,
+            REQUEST,
+            METADATA,
 
             DB_QUOTA,
             REL_VAR_EXISTS,
@@ -53,10 +54,12 @@ namespace ku
             CYCLIC_INCLUDE,
             CONVERSION,
             
-            APP_EXCEPTION,
-            NO_SUCH_APP,
+            PROCESSING_FAILED,
             SELF_REQUEST,
-            REQUEST_TIMED_OUT
+            REQUEST_TIMED_OUT,
+
+            NO_SUCH_APP,
+            NO_SUCH_USER
         };
         
         Error(Tag tag, const std::string& msg)

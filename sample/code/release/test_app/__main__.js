@@ -22,7 +22,10 @@ var date = ak._dbMediator.date;
   'unique',
   'foreign',
   'check',
-  'describeApp'
+  'describeApp',
+  'getAdminedApps',
+  'getDevelopedApps',
+  'getAppsByLabel'
 ].map(function (name) {
         ak[name] = function () {
           return ak._dbMediator['_' + name].apply(ak._dbMediator,
@@ -800,6 +803,32 @@ db_test_suite.testDescribeApp = function () {
   checkThrow(ak.UsageError, "ak.describeApp()");
 };
 
+
+db_test_suite.testGetAdminedApps = function () {
+  checkEqualTo(ak.getAdminedApps('test_user').sort(),
+               ['ak', 'bad_app', 'blocking_app',
+                'lib', 'test_app', 'throwing_app']);
+  checkEqualTo(ak.getAdminedApps('Achilles'), []);
+  checkThrow(ak.NoSuchUserError,
+             function () { ak.getAdminedApps('no_such_user'); });
+
+};
+
+
+db_test_suite.testGetDevelopedApps = function () {
+  checkEqualTo(ak.getDevelopedApps('Odysseus').sort(), ['ak', 'test_app']);
+  checkEqualTo(ak.getDevelopedApps('test_user'), []);
+  checkThrow(ak.NoSuchUserError,
+             function () { ak.getDevelopedApps('no_such_user'); });
+};
+
+
+db_test_suite.testGetAppsByLabel = function () {
+  checkEqualTo(ak.getAppsByLabel('1').sort(), ['another_app', 'test_app']);
+  checkEqualTo(ak.getAppsByLabel('2'), ['test_app']);
+  checkEqualTo(ak.getAppsByLabel('no_such_label'), []);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 // File test suite
 ////////////////////////////////////////////////////////////////////////////////
@@ -988,7 +1017,7 @@ request_test_suite.testRequest = function ()
       '"issuer":{"name":"test_app"}}');
   checkThrow(ak.NoSuchAppError, "ak._request('invalid/app/name', '')");
   checkThrow(ak.SelfRequestError, "ak._request('test_app', '2+2')");
-  checkThrow(ak.AppExceptionError, "ak._request('throwing_app', '')");
+  checkThrow(ak.ProcessingFailedError, "ak._request('throwing_app', '')");
   checkThrow(ak.RequestTimedOutError, "ak._request('blocking_app', '')");
   checkThrow(ak.PathError, "ak._request('another_app', '', ['..'])");
   checkThrow(ak.NoSuchEntryError,
