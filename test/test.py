@@ -239,8 +239,8 @@ class Test(unittest.TestCase):
                          'FAIL\nDATA is not supported by EXPR')
         self.assertEqual(talk('PROCESS\nFILE file\nEXPR 3\n2+2'),
                          'FAIL\nFILE is not supported by EXPR')
-        self.assertEqual(talk('PROCESS\nAPP test_app\nEXPR 3\n2+2'),
-                         'FAIL\nAPP is not supported by EXPR')
+        self.assertEqual(talk('PROCESS\nISSUER test_app\nEXPR 3\n2+2'),
+                         'FAIL\nISSUER is not supported by EXPR')
         
         self.assertEqual(talk('PROCESS ak.app.spot'),
                          'OK\nundefined')
