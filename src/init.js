@@ -13,8 +13,11 @@
   function defineErrorClass(name, parent) {
     var fullName = name + 'Error';
     var result = function (message) {
+      if (!(this instanceof arguments.callee))
+        return ak._construct(arguments.callee, arguments);
       Error.captureStackTrace(this);
       this.message = message + '';
+      return undefined;
     };
     result.__name__ = result.prototype.name = 'ak.' + fullName;
     result.prototype.__proto__ = parent.prototype;

@@ -268,6 +268,8 @@ base_test_suite.testErrors = function () {
   check("ak.CoreError.prototype.name == 'ak.CoreError'");
   check("new ak.DBError() instanceof ak.CoreError");
   check("new ak.FieldError() instanceof ak.DBError");
+  check("ak.UsageError() instanceof ak.UsageError");
+  check("ak.BaseError(42).message === '42'");
 };
 
 
