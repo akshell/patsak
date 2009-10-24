@@ -383,13 +383,6 @@ void DBMeta::CreateRelVar(Work& work,
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
         CheckNameSize(rich_attr.GetName());
     RelVar rel_var(rel_var_name, rich_header, constrs);
-    if (!rich_header.empty()) {
-        StringSet all_field_names;
-        all_field_names.reserve(rich_header.size());
-        BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-            all_field_names.add_sure(rich_attr.GetName());
-        rel_var.GetConstrs().push_back(Unique(all_field_names));
-    }
     RelVarCreator rel_creator(*this, rel_var);
     rel_creator(work, querist);
     rel_vars_.push_back(rel_var);
