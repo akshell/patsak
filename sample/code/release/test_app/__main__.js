@@ -691,6 +691,7 @@ db_test_suite.testDefault = function () {
                 ['n', 42],
                 ['s', 'hello, world!']]);
   db.def._insert({});
+  checkThrow(ak.ConstraintError, "db.def._insert({})");
   db.def._insert({b: false});
   db.def._insert({n: 0, s: 'hi'});
   checkEqualTo(function () { return mapItems(db.def._by('b')._by('n')); },
@@ -723,8 +724,8 @@ db_test_suite.testUnique = function () {
                ak.unique('b', 'c'),
                ak.unique('c'));
   checkEqualTo("db.r._getUniques().sort()",
-               [['a', 'b'], ['b', 'c'], ['c']]);
-  checkEqualTo("db.Dummy._getUniques()", []);
+               [['a', 'b'], ['a', 'b', 'c'], ['b', 'c'], ['c']]);
+  checkEqualTo("db.Dummy._getUniques()", [['id']]);
   db.r._drop();
 };
 
