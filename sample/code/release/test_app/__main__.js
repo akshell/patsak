@@ -560,6 +560,7 @@ db_test_suite.testBy = function () {
   check("ak.query('ByTest')._where('y != $', 9)" +
         "._by('x * $1 % $2', 2, 7).field('y')",
         [1, 4, 7, 2, 3]);
+  check("db.ByTest._by('x') instanceof ak.Selection");
   db.ByTest._drop();
 };
 
@@ -570,6 +571,7 @@ db_test_suite.testOnly = function () {
                var obj = {length: 1};
                ak.query('User')._only(obj);
              });
+  check("db.User._only('name') instanceof ak.Selection");
 };
 
 

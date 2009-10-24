@@ -666,7 +666,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, OnlyCb,
     StringSet field_names(ReadStringSet(args));
     Specifiers new_specifiers(specifiers_);
     new_specifiers.push_back(OnlySpecifier(field_names));
-    return JSNew<RelBg>(query_str_, params_, new_specifiers);
+    return InstantiateWithSpecifiers(new_specifiers);
 }
 
 
