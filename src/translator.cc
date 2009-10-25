@@ -1010,13 +1010,27 @@ namespace
                                 required_type);
         }        
     }
+
+
+    void PrintWhereItems(ostream& os,
+                         const DBViewer& db_viewer,
+                         const string& base_name,
+                         const Header& base_header,
+                         const TranslateItems& where_items)
+    {
+        if (!where_items.empty()) {
+            os << " WHERE ";
+            PrintExprItems(os, db_viewer, base_name, base_header, where_items,
+                           Type::BOOLEAN, " AND ");
+        }
+    }
 }
 
-Translation
-Translator::TranslateQuery(const TranslateItem& query_item,
-                           const TranslateItems& where_items,
-                           const TranslateItems& by_items,
-                           const StringSet* only_fields_ptr) const
+
+Translation Translator::TranslateQuery(const TranslateItem& query_item,
+                                       const TranslateItems& where_items,
+                                       const TranslateItems& by_items,
+                                       const StringSet* only_fields_ptr) const
 {
     Translation base_translation(TranslateBaseRel(db_viewer_, query_item));
     if (where_items.empty() && by_items.empty() && !only_fields_ptr )
@@ -1049,11 +1063,7 @@ Translator::TranslateQuery(const TranslateItem& query_item,
     oss << " FROM (" << base_translation.sql_str
         << ") AS " << Quoted(THIS_NAME);
 
-    if (!where_items.empty()) {
-        oss << " WHERE ";
-        PrintExprItems(oss, db_viewer_, THIS_NAME, base_header, where_items,
-                       Type::BOOLEAN, " AND ");
-    }
+    PrintWhereItems(oss, db_viewer_, THIS_NAME, base_header, where_items);
     
     if (!by_items.empty())
         oss << " ORDER BY " << by_string;
@@ -1061,10 +1071,23 @@ Translator::TranslateQuery(const TranslateItem& query_item,
     return Translation(oss.str(), header);
 }
 
-string
-Translator::TranslateUpdate(const TranslateItem& update_item,
-                            const StringMap& field_expr_map,
-                            const TranslateItems& where_items) const
+
+string Translator::TranslateCount(const TranslateItem& query_item,
+                                  const TranslateItems& where_items) const
+{
+    Translation base_translation(TranslateBaseRel(db_viewer_, query_item));
+    ostringstream oss;
+    oss << "SELECT COUNT(*) FROM (" << base_translation.sql_str
+        << ") AS " << Quoted(THIS_NAME);
+    PrintWhereItems(
+        oss, db_viewer_, THIS_NAME, base_translation.header, where_items);
+    return oss.str();
+}
+
+
+string Translator::TranslateUpdate(const TranslateItem& update_item,
+                                   const StringMap& field_expr_map,
+                                   const TranslateItems& where_items) const
 {
     if (field_expr_map.empty())
         throw Error(Error::USAGE, "Empty update field set");
@@ -1086,20 +1109,13 @@ Translator::TranslateUpdate(const TranslateItem& update_item,
                                              update_item.param_strings),
                                GetAttrType(header, field_expr.first));
     }
-    
-    if (!where_items.empty()) {
-        oss << " WHERE ";
-        PrintExprItems(oss, db_viewer_, rel_var_name, header, where_items,
-                       Type::BOOLEAN, " AND ");
-    }
-
+    PrintWhereItems(oss, db_viewer_, rel_var_name, header, where_items);
     return oss.str();
 }
 
 
-string
-Translator::TranslateDelete(const string& rel_var_name,
-                            const TranslateItems& where_items) const
+string Translator::TranslateDelete(const string& rel_var_name,
+                                   const TranslateItems& where_items) const
 {
     ostringstream oss;
     oss << "DELETE FROM " << Quoted(rel_var_name);

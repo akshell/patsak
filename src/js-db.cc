@@ -476,7 +476,7 @@ namespace
     protected:
         static void InitRelObjectTemplate(Handle<ObjectTemplate>);
         string GetQueryStr() const;
-        const Specifiers& GetSpecifiers() const;
+        WhereSpecifiers GetWhereSpecifiers() const;
         
     private:
         string query_str_;
@@ -519,6 +519,9 @@ namespace
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ByCb,
                              const Arguments&) const;        
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CountCb,
+                             const Arguments&) const;        
     };
 }
 
@@ -530,6 +533,7 @@ DEFINE_JS_CLASS(RelBg, "Rel", object_template, proto_template)
     SetFunction(proto_template, "_only", OnlyCb);
     SetFunction(proto_template, "_where", WhereCb);
     SetFunction(proto_template, "_by", ByCb);
+    SetFunction(proto_template, "_count", CountCb);
 }
 
 
@@ -574,9 +578,16 @@ string RelBg::GetQueryStr() const
 }
 
 
-const Specifiers& RelBg::GetSpecifiers() const
+WhereSpecifiers RelBg::GetWhereSpecifiers() const
 {
-    return specifiers_;
+    WhereSpecifiers result;
+    BOOST_FOREACH(const Specifier& specifier, specifiers_) {
+        const WhereSpecifier*
+            where_specifier_ptr = boost::get<WhereSpecifier>(&specifier);
+        if (where_specifier_ptr)
+            result.push_back(*where_specifier_ptr);
+    }
+    return result;
 }
 
 
@@ -704,6 +715,17 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, ByCb,
 {
     return GenericSpecify<BySpecifier>(args);
 }
+    
+    
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, CountCb,
+                    const Arguments&, /*args*/) const
+{
+    return Integer::New(
+        AccessHolder::GetInstance()->Count(query_str_,
+                                           params_,
+                                           GetWhereSpecifiers()));
+    
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // SelectionBg and RelVarBg declarations
@@ -723,8 +745,6 @@ namespace
         
         virtual Handle<v8::Value>
         InstantiateWithSpecifiers(const Specifiers& new_specifiers) const;
-
-        WhereSpecifiers GetWhereSpecifiers() const;
 
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetRelVarCb,
                              Local<String>, const AccessorInfo&);
@@ -819,19 +839,6 @@ Handle<v8::Value>
 SelectionBg::InstantiateWithSpecifiers(const Specifiers& new_specifiers) const
 {
     return JSNew<SelectionBg>(GetRelVarName(), new_specifiers);
-}
-
-
-WhereSpecifiers SelectionBg::GetWhereSpecifiers() const
-{
-    WhereSpecifiers result;
-    BOOST_FOREACH(const Specifier& specifier, GetSpecifiers()) {
-        const WhereSpecifier*
-            where_specifier_ptr = boost::get<WhereSpecifier>(&specifier);
-        if (where_specifier_ptr)
-            result.push_back(*where_specifier_ptr);
-    }
-    return result;
 }
 
 

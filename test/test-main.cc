@@ -1126,6 +1126,14 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
                          "AND (\"@\".\"age\" > $4)) "
                          "ORDER BY \"@\".\"age\""));
 
+    BOOST_CHECK(
+        WordComparator()(translator.TranslateCount(query_item, where_items),
+                         "SELECT COUNT(*) "
+                         "FROM (SELECT DISTINCT $1 AS \"name\", $2 AS \"age\") "
+                         "AS \"@\" "
+                         "WHERE ((\"@\".\"name\" <> $3) "
+                         "AND (\"@\".\"age\" > $4))"));
+
     TranslateItems delete_where_items;
     Types types1;
     types1.push_back(Type::STRING);

@@ -176,6 +176,7 @@ namespace
     public:
         enum Sort {
             QUERY,
+            COUNT,
             UPDATE,
             DELETE
         };
@@ -580,6 +581,11 @@ public:
                       const Values& params,
                       const Specifiers& specifiers);
 
+    unsigned long Count(pqxx::transaction_base& work,
+                        const string& query_str,
+                        const Values& params,
+                        const WhereSpecifiers& where_specifiers);
+    
     unsigned long Update(pqxx::transaction_base& work,
                          const string& rel_name,
                          const StringMap& field_expr_map,
@@ -632,6 +638,7 @@ public:
                const SpecsT& specs);
 
     auto_ptr<QueryResult::Impl> operator()(pqxx::transaction_base& work) const;
+    
 private:
     typedef typename SpecsT::value_type SpecT;
 
@@ -719,17 +726,25 @@ namespace ku
                                      params_.size());
         BOOST_FOREACH(const WhereSpecifier& where_specifier, specs_)
             item_collector(where_specifier);
-        if (query_family_.GetSort() == QueryFamily::DELETE) {
-            string sql_str(querist_impl_.translator_.TranslateDelete(
-                               query_family_.GetKuStr(),
-                               item_collector.GetWhereItems()));
-            return Translation(sql_str, Header());
+        string sql_str;
+        switch (query_family_.GetSort()) {
+        case QueryFamily::COUNT:
+            sql_str = querist_impl_.translator_.TranslateCount(
+                GetQueryItem(raw),
+                item_collector.GetWhereItems());
+            break;
+        case QueryFamily::DELETE:
+            sql_str = querist_impl_.translator_.TranslateDelete(
+                query_family_.GetKuStr(),
+                item_collector.GetWhereItems());
+            break;
+        default:
+            KU_ASSERT(query_family_.GetSort() == QueryFamily::UPDATE);
+            sql_str = querist_impl_.translator_.TranslateUpdate(
+                GetQueryItem(raw),
+                query_family_.GetFieldExprMap(),
+                item_collector.GetWhereItems());
         }
-        KU_ASSERT(query_family_.GetSort() == QueryFamily::UPDATE);
-        string sql_str(querist_impl_.translator_.TranslateUpdate(
-                           GetQueryItem(raw),
-                           query_family_.GetFieldExprMap(),
-                           item_collector.GetWhereItems()));
         return Translation(sql_str, Header());
     }
 }
@@ -835,6 +850,23 @@ QueryResult Querist::Impl::Query(pqxx::transaction_base& work,
 }
 
 
+unsigned long Querist::Impl::Count(pqxx::transaction_base& work,
+                                   const string& query_str,
+                                   const Values& params,
+                                   const WhereSpecifiers& where_specifiers)
+{
+    QueryFamily query_family(QueryFamily::COUNT,
+                             query_str,
+                             GetValuesTypes(params));
+    SqlFunctor<WhereSpecifiers>
+        sql_functor(*this, query_family, params, where_specifiers);
+    auto_ptr<QueryResult::Impl> query_result_impl_ptr(sql_functor(work));
+    const pqxx::result& pqxx_result(query_result_impl_ptr->GetPqxxResult());
+    KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
+    return pqxx_result[0][0].as<unsigned long>();
+}
+
+
 unsigned long Querist::Impl::Update(pqxx::transaction_base& work,
                                     const string& rel_name,
                                     const StringMap& field_expr_map,
@@ -911,6 +943,15 @@ QueryResult Querist::Query(pqxx::transaction_base& work,
                            const Specifiers& specifiers)
 {
     return pimpl_->Query(work, query_str, params, specifiers);
+}
+
+
+unsigned long Querist::Count(pqxx::transaction_base& work,
+                             const string& query_str,
+                             const Values& params,
+                             const WhereSpecifiers& where_specifiers)
+{
+    return pimpl_->Count(work, query_str, params, where_specifiers);
 }
 
 

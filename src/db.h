@@ -240,6 +240,10 @@ namespace ku
                           const Values& params,
                           const Specifiers& specifiers) const;
 
+        unsigned long Count(const std::string& query_str,
+                            const Values& params,
+                            const WhereSpecifiers& where_specifiers) const;
+
         unsigned long Update(const std::string& rel_var_name,
                              const StringMap& field_expr_map,
                              const Values& params,

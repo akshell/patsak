@@ -575,6 +575,14 @@ db_test_suite.testOnly = function () {
 };
 
 
+db_test_suite.testCount = function () {
+  checkEqualTo("db.User._count()", 3);
+  checkEqualTo(("ak.query('Post.author->[id, flooder] where id < 2')" +
+                "._where('flooder')._count()"),
+               1);
+};
+
+
 db_test_suite.testAll = function () {
   check("db.User._all().field('id').sort()", [0, 1, 2]);
   check("db.User._all()._where('!(id % 2)')._by('-id').field('name')",

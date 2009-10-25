@@ -78,6 +78,10 @@ namespace ku
             const TranslateItems& by_items = TranslateItems(),
             const StringSet* only_fields_ptr = 0) const;
         
+        std::string TranslateCount(
+            const TranslateItem& query_item,
+            const TranslateItems& where_items = TranslateItems()) const;
+
         std::string TranslateUpdate(
             const TranslateItem& update_item,
             const StringMap& field_expr_map,

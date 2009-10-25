@@ -86,6 +86,11 @@ namespace ku
                           const Values& params,
                           const Specifiers& specifiers);
 
+        unsigned long Count(pqxx::transaction_base& work,
+                            const std::string& query_str,
+                            const Values& params,
+                            const WhereSpecifiers& where_specifiers);
+
         unsigned long Update(pqxx::transaction_base& work,
                              const std::string& rel_name,
                              const StringMap& field_expr_map,

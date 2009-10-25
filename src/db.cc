@@ -1268,6 +1268,14 @@ QueryResult Access::Query(const string& query_str,
 }
 
 
+unsigned long Access::Count(const string& query_str,
+                            const Values& params,
+                            const WhereSpecifiers& where_specifiers) const
+{
+    return data_.querist.Count(data_.work, query_str, params, where_specifiers);
+}
+
+
 unsigned long Access::Update(const string& rel_var_name,
                              const StringMap& field_expr_map,
                              const Values& params,
