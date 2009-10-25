@@ -253,7 +253,6 @@ namespace
         boost::equality_comparable<SpecifierFamily> > {
     public:
         enum Sort {
-            QUERY,
             WHERE,
             BY,
             ONLY
