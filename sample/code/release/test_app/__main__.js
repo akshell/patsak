@@ -1011,17 +1011,12 @@ file_test_suite.testQuota = function () {
   var str = array.join('');
   checkThrow(ak.FSQuotaError,
              function () {
-               for (var i = 0; i < 11; ++i)
+               for (var i = 0; i < 10; ++i)
                  fs._write('file' + i, str);
              });
-  for (i = 0; i < 10; ++i)
+  for (i = 0; i < 9; ++i)
     fs._remove('file' + i);
-  check("!fs._exists('file10')");
-  checkThrow(ak.FSQuotaError,
-             function () {
-               var big_str = [str, str, str, str, str].join('');
-               fs._write('big_file', big_str);
-             });
+  check("!fs._exists('file9')");
 };
 
 ////////////////////////////////////////////////////////////////////////////////

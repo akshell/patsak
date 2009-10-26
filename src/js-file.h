@@ -61,7 +61,7 @@ namespace ku
 
         std::string ReadPath(v8::Handle<v8::Value> value,
                              bool can_be_root) const;
-        void CheckTotalSize() const;
+        void CheckTotalSize(unsigned long long addition) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ReadCb,
                              const v8::Arguments&) const;

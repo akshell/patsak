@@ -31,7 +31,6 @@ namespace
     const int MAX_DIR_DEPTH = 30;
     const unsigned DIRECTORY_SIZE = 4 * 1024;
     const unsigned long long MAX_TOTAL_SIZE = 10 * 1024 * 1024;
-    const unsigned long long MAX_FILE_SIZE = 4 * 1024 * 1024;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -398,9 +397,9 @@ string FSBg::ReadPath(Handle<v8::Value> value, bool can_be_root) const
 }
 
 
-void FSBg::CheckTotalSize() const
+void FSBg::CheckTotalSize(unsigned long long addition) const
 {
-    if (total_size_ > MAX_TOTAL_SIZE)
+    if (total_size_ + addition > MAX_TOTAL_SIZE)
         throw Error(Error::FS_QUOTA, "File storage quota exceeded");
 }
 
@@ -458,7 +457,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, MakeDirCb,
                     const Arguments&, args)
 {
     CheckArgsLength(args, 1);
-    CheckTotalSize();
+    CheckTotalSize(DIRECTORY_SIZE);
     string path(ReadPath(args[0], false));
     FSManager(path).MkDir();
     total_size_ += DIRECTORY_SIZE;
@@ -470,7 +469,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, WriteCb,
                     const Arguments&, args)
 {
     CheckArgsLength(args, 2);
-    CheckTotalSize();
     string path(ReadPath(args[0], false));
     unsigned long long old_size = GetFileSize(path);
     
@@ -486,12 +484,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, WriteCb,
         data_ptr = **utf8_value_ptr;
         size = utf8_value_ptr->length();
     }
+    if (size > old_size)
+        CheckTotalSize(size - old_size);
     
-    if (size > MAX_FILE_SIZE)
-        throw Error(Error::FS_QUOTA,
-                    ("Max file size is " +
-                     lexical_cast<string>(MAX_FILE_SIZE) +
-                     " bytes"));
     FSManager(path).Write(data_ptr, size);
     total_size_ += GetFileSize(path);
     total_size_ -= old_size;
@@ -528,11 +523,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, CopyFileCb,
                     const Arguments&, args)
 {
     CheckArgsLength(args, 2);
-    CheckTotalSize();
     string from_path(ReadPath(args[0], false));
     string to_path(ReadPath(args[1], false));
+    unsigned long long size = GetFileSize(from_path);
+    CheckTotalSize(size);
     FSManager(from_path).CopyFile(to_path);
-    total_size_ += GetFileSize(to_path);
+    total_size_ += size;
     return Undefined();
 }
 
