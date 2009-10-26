@@ -470,18 +470,18 @@ namespace
         
         RelBg(const string& query_str,
               const Values& params,
-              const Specifiers& specifiers);
+              const Specs& specs);
         virtual ~RelBg();
 
     protected:
         static void InitRelObjectTemplate(Handle<ObjectTemplate>);
         string GetQueryStr() const;
-        WhereSpecifiers GetWhereSpecifiers() const;
+        WhereSpecs GetWhereSpecs() const;
         
     private:
         string query_str_;
         Values params_;
-        Specifiers specifiers_;
+        Specs specs_;
         auto_ptr<QueryResult> query_result_ptr_;
 
         const QueryResult& GetQueryResult();
@@ -515,7 +515,7 @@ namespace
         Handle<v8::Value> GenericSpecify(const Arguments& args) const;
 
         virtual Handle<v8::Value>
-        InstantiateWithSpecifiers(const Specifiers& new_specifiers) const;
+        InstantiateWithSpecs(const Specs& new_specs) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, WhereCb,
                              const Arguments&) const;
@@ -543,10 +543,10 @@ DEFINE_JS_CLASS(RelBg, "Rel", object_template, proto_template)
 
 RelBg::RelBg(const string& query_str,
              const Values& params,
-             const Specifiers& specifiers)
+             const Specs& specs)
     : query_str_(query_str)
     , params_(params)
-    , specifiers_(specifiers)
+    , specs_(specs)
 {
 }
 
@@ -582,15 +582,12 @@ string RelBg::GetQueryStr() const
 }
 
 
-WhereSpecifiers RelBg::GetWhereSpecifiers() const
+WhereSpecs RelBg::GetWhereSpecs() const
 {
-    WhereSpecifiers result;
-    BOOST_FOREACH(const Specifier& specifier, specifiers_) {
-        const WhereSpecifier*
-            where_specifier_ptr = boost::get<WhereSpecifier>(&specifier);
-        if (where_specifier_ptr)
-            result.push_back(*where_specifier_ptr);
-    }
+    WhereSpecs result;
+    BOOST_FOREACH(const Spec& spec, specs_)
+        if (const WhereSpec* where_spec_ptr = boost::get<WhereSpec>(&spec))
+            result.push_back(*where_spec_ptr);
     return result;
 }
 
@@ -599,9 +596,7 @@ const QueryResult& RelBg::GetQueryResult()
 {
     if (!query_result_ptr_.get()) {
         QueryResult query_result(
-            AccessHolder::GetInstance()->Query(query_str_,
-                                               params_,
-                                               specifiers_));
+            AccessHolder::GetInstance()->Query(query_str_, params_, specs_));
         query_result_ptr_.reset(new QueryResult(query_result));
         V8::AdjustAmountOfExternalAllocatedMemory(
             MEMORY_MULTIPLIER * query_result.GetMemoryUsage());
@@ -679,9 +674,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, OnlyCb,
                     const Arguments&, args) const
 {
     StringSet field_names(ReadStringSet(args));
-    Specifiers new_specifiers(specifiers_);
-    new_specifiers.push_back(OnlySpecifier(field_names));
-    return InstantiateWithSpecifiers(new_specifiers);
+    Specs new_specs(specs_);
+    new_specs.push_back(OnlySpec(field_names));
+    return InstantiateWithSpecs(new_specs);
 }
 
 
@@ -701,13 +696,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, SubrelCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    Specifiers new_specifiers(specifiers_);
-    new_specifiers.push_back(
-        WindowSpecifier(ReadUnsigned(args[0]),
-                        (args.Length() > 1
-                         ? ReadUnsigned(args[1])
-                         : WindowSpecifier::ALL)));
-    return InstantiateWithSpecifiers(new_specifiers);
+    Specs new_specs(specs_);
+    new_specs.push_back(WindowSpec(ReadUnsigned(args[0]),
+                                   (args.Length() > 1
+                                    ? ReadUnsigned(args[1])
+                                    : WindowSpec::ALL)));
+    return InstantiateWithSpecs(new_specs);
 }
 
 
@@ -720,30 +714,30 @@ Handle<v8::Value> RelBg::GenericSpecify(const Arguments& args) const
     params.reserve(args.Length() - 1);
     for (int i = 1; i < args.Length(); ++i)
         params.push_back(ReadKuValue(args[i]));
-    Specifiers new_specifiers(specifiers_);
-    new_specifiers.push_back(SpecT(expr_str, params));
-    return InstantiateWithSpecifiers(new_specifiers);
+    Specs new_specs(specs_);
+    new_specs.push_back(SpecT(expr_str, params));
+    return InstantiateWithSpecs(new_specs);
 }
 
 
 Handle<v8::Value>
-RelBg::InstantiateWithSpecifiers(const Specifiers& new_specifiers) const
+RelBg::InstantiateWithSpecs(const Specs& new_specs) const
 {
-    return JSNew<RelBg>(query_str_, params_, new_specifiers);
+    return JSNew<RelBg>(query_str_, params_, new_specs);
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, WhereCb,
                     const Arguments&, args) const
 {
-    return GenericSpecify<WhereSpecifier>(args);
+    return GenericSpecify<WhereSpec>(args);
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, ByCb,
                     const Arguments&, args) const
 {
-    return GenericSpecify<BySpecifier>(args);
+    return GenericSpecify<BySpec>(args);
 }
     
     
@@ -751,7 +745,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, CountCb,
                     const Arguments&, /*args*/) const
 {
     return Integer::New(
-        AccessHolder::GetInstance()->Count(query_str_, params_, specifiers_));
+        AccessHolder::GetInstance()->Count(query_str_, params_, specs_));
     
 }
 
@@ -765,14 +759,13 @@ namespace
     public:
         DECLARE_JS_CLASS(SelectionBg);
         
-        SelectionBg(const string& rel_var_name,
-                    const Specifiers& specifiers);
+        SelectionBg(const string& rel_var_name, const Specs& specs);
 
     private:
         string GetRelVarName() const;
         
         virtual Handle<v8::Value>
-        InstantiateWithSpecifiers(const Specifiers& new_specifiers) const;
+        InstantiateWithSpecs(const Specs& new_specs) const;
 
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetRelVarCb,
                              Local<String>, const AccessorInfo&);
@@ -850,9 +843,8 @@ DEFINE_JS_CLASS(SelectionBg, "Selection", object_template, proto_template)
 }
 
 
-SelectionBg::SelectionBg(const string& rel_var_name,
-                         const Specifiers& specifiers)
-    : RelBg(rel_var_name, Values(), specifiers)
+SelectionBg::SelectionBg(const string& rel_var_name, const Specs& specs)
+    : RelBg(rel_var_name, Values(), specs)
 {
 }
 
@@ -864,9 +856,9 @@ string SelectionBg::GetRelVarName() const
 
 
 Handle<v8::Value>
-SelectionBg::InstantiateWithSpecifiers(const Specifiers& new_specifiers) const
+SelectionBg::InstantiateWithSpecs(const Specs& new_specs) const
 {
-    return JSNew<SelectionBg>(GetRelVarName(), new_specifiers);
+    return JSNew<SelectionBg>(GetRelVarName(), new_specs);
 }
 
 
@@ -899,7 +891,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SelectionBg, UpdateCb,
         AccessHolder::GetInstance()->Update(GetRelVarName(),
                                             field_expr_map,
                                             params,
-                                            GetWhereSpecifiers()));
+                                            GetWhereSpecs()));
     return Number::New(static_cast<double>(rows_number));
 }
 
@@ -908,8 +900,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SelectionBg, DelCb,
                     const Arguments&, /*args*/) const
 {
     unsigned long rows_number = (
-        AccessHolder::GetInstance()->Delete(GetRelVarName(),
-                                            GetWhereSpecifiers()));
+        AccessHolder::GetInstance()->Delete(GetRelVarName(), GetWhereSpecs()));
     return Number::New(static_cast<double>(rows_number));
 }
 
@@ -1040,7 +1031,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, DropCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, AllCb,
                     const Arguments&, /*args*/) const
 {
-    return JSNew<SelectionBg>(name_, Specifiers());
+    return JSNew<SelectionBg>(name_, Specs());
 }
 
 
@@ -1164,7 +1155,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, QueryCb,
     params.reserve(args.Length() - 1);
     for (int i = 1; i < args.Length(); ++i)
         params.push_back(ReadKuValue(args[i]));
-    return JSNew<RelBg>(query_str, params, Specifiers());
+    return JSNew<RelBg>(query_str, params, Specs());
 }
 
 
@@ -1221,13 +1212,13 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DescribeAppCb,
 }
 
 
-#define DEFINE_JS_CALLBACK_APPS(name)                                   \
-    DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, name##Cb,      \
-                        const Arguments&, args) const {                 \
-        CheckArgsLength(args, 1);                                       \
-        return MakeV8Array(                                             \
-            AccessHolder::GetInstance()->name(Stringify(args[0])));     \
-   }
+#define DEFINE_JS_CALLBACK_APPS(name)                               \
+    DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, name##Cb,  \
+                        const Arguments&, args) const {             \
+        CheckArgsLength(args, 1);                                   \
+        return MakeV8Array(                                         \
+            AccessHolder::GetInstance()->name(Stringify(args[0]))); \
+    }
 
 DEFINE_JS_CALLBACK_APPS(GetAdminedApps)
 DEFINE_JS_CALLBACK_APPS(GetDevelopedApps)

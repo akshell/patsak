@@ -16,58 +16,58 @@
 namespace ku
 {
     ////////////////////////////////////////////////////////////////////////////
-    // Specifiers
+    // Specs
     ////////////////////////////////////////////////////////////////////////////
 
-    struct WhereSpecifier {
+    struct WhereSpec {
         std::string expr_str;
         Values params;
 
-        WhereSpecifier(const std::string& expr_str, const Values& params)
+        WhereSpec(const std::string& expr_str, const Values& params)
             : expr_str(expr_str), params(params) {}
     };
 
 
-    typedef std::vector<WhereSpecifier> WhereSpecifiers;
+    typedef std::vector<WhereSpec> WhereSpecs;
 
 
-    struct BySpecifier {
+    struct BySpec {
         std::string expr_str;
         Values params;
 
-        BySpecifier(const std::string& expr_str, const Values& params)
+        BySpec(const std::string& expr_str, const Values& params)
             : expr_str(expr_str), params(params) {}
     };
 
 
-    struct OnlySpecifier {
+    struct OnlySpec {
         StringSet field_names;
 
-        explicit OnlySpecifier(const StringSet& field_names)
+        explicit OnlySpec(const StringSet& field_names)
             : field_names(field_names) {}
     };
 
 
-    struct WindowSpecifier {
+    struct WindowSpec {
         static const unsigned long ALL = static_cast<unsigned long>(-1);
         
         unsigned long offset;
         unsigned long limit;
 
-        WindowSpecifier(unsigned long offset, unsigned long limit)
+        WindowSpec(unsigned long offset, unsigned long limit)
             : offset(offset), limit(limit) {}
     };
 
 
     typedef boost::variant<
-        WhereSpecifier,
-        BySpecifier,
-        OnlySpecifier,
-        WindowSpecifier>
-    Specifier;
+        WhereSpec,
+        BySpec,
+        OnlySpec,
+        WindowSpec>
+    Spec;
 
     
-    typedef std::vector<Specifier> Specifiers;
+    typedef std::vector<Spec> Specs;
 
     ////////////////////////////////////////////////////////////////////////////
     // Constrs
@@ -250,19 +250,19 @@ namespace ku
         
         QueryResult Query(const std::string& query_str,
                           const Values& params,
-                          const Specifiers& specifiers) const;
+                          const Specs& specs) const;
 
         unsigned long Count(const std::string& query_str,
                             const Values& params,
-                            const Specifiers& specifiers) const;
+                            const Specs& specs) const;
 
         unsigned long Update(const std::string& rel_var_name,
                              const StringMap& field_expr_map,
                              const Values& params,
-                             const WhereSpecifiers& where_specifiers);
+                             const WhereSpecs& where_specs);
 
         unsigned long Delete(const std::string& rel_var_name,
-                             const WhereSpecifiers& where_specifiers);
+                             const WhereSpecs& where_specs);
         
         Values Insert(const std::string& rel_var_name,
                       const ValueMap& value_map);

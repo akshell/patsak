@@ -166,7 +166,7 @@ size_t QueryResult::GetMemoryUsage() const
 
 namespace
 {
-    /// The family of queries (without specifiers) which could be made
+    /// The family of queries (without specs) which could be made
     /// through one prepared statement
     class QueryFamily : private
     boost::less_than_comparable<
@@ -239,17 +239,17 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// SpecifierFamily
+// SpecFamily
 ////////////////////////////////////////////////////////////////////////////////
     
 namespace
 {
-    /// The family of specifiers which could be performed through one
+    /// The family of specs which could be performed through one
     /// prepared statement
-    class SpecifierFamily : private
+    class SpecFamily : private
     boost::less_than_comparable<
-        SpecifierFamily,
-        boost::equality_comparable<SpecifierFamily> > {
+        SpecFamily,
+        boost::equality_comparable<SpecFamily> > {
     public:
         enum Sort {
             WHERE,
@@ -258,10 +258,10 @@ namespace
             WINDOW
         };
 
-        SpecifierFamily(Sort sort, const string& ku_str, const Types& param_types)
+        SpecFamily(Sort sort, const string& ku_str, const Types& param_types)
             : sort_(sort), ku_str_(ku_str), param_types_(param_types) {}
 
-        bool operator<(const SpecifierFamily& other) const {
+        bool operator<(const SpecFamily& other) const {
             if (sort_ != other.sort_)
                 return sort_ < other.sort_;
             if (ku_str_.size() != other.ku_str_.size())
@@ -274,7 +274,7 @@ namespace
             return param_types_ < other.param_types_;
         }
 
-        bool operator==(const SpecifierFamily& other) const {
+        bool operator==(const SpecFamily& other) const {
             return (sort_ == other.sort_ &&
                     ku_str_ == other.ku_str_ &&
                     param_types_ == other.param_types_);
@@ -299,31 +299,31 @@ namespace
     };
 
     
-    typedef vector<SpecifierFamily> SpecifierFamilies;
+    typedef vector<SpecFamily> SpecFamilies;
     
 
-    class SpecifierFamilyCollector : public static_visitor<void>
-                                   , private noncopyable {
+    class SpecFamilyCollector : public static_visitor<void>
+                              , private noncopyable {
     public:
-        SpecifierFamilyCollector(QueryFamily::Sort query_sort)
+        SpecFamilyCollector(QueryFamily::Sort query_sort)
             : query_sort_(query_sort) {}
         
-        void operator()(const WhereSpecifier& where_spec) {
+        void operator()(const WhereSpec& where_spec) {
             result_.push_back(
-                SpecifierFamily(SpecifierFamily::WHERE,
-                                where_spec.expr_str,
-                                GetValuesTypes(where_spec.params)));
+                SpecFamily(SpecFamily::WHERE,
+                           where_spec.expr_str,
+                           GetValuesTypes(where_spec.params)));
         }
         
-        void operator()(const BySpecifier& by_spec) {
+        void operator()(const BySpec& by_spec) {
             if (query_sort_ != QueryFamily::COUNT)
                 result_.push_back(
-                    SpecifierFamily(SpecifierFamily::BY,
-                                    by_spec.expr_str,
-                                    GetValuesTypes(by_spec.params)));
+                    SpecFamily(SpecFamily::BY,
+                               by_spec.expr_str,
+                               GetValuesTypes(by_spec.params)));
         }
 
-        void operator()(const OnlySpecifier& only_spec) {
+        void operator()(const OnlySpec& only_spec) {
             if (query_sort_ == QueryFamily::COUNT)
                 return;
             ostringstream oss;
@@ -333,41 +333,40 @@ namespace
                 oss << field_name;
             }
             result_.push_back(
-                SpecifierFamily(SpecifierFamily::ONLY, oss.str(), Types()));
+                SpecFamily(SpecFamily::ONLY, oss.str(), Types()));
         }
         
-        void operator()(const WindowSpecifier& /*win_spec*/) {
+        void operator()(const WindowSpec& /*win_spec*/) {
             result_.push_back(
-                SpecifierFamily(SpecifierFamily::WINDOW, "", Types()));
+                SpecFamily(SpecFamily::WINDOW, "", Types()));
         }
 
-        const SpecifierFamilies& GetResult() const {
+        const SpecFamilies& GetResult() const {
             return result_;
         }
 
     private:
         QueryFamily::Sort query_sort_;
-        SpecifierFamilies result_;
+        SpecFamilies result_;
     };
 
     
-    SpecifierFamilies GetSpecifierFamilies(QueryFamily::Sort query_sort,
-                                           const Specifiers& specifiers)
+    SpecFamilies GetSpecFamilies(QueryFamily::Sort query_sort,
+                                 const Specs& specs)
     {
-        SpecifierFamilyCollector collector(query_sort);
-        BOOST_FOREACH(const Specifier& specifier, specifiers)
-            apply_visitor(collector, specifier);
+        SpecFamilyCollector collector(query_sort);
+        BOOST_FOREACH(const Spec& spec, specs)
+            apply_visitor(collector, spec);
         return collector.GetResult();
     }
 
 
-    SpecifierFamilies
-    GetSpecifierFamilies(QueryFamily::Sort query_sort,
-                         const WhereSpecifiers& where_specifiers)
+    SpecFamilies GetSpecFamilies(QueryFamily::Sort query_sort,
+                                 const WhereSpecs& where_specs)
     {
-        SpecifierFamilyCollector collector(query_sort);
-        BOOST_FOREACH(const WhereSpecifier& where_specifier, where_specifiers)
-            collector(where_specifier);
+        SpecFamilyCollector collector(query_sort);
+        BOOST_FOREACH(const WhereSpec& where_spec, where_specs)
+            collector(where_spec);
         return collector.GetResult();
     }
 }
@@ -392,7 +391,7 @@ namespace
     }
 
     
-    /// Collects items from query and specifiers for subsequent translation
+    /// Collects items from query and specs for subsequent translation
     class ItemCollector : public static_visitor<void>
                         , private noncopyable {
     public:
@@ -405,23 +404,23 @@ namespace
             : query_sort_(query_sort)
             , param_shift_(param_shift) {}
             
-        void operator()(const WhereSpecifier& where_spec) {
+        void operator()(const WhereSpec& where_spec) {
             where_items_.push_back(
                 MakeTranslateItem(where_spec.expr_str, where_spec.params));
         }
 
-        void operator()(const BySpecifier& by_spec) {
+        void operator()(const BySpec& by_spec) {
             if (query_sort_ != QueryFamily::COUNT)
                 by_items_.push_back(
                     MakeTranslateItem(by_spec.expr_str, by_spec.params));
         }
         
-        void operator()(const OnlySpecifier& only_spec) {
+        void operator()(const OnlySpec& only_spec) {
             if (query_sort_ != QueryFamily::COUNT)
                 only_fields_ptr_.reset(new StringSet(only_spec.field_names));
         }
 
-        void operator()(const WindowSpecifier& window_spec) {
+        void operator()(const WindowSpec& window_spec) {
             if (window_ptr_.get()) {
                 if (param_shift_ == RAW_SHIFT)
                     AdjustOffsetAndLimit(window_ptr_->offset,
@@ -482,18 +481,17 @@ namespace
 
 namespace
 {
-    /// Class for mapping a tuple (QueryFamily, SpecifierFamilies) to
+    /// Class for mapping a tuple (QueryFamily, SpecFamilies) to
     /// values of any type
     template <typename T>
     class QueryMap {
     public:
         QueryMap();
         
-        T* GetItemPtr(const QueryFamily& qf,
-                      const SpecifierFamilies& sfs);
+        T* GetItemPtr(const QueryFamily& qf, const SpecFamilies& sfs);
         
         T& SetItem(const QueryFamily& qf,
-                   const SpecifierFamilies& sfs,
+                   const SpecFamilies& sfs,
                    const T& t,
                    bool overwrite);
 
@@ -502,7 +500,7 @@ namespace
 
     private:
         struct Entry {
-            typedef map<SpecifierFamily, Entry> SFMap;
+            typedef map<SpecFamily, Entry> SFMap;
 
             SFMap sf_map;
             Wrapper<T> t_wr;
@@ -524,14 +522,13 @@ QueryMap<T>::QueryMap()
 
 
 template <typename T>
-T* QueryMap<T>::GetItemPtr(const QueryFamily& qf,
-                           const SpecifierFamilies& sfs)
+T* QueryMap<T>::GetItemPtr(const QueryFamily& qf, const SpecFamilies& sfs)
 {
     typename QFMap::iterator itr = qf_map_.find(qf);
     if (itr == qf_map_.end())
         return 0;
     Entry* entry_ptr = &itr->second;
-    BOOST_FOREACH(const SpecifierFamily& sf, sfs) {
+    BOOST_FOREACH(const SpecFamily& sf, sfs) {
         typename Entry::SFMap::iterator itr = entry_ptr->sf_map.find(sf);
         if (itr == entry_ptr->sf_map.end())
             return 0;
@@ -543,12 +540,12 @@ T* QueryMap<T>::GetItemPtr(const QueryFamily& qf,
 
 template <typename T>
 T& QueryMap<T>::SetItem(const QueryFamily& qf,
-                        const SpecifierFamilies& sfs,
+                        const SpecFamilies& sfs,
                         const T& t,
                         bool overwrite)
 {
     typename QFMap::iterator qf_map_itr = qf_map_.find(qf);
-    SpecifierFamilies::const_iterator sfs_itr = sfs.begin();
+    SpecFamilies::const_iterator sfs_itr = sfs.begin();
     Entry* entry_ptr;
     if (qf_map_itr == qf_map_.end()) {
         entry_ptr =
@@ -605,22 +602,22 @@ public:
     QueryResult Query(pqxx::transaction_base& work,
                       const string& query_str,
                       const Values& params,
-                      const Specifiers& specifiers);
+                      const Specs& specs);
 
     unsigned long Count(pqxx::transaction_base& work,
                         const string& query_str,
                         const Values& params,
-                        const Specifiers& specifiers);
+                        const Specs& specs);
     
     unsigned long Update(pqxx::transaction_base& work,
                          const string& rel_name,
                          const StringMap& field_expr_map,
                          const Values& params,
-                         const WhereSpecifiers& where_specifiers);
+                         const WhereSpecs& where_specs);
                     
     unsigned long Delete(pqxx::transaction_base& work,
                          const string& rel_name,
-                         const WhereSpecifiers& where_specifiers);
+                         const WhereSpecs& where_specs);
 
     void ClearCache();
 
@@ -672,14 +669,14 @@ private:
     const QueryFamily& query_family_;
     const Values& params_;
     const SpecsT& specs_;
-    SpecifierFamilies specifier_families_;
+    SpecFamilies spec_families_;
 
     auto_ptr<ItemCollector> MakeItemCollector(bool raw) const;
     TranslateItem GetQueryItem(bool raw) const;
     Translation Translate(bool raw) const;
     const Prepared& Prepare(const Translation& translation) const;
 
-    void TransmitSpecifiersValues(pqxx::prepare::invocation& invocation) const;
+    void TransmitSpecsValues(pqxx::prepare::invocation& invocation) const;
     auto_ptr<QueryResult::Impl> ExecPrepared(pqxx::transaction_base& work,
                                              const Prepared& prepared) const;
     
@@ -697,7 +694,7 @@ Querist::Impl::SqlFunctor<SpecsT>::SqlFunctor(Querist::Impl& querist_impl,
     , query_family_(query_family)
     , params_(params)
     , specs_(specs)
-    , specifier_families_(GetSpecifierFamilies(query_family.GetSort(), specs))
+    , spec_families_(GetSpecFamilies(query_family.GetSort(), specs))
 {
 }
 
@@ -709,12 +706,11 @@ Querist::Impl::SqlFunctor<SpecsT>::operator()(pqxx::transaction_base& work) cons
     if (querist_impl_.use_count_map_.GetSize() > USE_COUNT_MAP_CLEAR_SIZE)
         querist_impl_.ClearUseCountMap();
     const Prepared* prepared_ptr =
-        querist_impl_.prepared_map_.GetItemPtr(query_family_,
-                                               specifier_families_);
+        querist_impl_.prepared_map_.GetItemPtr(query_family_, spec_families_);
     if (prepared_ptr)
         return ExecPrepared(work, *prepared_ptr);
     size_t& use_count(querist_impl_.use_count_map_.SetItem(query_family_,
-                                                           specifier_families_,
+                                                           spec_families_,
                                                            0,
                                                            false));
     if (++use_count > PREPARATION_USE_COUNT) {
@@ -764,21 +760,21 @@ Querist::Impl::SqlFunctor<SpecsT>::Prepare(const Translation& translation) const
     BOOST_FOREACH(const Type& type, query_family_.GetParamTypes())
         declaration(type.GetPgStr(), pqxx::prepare::treat_direct);
     bool window_visited = false;
-    BOOST_FOREACH(const SpecifierFamily& specifier_family,
-                  specifier_families_) {
-        if (specifier_family.GetSort() == SpecifierFamily::WINDOW) {
+    BOOST_FOREACH(const SpecFamily& spec_family,
+                  spec_families_) {
+        if (spec_family.GetSort() == SpecFamily::WINDOW) {
             if (!window_visited) {
                 declaration("int8", pqxx::prepare::treat_direct);
                 declaration("int8", pqxx::prepare::treat_direct);
                 window_visited = true;
             }
         } else {
-            BOOST_FOREACH(const Type& type, specifier_family.GetParamTypes())
+            BOOST_FOREACH(const Type& type, spec_family.GetParamTypes())
                 declaration(type.GetPgStr(), pqxx::prepare::treat_direct);
         }
     }
     return querist_impl_.prepared_map_.SetItem(query_family_,
-                                               specifier_families_,
+                                               spec_families_,
                                                prepared,
                                                true);
 }
@@ -799,12 +795,12 @@ namespace ku
 {
     template <>
     Translation
-    Querist::Impl::SqlFunctor<Specifiers>::Translate(bool raw) const
+    Querist::Impl::SqlFunctor<Specs>::Translate(bool raw) const
     {
         QueryFamily::Sort sort = query_family_.GetSort();
         auto_ptr<ItemCollector> item_collector_ptr(MakeItemCollector(raw));
-        BOOST_FOREACH(const Specifier& specifier, specs_)
-            apply_visitor(*item_collector_ptr, specifier);
+        BOOST_FOREACH(const Spec& spec, specs_)
+            apply_visitor(*item_collector_ptr, spec);
         if (sort == QueryFamily::QUERY) {
             return querist_impl_.translator_.TranslateQuery(
                 GetQueryItem(raw),
@@ -826,12 +822,12 @@ namespace ku
     
     template <>
     Translation
-    Querist::Impl::SqlFunctor<WhereSpecifiers>::Translate(bool raw) const
+    Querist::Impl::SqlFunctor<WhereSpecs>::Translate(bool raw) const
     {
         QueryFamily::Sort sort = query_family_.GetSort();
         auto_ptr<ItemCollector> item_collector_ptr(MakeItemCollector(raw));
-        BOOST_FOREACH(const WhereSpecifier& where_specifier, specs_)
-            (*item_collector_ptr)(where_specifier);
+        BOOST_FOREACH(const WhereSpec& where_spec, specs_)
+            (*item_collector_ptr)(where_spec);
         string sql_str;
         if (sort == QueryFamily::DELETE) {
             sql_str = querist_impl_.translator_.TranslateDelete(
@@ -849,20 +845,20 @@ namespace ku
     
     
     template <>
-    void Querist::Impl::SqlFunctor<Specifiers>::TransmitSpecifiersValues(
+    void Querist::Impl::SqlFunctor<Specs>::TransmitSpecsValues(
         pqxx::prepare::invocation& invocation) const
     {
         bool window_visited = false;
         for (size_t i = 0; i < specs_.size(); ++i) {
-            const Specifier& spec(specs_[i]);
-            const WindowSpecifier* window_spec_ptr;
+            const Spec& spec(specs_[i]);
+            const WindowSpec* window_spec_ptr;
             if (!window_visited &&
-                (window_spec_ptr = boost::get<WindowSpecifier>(&spec))) {
+                (window_spec_ptr = boost::get<WindowSpec>(&spec))) {
                 unsigned long offset = window_spec_ptr->offset;
                 unsigned long limit = window_spec_ptr->limit;
                 for (size_t j = i + 1; j < specs_.size(); ++j) {
-                    if (const WindowSpecifier* another_window_spec_ptr =
-                        boost::get<WindowSpecifier>(&specs_[j]))
+                    if (const WindowSpec* another_window_spec_ptr =
+                        boost::get<WindowSpec>(&specs_[j]))
                         AdjustOffsetAndLimit(offset,
                                              limit,
                                              another_window_spec_ptr->offset,
@@ -871,12 +867,12 @@ namespace ku
                 invocation(lexical_cast<string>(limit));
                 invocation(lexical_cast<string>(offset));
                 window_visited = true;
-            } else if (const WhereSpecifier* where_spec_ptr =
-                       boost::get<WhereSpecifier>(&spec)) {
+            } else if (const WhereSpec* where_spec_ptr =
+                       boost::get<WhereSpec>(&spec)) {
                 TransmitValues(invocation, where_spec_ptr->params);
             } else if (query_family_.GetSort() != QueryFamily::COUNT) {
-                if (const BySpecifier* by_spec_ptr =
-                    boost::get<BySpecifier>(&spec))
+                if (const BySpec* by_spec_ptr =
+                    boost::get<BySpec>(&spec))
                     TransmitValues(invocation, by_spec_ptr->params);
             }
         }
@@ -884,10 +880,10 @@ namespace ku
     
     
     template <>
-    void Querist::Impl::SqlFunctor<WhereSpecifiers>::TransmitSpecifiersValues(
+    void Querist::Impl::SqlFunctor<WhereSpecs>::TransmitSpecsValues(
         pqxx::prepare::invocation& invocation) const
     {
-        BOOST_FOREACH(const WhereSpecifier& where_spec, specs_)
+        BOOST_FOREACH(const WhereSpec& where_spec, specs_)
             TransmitValues(invocation, where_spec.params);
     }
 }
@@ -902,7 +898,7 @@ Querist::Impl::SqlFunctor<SpecsT>::ExecPrepared(pqxx::transaction_base& work,
         invocation(work.prepared(lexical_cast<string>(prepared.number)));
     BOOST_FOREACH(const Value& value, params_)
         invocation(value.GetPgLiter().str);
-    TransmitSpecifiersValues(invocation);
+    TransmitSpecsValues(invocation);
     pqxx::result pqxx_result(invocation.exec());
     return auto_ptr<QueryResult::Impl>(new QueryResult::Impl(prepared.header,
                                                              pqxx_result));
@@ -940,12 +936,12 @@ Querist::Impl::~Impl()
 QueryResult Querist::Impl::Query(pqxx::transaction_base& work,
                                  const string& query_str,
                                  const Values& params,
-                                 const Specifiers& specifiers)
+                                 const Specs& specs)
 {
     QueryFamily query_family(QueryFamily::QUERY,
                              query_str,
                              GetValuesTypes(params));
-    SqlFunctor<Specifiers> sql_functor(*this, query_family, params, specifiers);
+    SqlFunctor<Specs> sql_functor(*this, query_family, params, specs);
     return QueryResult(sql_functor(work).release());
 }
 
@@ -953,12 +949,12 @@ QueryResult Querist::Impl::Query(pqxx::transaction_base& work,
 unsigned long Querist::Impl::Count(pqxx::transaction_base& work,
                                    const string& query_str,
                                    const Values& params,
-                                   const Specifiers& specifiers)
+                                   const Specs& specs)
 {
     QueryFamily query_family(QueryFamily::COUNT,
                              query_str,
                              GetValuesTypes(params));
-    SqlFunctor<Specifiers> sql_functor(*this, query_family, params, specifiers);
+    SqlFunctor<Specs> sql_functor(*this, query_family, params, specs);
     auto_ptr<QueryResult::Impl> query_result_impl_ptr(sql_functor(work));
     const pqxx::result& pqxx_result(query_result_impl_ptr->GetPqxxResult());
     KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
@@ -970,25 +966,25 @@ unsigned long Querist::Impl::Update(pqxx::transaction_base& work,
                                     const string& rel_name,
                                     const StringMap& field_expr_map,
                                     const Values& params,
-                                    const WhereSpecifiers& where_specifiers)
+                                    const WhereSpecs& where_specs)
 {
     QueryFamily query_family(QueryFamily::UPDATE,
                              rel_name,
                              GetValuesTypes(params),
                              field_expr_map);
-    SqlFunctor<WhereSpecifiers>
-        sql_functor(*this, query_family, params, where_specifiers);
+    SqlFunctor<WhereSpecs>
+        sql_functor(*this, query_family, params, where_specs);
     return sql_functor(work)->GetPqxxResult().affected_rows();
 }
 
 
 unsigned long Querist::Impl::Delete(pqxx::transaction_base& work,
                                     const string& rel_name,
-                                    const WhereSpecifiers& where_specifiers)
+                                    const WhereSpecs& where_specs)
 {
     QueryFamily query_family(QueryFamily::DELETE, rel_name);
-    SqlFunctor<WhereSpecifiers>
-        sql_functor(*this, query_family, Values(), where_specifiers);
+    SqlFunctor<WhereSpecs>
+        sql_functor(*this, query_family, Values(), where_specs);
     return sql_functor(work)->GetPqxxResult().affected_rows();
 }
 
@@ -1039,18 +1035,18 @@ Querist::~Querist()
 QueryResult Querist::Query(pqxx::transaction_base& work,
                            const string& query_str,
                            const Values& params,
-                           const Specifiers& specifiers)
+                           const Specs& specs)
 {
-    return pimpl_->Query(work, query_str, params, specifiers);
+    return pimpl_->Query(work, query_str, params, specs);
 }
 
 
 unsigned long Querist::Count(pqxx::transaction_base& work,
                              const string& query_str,
                              const Values& params,
-                             const Specifiers& specifiers)
+                             const Specs& specs)
 {
-    return pimpl_->Count(work, query_str, params, specifiers);
+    return pimpl_->Count(work, query_str, params, specs);
 }
 
 
@@ -1058,18 +1054,18 @@ unsigned long Querist::Update(pqxx::transaction_base& work,
                               const string& rel_name,
                               const StringMap& field_expr_map,
                               const Values& params,
-                              const WhereSpecifiers& where_specifiers)
+                              const WhereSpecs& where_specs)
 {
     return pimpl_->Update(work, rel_name, field_expr_map,
-                          params, where_specifiers);
+                          params, where_specs);
 }
 
 
 unsigned long Querist::Delete(pqxx::transaction_base& work,
                               const string& rel_name,
-                              const WhereSpecifiers& where_specifiers)
+                              const WhereSpecs& where_specs)
 {
-    return pimpl_->Delete(work, rel_name, where_specifiers);
+    return pimpl_->Delete(work, rel_name, where_specs);
 }
 
 

@@ -84,22 +84,22 @@ namespace ku
         QueryResult Query(pqxx::transaction_base& work,
                           const std::string& query_str,
                           const Values& params,
-                          const Specifiers& specifiers);
+                          const Specs& specs);
 
         unsigned long Count(pqxx::transaction_base& work,
                             const std::string& query_str,
                             const Values& params,
-                            const Specifiers& specifiers);
+                            const Specs& specs);
 
         unsigned long Update(pqxx::transaction_base& work,
                              const std::string& rel_name,
                              const StringMap& field_expr_map,
                              const Values& params,
-                             const WhereSpecifiers& where_specifiers);
+                             const WhereSpecs& where_specs);
                     
         unsigned long Delete(pqxx::transaction_base& work,
                              const std::string& rel_name,
-                             const WhereSpecifiers& where_specifiers);
+                             const WhereSpecs& where_specs);
         
         void ClearCache();
 

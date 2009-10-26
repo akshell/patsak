@@ -620,16 +620,14 @@ namespace
     public:
         Querier(const string& query_str,
                 const Values& params = Values(),
-                const Specifiers& specifiers = Specifiers())
+                const Specs& specs = Specs())
             : query_str_(query_str)
             , params_(params)
-            , specifiers_(specifiers) {}
+            , specs_(specs) {}
         
         virtual void operator()(Access& access) {
             query_result_ptr_.reset(
-                new QueryResult(access.Query(query_str_,
-                                             params_,
-                                             specifiers_)));
+                new QueryResult(access.Query(query_str_, params_, specs_)));
         }
 
         Table GetResult() const {
@@ -643,7 +641,7 @@ namespace
     private:
         string query_str_;
         Values params_;
-        Specifiers specifiers_;
+        Specs specs_;
         auto_ptr<QueryResult> query_result_ptr_;
     };
     
@@ -750,7 +748,7 @@ namespace
         Table Query(const string& query);
         Table ComplexQuery(const string& query,
                            const Values& params,
-                           const Specifiers& specifiers);
+                           const Specs& specs);
         Table DumpRelVar(const string& rel_var_name);
         void InsertValues(const string& rel_var_name, const Values& values);
         void CreateRelVar(const string& rel_var_name, const Table& table);
@@ -786,15 +784,15 @@ void DBFixture::LoadRelVarFromString(const string& rel_var_name,
 
 Table DBFixture::Query(const string& query)
 {
-    return ComplexQuery(query, Values(), Specifiers());
+    return ComplexQuery(query, Values(), Specs());
 }
 
 
 Table DBFixture::ComplexQuery(const string& query,
                               const Values& params,
-                              const Specifiers& specifiers)
+                              const Specs& specs)
 {
-    Querier querier(query, params, specifiers);
+    Querier querier(query, params, specs);
     db.Perform(querier);
     return querier.GetResult();
 }
@@ -1190,7 +1188,7 @@ namespace
         virtual void operator()(Access& access) {
             QueryResult query_result(access.Query(query_str_,
                                                   Values(),
-                                                  Specifiers()));
+                                                  Specs()));
             auto_ptr<Values> values_ptr(
                 query_result.GetValuesPtr(query_result.GetSize()));
             BOOST_CHECK(!values_ptr.get());
@@ -1239,24 +1237,24 @@ BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
                          "id\nnumber\nfk id - s - sid\nfk id - p - pid\n---");
     BOOST_CHECK_THROW(Query("s_p_ref.id->city"), Error);
 
-    Specifiers specifiers;
+    Specs specs;
     Values where_values;
     where_values.push_back(Value(Type::NUMBER, 25));
     where_values.push_back(Value(Type::STRING, "Blake"));
-    specifiers.push_back(WhereSpecifier("status < $1 && sname != $2",
-                                        where_values));
+    specs.push_back(WhereSpec("status < $1 && sname != $2",
+                              where_values));
     StringSet only_fields1;
     only_fields1.add_sure("city");
     only_fields1.add_sure("sid");
     only_fields1.add_sure("sname");
-    specifiers.push_back(OnlySpecifier(only_fields1));
+    specs.push_back(OnlySpec(only_fields1));
     StringSet only_fields2;
     only_fields2.add_sure("sid");
-    specifiers.push_back(OnlySpecifier(only_fields2));
+    specs.push_back(OnlySpec(only_fields2));
     Values by_values;
     by_values.push_back(Value(Type::NUMBER, 2));
     by_values.push_back(Value(Type::NUMBER, 7));
-    specifiers.push_back(BySpecifier("sid * $1 % $2", by_values));
+    specs.push_back(BySpec("sid * $1 % $2", by_values));
     Values query_values;
     query_values.push_back(Value(Type::STRING, "Athens"));
     
@@ -1272,17 +1270,17 @@ BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
     sample_values_list.push_back(sample_values);
 
     for (int i = 0; i < 20; ++i) {
-        Table t(ComplexQuery("s where city != $", query_values, specifiers));
+        Table t(ComplexQuery("s where city != $", query_values, specs));
         BOOST_CHECK(t.GetRichHeader() == sample_rich_header);
         ValuesSet values_set(t.GetValuesSet());
         BOOST_CHECK(vector<Values>(values_set.begin(), values_set.end()) ==
                     sample_values_list);
     }
     
-    specifiers.push_back(OnlySpecifier(StringSet()));
+    specs.push_back(OnlySpec(StringSet()));
     ValuesSet one_empty_values;
     one_empty_values.add_sure(Values());
     BOOST_CHECK(ComplexQuery("s where city != $",
                              query_values,
-                             specifiers).GetValuesSet() == one_empty_values);
+                             specs).GetValuesSet() == one_empty_values);
 }

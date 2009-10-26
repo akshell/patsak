@@ -1255,24 +1255,24 @@ void Access::DropRelVar(const string& rel_var_name)
 
 QueryResult Access::Query(const string& query_str,
                           const Values& params,
-                          const Specifiers& specifiers) const
+                          const Specs& specs) const
 {
-    return data_.querist.Query(data_.work, query_str, params, specifiers);
+    return data_.querist.Query(data_.work, query_str, params, specs);
 }
 
 
 unsigned long Access::Count(const string& query_str,
                             const Values& params,
-                            const Specifiers& specifiers) const
+                            const Specs& specs) const
 {
-    return data_.querist.Count(data_.work, query_str, params, specifiers);
+    return data_.querist.Count(data_.work, query_str, params, specs);
 }
 
 
 unsigned long Access::Update(const string& rel_var_name,
                              const StringMap& field_expr_map,
                              const Values& params,
-                             const WhereSpecifiers& where_specifiers)
+                             const WhereSpecs& where_specs)
 {
     data_.quota_controller.Check(data_.work);
     
@@ -1288,7 +1288,7 @@ unsigned long Access::Update(const string& rel_var_name,
     try {
         rows_count = data_.querist.Update(sub_work, rel_var_name,
                                           field_expr_map,
-                                          params, where_specifiers);
+                                          params, where_specs);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
@@ -1304,14 +1304,14 @@ unsigned long Access::Update(const string& rel_var_name,
 
 
 unsigned long Access::Delete(const string& rel_var_name,
-                             const WhereSpecifiers& where_specifiers)
+                             const WhereSpecs& where_specs)
 {
     unsigned long rows_count;
     pqxx::subtransaction sub_work(data_.work);
     try {
         rows_count = data_.querist.Delete(sub_work,
                                           rel_var_name,
-                                          where_specifiers);
+                                          where_specs);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
