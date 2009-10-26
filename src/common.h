@@ -12,7 +12,7 @@
 #include <boost/scoped_ptr.hpp>
 #include <boost/operators.hpp>
 
-#include <iosfwd>
+#include <iostream>
 #include <map>
 
 

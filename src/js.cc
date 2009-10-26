@@ -13,7 +13,6 @@
 #include <boost/ref.hpp>
 
 #include <sstream>
-#include <iostream>
 
 
 using namespace ku;
