@@ -541,10 +541,9 @@ const Header& ProtoTranslator::GetResult() const
 void ProtoTranslator::AddAttr(const Attr& attr)
 {
     if (!header_.add_unsure(attr))
-        throw Error(Error::QUERY,
-                    ("Attribute with name \"" +
-                     attr.GetName() +
-                     "\" appeared twice"));
+        throw Error(
+            Error::QUERY,
+            "Attribute with name \"" + attr.GetName() +"\" appeared twice");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -699,9 +698,9 @@ const RangeVar& FieldTranslator::GetRangeVar() const
         return multi_field_.rv;
     if (this_rv_ptr_)
         return *this_rv_ptr_;
-    throw Error(Error::QUERY,
-                ("No this rangevar in context of a field \"" +
-                 GetFieldName() + '"'));
+    throw Error(
+        Error::QUERY,
+        "No 'this' rangevar in context of a field \"" + GetFieldName() + '"');
 }
 
 
@@ -710,7 +709,7 @@ Type FieldTranslator::TranslateForeignField()
     const Base* base_ptr = boost::get<Base>(&GetRangeVar().GetRel());
     if (!base_ptr)
         throw Error(Error::QUERY,
-                    ("Operator -> used on non-base rangevar \"" +
+                    ("Operator -> used on non-RelVar rangevar \"" +
                      GetRangeVar().GetName() + '"'));
     string curr_rel_var_name(base_ptr->name);
     for (MultiField::Path::const_iterator itr = multi_field_.path.begin();
