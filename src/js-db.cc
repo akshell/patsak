@@ -503,10 +503,13 @@ namespace
                              const AccessorInfo&);
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, PerformCb,
-                             const Arguments&);        
+                             const Arguments&);
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, OnlyCb,
-                             const Arguments&) const;        
+                             const Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, SubrelCb,
+                             const Arguments&) const;
 
         template <typename SpecT>
         Handle<v8::Value> GenericSpecify(const Arguments& args) const;
@@ -515,13 +518,13 @@ namespace
         InstantiateWithSpecifiers(const Specifiers& new_specifiers) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, WhereCb,
-                             const Arguments&) const;        
+                             const Arguments&) const;
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ByCb,
-                             const Arguments&) const;        
+                             const Arguments&) const;
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CountCb,
-                             const Arguments&) const;        
+                             const Arguments&) const;
     };
 }
 
@@ -531,6 +534,7 @@ DEFINE_JS_CLASS(RelBg, "Rel", object_template, proto_template)
     InitRelObjectTemplate(object_template);
     SetFunction(proto_template, "_perform", PerformCb);
     SetFunction(proto_template, "_only", OnlyCb);
+    SetFunction(proto_template, "_subrel", SubrelCb);
     SetFunction(proto_template, "_where", WhereCb);
     SetFunction(proto_template, "_by", ByCb);
     SetFunction(proto_template, "_count", CountCb);
@@ -681,6 +685,32 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, OnlyCb,
 }
 
 
+namespace
+{
+    unsigned long ReadUnsigned(Handle<v8::Value> value)
+    {
+        Handle<Integer> integer(value->ToInteger());
+        if (integer.IsEmpty() || integer->Value() < 0)
+            throw Error(Error::TYPE, "Unsigned integer required");
+        return integer->Value();
+    }
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, SubrelCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    Specifiers new_specifiers(specifiers_);
+    new_specifiers.push_back(
+        WindowSpecifier(ReadUnsigned(args[0]),
+                        (args.Length() > 1
+                         ? ReadUnsigned(args[1])
+                         : WindowSpecifier::ALL)));
+    return InstantiateWithSpecifiers(new_specifiers);
+}
+
+
 template <typename SpecT>
 Handle<v8::Value> RelBg::GenericSpecify(const Arguments& args) const
 {
@@ -721,9 +751,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, CountCb,
                     const Arguments&, /*args*/) const
 {
     return Integer::New(
-        AccessHolder::GetInstance()->Count(query_str_,
-                                           params_,
-                                           GetWhereSpecifiers()));
+        AccessHolder::GetInstance()->Count(query_str_, params_, specifiers_));
     
 }
 

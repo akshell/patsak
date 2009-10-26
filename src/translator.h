@@ -38,24 +38,50 @@ namespace ku
     };
 
 
+    const size_t RAW_SHIFT = static_cast<size_t>(-1);
+    
+
     struct TranslateItem {
         std::string ku_str;
         Types param_types;
         size_t param_shift;
         Strings param_strings;
-
-        explicit TranslateItem(const std::string& ku_str,
-                               const Types& param_types = Types(),
-                               size_t param_shift = 0,
-                               const Strings& param_strings = Strings())
+        
+        TranslateItem(const std::string& ku_str,
+                      const Types& param_types = Types(),
+                      size_t param_shift = 0)
             : ku_str(ku_str)
             , param_types(param_types)
-            , param_shift(param_shift)
-            , param_strings(param_strings) {}
+            , param_shift(param_shift) {}
+
+        TranslateItem(const std::string& ku_str,
+                      const Types& param_types,
+                      const Strings& param_strings)
+            : ku_str(ku_str)
+            , param_types(param_types)
+            , param_shift(RAW_SHIFT)
+            , param_strings(param_strings) {
+            KU_ASSERT(param_types.size() == param_strings.size());
+        }
     };
 
 
     typedef std::vector<TranslateItem> TranslateItems;
+
+
+    struct Window {
+        static const unsigned long ALL = static_cast<unsigned long>(-1);
+
+        size_t param_shift;
+        unsigned long offset;
+        unsigned long limit;
+
+        explicit Window(size_t param_shift)
+            : param_shift(param_shift) {}
+
+        Window(unsigned long offset, unsigned long limit)
+            : param_shift(RAW_SHIFT), offset(offset), limit(limit) {}
+    };
 
 
     struct Translation {
@@ -76,11 +102,13 @@ namespace ku
             const TranslateItem& query_item,
             const TranslateItems& where_items = TranslateItems(),
             const TranslateItems& by_items = TranslateItems(),
-            const StringSet* only_fields_ptr = 0) const;
+            const StringSet* only_fields_ptr = 0,
+            const Window* window_ptr = 0) const;
         
         std::string TranslateCount(
             const TranslateItem& query_item,
-            const TranslateItems& where_items = TranslateItems()) const;
+            const TranslateItems& where_items = TranslateItems(),
+            const Window* window_ptr = 0) const;
 
         std::string TranslateUpdate(
             const TranslateItem& update_item,

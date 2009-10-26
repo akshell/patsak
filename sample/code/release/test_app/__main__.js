@@ -328,6 +328,10 @@ db_test_suite.setUp = function () {
   db.Comment._insert({text: 42, author: 1, post: 0});
   db.Comment._insert({text: 'rrr', author: 0, post: 0});
   db.Comment._insert({text: 'ololo', author: 2, post: 2});
+
+  db.Count._create({i: number});
+  for (var i = 0; i < 10; ++i)
+    db.Count._insert({i: i});
 };
 
 
@@ -529,7 +533,7 @@ db_test_suite.testDB = function () {
   check("'Comment' in db");
   check("!('second' in db)");
   checkEqualTo("keys(db).sort()",
-               ['Comment', 'Dummy', 'Empty', 'Post', 'User']);
+               ['Comment', 'Count', 'Dummy', 'Empty', 'Post', 'User']);
   db.x = 42;
   check("!('x' in db)");
   check("db.x instanceof ak.RelVar");
@@ -546,6 +550,11 @@ db_test_suite.testWhere = function () {
   checkThrow(ak.UsageError, "ak.query('User')._where()");
   checkEqualTo("db.User._where('forsome (x in {}) true').length", 3);
   checkEqualTo("db.User._where('true').relVar.name", 'User');
+  checkThrow(ak.QueryError, "ak.query('{i: 1}')._where('!i->name')._perform()");
+  checkEqualTo(("ak.query(' Post ')" +
+                "._where('author->name == $', 'anton')" +
+                ".field('title')"),
+               ['first', 'third']);
 };
 
 
@@ -557,9 +566,9 @@ db_test_suite.testBy = function () {
   db.ByTest._insert({x: 3, y: 9});
   db.ByTest._insert({x: 4, y: 4});
   db.ByTest._insert({x: 5, y: 2});
-  check("ak.query('ByTest')._where('y != $', 9)" +
-        "._by('x * $1 % $2', 2, 7).field('y')",
-        [1, 4, 7, 2, 3]);
+  checkEqualTo(("ak.query('ByTest')._where('y != $', 9)" +
+                "._by('x * $1 % $2', 2, 7).field('y')"),
+               [1, 4, 7, 2, 3]);
   check("db.ByTest._by('x') instanceof ak.Selection");
   db.ByTest._drop();
 };
@@ -575,8 +584,27 @@ db_test_suite.testOnly = function () {
 };
 
 
+db_test_suite.testSubrel = function () {
+  checkEqualTo("db.Count._subrel(8).field('i')", [8, 9]);
+  checkEqualTo("db.Count._subrel(1, 8)._subrel(2, 5)._subrel(3, 4).field('i')",
+               [6, 7]);
+  checkEqualTo("db.Count._subrel(10)", []);
+  checkEqualTo("db.Count._subrel(0, 5)._subrel(6)", []);
+  checkEqualTo(("db.Count" +
+                "._subrel(0, 7)" +
+                "._only('i')" +
+                "._where('i != $', 5)" +
+                "._by('i + $', 1)" +
+                "._subrel(1, 10)" +
+                "._count()"),
+               5);
+};
+
+
 db_test_suite.testCount = function () {
   checkEqualTo("db.User._count()", 3);
+  checkEqualTo("db.User._subrel(1, 3)._count()", 2);
+  checkEqualTo("ak.query('union({i: 1}, {i: 2}, {i: 3})')._subrel(1, 3)._count()", 2);
   checkEqualTo(("ak.query('Post.author->[id, flooder] where id < 2')" +
                 "._where('flooder')._count()"),
                1);
@@ -640,10 +668,16 @@ db_test_suite.testDelete = function () {
 
 
 db_test_suite.testStress = function () {
-  for (var i = 0; i < 20; ++i) {
+  for (var i = 0; i < 10; ++i) {
+    checkEqualTo(("db.Comment" +
+                  "._where('post->author->name == $', 'anton')" +
+                  "._where('author->flooder')" +
+                  "._by('author->age')" +
+                  ".field('text')"),
+                 ['rrr', 'ololo']);
     this.testUpdate();
     this.testDelete();
-    this.testRel();
+    this.testSubrel();
   };
 };
 

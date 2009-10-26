@@ -58,6 +58,7 @@
   makeRelVarDelegation('_where');
   makeRelVarDelegation('_only');
   makeRelVarDelegation('_by');
+  makeRelVarDelegation('_subrel');
   makeRelVarDelegation('_count');
   makeRelVarDelegation('field');
   makeRelVarDelegation('_update');

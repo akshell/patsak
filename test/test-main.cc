@@ -20,6 +20,7 @@
 #include <boost/lexical_cast.hpp>
 #include <pqxx/connection>
 
+#include <iostream>
 #include <fstream>
 
 using namespace std;
@@ -1051,7 +1052,6 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
         str_trans(translator.TranslateQuery(
                       TranslateItem("{name: $1, age: $2}",
                                     param_types,
-                                    0,
                                     param_strs)));
     BOOST_CHECK(
         WordComparator()(str_trans.sql_str,
@@ -1113,10 +1113,12 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
 
     StringSet only_name_fields;
     only_name_fields.add_sure("name");
+    Window window(42, Window::ALL);
     Translation ultimate_trans(translator.TranslateQuery(query_item,
                                                          where_items,
                                                          by_items,
-                                                         &only_name_fields));
+                                                         &only_name_fields,
+                                                         &window));
     BOOST_CHECK(
         WordComparator()(ultimate_trans.sql_str,
                          "SELECT DISTINCT ON (\"@\".\"age\") \"name\" "
@@ -1124,7 +1126,9 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
                          "AS \"@\" "
                          "WHERE ((\"@\".\"name\" <> $3) "
                          "AND (\"@\".\"age\" > $4)) "
-                         "ORDER BY \"@\".\"age\""));
+                         "ORDER BY \"@\".\"age\" "
+                         "LIMIT 4294967295 "
+                         "OFFSET 42"));
 
     BOOST_CHECK(
         WordComparator()(translator.TranslateCount(query_item, where_items),

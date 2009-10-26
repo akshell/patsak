@@ -27,12 +27,11 @@ using boost::noncopyable;
 
 namespace
 {
-#ifdef TEST
-    const size_t PREPARATION_USE_COUNT = 2;
-    const size_t PREPARED_MAP_CLEAR_SIZE = 3;
-    const size_t USE_COUNT_MAP_CLEAR_SIZE = 15;
-#else
     const size_t PREPARATION_USE_COUNT = 5;
+#ifdef TEST
+    const size_t PREPARED_MAP_CLEAR_SIZE = 10;
+    const size_t USE_COUNT_MAP_CLEAR_SIZE = 20;
+#else
     const size_t PREPARED_MAP_CLEAR_SIZE = 500;
     const size_t USE_COUNT_MAP_CLEAR_SIZE = 1000;
 #endif
@@ -255,7 +254,8 @@ namespace
         enum Sort {
             WHERE,
             BY,
-            ONLY
+            ONLY,
+            WINDOW
         };
 
         SpecifierFamily(Sort sort, const string& ku_str, const Types& param_types)
@@ -302,89 +302,73 @@ namespace
     typedef vector<SpecifierFamily> SpecifierFamilies;
     
 
-    class SpecifierFamilyGetter : public static_visitor<SpecifierFamily> {
+    class SpecifierFamilyCollector : public static_visitor<void>
+                                   , private noncopyable {
     public:
-        SpecifierFamily operator()(const WhereSpecifier& where_spec) const {
-            return SpecifierFamily(SpecifierFamily::WHERE,
-                                   where_spec.expr_str,
-                                   GetValuesTypes(where_spec.params));
+        SpecifierFamilyCollector(QueryFamily::Sort query_sort)
+            : query_sort_(query_sort) {}
+        
+        void operator()(const WhereSpecifier& where_spec) {
+            result_.push_back(
+                SpecifierFamily(SpecifierFamily::WHERE,
+                                where_spec.expr_str,
+                                GetValuesTypes(where_spec.params)));
         }
         
-        SpecifierFamily operator()(const BySpecifier& by_spec) const {
-            return SpecifierFamily(SpecifierFamily::BY,
-                                   by_spec.expr_str,
-                                   GetValuesTypes(by_spec.params));
+        void operator()(const BySpecifier& by_spec) {
+            if (query_sort_ != QueryFamily::COUNT)
+                result_.push_back(
+                    SpecifierFamily(SpecifierFamily::BY,
+                                    by_spec.expr_str,
+                                    GetValuesTypes(by_spec.params)));
         }
 
-        SpecifierFamily operator()(const OnlySpecifier& only_spec) const {
+        void operator()(const OnlySpecifier& only_spec) {
+            if (query_sort_ == QueryFamily::COUNT)
+                return;
             ostringstream oss;
             OmitInvoker print_sep((SepPrinter(oss)));
             BOOST_FOREACH(const string& field_name, only_spec.field_names) {
                 print_sep();
                 oss << field_name;
             }
-            return SpecifierFamily(SpecifierFamily::ONLY,
-                                   oss.str(),
-                                   Types());
+            result_.push_back(
+                SpecifierFamily(SpecifierFamily::ONLY, oss.str(), Types()));
         }
+        
+        void operator()(const WindowSpecifier& /*win_spec*/) {
+            result_.push_back(
+                SpecifierFamily(SpecifierFamily::WINDOW, "", Types()));
+        }
+
+        const SpecifierFamilies& GetResult() const {
+            return result_;
+        }
+
+    private:
+        QueryFamily::Sort query_sort_;
+        SpecifierFamilies result_;
     };
 
     
-    SpecifierFamilies GetSpecifierFamilies(const Specifiers& specifiers)
+    SpecifierFamilies GetSpecifierFamilies(QueryFamily::Sort query_sort,
+                                           const Specifiers& specifiers)
     {
-        SpecifierFamilies result;
-        result.reserve(specifiers.size());
+        SpecifierFamilyCollector collector(query_sort);
         BOOST_FOREACH(const Specifier& specifier, specifiers)
-            result.push_back(apply_visitor(SpecifierFamilyGetter(), specifier));
-        return result;
+            apply_visitor(collector, specifier);
+        return collector.GetResult();
     }
 
 
     SpecifierFamilies
-    GetSpecifierFamilies(const WhereSpecifiers& where_specifiers)
+    GetSpecifierFamilies(QueryFamily::Sort query_sort,
+                         const WhereSpecifiers& where_specifiers)
     {
-        SpecifierFamilies result;
-        result.reserve(where_specifiers.size());
+        SpecifierFamilyCollector collector(query_sort);
         BOOST_FOREACH(const WhereSpecifier& where_specifier, where_specifiers)
-            result.push_back(SpecifierFamilyGetter()(where_specifier));
-        return result;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// GetSpecifierValues
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class SpecifierValuesGetter : public static_visitor<const Values*> {
-    public:
-        const Values* operator()(const WhereSpecifier& where_spec) const {
-            return &where_spec.params;
-        }
-
-        const Values* operator()(const BySpecifier& by_spec) const {
-            return &by_spec.params;
-        }
-
-        const Values* operator()(const OnlySpecifier& /*only_spec*/) const {
-            return 0;
-        }
-    };
-
-
-    const Values& GetSpecifierValues(const Specifier& specifier)
-    {
-        static const Values empty_values;
-        const Values* values_ptr = apply_visitor(SpecifierValuesGetter(),
-                                                 specifier);
-        return values_ptr ? *values_ptr : empty_values;
-    }
-
-    
-    const Values& GetSpecifierValues(const WhereSpecifier& where_specifier)
-    {
-        return where_specifier.params;
+            collector(where_specifier);
+        return collector.GetResult();
     }
 }
 
@@ -394,34 +378,65 @@ namespace
 
 namespace
 {
+    void AdjustOffsetAndLimit(unsigned long& offset,
+                              unsigned long& limit,
+                              unsigned long sub_offset,
+                              unsigned long sub_limit)
+    {
+        if (limit <= sub_offset) {
+            limit = 0;
+        } else {
+            offset += sub_offset;
+            limit = min(sub_limit, limit - sub_offset);
+        }
+    }
+
+    
     /// Collects items from query and specifiers for subsequent translation
     class ItemCollector : public static_visitor<void>
                         , private noncopyable {
     public:
-        ItemCollector(Quoter* quoter_ptr, size_t param_shift)
-            : quoter_ptr_(quoter_ptr)
-            , param_shift_(param_shift) {}
+        ItemCollector(QueryFamily::Sort query_sort, const Quoter& quoter)
+            : query_sort_(query_sort)
+            , quoter_ptr_(new Quoter(quoter))
+            , param_shift_(RAW_SHIFT) {}
         
-        void operator()(const WhereSpecifier& where_specifier) {
+        ItemCollector(QueryFamily::Sort query_sort, size_t param_shift)
+            : query_sort_(query_sort)
+            , param_shift_(param_shift) {}
+            
+        void operator()(const WhereSpecifier& where_spec) {
             where_items_.push_back(
-                TranslateItem(where_specifier.expr_str,
-                              GetValuesTypes(where_specifier.params),
-                              param_shift_,
-                              GetParamStrings(where_specifier.params)));
-            param_shift_ += where_specifier.params.size();
+                MakeTranslateItem(where_spec.expr_str, where_spec.params));
         }
 
-        void operator()(const BySpecifier& by_specifier) {
-            by_items_.push_back(
-                TranslateItem(by_specifier.expr_str,
-                              GetValuesTypes(by_specifier.params),
-                              param_shift_,
-                              GetParamStrings(by_specifier.params)));
-            param_shift_ += by_specifier.params.size();
+        void operator()(const BySpecifier& by_spec) {
+            if (query_sort_ != QueryFamily::COUNT)
+                by_items_.push_back(
+                    MakeTranslateItem(by_spec.expr_str, by_spec.params));
+        }
+        
+        void operator()(const OnlySpecifier& only_spec) {
+            if (query_sort_ != QueryFamily::COUNT)
+                only_fields_ptr_.reset(new StringSet(only_spec.field_names));
         }
 
-        void operator()(const OnlySpecifier& only_specifier) {
-            only_fields_ptr_.reset(new StringSet(only_specifier.field_names));
+        void operator()(const WindowSpecifier& window_spec) {
+            if (window_ptr_.get()) {
+                if (param_shift_ == RAW_SHIFT)
+                    AdjustOffsetAndLimit(window_ptr_->offset,
+                                         window_ptr_->limit,
+                                         window_spec.offset,
+                                         window_spec.limit);
+            } else {
+                if (param_shift_ == RAW_SHIFT) {
+                    window_ptr_.reset(
+                        new Window(window_spec.offset, window_spec.limit));
+                } else {
+                    window_ptr_.reset(new Window(param_shift_));
+                    param_shift_ += 2;
+                }
+            }
         }
 
         const TranslateItems GetWhereItems() const {
@@ -435,16 +450,28 @@ namespace
         const StringSet* GetOnlyFieldsPtr() const {
             return only_fields_ptr_.get();
         }
+
+        const Window* GetWindowPtr() const {
+            return window_ptr_.get();
+        }
         
     private:
+        QueryFamily::Sort query_sort_;
         auto_ptr<Quoter> quoter_ptr_;
         size_t param_shift_;
         TranslateItems where_items_;
         TranslateItems by_items_;
         auto_ptr<StringSet> only_fields_ptr_;
+        auto_ptr<Window> window_ptr_;
 
-        Strings GetParamStrings(const Values& params) const {
-            return quoter_ptr_.get() ? (*quoter_ptr_)(params) : Strings();
+        TranslateItem MakeTranslateItem(const string& ku_str,
+                                        const Values& params) {
+            Types types(GetValuesTypes(params));
+            if (param_shift_ == RAW_SHIFT)
+                return TranslateItem(ku_str, types, (*quoter_ptr_)(params));
+            TranslateItem result(ku_str, types, param_shift_);
+            param_shift_ += params.size();
+            return result;
         }
     };
 }
@@ -583,7 +610,7 @@ public:
     unsigned long Count(pqxx::transaction_base& work,
                         const string& query_str,
                         const Values& params,
-                        const WhereSpecifiers& where_specifiers);
+                        const Specifiers& specifiers);
     
     unsigned long Update(pqxx::transaction_base& work,
                          const string& rel_name,
@@ -647,10 +674,12 @@ private:
     const SpecsT& specs_;
     SpecifierFamilies specifier_families_;
 
+    auto_ptr<ItemCollector> MakeItemCollector(bool raw) const;
+    TranslateItem GetQueryItem(bool raw) const;
     Translation Translate(bool raw) const;
     const Prepared& Prepare(const Translation& translation) const;
-    TranslateItem GetQueryItem(bool raw) const;
 
+    void TransmitSpecifiersValues(pqxx::prepare::invocation& invocation) const;
     auto_ptr<QueryResult::Impl> ExecPrepared(pqxx::transaction_base& work,
                                              const Prepared& prepared) const;
     
@@ -668,7 +697,7 @@ Querist::Impl::SqlFunctor<SpecsT>::SqlFunctor(Querist::Impl& querist_impl,
     , query_family_(query_family)
     , params_(params)
     , specs_(specs)
-    , specifier_families_(GetSpecifierFamilies(specs))
+    , specifier_families_(GetSpecifierFamilies(query_family.GetSort(), specs))
 {
 }
 
@@ -698,67 +727,26 @@ Querist::Impl::SqlFunctor<SpecsT>::operator()(pqxx::transaction_base& work) cons
 }
 
 
-namespace ku
+template <typename SpecsT>
+auto_ptr<ItemCollector>
+Querist::Impl::SqlFunctor<SpecsT>::MakeItemCollector(bool raw) const
 {
-    template <>
-    Translation
-    Querist::Impl::SqlFunctor<Specifiers>::Translate(bool raw) const
-    {
-        KU_ASSERT(query_family_.GetSort() == QueryFamily::QUERY);
-        ItemCollector item_collector(raw ? new Quoter(querist_impl_.conn_) : 0,
-                                     params_.size());
-        BOOST_FOREACH(const Specifier& specifier, specs_)
-            apply_visitor(item_collector, specifier);
-        return querist_impl_.translator_.TranslateQuery(
-            GetQueryItem(raw),
-            item_collector.GetWhereItems(),
-            item_collector.GetByItems(),
-            item_collector.GetOnlyFieldsPtr());
-    }
-
-    
-    template <>
-    Translation
-    Querist::Impl::SqlFunctor<WhereSpecifiers>::Translate(bool raw) const
-    {
-        ItemCollector item_collector(raw ? new Quoter(querist_impl_.conn_) : 0,
-                                     params_.size());
-        BOOST_FOREACH(const WhereSpecifier& where_specifier, specs_)
-            item_collector(where_specifier);
-        string sql_str;
-        switch (query_family_.GetSort()) {
-        case QueryFamily::COUNT:
-            sql_str = querist_impl_.translator_.TranslateCount(
-                GetQueryItem(raw),
-                item_collector.GetWhereItems());
-            break;
-        case QueryFamily::DELETE:
-            sql_str = querist_impl_.translator_.TranslateDelete(
-                query_family_.GetKuStr(),
-                item_collector.GetWhereItems());
-            break;
-        default:
-            KU_ASSERT(query_family_.GetSort() == QueryFamily::UPDATE);
-            sql_str = querist_impl_.translator_.TranslateUpdate(
-                GetQueryItem(raw),
-                query_family_.GetFieldExprMap(),
-                item_collector.GetWhereItems());
-        }
-        return Translation(sql_str, Header());
-    }
+    QueryFamily::Sort sort(query_family_.GetSort());
+    return auto_ptr<ItemCollector>(
+        raw
+        ? new ItemCollector(sort, Quoter(querist_impl_.conn_))
+        : new ItemCollector(sort, params_.size()));
 }
 
 
 template <typename SpecsT>
 TranslateItem Querist::Impl::SqlFunctor<SpecsT>::GetQueryItem(bool raw) const
 {
-    Strings param_strings(raw
-                          ? Quoter(querist_impl_.conn_)(params_)
-                          : Strings());        
-    return TranslateItem(query_family_.GetKuStr(),
-                         query_family_.GetParamTypes(),
-                         0,
-                         param_strings);
+    string ku_str(query_family_.GetKuStr());
+    Types types(query_family_.GetParamTypes());
+    return (raw
+            ? TranslateItem(ku_str, types, Quoter(querist_impl_.conn_)(params_))
+            : TranslateItem(ku_str, types, 0));
 }
 
 
@@ -775,15 +763,133 @@ Querist::Impl::SqlFunctor<SpecsT>::Prepare(const Translation& translation) const
                         translation.sql_str));
     BOOST_FOREACH(const Type& type, query_family_.GetParamTypes())
         declaration(type.GetPgStr(), pqxx::prepare::treat_direct);
+    bool window_visited = false;
     BOOST_FOREACH(const SpecifierFamily& specifier_family,
                   specifier_families_) {
-        BOOST_FOREACH(const Type& type, specifier_family.GetParamTypes())
-            declaration(type.GetPgStr(), pqxx::prepare::treat_direct);
+        if (specifier_family.GetSort() == SpecifierFamily::WINDOW) {
+            if (!window_visited) {
+                declaration("int8", pqxx::prepare::treat_direct);
+                declaration("int8", pqxx::prepare::treat_direct);
+                window_visited = true;
+            }
+        } else {
+            BOOST_FOREACH(const Type& type, specifier_family.GetParamTypes())
+                declaration(type.GetPgStr(), pqxx::prepare::treat_direct);
+        }
     }
     return querist_impl_.prepared_map_.SetItem(query_family_,
                                                specifier_families_,
                                                prepared,
                                                true);
+}
+
+
+namespace
+{
+    void TransmitValues(pqxx::prepare::invocation& invocation,
+                        const Values& values)
+    {
+        BOOST_FOREACH(const Value& value, values)
+            invocation(value.GetPgLiter().str);
+    }
+}
+
+
+namespace ku
+{
+    template <>
+    Translation
+    Querist::Impl::SqlFunctor<Specifiers>::Translate(bool raw) const
+    {
+        QueryFamily::Sort sort = query_family_.GetSort();
+        auto_ptr<ItemCollector> item_collector_ptr(MakeItemCollector(raw));
+        BOOST_FOREACH(const Specifier& specifier, specs_)
+            apply_visitor(*item_collector_ptr, specifier);
+        if (sort == QueryFamily::QUERY) {
+            return querist_impl_.translator_.TranslateQuery(
+                GetQueryItem(raw),
+                item_collector_ptr->GetWhereItems(),
+                item_collector_ptr->GetByItems(),
+                item_collector_ptr->GetOnlyFieldsPtr(),
+                item_collector_ptr->GetWindowPtr());
+        } else {
+            KU_ASSERT(sort == QueryFamily::COUNT);
+            return Translation(
+                querist_impl_.translator_.TranslateCount(
+                    GetQueryItem(raw),
+                    item_collector_ptr->GetWhereItems(),
+                    item_collector_ptr->GetWindowPtr()),
+                Header());
+        }
+    }
+
+    
+    template <>
+    Translation
+    Querist::Impl::SqlFunctor<WhereSpecifiers>::Translate(bool raw) const
+    {
+        QueryFamily::Sort sort = query_family_.GetSort();
+        auto_ptr<ItemCollector> item_collector_ptr(MakeItemCollector(raw));
+        BOOST_FOREACH(const WhereSpecifier& where_specifier, specs_)
+            (*item_collector_ptr)(where_specifier);
+        string sql_str;
+        if (sort == QueryFamily::DELETE) {
+            sql_str = querist_impl_.translator_.TranslateDelete(
+                query_family_.GetKuStr(),
+                item_collector_ptr->GetWhereItems());
+        } else {
+            KU_ASSERT(sort == QueryFamily::UPDATE);
+            sql_str = querist_impl_.translator_.TranslateUpdate(
+                GetQueryItem(raw),
+                query_family_.GetFieldExprMap(),
+                item_collector_ptr->GetWhereItems());
+        }
+        return Translation(sql_str, Header());
+    }
+    
+    
+    template <>
+    void Querist::Impl::SqlFunctor<Specifiers>::TransmitSpecifiersValues(
+        pqxx::prepare::invocation& invocation) const
+    {
+        bool window_visited = false;
+        for (size_t i = 0; i < specs_.size(); ++i) {
+            const Specifier& spec(specs_[i]);
+            const WindowSpecifier* window_spec_ptr;
+            if (!window_visited &&
+                (window_spec_ptr = boost::get<WindowSpecifier>(&spec))) {
+                unsigned long offset = window_spec_ptr->offset;
+                unsigned long limit = window_spec_ptr->limit;
+                for (size_t j = i + 1; j < specs_.size(); ++j) {
+                    if (const WindowSpecifier* another_window_spec_ptr =
+                        boost::get<WindowSpecifier>(&specs_[j]))
+                        AdjustOffsetAndLimit(offset,
+                                             limit,
+                                             another_window_spec_ptr->offset,
+                                             another_window_spec_ptr->limit);
+                }
+                invocation(lexical_cast<string>(limit));
+                invocation(lexical_cast<string>(offset));
+                window_visited = true;
+            } else if (const WhereSpecifier* where_spec_ptr =
+                       boost::get<WhereSpecifier>(&spec)) {
+                TransmitValues(invocation, where_spec_ptr->params);
+            } else if (query_family_.GetSort() != QueryFamily::COUNT) {
+                if (const BySpecifier* by_spec_ptr =
+                    boost::get<BySpecifier>(&spec))
+                    TransmitValues(invocation, by_spec_ptr->params);
+            }
+        }
+    }
+    
+    
+    template <>
+    void Querist::Impl::SqlFunctor<WhereSpecifiers>::TransmitSpecifiersValues(
+        pqxx::prepare::invocation& invocation) const
+    {
+        BOOST_FOREACH(const WhereSpecifier& where_spec, specs_)
+            TransmitValues(invocation, where_spec.params);
+    }
 }
 
 
@@ -796,11 +902,7 @@ Querist::Impl::SqlFunctor<SpecsT>::ExecPrepared(pqxx::transaction_base& work,
         invocation(work.prepared(lexical_cast<string>(prepared.number)));
     BOOST_FOREACH(const Value& value, params_)
         invocation(value.GetPgLiter().str);
-    BOOST_FOREACH(const SpecT& spec, specs_) {
-        const Values& values(GetSpecifierValues(spec));
-        BOOST_FOREACH(const Value& value, values)
-            invocation(value.GetPgLiter().str);
-    }
+    TransmitSpecifiersValues(invocation);
     pqxx::result pqxx_result(invocation.exec());
     return auto_ptr<QueryResult::Impl>(new QueryResult::Impl(prepared.header,
                                                              pqxx_result));
@@ -843,8 +945,7 @@ QueryResult Querist::Impl::Query(pqxx::transaction_base& work,
     QueryFamily query_family(QueryFamily::QUERY,
                              query_str,
                              GetValuesTypes(params));
-    SqlFunctor<Specifiers>
-        sql_functor(*this, query_family, params, specifiers);
+    SqlFunctor<Specifiers> sql_functor(*this, query_family, params, specifiers);
     return QueryResult(sql_functor(work).release());
 }
 
@@ -852,13 +953,12 @@ QueryResult Querist::Impl::Query(pqxx::transaction_base& work,
 unsigned long Querist::Impl::Count(pqxx::transaction_base& work,
                                    const string& query_str,
                                    const Values& params,
-                                   const WhereSpecifiers& where_specifiers)
+                                   const Specifiers& specifiers)
 {
     QueryFamily query_family(QueryFamily::COUNT,
                              query_str,
                              GetValuesTypes(params));
-    SqlFunctor<WhereSpecifiers>
-        sql_functor(*this, query_family, params, where_specifiers);
+    SqlFunctor<Specifiers> sql_functor(*this, query_family, params, specifiers);
     auto_ptr<QueryResult::Impl> query_result_impl_ptr(sql_functor(work));
     const pqxx::result& pqxx_result(query_result_impl_ptr->GetPqxxResult());
     KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
@@ -948,9 +1048,9 @@ QueryResult Querist::Query(pqxx::transaction_base& work,
 unsigned long Querist::Count(pqxx::transaction_base& work,
                              const string& query_str,
                              const Values& params,
-                             const WhereSpecifiers& where_specifiers)
+                             const Specifiers& specifiers)
 {
-    return pimpl_->Count(work, query_str, params, where_specifiers);
+    return pimpl_->Count(work, query_str, params, specifiers);
 }
 
 

@@ -250,7 +250,6 @@ namespace
         RelVars rel_vars_;
 
         size_t GetRelVarIdx(const string& rel_var_name) const; // never throws
-        size_t GetRelVarIdxChecked(const string& rel_var_name) const;
         static void CheckNameSize(const string& name);
     };
 
@@ -354,7 +353,11 @@ const RelVars& DBMeta::GetRelVars() const
 
 const RelVar& DBMeta::GetRelVar(const string& rel_var_name) const
 {
-    return rel_vars_[GetRelVarIdxChecked(rel_var_name)];
+    size_t idx = GetRelVarIdx(rel_var_name);
+    if (idx == static_cast<size_t>(-1))
+        throw Error(Error::NO_SUCH_REL_VAR,
+                    "No such RelVar: \"" + rel_var_name + '"');
+    return rel_vars_[idx];
 }
 
 
@@ -408,16 +411,6 @@ size_t DBMeta::GetRelVarIdx(const string& rel_var_name) const
         if (rel_vars_[i].GetName() == rel_var_name)
             return i;
     return -1;
-}
-
-
-size_t DBMeta::GetRelVarIdxChecked(const string& rel_var_name) const
-{
-    size_t result = GetRelVarIdx(rel_var_name);
-    if (result == static_cast<size_t>(-1))
-        throw Error(Error::NO_SUCH_REL_VAR,
-                    "No such RelVar: \"" + rel_var_name + '"');
-    return result;
 }
 
 
@@ -1270,9 +1263,9 @@ QueryResult Access::Query(const string& query_str,
 
 unsigned long Access::Count(const string& query_str,
                             const Values& params,
-                            const WhereSpecifiers& where_specifiers) const
+                            const Specifiers& specifiers) const
 {
-    return data_.querist.Count(data_.work, query_str, params, where_specifiers);
+    return data_.querist.Count(data_.work, query_str, params, specifiers);
 }
 
 

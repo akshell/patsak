@@ -43,15 +43,27 @@ namespace ku
     struct OnlySpecifier {
         StringSet field_names;
 
-        OnlySpecifier(const StringSet& field_names)
+        explicit OnlySpecifier(const StringSet& field_names)
             : field_names(field_names) {}
+    };
+
+
+    struct WindowSpecifier {
+        static const unsigned long ALL = static_cast<unsigned long>(-1);
+        
+        unsigned long offset;
+        unsigned long limit;
+
+        WindowSpecifier(unsigned long offset, unsigned long limit)
+            : offset(offset), limit(limit) {}
     };
 
 
     typedef boost::variant<
         WhereSpecifier,
         BySpecifier,
-        OnlySpecifier>
+        OnlySpecifier,
+        WindowSpecifier>
     Specifier;
 
     
@@ -242,7 +254,7 @@ namespace ku
 
         unsigned long Count(const std::string& query_str,
                             const Values& params,
-                            const WhereSpecifiers& where_specifiers) const;
+                            const Specifiers& specifiers) const;
 
         unsigned long Update(const std::string& rel_var_name,
                              const StringMap& field_expr_map,
