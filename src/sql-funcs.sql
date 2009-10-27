@@ -1,23 +1,24 @@
 
+DROP SCHEMA IF EXISTS ku CASCADE;
 CREATE SCHEMA ku;
 
 
-CREATE OR REPLACE FUNCTION ku.to_string(f float8) RETURNS text AS $$
+CREATE FUNCTION ku.to_string(f float8) RETURNS text AS $$
     SELECT $1::text;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.to_string(b bool) RETURNS text AS $$
+CREATE FUNCTION ku.to_string(b bool) RETURNS text AS $$
     SELECT $1::text;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.to_string(t timestamp(3)) RETURNS text AS $$
+CREATE FUNCTION ku.to_string(t timestamp(3)) RETURNS text AS $$
     SELECT to_char($1, 'Dy, DD Mon YYYY HH:MI:SS GMT');
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.to_number(t text) RETURNS float8 AS $$
+CREATE FUNCTION ku.to_number(t text) RETURNS float8 AS $$
 BEGIN
     IF t = '' THEN
         RETURN 0;
@@ -30,32 +31,32 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.to_number(b bool) RETURNS float8 AS $$
+CREATE FUNCTION ku.to_number(b bool) RETURNS float8 AS $$
     SELECT $1::int::float8;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.to_number(t timestamp(3)) RETURNS float8 AS $$
+CREATE FUNCTION ku.to_number(t timestamp(3)) RETURNS float8 AS $$
     SELECT extract(epoch from $1)*1000;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.to_boolean(f float8) RETURNS bool AS $$
+CREATE FUNCTION ku.to_boolean(f float8) RETURNS bool AS $$
     SELECT CASE WHEN $1 = 0 OR $1 = 'NaN'::float8 THEN false ELSE true END;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.to_boolean(t text) RETURNS bool AS $$
+CREATE FUNCTION ku.to_boolean(t text) RETURNS bool AS $$
     SELECT CASE WHEN $1 = '' THEN false ELSE true END;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.mod(a float8, b float8) RETURNS float8 AS $$
+CREATE FUNCTION ku.mod(a float8, b float8) RETURNS float8 AS $$
     SELECT $1 - trunc($1/$2) * $2;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.eval(t text) RETURNS text AS $$
+CREATE FUNCTION ku.eval(t text) RETURNS text AS $$
 DECLARE
     r text;
 BEGIN
@@ -68,7 +69,7 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.insert_into_empty(table_name text)
+CREATE FUNCTION ku.insert_into_empty(table_name text)
     RETURNS void AS
 $$
 DECLARE
@@ -85,7 +86,7 @@ END;
 $$ LANGUAGE plpgsql VOLATILE;
 
 
-CREATE OR REPLACE FUNCTION ku.create_schema(schema_name text) RETURNS void AS $$
+CREATE FUNCTION ku.create_schema(schema_name text) RETURNS void AS $$
 BEGIN
     EXECUTE 'CREATE SCHEMA ' || quote_ident(schema_name);
     EXECUTE 'CREATE OPERATOR ' || quote_ident(schema_name) ||
@@ -94,7 +95,7 @@ END;
 $$ LANGUAGE plpgsql VOLATILE;
 
 
-CREATE OR REPLACE FUNCTION ku.drop_schemas(prefix text) RETURNS void AS $$
+CREATE FUNCTION ku.drop_schemas(prefix text) RETURNS void AS $$
 DECLARE
     nsp RECORD;
 BEGIN
@@ -107,7 +108,7 @@ END;
 $$ LANGUAGE plpgsql VOLATILE;
 
 
-CREATE OR REPLACE FUNCTION ku.get_schema_size(prefix text) RETURNS numeric AS $$
+CREATE FUNCTION ku.get_schema_size(prefix text) RETURNS numeric AS $$
     SELECT SUM(pg_total_relation_size(pg_class.oid))
     FROM pg_class, pg_namespace
     WHERE pg_namespace.nspname = $1
@@ -115,7 +116,7 @@ CREATE OR REPLACE FUNCTION ku.get_schema_size(prefix text) RETURNS numeric AS $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.describe_table(
+CREATE FUNCTION ku.describe_table(
     name text, OUT attname name, OUT typname name, OUT def text)
     RETURNS SETOF RECORD AS
 $$
@@ -132,7 +133,7 @@ $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.get_schema_tables(name text, OUT relname name)
+CREATE FUNCTION ku.get_schema_tables(name text, OUT relname name)
     RETURNS SETOF name AS
 $$
     SELECT tablename AS relname
@@ -141,7 +142,7 @@ $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.describe_constrs(
+CREATE FUNCTION ku.describe_constrs(
     table_name text,
     OUT contype "char", OUT conkey int2[], OUT relname name, OUT confkey int2[])
     RETURNS SETOF RECORD AS
@@ -153,21 +154,21 @@ $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.user_exists(name text) RETURNS bool AS $$
+CREATE FUNCTION ku.user_exists(name text) RETURNS bool AS $$
     SELECT true
     FROM public.auth_user AS usr
     WHERE usr.username = $1;
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.app_exists(name text) RETURNS bool AS $$
+CREATE FUNCTION ku.app_exists(name text) RETURNS bool AS $$
     SELECT true
     FROM public.main_app AS app
     WHERE app.name = $1;
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.get_app_quotas(
+CREATE FUNCTION ku.get_app_quotas(
     app_name text, OUT db_quota integer, OUT fs_quota integer)
     RETURNS RECORD AS
 $$
@@ -177,7 +178,7 @@ $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.describe_app(
+CREATE FUNCTION ku.describe_app(
     name text,
     OUT id int4, OUT admin text, OUT email text,
     OUT summary text, OUT description text)
@@ -190,7 +191,7 @@ $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.get_app_devs(app_id int4, OUT dev_name text)
+CREATE FUNCTION ku.get_app_devs(app_id int4, OUT dev_name text)
     RETURNS SETOF text AS
 $$
     SELECT usr.username
@@ -200,7 +201,7 @@ $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.get_app_labels(app_id int4, OUT label_name text)
+CREATE FUNCTION ku.get_app_labels(app_id int4, OUT label_name text)
     RETURNS SETOF text AS
 $$
     SELECT label.name
@@ -210,7 +211,7 @@ $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.get_admined_apps(
+CREATE FUNCTION ku.get_admined_apps(
     user_name text, OUT app_name text)
     RETURNS SETOF text AS
 $$
@@ -221,7 +222,7 @@ $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.get_developed_apps(
+CREATE FUNCTION ku.get_developed_apps(
     user_name text, OUT app_name text)
     RETURNS SETOF text AS
 $$
@@ -234,7 +235,7 @@ $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE OR REPLACE FUNCTION ku.get_apps_by_label(
+CREATE FUNCTION ku.get_apps_by_label(
     label_name text, OUT app_name text)
     RETURNS SETOF text AS
 $$
