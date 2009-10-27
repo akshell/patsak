@@ -52,11 +52,12 @@ namespace ku
         
         DECLARE_JS_CLASS(FSBg);
 
-        FSBg(const std::string& root_path);
+        FSBg(const std::string& root_path, unsigned long long quota);
         ~FSBg();
         
     private:
         const std::string root_path_;
+        const unsigned long long quota_;
         unsigned long long total_size_;
 
         std::string ReadPath(v8::Handle<v8::Value> value,

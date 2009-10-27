@@ -30,7 +30,6 @@ namespace
 {
     const int MAX_DIR_DEPTH = 30;
     const unsigned DIRECTORY_SIZE = 4 * 1024;
-    const unsigned long long MAX_TOTAL_SIZE = 10 * 1024 * 1024;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -359,8 +358,9 @@ DEFINE_JS_CLASS(FSBg, "FS", /*object_template*/, proto_template)
 }
 
 
-FSBg::FSBg(const string& root_path)
+FSBg::FSBg(const string& root_path, unsigned long long quota)
     : root_path_(root_path)
+    , quota_(quota)
     , total_size_(CalcTotalSize(root_path))
 {
 }
@@ -399,7 +399,7 @@ string FSBg::ReadPath(Handle<v8::Value> value, bool can_be_root) const
 
 void FSBg::CheckTotalSize(unsigned long long addition) const
 {
-    if (total_size_ + addition > MAX_TOTAL_SIZE)
+    if (total_size_ + addition > quota_)
         throw Error(Error::FS_QUOTA, "File storage quota exceeded");
 }
 

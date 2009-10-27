@@ -146,8 +146,12 @@ namespace ku
     /// Database entry point
     class DB {
     public:
-        DB(const std::string& opt, const std::string& schema_name);
+        DB(const std::string& opt,
+           const std::string& schema_name,
+           const std::string& app_name);
         ~DB();
+        unsigned long long GetDBQuota() const;
+        unsigned long long GetFSQuota() const;
         void Perform(Transactor& transactor);
         
     private:

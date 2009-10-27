@@ -663,7 +663,7 @@ Program::Impl::Impl(const Place& place,
     : initialized_(false)
     , db_(db)
     , code_reader_(code_dir, include_dir)
-    , fs_bg_(media_dir)
+    , fs_bg_(media_dir, db.GetFSQuota())
     , ak_bg_(place, code_reader_, app_accessor, fs_bg_)
 {
     ResourceConstraints rc;
@@ -686,6 +686,8 @@ Program::Impl::Impl(const Place& place,
     Context::Scope context_scope(context_);
     ak_bg_.Init(ak_);
     db_mediator_bg_.Init(Get(ak_, "_dbMediator")->ToObject());
+    Set(ak_, "_dbQuota", Number::New(db_.GetDBQuota()), DontEnum);
+    Set(ak_, "_fsQuota", Number::New(db_.GetFSQuota()), DontEnum);
     // Run init.js script
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
                                                       sizeof(INIT_JS)),

@@ -832,7 +832,7 @@ auto_ptr<DB> MainRunner::InitDB() const
     string schema_name(':' + app_name_);
     if (!IsRelease())
         schema_name += ':' + owner_name_ + ':' + spot_name_;
-    return auto_ptr<DB>(new DB(options, schema_name));
+    return auto_ptr<DB>(new DB(options, schema_name, app_name_));
 }
 
 

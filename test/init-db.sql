@@ -16,7 +16,9 @@ CREATE TABLE "main_app" (
     "admin_id" integer NOT NULL REFERENCES "auth_user" ("id") DEFERRABLE INITIALLY DEFERRED,
     "email" varchar(75) NOT NULL,
     "summary" varchar(75) NOT NULL,
-    "description" text NOT NULL
+    "description" text NOT NULL,
+    "db_quota" integer CHECK ("db_quota" >= 0) NOT NULL,
+    "fs_quota" integer CHECK ("fs_quota" >= 0) NOT NULL
 )
 ;
 CREATE TABLE "main_app_labels" (
@@ -40,14 +42,14 @@ INSERT INTO "auth_user" VALUES (2, 'Achilles');
 INSERT INTO "main_label" VALUES (0, '1', 2);
 INSERT INTO "main_label" VALUES (1, '2', 1);
 INSERT INTO "main_app" VALUES (0, 'test_app', 0, 'a@b.com',
-                               'test app', 'test app...');
+                               'test app', 'test app...', 1, 1);
 INSERT INTO "main_app" VALUES (1, 'another_app', 1, 'x@y.com',
-                               'another app', 'another app...');
-INSERT INTO "main_app" VALUES (2, 'ak', 0, '', '', '');
-INSERT INTO "main_app" VALUES (3, 'lib', 0, '', '', '');
-INSERT INTO "main_app" VALUES (4, 'bad_app', 0, '', '', '');
-INSERT INTO "main_app" VALUES (5, 'throwing_app', 0, '', '', '');
-INSERT INTO "main_app" VALUES (6, 'blocking_app', 0, '', '', '');
+                               'another app', 'another app...', 1, 1);
+INSERT INTO "main_app" VALUES (2, 'ak', 0, '', '', '', 1, 1);
+INSERT INTO "main_app" VALUES (3, 'lib', 0, '', '', '', 1, 1);
+INSERT INTO "main_app" VALUES (4, 'bad_app', 0, '', '', '', 1, 1);
+INSERT INTO "main_app" VALUES (5, 'throwing_app', 0, '', '', '', 1, 1);
+INSERT INTO "main_app" VALUES (6, 'blocking_app', 0, '', '', '', 1, 1);
 INSERT INTO "main_app_labels" VALUES (0, 0, 0);
 INSERT INTO "main_app_labels" VALUES (1, 0, 1);
 INSERT INTO "main_app_labels" VALUES (2, 1, 0);

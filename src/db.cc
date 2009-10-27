@@ -32,14 +32,13 @@ namespace
     const size_t MAX_ATTR_NUMBER = 500;
     const size_t MAX_REL_VAR_NUMBER = 500;
     const size_t MAX_STRING_SIZE = 100 * 1024;
+    const unsigned long long QUOTA_MULTIPLICATOR = 1024 * 1024;
     
 #ifdef TEST
     const unsigned ADDED_SIZE_MULTIPLICATOR = 16;
-    const unsigned long long TOTAL_SIZE_QUOTA = 512 * 1024;
     const unsigned long CHANGED_ROWS_COUNT_LIMIT = 10;
 #else
     const unsigned ADDED_SIZE_MULTIPLICATOR = 4;
-    const unsigned long long TOTAL_SIZE_QUOTA = 10 * 1024 * 1024;
     const unsigned long CHANGED_ROWS_COUNT_LIMIT = 10000;
 #endif
 }
@@ -1014,12 +1013,13 @@ namespace
     /// Database space quota controller. Full of heuristics.
     class QuotaController {
     public:
-        QuotaController(const string& schema_name);
+        QuotaController(const string& schema_name, unsigned long long quota);
         void DataWereAdded(unsigned long rows_count, unsigned long long size);
         void Check(Work& work);
 
     private:
         const string schema_name_;
+        unsigned long long quota_;
         unsigned long long total_size_;
         unsigned long long added_size_;
         unsigned long changed_rows_count_;
@@ -1029,9 +1029,11 @@ namespace
 }
 
 
-QuotaController::QuotaController(const string& schema_name)
+QuotaController::QuotaController(const string& schema_name,
+                                 unsigned long long quota)
     : schema_name_(schema_name)
-    , total_size_(TOTAL_SIZE_QUOTA)
+    , quota_(quota)
+    , total_size_(quota)
     , added_size_(0)
     , changed_rows_count_(0)
 {
@@ -1049,13 +1051,12 @@ void QuotaController::DataWereAdded(unsigned long rows_count,
 void QuotaController::Check(Work& work)
 {
     if (changed_rows_count_ > CHANGED_ROWS_COUNT_LIMIT ||
-        (total_size_ + ADDED_SIZE_MULTIPLICATOR * added_size_ >=
-         TOTAL_SIZE_QUOTA)) {
+        (total_size_ + ADDED_SIZE_MULTIPLICATOR * added_size_ >= quota_)) {
         total_size_ = CalculateTotalSize(work);
         added_size_ = 0;
         changed_rows_count_ = 0;
     }
-    if (total_size_ >= TOTAL_SIZE_QUOTA)
+    if (total_size_ >= quota_)
         throw Error(Error::DB_QUOTA,
                     ("Database size quota exceeded, "
                      "updates and inserts are forbidden"));
@@ -1105,36 +1106,64 @@ class DB::Impl {
 public:
     Impl(const string& opt,
          const string& schema_name,
+         const string& app_name,
          int try_count = 3);
+
+    unsigned long long GetDBQuota() const;
+    unsigned long long GetFSQuota() const;
     void Perform(Transactor& transactor);
 
 private:
     pqxx::connection conn_;
     int try_count_;
+    unsigned long long db_quota_;
+    unsigned long long fs_quota_;
     ConsistController consist_controller_;
     scoped_ptr<Manager> manager_ptr_;
     scoped_ptr<DBViewerImpl> db_viewer_ptr_;
     scoped_ptr<Querist> querist_ptr_;
-    QuotaController quota_controller_;
+    scoped_ptr<QuotaController> quota_controller_ptr_;
 };
 
 
 DB::Impl::Impl(const string& opt,
                const string& schema_name,
+               const string& app_name,
                int try_count)
     : conn_(opt)
     , try_count_(try_count)
-    , quota_controller_(schema_name)
 {
+    static const format query(
+        "SELECT db_quota, fs_quota "
+        "FROM public.main_app AS app "
+        "WHERE app.name = '%1%';");
+    
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
     {
-        // TODO: may be should be implemented through Transactor
         Work work(conn_);
         manager_ptr_.reset(new Manager(work, schema_name, consist_controller_));
+        pqxx::result pqxx_result(work.exec((format(query) % app_name).str()));
+        KU_ASSERT(pqxx_result.size() == 1);
+        const pqxx::result::tuple& tuple(pqxx_result[0]);
+        db_quota_ = QUOTA_MULTIPLICATOR * tuple[0].as<unsigned long>();
+        fs_quota_ = QUOTA_MULTIPLICATOR * tuple[1].as<unsigned long>();
         work.commit(); // don't remove it, stupid idiot! is sets search_path!
     }
     db_viewer_ptr_.reset(new DBViewerImpl(*manager_ptr_, Quoter(conn_)));
     querist_ptr_.reset(new Querist(*db_viewer_ptr_, conn_));
+    quota_controller_ptr_.reset(new QuotaController(schema_name, db_quota_));
+}
+
+
+unsigned long long DB::Impl::GetDBQuota() const
+{
+    return db_quota_;
+}
+
+
+unsigned long long DB::Impl::GetFSQuota() const
+{
+    return fs_quota_;
 }
 
 
@@ -1144,7 +1173,7 @@ void DB::Impl::Perform(Transactor& transactor) {
         Access::Data access_data(*manager_ptr_,
                                  *querist_ptr_,
                                  Quoter(conn_),
-                                 quota_controller_,
+                                 *quota_controller_ptr_,
                                  work);
         Access access(access_data);
         try {
@@ -1171,14 +1200,26 @@ void DB::Impl::Perform(Transactor& transactor) {
 // DB definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DB(const string& opt, const string& schema_name)
+DB::DB(const string& opt, const string& schema_name, const string& app_name)
 {
-    pimpl_.reset(new Impl(opt, schema_name));
+    pimpl_.reset(new Impl(opt, schema_name, app_name));
 }
 
 
 DB::~DB()
 {
+}
+
+
+unsigned long long DB::GetDBQuota() const
+{
+    return pimpl_->GetDBQuota();
+}
+
+
+unsigned long long DB::GetFSQuota() const
+{
+    return pimpl_->GetFSQuota();
 }
 
 

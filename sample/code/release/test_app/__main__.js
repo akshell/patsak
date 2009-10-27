@@ -813,6 +813,7 @@ db_test_suite.testRelVarNumber = function () {
 
 
 db_test_suite.testQuota = function () {
+  check("ak._dbQuota > 0");
   db.R._create({i: number._integer(), s: string});
   var array = [];
   for (var i = 0; i < 100 * 1024; ++i)
@@ -1006,17 +1007,13 @@ file_test_suite.testRename = function () {
 
 file_test_suite.testQuota = function () {
   var array = [];
-  for (var i = 0; i < 1024 * 1024; ++i)
+  for (var i = 0; i < ak._fsQuota / 2; ++i)
     array.push('x');
   var str = array.join('');
-  checkThrow(ak.FSQuotaError,
-             function () {
-               for (var i = 0; i < 10; ++i)
-                 fs._write('file' + i, str);
-             });
-  for (i = 0; i < 9; ++i)
-    fs._remove('file' + i);
-  check("!fs._exists('file9')");
+  fs._write('file1', str);
+  checkThrow(ak.FSQuotaError, function () { fs._write('file2', str); });
+  fs._remove('file1');
+  check("!fs._exists('file2')");
 };
 
 ////////////////////////////////////////////////////////////////////////////////
