@@ -133,24 +133,10 @@ namespace
 RelVar::RelVar(Work& work, const string& name)
     : name_(name)
 {
-    static const format query(
-        "SELECT attribute.attname, pg_catalog.pg_type.typname, "
-        "       ku.eval(attribute.adsrc) "
-        "FROM pg_catalog.pg_type, "
-        "(pg_catalog.pg_attribute LEFT JOIN pg_catalog.pg_attrdef "
-        " ON pg_catalog.pg_attribute.attrelid = pg_catalog.pg_attrdef.adrelid "
-        " AND pg_catalog.pg_attribute.attnum = pg_catalog.pg_attrdef.adnum) "
-        " AS attribute "
-        "WHERE "
-        "pg_catalog.pg_type.oid = attribute.atttypid AND "
-        "attribute.attnum > 0 AND "
-        "attribute.attrelid = '\"%1%\"'::regclass "
-        "ORDER BY attribute.attnum;");
-
-    const pqxx::result query_result =
-        work.exec((format(query) % name_).str());
-    rich_header_.reserve(query_result.size());
-    BOOST_FOREACH(const pqxx::result::tuple& tuple, query_result) {
+    static const format query("SELECT * FROM ku.describe_table('\"%1%\"');");
+    pqxx::result pqxx_result = work.exec((format(query) % name_).str());
+    rich_header_.reserve(pqxx_result.size());
+    BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
         KU_ASSERT(tuple.size() == 3);
         KU_ASSERT(!tuple[0].is_null() && ! tuple[1].is_null());
         string name(tuple[0].c_str());
@@ -323,19 +309,10 @@ namespace
 
 DBMeta::DBMeta(Work& work, const string& schema_name)
 {
-    static const format query(
-        "(SELECT viewname AS relname "
-        "FROM pg_catalog.pg_views "
-        "WHERE schemaname='%1%') "
-        "UNION "
-        "(SELECT tablename AS relname "
-        " FROM pg_catalog.pg_tables "
-        " WHERE schemaname='%1%');");
-
-    const pqxx::result query_result =
-        work.exec((format(query) % schema_name).str());
-    rel_vars_.reserve(query_result.size());
-    BOOST_FOREACH(const pqxx::result::tuple& tuple, query_result) {
+    static const format query("SELECT * FROM ku.get_schema_tables('%1%');");
+    pqxx::result pqxx_result = work.exec((format(query) % schema_name).str());
+    rel_vars_.reserve(pqxx_result.size());
+    BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
         KU_ASSERT(tuple.size() == 1);
         KU_ASSERT(!tuple[0].is_null());
         rel_vars_.push_back(RelVar(work, tuple[0].c_str()));
@@ -441,16 +418,11 @@ void ConstrsLoader::operator()(Work& work) const
 
 void ConstrsLoader::LoadConstrs(Work& work, RelVar& rel_var) const
 {
-    static const format query(
-        "SELECT contype, conkey, relname, confkey "
-        "FROM pg_catalog.pg_constraint LEFT JOIN pg_catalog.pg_class "
-        "ON pg_catalog.pg_constraint.confrelid = pg_catalog.pg_class.oid "
-        "WHERE conrelid = '\"%1%\"'::regclass;");
-
-    const pqxx::result query_result =
+    static const format query("SELECT * FROM ku.describe_constrs('\"%1%\"')");
+    pqxx::result pqxx_result =
         work.exec((format(query) % rel_var.GetName()).str());
-    rel_var.GetConstrs().reserve(query_result.size());
-    BOOST_FOREACH(const pqxx::result::tuple& tuple, query_result)
+    rel_var.GetConstrs().reserve(pqxx_result.size());
+    BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result)
         SetConstrByPgTuple(rel_var, tuple);
 }
 
@@ -721,9 +693,7 @@ void RelVarCreator::PrintConstrs(const Querist& querist,
 
 void RelVarCreator::PrintCreateSequences(ostream& os) const
 {
-    static const format
-        cmd("CREATE SEQUENCE \"%1%@%2%\" MINVALUE 0 START 0;");
-    
+    static const format cmd("CREATE SEQUENCE \"%1%@%2%\" MINVALUE 0 START 0;");
     BOOST_FOREACH(const RichAttr& rich_attr, rel_var_.GetRichHeader())
         if (rich_attr.GetTrait() == Type::SERIAL)
             os << (format(cmd) % rel_var_.GetName() % rich_attr.GetName());
@@ -732,9 +702,8 @@ void RelVarCreator::PrintCreateSequences(ostream& os) const
 
 void RelVarCreator::PrintAlterSequences(ostream& os) const
 {
-    static const format
-        cmd("ALTER SEQUENCE \"%1%@%2%\" OWNED BY \"%1%\".\"%2%\";");
-    
+    static const format cmd(
+        "ALTER SEQUENCE \"%1%@%2%\" OWNED BY \"%1%\".\"%2%\";");
     BOOST_FOREACH(const RichAttr& rich_attr, rel_var_.GetRichHeader())
         if (rich_attr.GetTrait() == Type::SERIAL)
             os << (format(cmd) % rel_var_.GetName() % rich_attr.GetName());
@@ -895,7 +864,6 @@ Manager::Manager(Work& work, const string& schema_name, ConsistController& cc)
 {
     static const format create_cmd("SELECT ku.create_schema('%1%');");
     static const format set_cmd("SET search_path TO \"%1%\", pg_catalog;");
-
     pqxx::subtransaction sub_work(work);
     try {
         sub_work.exec((format(create_cmd) % schema_name).str());
@@ -1133,11 +1101,7 @@ DB::Impl::Impl(const string& opt,
     : conn_(opt)
     , try_count_(try_count)
 {
-    static const format query(
-        "SELECT db_quota, fs_quota "
-        "FROM public.main_app AS app "
-        "WHERE app.name = '%1%';");
-    
+    static const format query("SELECT * FROM ku.get_app_quotas('%1%');");
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
     {
         Work work(conn_);
@@ -1371,7 +1335,7 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
         "INSERT INTO \"%1%\" DEFAULT VALUES RETURNING *;");
 
     data_.quota_controller.Check(data_.work);
-    
+
     const RelVar& rel_var(data_.manager.GetMeta().GetRelVar(rel_var_name));
     const RichHeader& rich_header(rel_var.GetRichHeader());
     string sql_str;
@@ -1455,11 +1419,11 @@ namespace
     }
 
     
-    Strings StringsFromQueryResult(const pqxx::result& query_result)
+    Strings StringsFromQueryResult(const pqxx::result& pqxx_result)
     {
         Strings result;
-        result.reserve(query_result.size());
-        BOOST_FOREACH(const pqxx::result::tuple& tuple, query_result) {
+        result.reserve(pqxx_result.size());
+        BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
             KU_ASSERT(tuple.size() == 1);
             result.push_back(tuple[0].as<string>());
         }
@@ -1470,56 +1434,47 @@ namespace
 
 void Access::CheckAppExists(const string& name) const
 {
-    static const format query(
-        "SELECT 1 FROM public.main_app AS app WHERE app.name = %1%;");
-    if (data_.work.exec((format(query) % data_.work.quote(name)).str()).empty())
+    static const format query("SELECT ku.app_exists(%1%);");
+    pqxx::result pqxx_result(
+        data_.work.exec((format(query) % data_.work.quote(name)).str()));
+    KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
+    if (pqxx_result[0][0].is_null())
         throw NoSuchApp(name);
 }
 
 
 App Access::DescribeApp(const string& name) const
 {
-    static const format app_query(
-        "SELECT app.id, usr.username, app.email, app.summary, app.description "
-        "FROM public.main_app AS app, public.auth_user AS usr "
-        "WHERE app.admin_id = usr.id "
-        "AND app.name = %1%;");
-    static const format devs_query(
-        "SELECT usr.username "
-        "FROM public.auth_user AS usr, public.main_app_devs AS app_devs "
-        "WHERE usr.id = app_devs.user_id "
-        "AND app_devs.app_id = %1%;");
-    static const format labels_query(
-        "SELECT label.name "
-        "FROM public.main_label AS label, public.main_app_labels AS app_labels "
-        "WHERE label.id = app_labels.label_id "
-        "AND app_labels.app_id = %1%;");
-    
-    const pqxx::result app_query_result =
+    static const format app_query("SELECT * FROM ku.describe_app(%1%);");
+    static const format devs_query("SELECT * FROM ku.get_app_devs(%1%);");
+    static const format labels_query("SELECT * FROM ku.get_app_labels(%1%);");
+    pqxx::result app_pqxx_result =
         data_.work.exec((format(app_query) % data_.work.quote(name)).str());
-    KU_ASSERT(app_query_result.size() < 2);
-    if (!app_query_result.size())
+    KU_ASSERT(app_pqxx_result.size() < 2);
+    if (!app_pqxx_result.size())
         throw NoSuchApp(name);
-    const pqxx::result::tuple& app_tuple(app_query_result[0]);
+    const pqxx::result::tuple& app_tuple(app_pqxx_result[0]);
     unsigned app_id = app_tuple[0].as<unsigned>();
-    const pqxx::result devs_query_result =
+    pqxx::result devs_pqxx_result =
         data_.work.exec((format(devs_query) % app_id).str());
-    const pqxx::result labels_query_result =
+    pqxx::result labels_pqxx_result =
         data_.work.exec((format(labels_query) % app_id).str());
     return App(app_tuple[1].as<string>(),
-               StringsFromQueryResult(devs_query_result),
+               StringsFromQueryResult(devs_pqxx_result),
                app_tuple[2].as<string>(),
                app_tuple[3].as<string>(),
                app_tuple[4].as<string>(),
-               StringsFromQueryResult(labels_query_result));
+               StringsFromQueryResult(labels_pqxx_result));
 }
 
 
 void Access::CheckUserExists(const string& name) const
 {
-    static const format query(
-        "SELECT 1 FROM public.auth_user as usr WHERE usr.username = %1%;");
-    if (data_.work.exec((format(query) % data_.work.quote(name)).str()).empty())
+    static const format query("SELECT ku.user_exists(%1%);");
+    pqxx::result pqxx_result(
+        data_.work.exec((format(query) % data_.work.quote(name)).str()));
+    KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
+    if (pqxx_result[0][0].is_null())
         throw Error(Error::NO_SUCH_USER, "No such user: \"" + name + '"');
 }
 
@@ -1531,48 +1486,32 @@ namespace
                     const format& query,
                     const string& user_name)
     {
-        const pqxx::result query_result =
+        pqxx::result pqxx_result =
             work.exec((format(query) % work.quote(user_name)).str());
-        if (query_result.empty())
+        if (pqxx_result.empty())
             access.CheckUserExists(user_name);
-        return StringsFromQueryResult(query_result);
+        return StringsFromQueryResult(pqxx_result);
     }
 }
 
 
 Strings Access::GetAdminedApps(const string& user_name) const
 {
-    static const format query(
-        "SELECT app.name "
-        "FROM public.main_app AS app, public.auth_user AS usr "
-        "WHERE app.admin_id = usr.id "
-        "AND usr.username = %1%;");
+    static const format query("SELECT * FROM ku.get_admined_apps(%1%);");
     return GetApps(*this, data_.work, query, user_name);
 }
 
 
 Strings Access::GetDevelopedApps(const string& user_name) const
 {
-    static const format query(
-        "SELECT app.name "
-        "FROM public.main_app AS app, public.auth_user AS usr,"
-        "     public.main_app_devs AS devs "
-        "WHERE devs.app_id = app.id "
-        "AND devs.user_id = usr.id "
-        "AND usr.username = %1%;");
+    static const format query("SELECT * FROM ku.get_developed_apps(%1%);");
     return GetApps(*this, data_.work, query, user_name);
 }
 
 
 Strings Access::GetAppsByLabel(const string& label_name) const
 {
-    static const format query(
-        "SELECT app.name "
-        "FROM public.main_app AS app, public.main_label AS label,"
-        "     public.main_app_labels AS app_labels "
-        "WHERE app_labels.app_id = app.id "
-        "AND app_labels.label_id = label.id "
-        "AND label.name = %1%;");
+    static const format query("SELECT * FROM ku.get_apps_by_label(%1%);");
     return StringsFromQueryResult(
         data_.work.exec((format(query) % data_.work.quote(label_name)).str()));
 }
