@@ -7,13 +7,13 @@
 #include "parser.h"
 #include "utils.h"
 
-#include <boost/spirit.hpp>
-#include <boost/spirit/phoenix.hpp>
+#include <boost/spirit/include/classic.hpp>
+#include <boost/spirit/include/phoenix1.hpp>
 #include <boost/foreach.hpp>
 
 
 using namespace std;
-using namespace boost::spirit;
+using namespace boost::spirit::classic;
 using namespace phoenix;
 using namespace ku;
 using boost::shared_ptr;
@@ -158,19 +158,19 @@ namespace
 
     // Closure definitions
     
-#define CLOSURE1(name, T1)                                      \
-    struct name : public  boost::spirit::closure<name, T1 > {   \
-        member1 val;                                            \
+#define CLOSURE1(name, T1)                                             \
+    struct name : public  boost::spirit::classic::closure<name, T1> {  \
+        member1 val;                                                   \
     }
 
 #define CLOSURE2(name, T1, T2, field2)                                  \
-    struct name : public  boost::spirit::closure<name, T1 , T2 > {      \
+    struct name : public  boost::spirit::classic::closure<name, T1, T2> { \
         member1 val;                                                    \
         member2 field2;                                                 \
     }
 
 #define CLOSURE3(name, T1, T2, field2, T3, field3)                      \
-    struct name : public  boost::spirit::closure<name, T1 , T2 , T3 > { \
+    struct name : public  boost::spirit::classic::closure<name, T1, T2, T3> { \
         member1 val;                                                    \
         member2 field2;                                                 \
         member3 field3;                                                 \

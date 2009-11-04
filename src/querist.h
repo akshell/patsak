@@ -18,7 +18,7 @@ namespace boost
 {
     /// For BOOST_FOREACH to work with pqxx::result
     template<>
-    struct range_iterator<pqxx::result>
+    struct range_mutable_iterator<pqxx::result>
     {
         typedef pqxx::result::const_iterator type;
     };
@@ -26,7 +26,7 @@ namespace boost
 
     /// For BOOST_FOREACH to work with pqxx::result::tuple
     template<>
-    struct range_iterator<pqxx::result::tuple>
+    struct range_mutable_iterator<pqxx::result::tuple>
     {
         typedef pqxx::result::tuple::const_iterator type;
     };

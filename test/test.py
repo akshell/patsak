@@ -28,7 +28,7 @@ USER_NAME      = 'test_user'
 SPOT_NAME      = 'test_spot'
 CONFIG_PATH    = 'patsak.config'
 DB_NAME        = 'test_patsak'
-DB_PARAMS      = 'user=test password=test dbname=%s'
+DB_PARAMS      = 'user=patsak password=1q2w3e dbname=%s'
 TEST_DIR       = os.path.dirname(__file__)
 RELEASE_DIR    = os.path.join(TEST_DIR, '../sample/code/release')
 INIT_DB_PATH   = os.path.join(TEST_DIR, 'init-db.sql')
