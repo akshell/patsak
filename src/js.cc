@@ -686,8 +686,8 @@ Program::Impl::Impl(const Place& place,
     Context::Scope context_scope(context_);
     ak_bg_.Init(ak_);
     db_mediator_bg_.Init(Get(ak_, "_dbMediator")->ToObject());
-    Set(ak_, "_dbQuota", Number::New(db_.GetDBQuota()), DontEnum);
-    Set(ak_, "_fsQuota", Number::New(db_.GetFSQuota()), DontEnum);
+    Set(ak_, "dbQuota", Number::New(db_.GetDBQuota()), DontEnum);
+    Set(ak_, "fsQuota", Number::New(db_.GetFSQuota()), DontEnum);
     // Run init.js script
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
                                                       sizeof(INIT_JS)),

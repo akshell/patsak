@@ -813,7 +813,7 @@ db_test_suite.testRelVarNumber = function () {
 
 
 db_test_suite.testQuota = function () {
-  check("ak._dbQuota > 0");
+  check("ak.dbQuota > 0");
   db.R._create({i: number._integer(), s: string});
   var array = [];
   for (var i = 0; i < 100 * 1024; ++i)
@@ -1007,7 +1007,7 @@ file_test_suite.testRename = function () {
 
 file_test_suite.testQuota = function () {
   var array = [];
-  for (var i = 0; i < ak._fsQuota / 2; ++i)
+  for (var i = 0; i < ak.fsQuota / 2; ++i)
     array.push('x');
   var str = array.join('');
   fs._write('file1', str);
