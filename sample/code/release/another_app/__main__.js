@@ -1,6 +1,4 @@
 
-ak.include('ak', 'json2.js');
-
 ak._main = function (arg) {
   var file_contents = [];
   for (var i = 0; i < ak._files.length; ++i) {
