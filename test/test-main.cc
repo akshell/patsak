@@ -4,8 +4,7 @@
 /// \file test-main.cc
 /// Test entry point
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE Main
+#define BOOST_TEST_MAIN
 
 
 #include "../src/parser.h"
@@ -761,7 +760,7 @@ namespace
 
 
 DBFixture::DBFixture()
-    : db("dbname=test_patsak password=1q2w3e", "test", "test_app")
+    : db("dbname=test_patsak user=test password=test", "test", "test_app")
 {
     DeleteRelVars(GetRelVarNames());
     BOOST_REQUIRE(GetRelVarNames().empty());
@@ -947,7 +946,7 @@ namespace
     public:
         TestDBViewer(DBFixture& db_fixture)
             : db_fixture_(db_fixture)
-            , conn_("dbname=test_patsak password=1q2w3e") {}
+            , conn_("dbname=test_patsak user=test password=test") {}
 
         virtual const Header&
         GetRelVarHeader(const string& rel_var_name) const {

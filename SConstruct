@@ -9,8 +9,10 @@ vars.Add('mode', 'build mode (release, debug, cov)', 'release')
 COMMON_FLAGS = {
     'CXX': 'g++-4.3', # g++-4.4 fails to compile src/parser.cc
     'CCFLAGS': '-pedantic -Wall -Werror -W -Wno-long-long'.split(),
+    'CPPPATH': '.',
+    'LINKCOM': ('$LINK -o $TARGET $LINKFLAGS $SOURCES $_LIBDIRFLAGS '
+                '-Wl,-Bstatic $_LIBFLAGS -Wl,-Bdynamic -lpthread -lpq'),
     'LIBS': [
-        'pthread',
         'pqxx',
         'boost_date_time-mt',
         'boost_program_options-mt',
@@ -39,7 +41,6 @@ MODE_FLAGS = {
 
 env = Environment(**COMMON_FLAGS)
 env.Append(**MODE_FLAGS[env['mode']])
-env.Append(CPPPATH=['.'])
 
 test_env = env.Clone()
 test_env.Append(LIBS=['boost_unit_test_framework-mt'])

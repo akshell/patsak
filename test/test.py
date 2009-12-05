@@ -4,6 +4,7 @@
 
 ''' Python test entry point '''
 
+from __future__ import with_statement
 import subprocess
 import os.path
 import unittest
@@ -22,13 +23,15 @@ SOCKET_DIR    = os.path.join(TMP_DIR, 'sockets')
 LOG_DIR       = os.path.join(TMP_DIR, 'logs')
 GUARD_DIR     = os.path.join(TMP_DIR, 'guards')
 MEDIA_DIR     = os.path.join(TMP_DIR, 'media')
+CONFIG_PATH   = os.path.join(TMP_DIR, 'config')
 APP_NAME      = 'test_app'
 BAD_APP_NAME  = 'bad_app'
 USER_NAME     = 'test_user'
 SPOT_NAME     = 'test_spot'
-CONFIG_PATH   = 'patsak.config'
 DB_NAME       = 'test_patsak'
-DB_PARAMS     = 'user=patsak password=1q2w3e dbname=%s'
+DB_USER       = 'test'
+DB_PASSWORD   = 'test'
+DB_PARAMS     = 'user=%s password=%s dbname=%%s' % (DB_USER, DB_PASSWORD)
 TEST_DIR      = os.path.dirname(__file__)
 RELEASE_DIR   = os.path.join(TEST_DIR, '../sample/code/release')
 INIT_DB_PATH  = os.path.join(TEST_DIR, 'init-db.sql')
@@ -62,11 +65,7 @@ class Test(unittest.TestCase):
         self.assertEqual(popen.wait(), code)
 
     def _check_test_launch(self, args, code=0, program=None):
-        self._check_launch(['--media-dir', MEDIA_DIR,
-                            '--socket-dir', SOCKET_DIR,
-                            '--guard-dir', GUARD_DIR,
-                            '--log-dir', LOG_DIR,
-                            '--test'] + args,
+        self._check_launch(['--test'] + args,
                            code,
                            program)
 
@@ -78,23 +77,13 @@ class Test(unittest.TestCase):
         self._check_launch([], 1)
         self._check_launch(['--unknown-option', APP_NAME], 1)
         self._check_launch(['--help'])
-        self._check_launch(['--expr', '2+2',
-                            '--socket-dir', SOCKET_DIR,
-                            '--guard-dir', GUARD_DIR,
-                            '--log-dir', LOG_DIR,
-                            '--media-dir', MEDIA_DIR,
-                            APP_NAME],
-                           1)
+        self._check_launch(['--expr', '2+2', APP_NAME], 1)
         self._check_test_launch([], 1)
         self._check_test_launch([APP_NAME, USER_NAME], 1)
 
     def _eval(self, expr):
         popen = subprocess.Popen([self._exe_path,
                                   '--config-file', CONFIG_PATH,
-                                  '--media-dir', MEDIA_DIR,
-                                  '--socket-dir', SOCKET_DIR,
-                                  '--guard-dir', GUARD_DIR,
-                                  '--log-dir', LOG_DIR,
                                   '--test',
                                   '--expr', expr,
                                   APP_NAME],
@@ -116,19 +105,12 @@ class Test(unittest.TestCase):
         self.assertEqual(self._eval('2+2').data, '4')
         self.assertEqual(self._eval('s="x"; while(1) s+=s').data,
                          '<Out of memory>')
-        self._check_launch(['--test',
-                            '--media-dir', MEDIA_DIR,
-                            '--expr', '2+2',
-                            'no_such_app'], 1)
+        self._check_launch(['--test', '--expr', '2+2', 'no_such_app'], 1)
         self._check_test_launch(['--expr', '2+2\n3+3', APP_NAME])
         self.assertEqual(self._eval('bug()').status, 'ERROR')
 
         popen = subprocess.Popen([self._exe_path,
                                   '--config-file', CONFIG_PATH,
-                                  '--media-dir', MEDIA_DIR,
-                                  '--socket-dir', SOCKET_DIR,
-                                  '--guard-dir', GUARD_DIR,
-                                  '--log-dir', LOG_DIR,
                                   '--test',
                                   APP_NAME],
                                  stdin=subprocess.PIPE,
@@ -141,10 +123,6 @@ class Test(unittest.TestCase):
 
         popen = subprocess.Popen([self._exe_path,
                                   '--config-file', CONFIG_PATH,
-                                  '--media-dir', MEDIA_DIR,
-                                  '--socket-dir', SOCKET_DIR,
-                                  '--guard-dir', GUARD_DIR,
-                                  '--log-dir', LOG_DIR,
                                   '--test',
                                   '--expr', '2+2',
                                   BAD_APP_NAME],
@@ -174,10 +152,6 @@ class Test(unittest.TestCase):
         
         popen = subprocess.Popen([self._exe_path,
                                   '--config-file', CONFIG_PATH,
-                                  '--socket-dir', SOCKET_DIR,
-                                  '--guard-dir', GUARD_DIR,
-                                  '--log-dir', LOG_DIR,
-                                  '--media-dir', MEDIA_DIR,
                                   APP_NAME],
                                  stdin=self._in,
                                  stderr=self._out,
@@ -251,10 +225,6 @@ class Test(unittest.TestCase):
     def testSpotServer(self):
         popen = subprocess.Popen([self._exe_path,
                                   '--config-file', CONFIG_PATH,
-                                  '--socket-dir', SOCKET_DIR,
-                                  '--guard-dir', GUARD_DIR,
-                                  '--log-dir', LOG_DIR,
-                                  '--media-dir', MEDIA_DIR,
                                   APP_NAME, USER_NAME, SPOT_NAME],
                                  stdin=self._in,
                                  stderr=self._out,
@@ -333,6 +303,21 @@ def _make_dirs():
     os.mkdir(os.path.join(MEDIA_DIR, 'release', APP_NAME))
 
     
+def _write_config():
+    with open(CONFIG_PATH, 'w') as f:
+        f.write('''
+db-name=%s
+db-user=%s
+db-password=%s
+code-dir=sample/code
+socket-dir=%s
+log-dir=%s
+guard-dir=%s
+media-dir=%s
+''' % (DB_NAME, DB_USER, DB_PASSWORD,
+       SOCKET_DIR, LOG_DIR, GUARD_DIR, MEDIA_DIR))
+
+    
 def main():
     if len(sys.argv) != 2:
         print 'Usage: ', sys.argv[0], ' dir'
@@ -342,6 +327,7 @@ def main():
     _drop_db()
     _create_db()
     _make_dirs()
+    _write_config()
     
     unittest.TextTestRunner(verbosity=2).run(suite)
     

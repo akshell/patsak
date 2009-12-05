@@ -1109,6 +1109,8 @@ DB::Impl::Impl(const string& opt,
         pqxx::result pqxx_result(work.exec((format(query) % app_name).str()));
         KU_ASSERT(pqxx_result.size() == 1);
         const pqxx::result::tuple& tuple(pqxx_result[0]);
+        if (tuple[0].is_null())
+            Fail("App \"" + app_name + "\" does not exist");
         db_quota_ = QUOTA_MULTIPLICATOR * tuple[0].as<unsigned long>();
         fs_quota_ = QUOTA_MULTIPLICATOR * tuple[1].as<unsigned long>();
         work.commit(); // don't remove it, stupid idiot! is sets search_path!
