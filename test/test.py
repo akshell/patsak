@@ -35,7 +35,7 @@ DB_PARAMS     = 'user=%s password=%s dbname=%%s' % (DB_USER, DB_PASSWORD)
 TEST_DIR      = os.path.dirname(__file__)
 RELEASE_DIR   = os.path.join(TEST_DIR, '../sample/code/release')
 INIT_DB_PATH  = os.path.join(TEST_DIR, 'init-db.sql')
-AK_FUNCS_PATH = os.path.join(TEST_DIR, '../src/ak-funcs.sql')
+FUNCS_PATH    = os.path.join(TEST_DIR, '../src/funcs.sql')
 
 
 class _Response:
@@ -265,7 +265,7 @@ def _create_db():
     conn = psycopg2.connect(DB_PARAMS % DB_NAME)
     cursor = conn.cursor()
     cursor.execute(open(INIT_DB_PATH).read())
-    cursor.execute(open(AK_FUNCS_PATH).read())
+    cursor.execute(open(FUNCS_PATH).read())
     for app_name in os.listdir(RELEASE_DIR):
         if (app_name[0] == '.' or
             not os.path.isdir(os.path.join(RELEASE_DIR, app_name))):
