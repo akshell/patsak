@@ -684,7 +684,7 @@ void MainRunner::Parse(int argc, char** argv)
     generic_options.add_options()
         ("help,h", "print help message")
         ("config-file,f",
-         po::value<string>()->default_value("/etc/patsak"),
+         po::value<string>()->default_value("/usr/local/etc/ak/patsak.conf"),
          "config file path")
         ("test,t", po::bool_switch(&test_mode_), "test mode")
         ("expr,e",
