@@ -97,11 +97,8 @@ class Test(unittest.TestCase):
         self.assertEqual(self._eval('argh!!!!').status, 'ERROR')
         pish_result = self._eval('pish')
         self.assertEqual(pish_result.status, 'ERROR')
-        self.assertEqual(pish_result.data,
-                         'Line 1, column 0\n'
-                         'ReferenceError: pish is not defined\n'
-                         '    at eval at eval (native)\n'
-                         '    at eval (native)')
+        self.assert_(pish_result.data.startswith(
+                'Line 1, column 0\nReferenceError: pish is not defined\n'))
         self.assertEqual(self._eval('2+2').data, '4')
         self.assertEqual(self._eval('s="x"; while(1) s+=s').data,
                          '<Out of memory>')
