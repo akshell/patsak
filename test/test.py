@@ -232,9 +232,12 @@ class Test(unittest.TestCase):
             talk('PROCESS ak._request("another_app", "hi")'),
             'OK\n{"user":"","arg":"hi","data":null,' +
             '"file_contents":[],"issuer":"test_app"}')
+        self.assertEqual(
+            talk('PROCESS function f() { f(); } f()'),
+            'ERROR\nRangeError: Maximum call stack size exceeded')
         self.assertEqual(talk('PROCESS s="x"; while(1) s+=s'),
                          'ERROR\n<Out of memory>')
-        self.assertEqual(process.wait(), 0)
+        self.assertRaises(socket.error, self._connect, socket_path)
 
         
 def _create_schema(cursor, schema_name):

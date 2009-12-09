@@ -34,6 +34,7 @@ namespace
 {
     const int MAX_YOUNG_SPACE_SIZE =  2 * 1024 * 1024;
     const int MAX_OLD_SPACE_SIZE   = 32 * 1024 * 1024;
+    const int STACK_LIMIT          =  2 * 1024 * 1024;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -605,6 +606,27 @@ auto_ptr<Response> Caller::GetResult()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// ComputeStackLimit
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    // Uses the address of a local variable to determine the stack top now.
+    // Given a size, returns an address that is that far from the current
+    // top of stack.
+    // Taken from v8/test/cctest/test-api.cc
+    static uint32_t* ComputeStackLimit(uint32_t size) {
+        uint32_t* answer = &size - (size / sizeof(size));
+        // If the size is very large and the stack is very near the bottom of
+        // memory then the calculation above may wrap around and give an address
+        // that is above the (downwards-growing) stack.  In that case we return
+        // a very low address.
+        if (answer > &size) return reinterpret_cast<uint32_t*>(sizeof(size));
+        return answer;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Program::Impl
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -669,6 +691,7 @@ Program::Impl::Impl(const Place& place,
     ResourceConstraints rc;
     rc.set_max_young_space_size(MAX_YOUNG_SPACE_SIZE);
     rc.set_max_old_space_size(MAX_OLD_SPACE_SIZE);
+    rc.set_stack_limit(ComputeStackLimit(STACK_LIMIT));
     bool ret = v8::SetResourceConstraints(&rc);
     KU_ASSERT(ret);
     
