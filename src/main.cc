@@ -605,6 +605,73 @@ string RequestHandler::ReadCommandTail()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Acceptor
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    class Acceptor {
+    public:
+        Acceptor(stream_protocol::acceptor& acceptor, unsigned wait);
+        auto_ptr<stream_protocol::socket> operator()();
+
+    private:
+        stream_protocol::acceptor& acceptor_;
+        asio::deadline_timer timer_;
+        unsigned wait_;
+        bool handled_;
+        bool accepted_;
+        
+        void HandleAccept(const asio::error_code& error);
+        void HandleTimer(const asio::error_code& error);
+    };
+}
+
+
+Acceptor::Acceptor(stream_protocol::acceptor& acceptor, unsigned wait)
+    : acceptor_(acceptor)
+    , timer_(acceptor.get_io_service())
+    , wait_(wait)
+    , handled_(false)
+    , accepted_(false)
+{
+}
+
+
+auto_ptr<stream_protocol::socket> Acceptor::operator()()
+{
+    acceptor_.get_io_service().reset();
+    auto_ptr<stream_protocol::socket> socket_ptr(
+        new stream_protocol::socket(acceptor_.get_io_service()));
+    acceptor_.async_accept(*socket_ptr,
+                           bind(&Acceptor::HandleAccept, this, _1));
+    timer_.expires_from_now(boost::posix_time::seconds(wait_));
+    timer_.async_wait(bind(&Acceptor::HandleTimer, this, _1));
+    acceptor_.get_io_service().run();
+    KU_ASSERT(handled_);
+    return accepted_ ? socket_ptr : auto_ptr<stream_protocol::socket>();
+}
+
+
+void Acceptor::HandleAccept(const asio::error_code& error)
+{
+    if (!handled_) {
+        timer_.cancel();
+        KU_ASSERT(!error);
+        handled_ = accepted_ = true;
+    }
+}
+
+
+void Acceptor::HandleTimer(const asio::error_code& /*error*/)
+{
+    if (!handled_) {
+        acceptor_.cancel();
+        handled_ = true;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // MainRunner
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -622,6 +689,7 @@ namespace
         string db_user_, db_password_, db_name_;
         string app_name_, owner_name_, spot_name_;
         bool test_mode_;
+        unsigned wait_;
 
         void Parse(int argc, char** argv);
         
@@ -709,6 +777,9 @@ void MainRunner::Parse(int argc, char** argv)
         ("db-name",
          po::value<string>(&db_name_)->default_value("ak"),
          "database name")
+        ("wait,w",
+         po::value<unsigned>(&wait_)->default_value(100),
+         "seconds to wait for connection")
         ;
 
     po::options_description hidden_options;
@@ -778,11 +849,9 @@ void MainRunner::Check() const
     RequireOption("media-dir", media_dir_);
     RequireOption("db-user", db_user_);
     RequireOption("db-password", db_password_);
-    if (!test_mode_) {
-        if (!expr_.empty() || !user_.empty()) {
-            cerr << "expr and user option are specific to test mode\n";
-            exit(1);
-        }
+    if (!test_mode_ && !(expr_.empty() && user_.empty())) {
+        cerr << "expr and user option are specific to test mode\n";
+        exit(1);
     }
     if (app_name_.empty()) {
         cerr << "app name must be specified\n";
@@ -824,6 +893,7 @@ string MainRunner::GetPathSuffix() const
             : "/spots/" + app_name_ + '/' + owner_name_ + '/' + spot_name_);
 }
 
+
 auto_ptr<DB> MainRunner::InitDB() const
 {
     string options("user=" + db_user_ +
@@ -848,7 +918,8 @@ auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
         "--media-dir", media_dir_,
         "--db-user", db_user_,
         "--db-password", db_password_,
-        "--db-name", db_name_;
+        "--db-name", db_name_,
+        "--wait", lexical_cast<string>(wait_);
     return auto_ptr<AppAccessor>(new AppAccessorImpl(app_name_,
                                                      code_dir_,
                                                      socket_dir_,
@@ -907,13 +978,17 @@ void MainRunner::RunServer(Program& program)
         freopen("/dev/null", "w", stdout);
         freopen("/tmp/patsak-log", "a", stderr);
     
-        for (bool go_on = true; go_on; ) {
-            stream_protocol::socket socket(io_service);
-            acceptor.accept(socket);
-            fcntl(socket.native(), F_SETFD, FD_CLOEXEC);
-            RequestHandler request_handler(program, user_, socket);
-            go_on = request_handler.Handle();
-            socket.close();
+        for (;;) {
+            auto_ptr<stream_protocol::socket> socket_ptr(
+                Acceptor(acceptor, wait_)());
+            if (!socket_ptr.get())
+                break;
+            fcntl(socket_ptr->native(), F_SETFD, FD_CLOEXEC);
+            RequestHandler request_handler(program, user_, *socket_ptr);
+            bool proceed = request_handler.Handle();
+            socket_ptr->close();
+            if (!proceed)
+                break;
         }
         
         acceptor.close();

@@ -26,6 +26,7 @@ MEDIA_DIR     = os.path.join(TMP_DIR, 'media')
 CONFIG_PATH   = os.path.join(TMP_DIR, 'config')
 APP_NAME      = 'test_app'
 BAD_APP_NAME  = 'bad_app'
+WAIT_APP_NAME = 'lib'
 USER_NAME     = 'test_user'
 SPOT_NAME     = 'test_spot'
 DB_NAME       = 'test_patsak'
@@ -44,25 +45,23 @@ class _Response:
         self.data = data
 
 
+def _popen(*args, **kwds):
+    kwds.update({'stdin': subprocess.PIPE,
+                 'stdout': subprocess.PIPE,
+                 'stderr': subprocess.PIPE,
+                 })
+    return subprocess.Popen(*args, **kwds)
+                 
+
 class Test(unittest.TestCase):
     def setUp(self):
         self._exe_path = os.path.join(Test.DIR, EXE_NAME)
         self._test_exe_path = os.path.join(Test.DIR, TEST_EXE_NAME)
         
-        self._in = open('/dev/null', 'r')
-        self._out = open('/dev/null', 'w')
-
-    def tearDown(self):
-        self._out.close()
-        self._in.close()
-        
     def _check_launch(self, args, code=0, program=None):
-        popen = subprocess.Popen([program if program else self._exe_path,
-                                  '--config-file', CONFIG_PATH] + args,
-                                 stdin=self._in,
-                                 stdout=self._out,
-                                 stderr=self._out)
-        self.assertEqual(popen.wait(), code)
+        process = _popen([program if program else self._exe_path,
+                          '--config-file', CONFIG_PATH] + args)
+        self.assertEqual(process.wait(), code)
 
     def _check_test_launch(self, args, code=0, program=None):
         self._check_launch(['--test'] + args,
@@ -82,16 +81,13 @@ class Test(unittest.TestCase):
         self._check_test_launch([APP_NAME, USER_NAME], 1)
 
     def _eval(self, expr):
-        popen = subprocess.Popen([self._exe_path,
-                                  '--config-file', CONFIG_PATH,
-                                  '--test',
-                                  '--expr', expr,
-                                  APP_NAME],
-                                 stdin=self._in,
-                                 stderr=self._out,
-                                 stdout=subprocess.PIPE)
-        status = popen.stdout.readline()[:-1]
-        return _Response(status, popen.stdout.read()[:-1])
+        process = _popen([self._exe_path,
+                          '--config-file', CONFIG_PATH,
+                          '--test',
+                          '--expr', expr,
+                          APP_NAME])
+        status = process.stdout.readline()[:-1]
+        return _Response(status, process.stdout.read()[:-1])
 
     def testJS(self):
         self.assertEqual(self._eval('argh!!!!').status, 'ERROR')
@@ -106,28 +102,22 @@ class Test(unittest.TestCase):
         self._check_test_launch(['--expr', '2+2\n3+3', APP_NAME])
         self.assertEqual(self._eval('bug()').status, 'ERROR')
 
-        popen = subprocess.Popen([self._exe_path,
-                                  '--config-file', CONFIG_PATH,
-                                  '--test',
-                                  APP_NAME],
-                                 stdin=subprocess.PIPE,
-                                 stderr=self._out,
-                                 stdout=subprocess.PIPE)
-        popen.stdin.write('2+2\n')
-        popen.stdin.close()
-        self.assertEqual(popen.stdout.read(), 'OK\n4\n')
-        self.assertEqual(popen.wait(), 0)
+        process = _popen([self._exe_path,
+                          '--config-file', CONFIG_PATH,
+                          '--test',
+                          APP_NAME])
+        process.stdin.write('2+2\n')
+        process.stdin.close()
+        self.assertEqual(process.stdout.read(), 'OK\n4\n')
+        self.assertEqual(process.wait(), 0)
 
-        popen = subprocess.Popen([self._exe_path,
-                                  '--config-file', CONFIG_PATH,
-                                  '--test',
-                                  '--expr', '2+2',
-                                  BAD_APP_NAME],
-                                 stdin=self._in,
-                                 stderr=self._out,
-                                 stdout=subprocess.PIPE)
-        self.assertEqual(popen.stdout.read().split('\n')[0], 'ERROR')
-        self.assertEqual(popen.wait(), 0)
+        process = _popen([self._exe_path,
+                          '--config-file', CONFIG_PATH,
+                          '--test',
+                          '--expr', '2+2',
+                          BAD_APP_NAME])
+        self.assertEqual(process.stdout.read().split('\n')[0], 'ERROR')
+        self.assertEqual(process.wait(), 0)
         
     def _connect(self, path):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -147,17 +137,17 @@ class Test(unittest.TestCase):
         os.mkdir(MEDIA_DIR + '/release/test_app/dir')
         open(MEDIA_DIR + '/release/test_app/dir/file', 'w').write('hello')
         
-        popen = subprocess.Popen([self._exe_path,
-                                  '--config-file', CONFIG_PATH,
-                                  APP_NAME],
-                                 stdin=self._in,
-                                 stderr=self._out,
-                                 stdout=subprocess.PIPE)
-        
-        self.assertEqual(popen.stdout.readline(), 'READY\n')
+        _popen([self._exe_path,
+                '--config-file', CONFIG_PATH,
+                '--wait', '1',
+                WAIT_APP_NAME])
+        process = _popen([self._exe_path,
+                          '--config-file', CONFIG_PATH,
+                          APP_NAME])
+        self.assertEqual(process.stdout.readline(), 'READY\n')
+        self.assertEqual(process.wait(), 0)
 
         socket_path = os.path.join(SOCKET_DIR, 'release', APP_NAME)
-        
         sock = self._connect(socket_path)
         sock.close()
         sock = self._connect(socket_path)
@@ -217,17 +207,16 @@ class Test(unittest.TestCase):
         self.assertEqual(talk('PROCESS ak.app.spot'),
                          'OK\nundefined')
         self.assertEqual(talk('STOP'), 'OK\n')
-        self.assertEqual(popen.wait(), 0)
+        self.assertRaises(socket.error, self._connect, socket_path)
+        # 1 second should elapsed
+        self.assertRaises(socket.error, self._connect,
+                          os.path.join(SOCKET_DIR, 'release', WAIT_APP_NAME))
 
     def testSpotServer(self):
-        popen = subprocess.Popen([self._exe_path,
-                                  '--config-file', CONFIG_PATH,
-                                  APP_NAME, USER_NAME, SPOT_NAME],
-                                 stdin=self._in,
-                                 stderr=self._out,
-                                 stdout=subprocess.PIPE)
-        
-        self.assertEqual(popen.stdout.readline(), 'READY\n')
+        process = _popen([self._exe_path,
+                          '--config-file', CONFIG_PATH,
+                          APP_NAME, USER_NAME, SPOT_NAME])
+        self.assertEqual(process.stdout.readline(), 'READY\n')
         socket_path = os.path.join(SOCKET_DIR, 'spots',
                                    APP_NAME, USER_NAME, SPOT_NAME)
         def talk(message):
@@ -241,7 +230,7 @@ class Test(unittest.TestCase):
             'OK\ntest_user test_spot')
         self.assertEqual(talk('PROCESS s="x"; while(1) s+=s'),
                          'ERROR\n<Out of memory>')
-        self.assertEqual(popen.wait(), 0)
+        self.assertEqual(process.wait(), 0)
 
         
 def _create_schema(cursor, schema_name):
@@ -328,10 +317,7 @@ def main():
     
     unittest.TextTestRunner(verbosity=2).run(suite)
     
-    subprocess.Popen('killall -w patsak; killall -w exe',
-                     shell=True,
-                     stdout=subprocess.PIPE,
-                     stderr=subprocess.STDOUT)
+    _popen('killall -w patsak; killall -w exe', shell=True)
     shutil.rmtree(TMP_DIR)
     
         
