@@ -71,7 +71,6 @@ class Test(unittest.TestCase):
     def testTestPatsak(self):
         self._check_launch([], 0, self._test_exe_path)
 
-        
     def testMain(self):
         self._check_launch([], 1)
         self._check_launch(['--unknown-option', APP_NAME], 1)
@@ -215,6 +214,7 @@ class Test(unittest.TestCase):
     def testSpotServer(self):
         process = _popen([self._exe_path,
                           '--config-file', CONFIG_PATH,
+                          '--pass-opts',
                           APP_NAME, USER_NAME, SPOT_NAME])
         self.assertEqual(process.stdout.readline(), 'READY\n')
         socket_path = os.path.join(SOCKET_DIR, 'spots',
@@ -228,6 +228,10 @@ class Test(unittest.TestCase):
         self.assertEqual(
             talk('PROCESS ak.app.spot.owner + " " + ak.app.spot.name'),
             'OK\ntest_user test_spot')
+        self.assertEqual(
+            talk('PROCESS ak._request("another_app", "hi")'),
+            'OK\n{"user":"","arg":"hi","data":null,' +
+            '"file_contents":[],"issuer":"test_app"}')
         self.assertEqual(talk('PROCESS s="x"; while(1) s+=s'),
                          'ERROR\n<Out of memory>')
         self.assertEqual(process.wait(), 0)
@@ -295,12 +299,13 @@ def _write_config():
 db-name=%s
 db-user=%s
 db-password=%s
-code-dir=sample/code
+code-dir=%s/../sample/code
 socket-dir=%s
 log-dir=%s
 guard-dir=%s
 media-dir=%s
 ''' % (DB_NAME, DB_USER, DB_PASSWORD,
+       os.path.abspath(TEST_DIR),
        SOCKET_DIR, LOG_DIR, GUARD_DIR, MEDIA_DIR))
 
     

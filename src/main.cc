@@ -36,6 +36,7 @@ namespace
 {
     boost::posix_time::milliseconds CONNECT_TIMEOUT(1000);
     boost::posix_time::milliseconds READ_TIMEOUT(1000);
+    const char DEFAULT_CONFIG_FILE[] = "/etc/ak/patsak.conf";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -690,6 +691,8 @@ namespace
         string app_name_, owner_name_, spot_name_;
         bool test_mode_;
         unsigned wait_;
+        string config_file_;
+        bool pass_opts_;
 
         void Parse(int argc, char** argv);
         
@@ -752,7 +755,7 @@ void MainRunner::Parse(int argc, char** argv)
     generic_options.add_options()
         ("help,h", "print help message")
         ("config-file,f",
-         po::value<string>()->default_value("/usr/local/etc/ak/patsak.conf"),
+         po::value<string>(&config_file_)->default_value(DEFAULT_CONFIG_FILE),
          "config file path")
         ("test,t", po::bool_switch(&test_mode_), "test mode")
         ("expr,e",
@@ -780,6 +783,9 @@ void MainRunner::Parse(int argc, char** argv)
         ("wait,w",
          po::value<unsigned>(&wait_)->default_value(100),
          "seconds to wait for connection")
+        ("pass-opts",
+         po::bool_switch(&pass_opts_),
+         "pass options to children, not config")
         ;
 
     po::options_description hidden_options;
@@ -876,6 +882,7 @@ void MainRunner::MakePathesAbsolute()
     MakePathAbsolute(curr_dir, guard_dir_);
     MakePathAbsolute(curr_dir, code_dir_);
     MakePathAbsolute(curr_dir, media_dir_);
+    MakePathAbsolute(curr_dir, config_file_);
     free(curr_dir);
 }
 
@@ -909,17 +916,20 @@ auto_ptr<DB> MainRunner::InitDB() const
 auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
 {
     Strings args;
-    args +=
-        "/proc/self/exe",
-        "--log-dir", log_dir_,
-        "--socket-dir", socket_dir_,
-        "--guard-dir", guard_dir_,
-        "--code-dir", code_dir_,
-        "--media-dir", media_dir_,
-        "--db-user", db_user_,
-        "--db-password", db_password_,
-        "--db-name", db_name_,
-        "--wait", lexical_cast<string>(wait_);
+    args += "/proc/self/exe";
+    if (pass_opts_)
+        args +=
+            "--log-dir", log_dir_,
+            "--socket-dir", socket_dir_,
+            "--guard-dir", guard_dir_,
+            "--code-dir", code_dir_,
+            "--media-dir", media_dir_,
+            "--db-user", db_user_,
+            "--db-password", db_password_,
+            "--db-name", db_name_,
+            "--wait", lexical_cast<string>(wait_);
+    else if (config_file_ != DEFAULT_CONFIG_FILE)
+        args += "-f", config_file_;
     return auto_ptr<AppAccessor>(new AppAccessorImpl(app_name_,
                                                      code_dir_,
                                                      socket_dir_,
