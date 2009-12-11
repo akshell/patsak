@@ -1,0 +1,8 @@
+syntax: glob
+
+obj
+exe
+cov
+doc
+TAGS
+Doxyfile.bak
