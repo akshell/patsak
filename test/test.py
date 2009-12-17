@@ -325,7 +325,7 @@ def main():
     
     unittest.TextTestRunner(verbosity=2).run(suite)
     
-    _popen('killall -w patsak; killall -w exe', shell=True)
+    _popen(['killall', '-w', 'patsak'])
     shutil.rmtree(TMP_DIR)
     
         
