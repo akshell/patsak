@@ -17,6 +17,7 @@
 #include <sys/file.h>
 #include <sys/wait.h>
 #include <fstream>
+#include <unistd.h>
 
 
 using namespace std;
@@ -37,6 +38,7 @@ namespace
     boost::posix_time::milliseconds CONNECT_TIMEOUT(1000);
     boost::posix_time::milliseconds READ_TIMEOUT(1000);
     const char DEFAULT_CONFIG_FILE[] = "/etc/ak/patsak.conf";
+    const ssize_t BUF_SIZE = 1024;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -916,7 +918,10 @@ auto_ptr<DB> MainRunner::InitDB() const
 auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
 {
     Strings args;
-    args += "/proc/self/exe";
+    char buf[BUF_SIZE];
+    ssize_t size = readlink("/proc/self/exe", buf, BUF_SIZE);
+    KU_ASSERT(size != -1 && size < BUF_SIZE);
+    args += string(buf, buf + size);
     if (pass_opts_)
         args +=
             "--log-dir", log_dir_,
