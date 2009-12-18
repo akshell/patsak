@@ -598,6 +598,7 @@ db_test_suite.testSubrel = function () {
                 "._subrel(1, 10)" +
                 "._count()"),
                5);
+  checkThrow(TypeError, "db.Count._subrel(-1)");
 };
 
 
