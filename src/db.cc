@@ -44,15 +44,6 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Work
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    typedef pqxx::transaction<pqxx::serializable> Work;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // RichAttr
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -106,7 +97,7 @@ namespace
 {
     class RelVar {
     public:
-        RelVar(Work& work, const string& name);
+        RelVar(pqxx::work& work, const string& name);
         RelVar(const string& name,
                const RichHeader& rich_header,
                const Constrs& constrs);
@@ -130,7 +121,7 @@ namespace
 }
 
 
-RelVar::RelVar(Work& work, const string& name)
+RelVar::RelVar(pqxx::work& work, const string& name)
     : name_(name)
 {
     static const format query("SELECT * FROM ku.describe_table('\"%1%\"');");
@@ -219,17 +210,17 @@ namespace
     /// Database metadata
     class DBMeta {
     public:
-        DBMeta(Work& work, const string& schema_name);
+        DBMeta(pqxx::work& work, const string& schema_name);
         const RelVar& GetRelVar(const string& rel_var_name) const;
         const RelVars& GetRelVars() const;
         
-        void CreateRelVar(Work& work,
+        void CreateRelVar(pqxx::work& work,
                           const Querist& querist,
                           const string& rel_var_name,
                           const RichHeader& rich_header,
                           const Constrs& constrs);
         
-        void DropRelVars(Work& work, const orset<string>& rel_var_names);
+        void DropRelVars(pqxx::work& work, const orset<string>& rel_var_names);
 
     private:
         RelVars rel_vars_;
@@ -243,12 +234,12 @@ namespace
     class ConstrsLoader {
     public:
         ConstrsLoader(RelVars& rel_vars);
-        void operator()(Work& work) const;
+        void operator()(pqxx::work& work) const;
 
     private:
         RelVars& rel_vars_;
 
-        void LoadConstrs(Work& work, RelVar& rel_var) const;
+        void LoadConstrs(pqxx::work& work, RelVar& rel_var) const;
         
         void SetConstrByPgTuple(RelVar& rel_var,
                                 const pqxx::result::tuple& tuple) const;
@@ -266,7 +257,7 @@ namespace
     public:
         RelVarCreator(const DBMeta& db_meta, const RelVar& rel_var);
 
-        void operator()(Work& work, const Querist& querist) const;
+        void operator()(pqxx::work& work, const Querist& querist) const;
 
     private:
         const RelVar& rel_var_;
@@ -290,7 +281,7 @@ namespace
     public:
         RelVarsDropper(RelVars& rel_vars,
                        const orset<string>& del_names);
-        void operator()(Work& work) const;
+        void operator()(pqxx::work& work) const;
 
     private:
         static const size_t NOT_FOUND_IDX = static_cast<size_t>(-1);
@@ -307,7 +298,7 @@ namespace
 // DBMeta definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DBMeta::DBMeta(Work& work, const string& schema_name)
+DBMeta::DBMeta(pqxx::work& work, const string& schema_name)
 {
     static const format query("SELECT * FROM ku.get_schema_tables('%1%');");
     pqxx::result pqxx_result = work.exec((format(query) % schema_name).str());
@@ -337,7 +328,7 @@ const RelVar& DBMeta::GetRelVar(const string& rel_var_name) const
 }
 
 
-void DBMeta::CreateRelVar(Work& work,
+void DBMeta::CreateRelVar(pqxx::work& work,
                           const Querist& querist,
                           const string& rel_var_name,
                           const RichHeader& rich_header,
@@ -375,7 +366,7 @@ void DBMeta::CreateRelVar(Work& work,
 }
 
 
-void DBMeta::DropRelVars(Work& work, const orset<string>& rel_var_names)
+void DBMeta::DropRelVars(pqxx::work& work, const orset<string>& rel_var_names)
 {
     RelVarsDropper(rel_vars_, rel_var_names)(work);
 }
@@ -409,14 +400,14 @@ ConstrsLoader::ConstrsLoader(RelVars& rel_vars)
     : rel_vars_(rel_vars) {}
 
 
-void ConstrsLoader::operator()(Work& work) const
+void ConstrsLoader::operator()(pqxx::work& work) const
 {
     BOOST_FOREACH(RelVar& rel_var, rel_vars_)
         LoadConstrs(work, rel_var);
 }
 
 
-void ConstrsLoader::LoadConstrs(Work& work, RelVar& rel_var) const
+void ConstrsLoader::LoadConstrs(pqxx::work& work, RelVar& rel_var) const
 {
     static const format query("SELECT * FROM ku.describe_constrs('\"%1%\"')");
     pqxx::result pqxx_result =
@@ -587,7 +578,7 @@ RelVarCreator::RelVarCreator(const DBMeta& db_meta, const RelVar& rel_var)
 }
 
 
-void RelVarCreator::operator()(Work& work, const Querist& querist) const
+void RelVarCreator::operator()(pqxx::work& work, const Querist& querist) const
 {
     ostringstream oss;
     PrintCreateSequences(oss);
@@ -721,7 +712,7 @@ RelVarsDropper::RelVarsDropper(RelVars& rel_vars,
 }
 
 
-void RelVarsDropper::operator()(Work& work) const
+void RelVarsDropper::operator()(pqxx::work& work) const
 {
     if (del_names_.empty())
         return;
@@ -792,7 +783,7 @@ namespace
     class Manager {
     public:
         Manager(const string& schema_name);
-        void LoadMeta(Work& work);
+        void LoadMeta(pqxx::work& work);
         void CommitHappened();
         const DBMeta& GetMeta() const;
         DBMeta& ChangeMeta();
@@ -811,7 +802,7 @@ Manager::Manager(const string& schema_name)
 }
 
 
-void Manager::LoadMeta(Work& work)
+void Manager::LoadMeta(pqxx::work& work)
 {
     if (!consistent_) {
         meta_.reset(new DBMeta(work, schema_name_));
@@ -927,7 +918,7 @@ namespace
     public:
         QuotaController(const string& schema_name, unsigned long long quota);
         void DataWereAdded(unsigned long rows_count, unsigned long long size);
-        void Check(Work& work);
+        void Check(pqxx::work& work);
 
     private:
         const string schema_name_;
@@ -936,7 +927,7 @@ namespace
         unsigned long long added_size_;
         unsigned long changed_rows_count_;
 
-        unsigned long long CalculateTotalSize(Work& work) const;
+        unsigned long long CalculateTotalSize(pqxx::work& work) const;
     };
 }
 
@@ -960,7 +951,7 @@ void QuotaController::DataWereAdded(unsigned long rows_count,
 }
 
 
-void QuotaController::Check(Work& work)
+void QuotaController::Check(pqxx::work& work)
 {
     if (changed_rows_count_ > CHANGED_ROWS_COUNT_LIMIT ||
         (total_size_ + ADDED_SIZE_MULTIPLICATOR * added_size_ >= quota_)) {
@@ -975,7 +966,7 @@ void QuotaController::Check(Work& work)
 }
 
 
-unsigned long long QuotaController::CalculateTotalSize(Work& work) const
+unsigned long long QuotaController::CalculateTotalSize(pqxx::work& work) const
 {
     static const format query("SELECT ku.get_schema_size('%1%');");
     pqxx::result pqxx_result(work.exec((format(query) % schema_name_).str()));
@@ -1032,7 +1023,7 @@ DB::Impl::Impl(const string& opt,
     static const format quota_query("SELECT * FROM ku.get_app_quotas('%1%');");
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
     {
-        Work work(conn_);
+        pqxx::work work(conn_);
         pqxx::subtransaction sub_work(work);
         try {
             sub_work.exec((format(create_cmd) % schema_name).str());
@@ -1122,13 +1113,13 @@ unsigned long long DB::GetFSQuota() const
 class Access::WorkWrapper {
 public:
     explicit WorkWrapper(pqxx::connection& conn) : work_(conn) {}
-    operator Work&()                       { return work_;             }
+    operator pqxx::work&()                 { return work_;             }
     void commit()                          { work_.commit();           }
     pqxx::result exec(const string& query) { return work_.exec(query); }
     string quote(const string& str) const  { return work_.quote(str);  }
 
 private:
-    Work work_;
+    pqxx::work work_;
 };
 
 
@@ -1435,7 +1426,7 @@ void Access::CheckUserExists(const string& name) const
 namespace
 {
     Strings GetApps(const Access& access,
-                    Work& work,
+                    pqxx::work& work,
                     const format& query,
                     const string& user_name)
     {
