@@ -13,27 +13,7 @@
 namespace ku
 {
     class Access;
-    
-
-    /// Database access holder
-    class AccessHolder : boost::noncopyable {
-    public:
-        class Scope {
-        public:
-            Scope(Access& access);
-            ~Scope();
-        };
-
-        static AccessHolder& GetInstance();
-        
-        Access& operator*() const;
-        Access* operator->() const;
-
-    private:
-        Access* access_ptr_;
-        
-        AccessHolder();
-    };
+    extern Access* access_ptr;
 
 
     class DBMediatorBg {

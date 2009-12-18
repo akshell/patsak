@@ -32,6 +32,15 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// access_ptr
+////////////////////////////////////////////////////////////////////////////////
+
+namespace ku
+{
+    Access* access_ptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Readers
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,50 +132,6 @@ namespace
         return result;
     }
 }    
-
-////////////////////////////////////////////////////////////////////////////////
-// AccessHolder definitions
-////////////////////////////////////////////////////////////////////////////////
-
-AccessHolder::Scope::Scope(Access& access)
-{
-    KU_ASSERT(!AccessHolder::GetInstance().access_ptr_);
-    AccessHolder::GetInstance().access_ptr_ = &access;
-}
-
-
-AccessHolder::Scope::~Scope()
-{
-    KU_ASSERT(AccessHolder::GetInstance().access_ptr_);
-    AccessHolder::GetInstance().access_ptr_ = 0;
-}
-
-
-AccessHolder& AccessHolder::GetInstance()
-{
-    static AccessHolder result;
-    return result;
-}
-
-
-AccessHolder::AccessHolder()
-    : access_ptr_(0)
-{
-}
-
-
-Access& AccessHolder::operator*() const
-{
-    KU_ASSERT(access_ptr_);
-    return *access_ptr_;
-}
-
-
-Access* AccessHolder::operator->() const
-{
-    KU_ASSERT(access_ptr_);
-    return access_ptr_;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // ConstrBg
@@ -596,7 +561,7 @@ const QueryResult& RelBg::GetQueryResult()
 {
     if (!query_result_ptr_.get()) {
         QueryResult query_result(
-            AccessHolder::GetInstance()->Query(query_str_, params_, specs_));
+            access_ptr->Query(query_str_, params_, specs_));
         query_result_ptr_.reset(new QueryResult(query_result));
         V8::AdjustAmountOfExternalAllocatedMemory(
             MEMORY_MULTIPLIER * query_result.GetMemoryUsage());
@@ -744,8 +709,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, ByCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelBg, CountCb,
                     const Arguments&, /*args*/) const
 {
-    return Integer::New(
-        AccessHolder::GetInstance()->Count(query_str_, params_, specs_));
+    return Integer::New(access_ptr->Count(query_str_, params_, specs_));
     
 }
 
@@ -887,11 +851,10 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SelectionBg, UpdateCb,
     params.reserve(args.Length() - 1);
     for (int i = 1; i < args.Length(); ++i)
         params.push_back(ReadKuValue(args[i]));
-    unsigned long rows_number = (
-        AccessHolder::GetInstance()->Update(GetRelVarName(),
-                                            field_expr_map,
-                                            params,
-                                            GetWhereSpecs()));
+    unsigned long rows_number = (access_ptr->Update(GetRelVarName(),
+                                                    field_expr_map,
+                                                    params,
+                                                    GetWhereSpecs()));
     return Number::New(static_cast<double>(rows_number));
 }
 
@@ -900,7 +863,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SelectionBg, DelCb,
                     const Arguments&, /*args*/) const
 {
     unsigned long rows_number = (
-        AccessHolder::GetInstance()->Delete(GetRelVarName(), GetWhereSpecs()));
+        access_ptr->Delete(GetRelVarName(), GetWhereSpecs()));
     return Number::New(static_cast<double>(rows_number));
 }
 
@@ -935,13 +898,13 @@ RelVarBg::RelVarBg(const string& name)
 
 const RichHeader& RelVarBg::GetRichHeader() const
 {
-    return AccessHolder::GetInstance()->GetRelVarRichHeader(name_);
+    return access_ptr->GetRelVarRichHeader(name_);
 }
 
 
 const Constrs& RelVarBg::GetConstrs() const
 {
-    return AccessHolder::GetInstance()->GetRelVarConstrs(name_);
+    return access_ptr->GetRelVarConstrs(name_);
 }
 
 
@@ -990,7 +953,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, CreateCb,
     constrs.reserve(constrs.size() + args.Length() - 1);
     for (int i = 1; i < args.Length(); ++i)
         constrs.push_back(GetBg<ConstrBg>(args[i]).GetConstr());
-    AccessHolder::GetInstance()->CreateRelVar(name_, rich_header, constrs);
+    access_ptr->CreateRelVar(name_, rich_header, constrs);
     return args.This();
 }
 
@@ -1011,7 +974,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, InsertCb,
         value_map.insert(ValueMap::value_type(name, ReadKuValue(prop.value)));
     }
     const RichHeader& rich_header(GetRichHeader());
-    Values values(AccessHolder::GetInstance()->Insert(name_, value_map));
+    Values values(access_ptr->Insert(name_, value_map));
     KU_ASSERT(values.size() == rich_header.size());
     Handle<Object> result(Object::New());
     for (size_t i = 0; i < values.size(); ++i)
@@ -1023,7 +986,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, InsertCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, DropCb,
                     const Arguments&, /*args*/) const
 {
-    AccessHolder::GetInstance()->DropRelVar(name_);
+    access_ptr->DropRelVar(name_);
     return Undefined();
 }
 
@@ -1163,7 +1126,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DropRelVarsCb,
                     const Arguments&, args) const
 {
     StringSet rel_var_names(ReadStringSet(args));
-    AccessHolder::GetInstance()->DropRelVars(rel_var_names);
+    access_ptr->DropRelVars(rel_var_names);
     return Undefined();
 }
 
@@ -1200,7 +1163,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DescribeAppCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    App app(AccessHolder::GetInstance()->DescribeApp(Stringify(args[0])));
+    App app(access_ptr->DescribeApp(Stringify(args[0])));
     Handle<Object> result(Object::New());
     Set(result, "admin", String::New(app.admin.c_str()));
     Set(result, "developers", MakeV8Array(app.developers));
@@ -1216,8 +1179,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DescribeAppCb,
     DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, name##Cb,  \
                         const Arguments&, args) const {             \
         CheckArgsLength(args, 1);                                   \
-        return MakeV8Array(                                         \
-            AccessHolder::GetInstance()->name(Stringify(args[0]))); \
+        return MakeV8Array(access_ptr->name(Stringify(args[0])));   \
     }
 
 DEFINE_JS_CALLBACK_APPS(GetAdminedApps)
@@ -1264,15 +1226,14 @@ DEFINE_JS_CALLBACK2(Handle<Boolean>, DBBg, HasRelVarCb,
                     Local<String>, property,
                     const AccessorInfo&, /*info*/) const
 {
-    return Boolean::New(
-        AccessHolder::GetInstance()->HasRelVar(Stringify(property)));
+    return Boolean::New(access_ptr->HasRelVar(Stringify(property)));
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<Array>, DBBg, EnumRelVarsCb,
                     const AccessorInfo&, /*info*/) const
 {
-    StringSet rel_var_name_set(AccessHolder::GetInstance()->GetRelVarNames());
+    StringSet rel_var_name_set(access_ptr->GetRelVarNames());
     Handle<Array> result(Array::New(rel_var_name_set.size()));
     for (size_t i = 0; i < rel_var_name_set.size(); ++i)
         result->Set(Integer::New(i), String::New(rel_var_name_set[i].c_str()));

@@ -783,57 +783,6 @@ size_t RelVarsDropper::GetDelNameIdx(const string& rel_var_name) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// ConsistController
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    /// Class for controlling the consistency of metadata cache.
-    /// All member functions never throw.
-    class ConsistController {
-    public:
-        class Guard {
-        public:
-            Guard(ConsistController& cc)
-                : cc_(cc), commited_(false) {}
-
-            ~Guard() {
-                if (!commited_ && cc_.changed_)
-                    cc_.consistent_ = false;
-            }
-        
-            void CommitHappened() {
-                commited_ = true;
-            }
-
-        private:
-            ConsistController& cc_;
-            bool commited_;
-        };
-
-        ConsistController()
-            : consistent_(false) {}
-    
-        void ChangeHappened() {
-            changed_ = true;
-        }
-    
-        bool IsConsistent() const {
-            return consistent_;
-        }
-    
-        void SyncHappened() {
-            consistent_ = true;
-            changed_ = false;
-        }
-
-    private:
-        bool changed_;
-        bool consistent_;
-    };
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // Manager
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -842,43 +791,38 @@ namespace
     /// Metadata manager. Maintains metadata consistensy.
     class Manager {
     public:
-        Manager(Work& work,
-                const string& schema_name,
-                ConsistController& cc);
+        Manager(const string& schema_name);
+        void LoadMeta(Work& work);
+        void CommitHappened();
         const DBMeta& GetMeta() const;
         DBMeta& ChangeMeta();
-        void LoadMeta(Work& work);
     
     private:
         boost::scoped_ptr<DBMeta> meta_;
         string schema_name_;
-        ConsistController& consist_controller_;
-
-        void RetrieveMeta();
+        bool consistent_;
     };
 }
 
-Manager::Manager(Work& work, const string& schema_name, ConsistController& cc)
+Manager::Manager(const string& schema_name)
     : schema_name_(schema_name)
-    , consist_controller_(cc)
+    , consistent_(false)
 {
-    static const format create_cmd("SELECT ku.create_schema('%1%');");
-    static const format set_cmd("SET search_path TO \"%1%\", pg_catalog;");
-    pqxx::subtransaction sub_work(work);
-    try {
-        sub_work.exec((format(create_cmd) % schema_name).str());
-    } catch (const pqxx::sql_error&) {
-        sub_work.abort();
-    }
-    work.exec((format(set_cmd) % schema_name).str());
-    LoadMeta(work);
 }
 
 
 void Manager::LoadMeta(Work& work)
 {
-    meta_.reset(new DBMeta(work, schema_name_));
-    consist_controller_.SyncHappened();
+    if (!consistent_) {
+        meta_.reset(new DBMeta(work, schema_name_));
+        consistent_ = true;
+    }
+}
+
+
+void Manager::CommitHappened()
+{
+    consistent_ = true;
 }
 
 
@@ -890,7 +834,7 @@ const DBMeta& Manager::GetMeta() const
 
 DBMeta& Manager::ChangeMeta()
 {
-    consist_controller_.ChangeHappened();
+    consistent_ = false;
     return *meta_;
 }
 
@@ -1042,30 +986,6 @@ unsigned long long QuotaController::CalculateTotalSize(Work& work) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Access::Data
-////////////////////////////////////////////////////////////////////////////////
-
-/// Data each Transactor has for DB operations
-struct ku::Access::Data {
-    Manager& manager;
-    Querist& querist;
-    Quoter quoter;
-    QuotaController& quota_controller;
-    Work& work;
-
-    Data(Manager& manager,
-         Querist& querist,
-         const Quoter& quoter,
-         QuotaController& quota_controller,
-         Work& work)
-        : manager(manager)
-        , querist(querist)
-        , quoter(quoter)
-        , quota_controller(quota_controller)
-        , work(work) {}
-};
-
-////////////////////////////////////////////////////////////////////////////////
 // DB::Impl
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1079,17 +999,20 @@ public:
 
     unsigned long long GetDBQuota() const;
     unsigned long long GetFSQuota() const;
-    void Perform(Transactor& transactor);
+
+    pqxx::connection& GetConnection();
+    Manager& GetManager();
+    Querist& GetQuerist();
+    QuotaController& GetQuotaController();
 
 private:
     pqxx::connection conn_;
     int try_count_;
     unsigned long long db_quota_;
     unsigned long long fs_quota_;
-    ConsistController consist_controller_;
-    scoped_ptr<Manager> manager_ptr_;
-    scoped_ptr<DBViewerImpl> db_viewer_ptr_;
-    scoped_ptr<Querist> querist_ptr_;
+    Manager manager_;
+    DBViewerImpl db_viewer_;
+    Querist querist_;
     scoped_ptr<QuotaController> quota_controller_ptr_;
 };
 
@@ -1100,13 +1023,25 @@ DB::Impl::Impl(const string& opt,
                int try_count)
     : conn_(opt)
     , try_count_(try_count)
+    , manager_(schema_name)
+    , db_viewer_(manager_, Quoter(conn_))
+    , querist_(db_viewer_, conn_)
 {
-    static const format query("SELECT * FROM ku.get_app_quotas('%1%');");
+    static const format create_cmd("SELECT ku.create_schema('%1%');");
+    static const format set_cmd("SET search_path TO \"%1%\", pg_catalog;");
+    static const format quota_query("SELECT * FROM ku.get_app_quotas('%1%');");
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
     {
         Work work(conn_);
-        manager_ptr_.reset(new Manager(work, schema_name, consist_controller_));
-        pqxx::result pqxx_result(work.exec((format(query) % app_name).str()));
+        pqxx::subtransaction sub_work(work);
+        try {
+            sub_work.exec((format(create_cmd) % schema_name).str());
+        } catch (const pqxx::sql_error&) {
+            sub_work.abort();
+        }
+        work.exec((format(set_cmd) % schema_name).str());
+        pqxx::result pqxx_result(
+            work.exec((format(quota_query) % app_name).str()));
         KU_ASSERT(pqxx_result.size() == 1);
         const pqxx::result::tuple& tuple(pqxx_result[0]);
         if (tuple[0].is_null())
@@ -1115,8 +1050,6 @@ DB::Impl::Impl(const string& opt,
         fs_quota_ = QUOTA_MULTIPLICATOR * tuple[1].as<unsigned long>();
         work.commit(); // don't remove it, stupid idiot! is sets search_path!
     }
-    db_viewer_ptr_.reset(new DBViewerImpl(*manager_ptr_, Quoter(conn_)));
-    querist_ptr_.reset(new Querist(*db_viewer_ptr_, conn_));
     quota_controller_ptr_.reset(new QuotaController(schema_name, db_quota_));
 }
 
@@ -1133,33 +1066,27 @@ unsigned long long DB::Impl::GetFSQuota() const
 }
 
 
-void DB::Impl::Perform(Transactor& transactor) {
-    for (int i = try_count_; ; --i) {
-        Work work(conn_);
-        Access::Data access_data(*manager_ptr_,
-                                 *querist_ptr_,
-                                 Quoter(conn_),
-                                 *quota_controller_ptr_,
-                                 work);
-        Access access(access_data);
-        try {
-            if (!consist_controller_.IsConsistent()) {
-                manager_ptr_->LoadMeta(work);
-                querist_ptr_->ClearCache();
-            }
-            ConsistController::Guard consist_guard(consist_controller_);
-            transactor(access);
-            work.commit();
-            consist_guard.CommitHappened();
-            return;
-        } catch (const Error&) {
-            throw;
-        } catch (const pqxx::pqxx_exception& err) {
-            if (i <= 0)
-                Fail(err.base().what());
-            transactor.Reset();
-        }
-    }
+pqxx::connection& DB::Impl::GetConnection()
+{
+    return conn_;
+}
+
+
+Manager& DB::Impl::GetManager()
+{
+    return manager_;
+}
+
+
+Querist&DB::Impl:: GetQuerist()
+{
+    return querist_;
+}
+
+
+QuotaController& DB::Impl::GetQuotaController()
+{
+    return *quota_controller_ptr_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1188,25 +1115,46 @@ unsigned long long DB::GetFSQuota() const
     return pimpl_->GetFSQuota();
 }
 
-
-void DB::Perform(Transactor& transactor)
-{
-    pimpl_->Perform(transactor);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Access definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-Access::Access(Data& data)
-    : data_(data)
+class Access::WorkWrapper {
+public:
+    explicit WorkWrapper(pqxx::connection& conn) : work_(conn) {}
+    operator Work&()                       { return work_;             }
+    void commit()                          { work_.commit();           }
+    pqxx::result exec(const string& query) { return work_.exec(query); }
+    string quote(const string& str) const  { return work_.quote(str);  }
+
+private:
+    Work work_;
+};
+
+
+Access::Access(DB& db)
+    : db_impl_(*db.pimpl_)
+    , work_ptr_(new WorkWrapper(db_impl_.GetConnection()))
 {
+    db_impl_.GetManager().LoadMeta(*work_ptr_);
+}
+
+
+Access::~Access()
+{
+}
+
+
+void Access::Commit()
+{
+    work_ptr_->commit();
+    db_impl_.GetManager().CommitHappened();
 }
 
 
 bool Access::HasRelVar(const string& rel_var_name) const
 {
-    const RelVars& rel_vars(data_.manager.GetMeta().GetRelVars());
+    const RelVars& rel_vars(db_impl_.GetManager().GetMeta().GetRelVars());
     BOOST_FOREACH(const RelVar& rel_var, rel_vars)
         if (rel_var.GetName() == rel_var_name)
             return true;
@@ -1216,7 +1164,7 @@ bool Access::HasRelVar(const string& rel_var_name) const
 
 StringSet Access::GetRelVarNames() const
 {
-    const RelVars& rel_vars(data_.manager.GetMeta().GetRelVars());
+    const RelVars& rel_vars(db_impl_.GetManager().GetMeta().GetRelVars());
     StringSet result;
     result.reserve(rel_vars.size());
     BOOST_FOREACH(const RelVar& rel_var, rel_vars)
@@ -1227,13 +1175,14 @@ StringSet Access::GetRelVarNames() const
 
 const RichHeader& Access::GetRelVarRichHeader(const string& rel_var_name) const
 {
-    return data_.manager.GetMeta().GetRelVar(rel_var_name).GetRichHeader();    
+    return
+        db_impl_.GetManager().GetMeta().GetRelVar(rel_var_name).GetRichHeader();
 }
 
 
 const Constrs& Access::GetRelVarConstrs(const string& rel_var_name) const
 {
-    return data_.manager.GetMeta().GetRelVar(rel_var_name).GetConstrs();
+    return db_impl_.GetManager().GetMeta().GetRelVar(rel_var_name).GetConstrs();
 }
 
 
@@ -1241,14 +1190,14 @@ void Access::CreateRelVar(const string& name,
                           const RichHeader& rich_header,
                           const Constrs& constrs)
 {
-    data_.manager.ChangeMeta().CreateRelVar(data_.work, data_.querist,
-                                            name, rich_header, constrs);
+    db_impl_.GetManager().ChangeMeta().CreateRelVar(
+        *work_ptr_, db_impl_.GetQuerist(), name, rich_header, constrs);
 }
 
 
 void Access::DropRelVars(const StringSet& rel_var_names)
 {
-    data_.manager.ChangeMeta().DropRelVars(data_.work, rel_var_names);
+    db_impl_.GetManager().ChangeMeta().DropRelVars(*work_ptr_, rel_var_names);
 }
 
 
@@ -1264,7 +1213,7 @@ QueryResult Access::Query(const string& query_str,
                           const Values& params,
                           const Specs& specs) const
 {
-    return data_.querist.Query(data_.work, query_str, params, specs);
+    return db_impl_.GetQuerist().Query(*work_ptr_, query_str, params, specs);
 }
 
 
@@ -1272,7 +1221,7 @@ unsigned long Access::Count(const string& query_str,
                             const Values& params,
                             const Specs& specs) const
 {
-    return data_.querist.Count(data_.work, query_str, params, specs);
+    return db_impl_.GetQuerist().Count(*work_ptr_, query_str, params, specs);
 }
 
 
@@ -1281,7 +1230,7 @@ unsigned long Access::Update(const string& rel_var_name,
                              const Values& params,
                              const WhereSpecs& where_specs)
 {
-    data_.quota_controller.Check(data_.work);
+    db_impl_.GetQuotaController().Check(*work_ptr_);
     
     const RichHeader& rich_header(GetRelVarRichHeader(rel_var_name));
     unsigned long long size = 0;
@@ -1291,11 +1240,11 @@ unsigned long Access::Update(const string& rel_var_name,
         size += field_expr.second.size();
     }
     unsigned long rows_count;
-    pqxx::subtransaction sub_work(data_.work);
+    pqxx::subtransaction sub_work(*work_ptr_);
     try {
-        rows_count = data_.querist.Update(sub_work, rel_var_name,
-                                          field_expr_map,
-                                          params, where_specs);
+        rows_count = db_impl_.GetQuerist().Update(sub_work, rel_var_name,
+                                                  field_expr_map,
+                                                  params, where_specs);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
@@ -1304,7 +1253,7 @@ unsigned long Access::Update(const string& rel_var_name,
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
     }
-    data_.quota_controller.DataWereAdded(rows_count, size);
+    db_impl_.GetQuotaController().DataWereAdded(rows_count, size);
     sub_work.commit();
     return rows_count;
 }
@@ -1314,11 +1263,11 @@ unsigned long Access::Delete(const string& rel_var_name,
                              const WhereSpecs& where_specs)
 {
     unsigned long rows_count;
-    pqxx::subtransaction sub_work(data_.work);
+    pqxx::subtransaction sub_work(*work_ptr_);
     try {
-        rows_count = data_.querist.Delete(sub_work,
-                                          rel_var_name,
-                                          where_specs);
+        rows_count = db_impl_.GetQuerist().Delete(sub_work,
+                                                  rel_var_name,
+                                                  where_specs);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
@@ -1336,9 +1285,10 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
     static const format default_cmd(
         "INSERT INTO \"%1%\" DEFAULT VALUES RETURNING *;");
 
-    data_.quota_controller.Check(data_.work);
+    db_impl_.GetQuotaController().Check(*work_ptr_);
 
-    const RelVar& rel_var(data_.manager.GetMeta().GetRelVar(rel_var_name));
+    const RelVar& rel_var(
+        db_impl_.GetManager().GetMeta().GetRelVar(rel_var_name));
     const RichHeader& rich_header(rel_var.GetRichHeader());
     string sql_str;
     unsigned long long size = 0;
@@ -1354,6 +1304,7 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
             ostringstream names_oss, values_oss;
             OmitInvoker print_names_sep((SepPrinter(names_oss)));
             OmitInvoker print_values_sep((SepPrinter(values_oss)));
+            Quoter quoter(db_impl_.GetConnection());
             BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
                 ValueMap::const_iterator itr(
                     value_map.find(rich_attr.GetName()));
@@ -1369,7 +1320,7 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
                     names_oss << Quoted(rich_attr.GetName());
                     print_values_sep();
                     Value casted_value(itr->second.Cast(rich_attr.GetType()));
-                    values_oss << data_.quoter(casted_value.GetPgLiter());
+                    values_oss << quoter(casted_value.GetPgLiter());
                 }
             }
             sql_str = (format(cmd)
@@ -1389,7 +1340,7 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
         }
     }
     pqxx::result pqxx_result;
-    pqxx::subtransaction sub_work(data_.work);
+    pqxx::subtransaction sub_work(*work_ptr_);
     try {
         pqxx_result = sub_work.exec(sql_str);
     } catch (const pqxx::integrity_constraint_violation& err) {
@@ -1404,7 +1355,7 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
     }
-    data_.quota_controller.DataWereAdded(1, size);
+    db_impl_.GetQuotaController().DataWereAdded(1, size);
     sub_work.commit();
     if (rich_header.empty())
         return Values();
@@ -1438,7 +1389,7 @@ void Access::CheckAppExists(const string& name) const
 {
     static const format query("SELECT ku.app_exists(%1%);");
     pqxx::result pqxx_result(
-        data_.work.exec((format(query) % data_.work.quote(name)).str()));
+        work_ptr_->exec((format(query) % work_ptr_->quote(name)).str()));
     KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
     if (pqxx_result[0][0].is_null())
         throw NoSuchApp(name);
@@ -1451,16 +1402,16 @@ App Access::DescribeApp(const string& name) const
     static const format devs_query("SELECT * FROM ku.get_app_devs(%1%);");
     static const format labels_query("SELECT * FROM ku.get_app_labels(%1%);");
     pqxx::result app_pqxx_result =
-        data_.work.exec((format(app_query) % data_.work.quote(name)).str());
+        work_ptr_->exec((format(app_query) % work_ptr_->quote(name)).str());
     KU_ASSERT(app_pqxx_result.size() < 2);
     if (!app_pqxx_result.size())
         throw NoSuchApp(name);
     const pqxx::result::tuple& app_tuple(app_pqxx_result[0]);
     unsigned app_id = app_tuple[0].as<unsigned>();
     pqxx::result devs_pqxx_result =
-        data_.work.exec((format(devs_query) % app_id).str());
+        work_ptr_->exec((format(devs_query) % app_id).str());
     pqxx::result labels_pqxx_result =
-        data_.work.exec((format(labels_query) % app_id).str());
+        work_ptr_->exec((format(labels_query) % app_id).str());
     return App(app_tuple[1].as<string>(),
                StringsFromQueryResult(devs_pqxx_result),
                app_tuple[2].as<string>(),
@@ -1474,7 +1425,7 @@ void Access::CheckUserExists(const string& name) const
 {
     static const format query("SELECT ku.user_exists(%1%);");
     pqxx::result pqxx_result(
-        data_.work.exec((format(query) % data_.work.quote(name)).str()));
+        work_ptr_->exec((format(query) % work_ptr_->quote(name)).str()));
     KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
     if (pqxx_result[0][0].is_null())
         throw Error(Error::NO_SUCH_USER, "No such user: \"" + name + '"');
@@ -1500,14 +1451,14 @@ namespace
 Strings Access::GetAdminedApps(const string& user_name) const
 {
     static const format query("SELECT * FROM ku.get_admined_apps(%1%);");
-    return GetApps(*this, data_.work, query, user_name);
+    return GetApps(*this, *work_ptr_, query, user_name);
 }
 
 
 Strings Access::GetDevelopedApps(const string& user_name) const
 {
     static const format query("SELECT * FROM ku.get_developed_apps(%1%);");
-    return GetApps(*this, data_.work, query, user_name);
+    return GetApps(*this, *work_ptr_, query, user_name);
 }
 
 
@@ -1515,5 +1466,5 @@ Strings Access::GetAppsByLabel(const string& label_name) const
 {
     static const format query("SELECT * FROM ku.get_apps_by_label(%1%);");
     return StringsFromQueryResult(
-        data_.work.exec((format(query) % data_.work.quote(label_name)).str()));
+        work_ptr_->exec((format(query) % work_ptr_->quote(label_name)).str()));
 }

@@ -152,10 +152,10 @@ namespace ku
         ~DB();
         unsigned long long GetDBQuota() const;
         unsigned long long GetFSQuota() const;
-        void Perform(Transactor& transactor);
         
     private:
         class Impl;
+        friend class Access;
         
         boost::scoped_ptr<Impl> pimpl_;
     };
@@ -228,13 +228,15 @@ namespace ku
             {}
     };
 
-    
+
     /// Transaction means of database operations
     class Access {
     public:
-        struct Data;
+        explicit Access(DB& db);
+        ~Access();
         
-        explicit Access(Data& data);
+        void Commit();
+
         StringSet GetRelVarNames() const;
         bool HasRelVar(const std::string& rel_var_name) const;
 
@@ -253,8 +255,8 @@ namespace ku
         void DropRelVar(const std::string& rel_var_name);
         
         QueryResult Query(const std::string& query_str,
-                          const Values& params,
-                          const Specs& specs) const;
+                          const Values& params = Values(),
+                          const Specs& specs = Specs()) const;
 
         unsigned long Count(const std::string& query_str,
                             const Values& params,
@@ -279,7 +281,10 @@ namespace ku
         Strings GetAppsByLabel(const std::string& label_name) const;
 
     private:
-        Data& data_;
+        class WorkWrapper;
+        
+        DB::Impl& db_impl_;
+        boost::scoped_ptr<WorkWrapper> work_ptr_;
     };
 }
 

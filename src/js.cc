@@ -73,7 +73,7 @@ Chars CodeReader::operator()(const string& path) const
 
 Chars CodeReader::operator()(const string& app_name, const string& path) const
 {
-    AccessHolder::GetInstance()->CheckAppExists(app_name);
+    access_ptr->CheckAppExists(app_name);
     return Read(include_path_ + '/' + app_name, path);
 }
 
@@ -372,7 +372,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestCb,
                                request,
                                file_accessor.GetFullPathes(),
                                data_ptr,
-                               *AccessHolder::GetInstance()));
+                               *access_ptr));
     KU_ASSERT(result.size() >= 3);
     if (string(&result[0], 3) == "OK\n") {
         return String::New(&result[3], result.size() - 3);
@@ -546,66 +546,6 @@ string ExceptionResponse::MakeExceptionDescr(const TryCatch& try_catch)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Caller
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class Caller : public Transactor {
-    public:
-        Caller(Handle<Function> function,
-               Handle<Object> object,
-               Handle<v8::Value> arg);
-        virtual void operator()(Access& access);
-        virtual void Reset();
-        auto_ptr<Response> GetResult();
-
-    private:
-        Handle<Function> function_;
-        Handle<Object> object_;
-        Handle<v8::Value> arg_;
-        auto_ptr<Response> response_ptr_;
-    };
-}
-
-
-Caller::Caller(Handle<Function> function,
-               Handle<Object> object,
-               Handle<v8::Value> arg)
-    : function_(function)
-    , object_(object)
-    , arg_(arg)
-{
-}
-
-
-void Caller::operator()(Access& access)
-{
-    AccessHolder::Scope access_scope(access);
-    TryCatch try_catch;
-    Handle<v8::Value> result(function_->Call(object_, 1, &arg_));
-    // I don't know the difference in these conditions but together
-    // they handle all cases
-    if (try_catch.HasCaught() || result.IsEmpty())
-        response_ptr_.reset(new ExceptionResponse(try_catch));
-    else
-        response_ptr_.reset(new OkResponse(result));
-}
-
-
-void Caller::Reset()
-{
-    response_ptr_.reset();
-}
-
-
-auto_ptr<Response> Caller::GetResult()
-{
-    KU_ASSERT(response_ptr_.get());
-    return response_ptr_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // ComputeStackLimit
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -661,11 +601,11 @@ private:
     GlobalBg global_bg_;
     Persistent<Context> context_;
     Persistent<Object> ak_;
-
-    void SetInternal(Handle<Object> object,
-                     const string& field,
-                     void* ptr) const;
     
+    auto_ptr<Response> Run(Handle<Function> function,
+                           Handle<Object> object,
+                           Handle<v8::Value> arg);
+
     auto_ptr<Response> Call(const string& user,
                             const Chars& input,
                             const Strings& file_pathes,
@@ -673,6 +613,10 @@ private:
                             const string& issuer,
                             Handle<Object> object,
                             const string& func_name);
+
+    void SetInternal(Handle<Object> object,
+                     const string& field,
+                     void* ptr) const;
 };
 
 
@@ -755,6 +699,24 @@ bool Program::Impl::IsOperable() const
 }
 
 
+auto_ptr<Response> Program::Impl::Run(Handle<Function> function,
+                                      Handle<Object> object,
+                                      Handle<v8::Value> arg)
+{
+    Access access(db_);
+    access_ptr = &access;
+    TryCatch try_catch;
+    Handle<v8::Value> result(function->Call(object, 1, &arg));
+    access_ptr = 0;
+    // I don't know the difference in these conditions but together
+    // they handle all cases
+    if (try_catch.HasCaught() || result.IsEmpty())
+        return auto_ptr<Response>(new ExceptionResponse(try_catch));
+    access.Commit();
+    return auto_ptr<Response>( new OkResponse(result));
+}
+    
+
 auto_ptr<Response> Program::Impl::Call(const string& user,
                                        const Chars& input,
                                        const Strings& file_pathes,
@@ -769,11 +731,8 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         Handle<Function> include_func(
             Handle<Function>::Cast(Get(ak_, "include")));
         KU_ASSERT(!include_func.IsEmpty());
-        Caller include_caller(include_func,
-                              ak_,
-                              String::New("__main__.js"));
-        db_.Perform(include_caller);
-        auto_ptr<Response> response_ptr(include_caller.GetResult());
+        auto_ptr<Response> response_ptr(
+            Run(include_func, ak_, String::New("__main__.js")));
         if (response_ptr->GetStatus() != "OK")
             return response_ptr;
         initialized_ = true;
@@ -808,11 +767,9 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     else
         Set(ak_, "_issuer", String::New(issuer.c_str()), DontEnum);
 
-    Caller caller(Handle<Function>::Cast(func_value),
-                  object,
-                  String::New(&input[0], input.size()));
-    db_.Perform(caller);
-    auto_ptr<Response> result(caller.GetResult());
+    auto_ptr<Response> result(Run(Handle<Function>::Cast(func_value),
+                                  object,
+                                  String::New(&input[0], input.size())));
     
     BOOST_FOREACH(Handle<Object> file, files)
         TempFileBg::GetJSClass().Cast(file)->ClearPath();

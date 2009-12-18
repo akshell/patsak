@@ -181,6 +181,9 @@ class Test(unittest.TestCase):
                           'ak.fs._read(ak._files[0])'))
         self.assert_(not os.path.exists(wuzzup_path))
 
+        talk('PROCESS ak.db.xxx._create({}); throw 1')
+        self.assertEqual(talk('PROCESS "xxx" in ak.db'), 'OK\nfalse')
+        
         sock = self._connect(socket_path)
         sock.send('PROCESS\nREQUEST 3\n')
         time.sleep(0.1)

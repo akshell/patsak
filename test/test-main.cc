@@ -588,154 +588,6 @@ void Table::AddAllUniqueConstr()
 
 namespace
 {
-    class RelVarCreator : public Transactor {
-    public:
-        RelVarCreator(const string& rel_var_name, const Table& table)
-            : rel_var_name_(rel_var_name), table_(table) {}
-
-        virtual void operator()(Access& access) {
-            const RichHeader& rich_header(table_.GetRichHeader());
-            access.CreateRelVar(rel_var_name_,
-                                rich_header,
-                                table_.GetConstrs());
-            BOOST_FOREACH(const Values& values, table_.GetValuesSet()) {
-                assert(values.size() == rich_header.size());
-                ValueMap value_map;
-                for (size_t i = 0; i < rich_header.size(); ++i)
-                    value_map.insert(
-                        ValueMap::value_type(rich_header[i].GetName(),
-                                             values[i]));
-                access.Insert(rel_var_name_, value_map);
-            }
-        }
-
-    private:
-        string rel_var_name_;
-        Table table_;
-    };
-
-    
-    class Querier : public Transactor {
-    public:
-        Querier(const string& query_str,
-                const Values& params = Values(),
-                const Specs& specs = Specs())
-            : query_str_(query_str)
-            , params_(params)
-            , specs_(specs) {}
-        
-        virtual void operator()(Access& access) {
-            query_result_ptr_.reset(
-                new QueryResult(access.Query(query_str_, params_, specs_)));
-        }
-
-        Table GetResult() const {
-            BOOST_REQUIRE(query_result_ptr_.get());
-            Table result(query_result_ptr_->GetHeader());
-            for (size_t idx = 0; idx < query_result_ptr_->GetSize(); ++idx)
-                result.AddRow(*query_result_ptr_->GetValuesPtr(idx));
-            return result;
-        }
-
-    private:
-        string query_str_;
-        Values params_;
-        Specs specs_;
-        auto_ptr<QueryResult> query_result_ptr_;
-    };
-    
-
-    class RelVarDumper : public Transactor {
-    public:
-        RelVarDumper(const string& rel_var_name)
-            : rel_var_name_(rel_var_name)
-            , querier_(rel_var_name)
-            , rich_header_ptr_(0)
-            , constrs_ptr_(0) {}
-
-        virtual void operator()(Access& access) {
-            querier_(access);
-            constrs_ptr_ = &access.GetRelVarConstrs(rel_var_name_);
-            rich_header_ptr_ = &access.GetRelVarRichHeader(rel_var_name_);
-        }
-
-        Table GetTable() const {
-            Table result(querier_.GetResult());
-            BOOST_REQUIRE(rich_header_ptr_ && constrs_ptr_);
-            result.SetRichHeader(*rich_header_ptr_);
-            result.SetConstrs(*constrs_ptr_);
-            return result;
-        }
-
-        const Constrs& GetConstrs() const {
-            BOOST_REQUIRE(constrs_ptr_);
-            return *constrs_ptr_;
-        }
-        
-        const RichHeader& GetRichHeader() const {
-            BOOST_REQUIRE(rich_header_ptr_);
-            return *rich_header_ptr_;
-        }
-
-    private:
-        string rel_var_name_;
-        Querier querier_;
-        const RichHeader* rich_header_ptr_;
-        const Constrs* constrs_ptr_;
-    };
-
-
-    class ValuesInserter : public Transactor {
-    public:
-        ValuesInserter(const string& rel_var_name, const Values& values)
-            : rel_var_name_(rel_var_name), values_(values) {}
-
-        virtual void operator()(Access& access) {
-            const RichHeader& rich_header(
-                access.GetRelVarRichHeader(rel_var_name_));
-            assert(values_.size() == rich_header.size());
-            ValueMap value_map;
-            for (size_t i = 0; i < rich_header.size(); ++i)
-                value_map.insert(ValueMap::value_type(rich_header[i].GetName(),
-                                                      values_[i]));
-            access.Insert(rel_var_name_, value_map);
-        }
-
-    private:
-        string rel_var_name_;
-        Values values_;
-    };    
-
-    
-    class RelVarsDropper : public Transactor {
-    public:
-        RelVarsDropper(const StringSet& rel_var_names)
-            : rel_var_names_(rel_var_names) {}
-        
-        virtual void operator()(Access& access) {
-            access.DropRelVars(rel_var_names_);
-        }
-
-    private:
-        StringSet rel_var_names_;
-    };
-
-
-    class RelVarNamesGetter : public Transactor {
-    public:
-        virtual void operator()(Access& access) {
-            result_ = access.GetRelVarNames();
-        }
-
-        const StringSet& GetResult() const {
-            return result_;
-        }
-
-    private:
-        StringSet result_;
-    };
-
-
     class DBFixture : private noncopyable {
     public:
         DB db;
@@ -788,119 +640,92 @@ Table DBFixture::Query(const string& query)
 
 
 Table DBFixture::ComplexQuery(const string& query,
-                              const Values& params,
-                              const Specs& specs)
+                              const Values& params = Values(),
+                              const Specs& specs = Specs())
 {
-    Querier querier(query, params, specs);
-    db.Perform(querier);
-    return querier.GetResult();
+    Access access(db);
+    QueryResult query_result(access.Query(query, params, specs));
+    Table result(query_result.GetHeader());
+    for (size_t idx = 0; idx < query_result.GetSize(); ++idx)
+        result.AddRow(*query_result.GetValuesPtr(idx));
+    return result;
 }
 
 
 Table DBFixture::DumpRelVar(const string& rel_var_name)
 {
-    RelVarDumper rel_dumper(rel_var_name);
-    db.Perform(rel_dumper);
-    return rel_dumper.GetTable();
+    Table result(ComplexQuery(rel_var_name));
+    Access access(db);
+    result.SetRichHeader(access.GetRelVarRichHeader(rel_var_name));
+    result.SetConstrs(access.GetRelVarConstrs(rel_var_name));
+    return result;
 }
 
 
 void DBFixture::InsertValues(const string& rel_var_name, const Values& values)
 {
-    ValuesInserter values_inserter(rel_var_name, values);
-    db.Perform(values_inserter);
+    Access access(db);
+    const RichHeader& rich_header(access.GetRelVarRichHeader(rel_var_name));
+    assert(values.size() == rich_header.size());
+    ValueMap value_map;
+    for (size_t i = 0; i < rich_header.size(); ++i)
+        value_map.insert(ValueMap::value_type(rich_header[i].GetName(),
+                                              values[i]));
+    access.Insert(rel_var_name, value_map);
+    access.Commit();
 }
 
 
 void DBFixture::CreateRelVar(const string& rel_var_name, const Table& table)
 {
-    RelVarCreator rel_creator(rel_var_name, table);
-    db.Perform(rel_creator);
+    Access access(db);
+    const RichHeader& rich_header(table.GetRichHeader());
+    access.CreateRelVar(rel_var_name, rich_header, table.GetConstrs());
+    BOOST_FOREACH(const Values& values, table.GetValuesSet()) {
+        assert(values.size() == rich_header.size());
+        ValueMap value_map;
+        for (size_t i = 0; i < rich_header.size(); ++i)
+            value_map.insert(
+                ValueMap::value_type(rich_header[i].GetName(),
+                                     values[i]));
+        access.Insert(rel_var_name, value_map);
+    }
+    access.Commit();
     BOOST_CHECK(DumpRelVar(rel_var_name) == table);
 }
 
 
 StringSet DBFixture::GetRelVarNames()
 {
-    RelVarNamesGetter rel_var_names_getter;
-    db.Perform(rel_var_names_getter);
-    return rel_var_names_getter.GetResult();
+    Access access(db);
+    return access.GetRelVarNames();
 }
 
 
 const RichHeader& DBFixture::GetRelVarRichHeader(const string& rel_var_name)
 {
-    RelVarDumper rel_dumper(rel_var_name);
-    db.Perform(rel_dumper);
-    return rel_dumper.GetRichHeader();
+    Access access(db);
+    return access.GetRelVarRichHeader(rel_var_name);
 }
 
 
 void DBFixture::DeleteRelVars(const StringSet& rel_var_names)
 {
-    RelVarsDropper rels_dropper(rel_var_names);
-    db.Perform(rels_dropper);
+    Access access(db);
+    access.DropRelVars(rel_var_names);
+    access.Commit();
 }
 
 
 const Constrs& DBFixture::GetRelVarConstrs(const string& rel_var_name)
 {
-    RelVarDumper rel_dumper(rel_var_name);
-    db.Perform(rel_dumper);
-    return rel_dumper.GetConstrs();
+    Access access(db);
+    return access.GetRelVarConstrs(rel_var_name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // DB test
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class BadTransactor : public Transactor {
-    public:
-        BadTransactor(const string& good_name, const string& bad_name)
-            : good_name_(good_name), bad_name_(bad_name) {}
-        
-        virtual void operator()(Access& access) {
-            access.DropRelVar(good_name_);
-            access.GetRelVarRichHeader(bad_name_); // should fail
-        }
-
-    private:
-        string good_name_;
-        string bad_name_;
-    };
-
-
-    class ThrowingTransactor : public Transactor {
-    public:
-        ThrowingTransactor(int throw_count, const string& rel_var_name)
-            : throw_count_(throw_count)
-            , count_(0)
-            , rel_var_name_(rel_var_name) {}
-
-        virtual void operator()(Access& access) {
-            ++count_;
-            if (throw_count_-- > 0) {
-                access.DropRelVar(rel_var_name_);
-                throw pqxx::failure("Must never appear");
-            }
-        }
-
-        virtual void Reset() {
-            count_ = 0;
-        }
-
-        int GetCount() const {
-            return count_;
-        }
-
-    private:
-        int throw_count_, count_;
-        string rel_var_name_;
-    };
-}
-
 
 BOOST_FIXTURE_TEST_CASE(db_test, DBFixture)
 {
@@ -924,16 +749,6 @@ BOOST_FIXTURE_TEST_CASE(db_test, DBFixture)
     user_n_post.add_sure("Post");
     BOOST_REQUIRE_THROW(DeleteRelVars(user_n_post), Error);
     BOOST_REQUIRE(GetRelVarNames() == rel_var_names);
-
-    // Check Transactor throwing capabilities
-        
-    BadTransactor bad_transactor("Comment", "abracadabra");
-    BOOST_REQUIRE_THROW(db.Perform(bad_transactor), Error);
-    BOOST_REQUIRE(GetRelVarNames() == rel_var_names);
-    
-    ThrowingTransactor throwing_transactor(2, "Comment");
-    db.Perform(throwing_transactor);
-    BOOST_REQUIRE_EQUAL(throwing_transactor.GetCount(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1177,28 +992,6 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
 // Query tests
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    class BadIndexGetter : public Transactor {
-    public:
-        BadIndexGetter(const string& query_str)
-            : query_str_(query_str) {}
-        
-        virtual void operator()(Access& access) {
-            QueryResult query_result(access.Query(query_str_,
-                                                  Values(),
-                                                  Specs()));
-            auto_ptr<Values> values_ptr(
-                query_result.GetValuesPtr(query_result.GetSize()));
-            BOOST_CHECK(!values_ptr.get());
-        }
-
-    private:
-        string query_str_;
-    };
-}
-
-
 BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
 {
     LoadRelVarFromFile("s");
@@ -1209,9 +1002,13 @@ BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
                       bind(&DBFixture::Query, this, _1),
                       &ReadTableFromString)();
 
-    BadIndexGetter bad_index_getter("s");
-    db.Perform(bad_index_getter);
-
+    {
+        Access access(db);
+        QueryResult query_result(access.Query("s"));
+        BOOST_CHECK(
+            !query_result.GetValuesPtr(query_result.GetSize()).get());
+    }
+    
     LoadRelVarFromString("str", "val\nstring\n---\n'test\\\"");
     BOOST_CHECK(Query("str").GetValuesSet().at(0).at(0) ==
                 Value(Type::STRING, "'test\\\""));
