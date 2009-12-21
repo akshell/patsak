@@ -183,6 +183,9 @@ class Test(unittest.TestCase):
 
         talk('PROCESS ak.db.xxx._create({}); throw 1')
         self.assertEqual(talk('PROCESS "xxx" in ak.db'), 'OK\nfalse')
+
+        # Timed out test. Long to run.
+        # self.assertEqual(talk('PROCESS for (;;) ;'), 'ERROR\n<Timed out>')
         
         sock = self._connect(socket_path)
         sock.send('PROCESS\nREQUEST 3\n')
