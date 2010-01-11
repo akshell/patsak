@@ -1,5 +1,5 @@
 
-// (c) 2009 by Anton Korenyushkin
+// (c) 2009-2010 by Anton Korenyushkin
 
 /// \file orset.h
 /// Ordered set interface and impl

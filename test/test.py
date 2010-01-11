@@ -1,6 +1,6 @@
 #!/usr/bin/env/python
 
-# (c) 2009 by Anton Korenyushkin
+# (c) 2009-2010 by Anton Korenyushkin
 
 ''' Python test entry point '''
 

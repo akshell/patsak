@@ -1,5 +1,5 @@
 
-// (c) 2008 by Anton Korenyushkin
+// (c) 2008-2010 by Anton Korenyushkin
 
 /// \file querist.cc
 /// Database query impl

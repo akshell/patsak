@@ -1,5 +1,5 @@
 
-// (c) 2008 by Anton Korenyushkin
+// (c) 2008-2010 by Anton Korenyushkin
 
 /// \file common.cc
 /// Common ku abstractions definitions

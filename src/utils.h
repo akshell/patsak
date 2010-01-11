@@ -1,5 +1,5 @@
 
-// (c) 2008-2009 by Anton Korenyushkin
+// (c) 2008-2010 by Anton Korenyushkin
 
 /// \file utils.h
 /// Handy utilites
