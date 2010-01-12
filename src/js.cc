@@ -633,7 +633,6 @@ void Watcher::Watch()
         Prepare();
         while (busy_) {
             if (!cond_var_.timed_wait(lock, term_time_)) {
-                cerr << "term\n";
                 V8::TerminateExecution();
                 break;
             }
