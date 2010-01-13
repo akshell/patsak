@@ -206,7 +206,7 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ConstructCb,
                              const Arguments&) const;
         
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestAppCb,
                              const Arguments&) const;
     };
 
@@ -245,7 +245,7 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
     SetFunction(proto_template, "_readCode", ReadCodeCb);
     SetFunction(proto_template, "_hash", HashCb);
     SetFunction(proto_template, "_construct", ConstructCb);
-    SetFunction(proto_template, "_request", RequestCb);
+    SetFunction(proto_template, "_requestApp", RequestAppCb);
     SetObjectTemplate<DBMediatorBg>(object_template, "_dbMediator");
     SetObjectTemplate<DBBg>(object_template, "db");
     SetObjectTemplate<FSBg>(object_template, "fs");
@@ -339,7 +339,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ConstructCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestAppCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 2);

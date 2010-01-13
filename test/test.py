@@ -236,7 +236,7 @@ class Test(unittest.TestCase):
             talk('PROCESS ak.app.spot.owner + " " + ak.app.spot.name'),
             'OK\ntest_user test_spot')
         self.assertEqual(
-            talk('PROCESS ak._request("another_app", "hi")'),
+            talk('PROCESS ak._requestApp("another_app", "hi")'),
             'OK\n{"user":"","arg":"hi","data":null,' +
             '"file_contents":[],"issuer":"test_app"}')
         self.assertEqual(
