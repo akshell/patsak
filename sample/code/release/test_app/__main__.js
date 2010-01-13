@@ -1047,7 +1047,7 @@ request_app_test_suite.testRequest = function ()
   checkThrow(ak.NoSuchAppError, "ak._requestApp('invalid/app/name', '')");
   checkThrow(ak.SelfRequestError, "ak._requestApp('test_app', '2+2')");
   checkThrow(ak.ProcessingFailedError, "ak._requestApp('throwing_app', '')");
-  checkThrow(ak.RequestTimedOutError, "ak._requestApp('blocking_app', '')");
+  checkThrow(ak.TimedOutError, "ak._requestApp('blocking_app', '')");
   checkThrow(ak.PathError, "ak._requestApp('another_app', '', ['..'])");
   checkThrow(ak.NoSuchEntryError,
              "ak._requestApp('another_app', '', ['no-such-file'])");

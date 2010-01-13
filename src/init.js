@@ -33,7 +33,7 @@
 
   defineErrorClass('DB', ak.CoreError);
   defineErrorClass('FS', ak.CoreError);
-  defineErrorClass('Request', ak.CoreError);
+  defineErrorClass('AppRequest', ak.CoreError);
   defineErrorClass('Metadata', ak.CoreError);
 
 
@@ -49,7 +49,7 @@
 
       ak.DBError,
       ak.FSError,
-      ak.RequestError,
+      ak.AppRequestError,
       ak.MetadataError,
 
       defineErrorClass('DBQuota', ak.DBError),
@@ -71,9 +71,9 @@
       defineErrorClass('CyclicInclude', ak.FSError),
       defineErrorClass('Conversion', ak.FSError),
 
-      defineErrorClass('ProcessingFailed', ak.RequestError),
-      defineErrorClass('SelfRequest', ak.RequestError),
-      defineErrorClass('RequestTimedOut', ak.RequestError),
+      defineErrorClass('ProcessingFailed', ak.AppRequestError),
+      defineErrorClass('SelfRequest', ak.AppRequestError),
+      defineErrorClass('TimedOut', ak.AppRequestError),
 
       defineErrorClass('NoSuchApp', ak.MetadataError),
       defineErrorClass('NoSuchUser', ak.MetadataError)

@@ -32,7 +32,7 @@ namespace ku
             USAGE,
             DB,
             FS,
-            REQUEST,
+            APP_REQUEST,
             METADATA,
 
             DB_QUOTA,
@@ -56,7 +56,7 @@ namespace ku
             
             PROCESSING_FAILED,
             SELF_REQUEST,
-            REQUEST_TIMED_OUT,
+            TIMED_OUT,
 
             NO_SUCH_APP,
             NO_SUCH_USER

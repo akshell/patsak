@@ -119,7 +119,7 @@ namespace
 {
     Error TimedOut()
     {
-        return Error(Error::REQUEST_TIMED_OUT, "Request timed out");
+        return Error(Error::TIMED_OUT, "Request timed out");
     }
 
     
