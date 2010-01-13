@@ -26,14 +26,13 @@
 
 namespace ku
 {
+    /// Prefix for all log messages
+    extern std::string log_prefix;
+    
     /// Write a message to a log
     void Log(const std::string& message);
 
 
-    /// Use a specified file for logging instead of cerr
-    void OpenLogFile(const std::string& file_name);
-
-    
     /// Return current backtrace
     std::string Backtrace();
 

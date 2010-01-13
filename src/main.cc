@@ -687,7 +687,7 @@ namespace
         
     private:
         string expr_, user_;
-        string log_dir_, code_dir_, media_dir_;
+        string log_file_, code_dir_, media_dir_;
         string socket_dir_, guard_dir_;
         string db_user_, db_password_, db_name_;
         string app_name_, owner_name_, spot_name_;
@@ -731,10 +731,8 @@ MainRunner::MainRunner(int argc, char** argv)
 void MainRunner::Run()
 {
     MakePathesAbsolute();
-    if (!test_mode_) {
-        OpenLogFile(log_dir_ + GetPathSuffix());
+    if (!test_mode_)
         Daemonize();
-    }
     auto_ptr<DB> db_ptr(InitDB());
     auto_ptr<AppAccessor> app_accessor_ptr(InitAppAccessor());
     auto_ptr<Program> program_ptr(InitProgram(*db_ptr, *app_accessor_ptr));
@@ -770,7 +768,7 @@ void MainRunner::Parse(int argc, char** argv)
     
     po::options_description config_options("Config options");
     config_options.add_options()
-        ("log-dir,l", po::value<string>(&log_dir_), "log directory")
+        ("log-file,l", po::value<string>(&log_file_), "log file")
         ("socket-dir,s", po::value<string>(&socket_dir_), "socket directory")
         ("guard-dir,g", po::value<string>(&guard_dir_), "guard directory")
         ("code-dir,c", po::value<string>(&code_dir_), "code directory")
@@ -850,7 +848,7 @@ void MainRunner::RequireOption(const string& name,
 
 void MainRunner::Check() const
 {
-    RequireOption("log-dir", log_dir_);
+    RequireOption("log-file", log_file_);
     RequireOption("socket-dir", socket_dir_);
     RequireOption("guard-dir", guard_dir_);
     RequireOption("code-dir", code_dir_);
@@ -879,7 +877,7 @@ void MainRunner::MakePathesAbsolute()
         perror("get_current_dir_name");
         exit(1);
     }
-    MakePathAbsolute(curr_dir, log_dir_);
+    MakePathAbsolute(curr_dir, log_file_);
     MakePathAbsolute(curr_dir, socket_dir_);
     MakePathAbsolute(curr_dir, guard_dir_);
     MakePathAbsolute(curr_dir, code_dir_);
@@ -924,7 +922,7 @@ auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
     args += string(buf, buf + size);
     if (pass_opts_)
         args +=
-            "--log-dir", log_dir_,
+            "--log-file", log_file_,
             "--socket-dir", socket_dir_,
             "--guard-dir", guard_dir_,
             "--code-dir", code_dir_,
@@ -976,6 +974,13 @@ void MainRunner::RunTest(Program& program, istream& is) const
 
 void MainRunner::RunServer(Program& program)
 {
+    freopen("/dev/null", "r", stdin);
+    freopen(log_file_.c_str(), "a", stderr);
+    log_prefix = ((IsRelease()
+                   ? app_name_
+                   : app_name_ + ':' + owner_name_ + '@' + spot_name_) +
+                  ": ");
+    
     string socket_path(socket_dir_ + GetPathSuffix());
     remove(socket_path.c_str());
     asio::io_service io_service;
@@ -989,9 +994,7 @@ void MainRunner::RunServer(Program& program)
 
         cout << "READY\n";
         cout.flush();
-        freopen("/dev/null", "r", stdin);
         freopen("/dev/null", "w", stdout);
-        freopen("/tmp/patsak-log", "a", stderr);
     
         for (;;) {
             auto_ptr<stream_protocol::socket> socket_ptr(

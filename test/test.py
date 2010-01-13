@@ -20,7 +20,7 @@ TEST_EXE_NAME = 'test-patsak'
 EXE_NAME      = 'patsak'
 TMP_DIR       = '/tmp/patsak'
 SOCKET_DIR    = os.path.join(TMP_DIR, 'sockets')
-LOG_DIR       = os.path.join(TMP_DIR, 'logs')
+LOG_FILE      = os.path.join(TMP_DIR, 'log')
 GUARD_DIR     = os.path.join(TMP_DIR, 'guards')
 MEDIA_DIR     = os.path.join(TMP_DIR, 'media')
 CONFIG_PATH   = os.path.join(TMP_DIR, 'config')
@@ -297,7 +297,6 @@ def _make_dirs():
     if os.path.exists(TMP_DIR):
         shutil.rmtree(TMP_DIR)
     _make_dir_tree(SOCKET_DIR)
-    _make_dir_tree(LOG_DIR)
     _make_dir_tree(GUARD_DIR)
     _make_dir_tree(MEDIA_DIR)
     os.mkdir(os.path.join(MEDIA_DIR, 'release', APP_NAME))
@@ -311,12 +310,13 @@ db-user=%s
 db-password=%s
 code-dir=%s/../sample/code
 socket-dir=%s
-log-dir=%s
 guard-dir=%s
 media-dir=%s
+log-file=%s
 ''' % (DB_NAME, DB_USER, DB_PASSWORD,
        os.path.abspath(TEST_DIR),
-       SOCKET_DIR, LOG_DIR, GUARD_DIR, MEDIA_DIR))
+       SOCKET_DIR, GUARD_DIR, MEDIA_DIR,
+       LOG_FILE))
 
     
 def main():

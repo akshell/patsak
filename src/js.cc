@@ -275,7 +275,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, PrintCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    cerr << Stringify(args[0]);
+    Log(Stringify(args[0]));
     return Undefined();
 }
 

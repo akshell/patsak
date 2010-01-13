@@ -33,16 +33,6 @@ var date = ak._dbMediator.date;
         };
       });
 
-
-function print(x) {
-  ak._print(x);
-}
-
-
-function println(x) {
-  ak._print(x + '\n');
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Test tools
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +42,7 @@ var prefix = '### ';
 
 
 function error(descr) {
-  print(prefix + descr + '\n');
+  ak._print(prefix + descr);
   ++error_count;
 }
 
@@ -115,10 +105,10 @@ function runTestSuites(test_suites) {
   var test_count = 0;
   forEach(test_suites,
           function (ts) { test_count += runTestSuite(ts); });
-  print(prefix + (error_count ? error_count : 'No') +
-        ' errors detected in ' +
-        test_count + ' test cases in ' +
-        test_suites.length + ' test suites\n');
+  ak._print(prefix + (error_count ? error_count : 'No') +
+            ' errors detected in ' +
+            test_count + ' test cases in ' +
+            test_suites.length + ' test suites');
   return test_count;
 }
 
