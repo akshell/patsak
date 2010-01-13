@@ -9,6 +9,8 @@
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include <signal.h>
+
 
 using namespace ku;
 using namespace v8;
@@ -186,4 +188,42 @@ vector<JSClassBase*>& JSClassBase::GetInstancePtrs()
 {
     static vector<JSClassBase*> instance_ptrs;
     return instance_ptrs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Watcher
+////////////////////////////////////////////////////////////////////////////////
+
+bool Watcher::initialized_ = false;
+bool Watcher::timed_out_   = false;
+bool Watcher::in_callback_ = false;
+
+
+void Watcher::HandleAlarm(int /*signal*/)
+{
+    Watcher::timed_out_ = true;
+    if (!Watcher::in_callback_)
+        V8::TerminateExecution();
+}
+
+
+Watcher::ExecutionGuard::ExecutionGuard()
+{
+    if (!Watcher::initialized_) {
+        struct sigaction action;
+        action.sa_handler = Watcher::HandleAlarm;
+        sigemptyset(&action.sa_mask);
+        action.sa_flags = 0;
+        sigaction(SIGALRM, &action, 0);
+        Watcher::initialized_ = true;
+    }
+    Watcher::timed_out_ = false;
+    Watcher::in_callback_ = false;
+    alarm(10);
+}
+
+
+Watcher::ExecutionGuard::~ExecutionGuard()
+{
+    alarm(0);
 }

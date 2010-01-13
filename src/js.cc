@@ -37,8 +37,6 @@ namespace
     const int MAX_YOUNG_SPACE_SIZE =  2 * 1024 * 1024;
     const int MAX_OLD_SPACE_SIZE   = 32 * 1024 * 1024;
     const int STACK_LIMIT          =  2 * 1024 * 1024;
-    
-    const boost::posix_time::seconds MAX_RUN_TIME(3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -540,8 +538,6 @@ string ExceptionResponse::MakeExceptionDescr(const TryCatch& try_catch)
         oss << Stringify(stack_trace);
     else if (!message.IsEmpty())
         oss << Stringify(message->Get());
-    else if (!try_catch.CanContinue())
-        oss << "<Timed out>";
     else if (!exception.IsEmpty())
         oss << Stringify(exception);
     else if (Context::GetCurrent()->HasOutOfMemoryException())
@@ -549,105 +545,6 @@ string ExceptionResponse::MakeExceptionDescr(const TryCatch& try_catch)
     else
         oss << "<Unknown exception>";
     return oss.str();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Watcher
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class Watcher : private noncopyable {
-    public:
-        class Scope : private noncopyable {
-        public:
-            Scope(Watcher& watcher);
-            ~Scope();
-
-        private:
-            Watcher& watcher_;
-        };
-        
-        Watcher();
-        ~Watcher();
-        
-    private:
-        boost::barrier barrier_;
-        boost::mutex mutex_;
-        boost::condition_variable cond_var_;
-        boost::system_time term_time_;
-        bool busy_;
-        bool stop_;
-        bool prepared_;
-        boost::thread thread_;
-
-        void Watch();
-        void Prepare();
-    };
-}
-
-
-Watcher::Scope::Scope(Watcher& watcher)
-    : watcher_(watcher)
-{
-    watcher_.barrier_.wait();
-    boost::lock_guard<boost::mutex> lock(watcher_.mutex_);
-    watcher_.Prepare();
-}
-
-
-Watcher::Scope::~Scope()
-{
-    boost::lock_guard<boost::mutex> lock(watcher_.mutex_);
-    watcher_.busy_ = false;
-    watcher_.cond_var_.notify_one();
-}
-
-
-Watcher::Watcher()
-    : barrier_(2)
-    , busy_(false)
-    , stop_(false)
-    , prepared_(false)
-    , thread_(bind(&Watcher::Watch, this))
-{
-}
-
-
-Watcher::~Watcher()
-{
-    stop_ = true;
-    barrier_.wait();
-    thread_.join();
-}
-
-
-void Watcher::Watch()
-{
-    for (;;) {
-        prepared_ = false;
-        barrier_.wait();
-        boost::unique_lock<boost::mutex> lock(mutex_);
-        if (!prepared_ && stop_)
-            break;
-        Prepare();
-        while (busy_) {
-            if (!cond_var_.timed_wait(lock, term_time_)) {
-                V8::TerminateExecution();
-                break;
-            }
-        }
-    }
-}
-
-
-void Watcher::Prepare()
-{
-    if (!prepared_) {
-        prepared_ = true;
-        busy_ = true;
-        term_time_ = boost::get_system_time() + MAX_RUN_TIME;
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -706,7 +603,6 @@ private:
     GlobalBg global_bg_;
     Persistent<Context> context_;
     Persistent<Object> ak_;
-    Watcher watcher_;
     
     auto_ptr<Response> Run(Handle<Function> function,
                            Handle<Object> object,
@@ -815,10 +711,12 @@ auto_ptr<Response> Program::Impl::Run(Handle<Function> function,
     TryCatch try_catch;
     Handle<v8::Value> result;
     {
-        Watcher::Scope watcher_scope(watcher_);
+        Watcher::ExecutionGuard guard;
         result = function->Call(object, 1, &arg);
     }
     access_ptr = 0;
+    if (Watcher::TimedOut())
+        return auto_ptr<Response>(new ErrorResponse("<Timed out>"));
     // I don't know the difference in these conditions but together
     // they handle all cases
     if (try_catch.HasCaught() || result.IsEmpty())

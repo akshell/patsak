@@ -250,6 +250,37 @@ namespace ku
                             js_class.GetName() + " object was expected");
         return *bg_ptr;
     }
+    
+
+    class Watcher : public boost::noncopyable {
+    public:
+        struct ExecutionGuard {
+            ExecutionGuard();
+            ~ExecutionGuard();
+        };
+
+        struct CallbackGuard {
+            CallbackGuard() {
+                Watcher::in_callback_ = true;
+            }
+
+            ~CallbackGuard() {
+                Watcher::in_callback_ = false;
+                if (Watcher::timed_out_)
+                    v8::V8::TerminateExecution();
+            }
+        };
+
+        static bool TimedOut() { return timed_out_; }
+        
+    private:
+        static bool initialized_;
+        static bool timed_out_;
+        static bool in_callback_;
+
+        Watcher(); // not defined
+        static void HandleAlarm(int /*signal*/);
+    };
 }
 
 
@@ -287,10 +318,17 @@ namespace ku
     ret_type name##Impl(arg1_type, arg2_type)
 
 
+#define JS_CALLBACK_GUARD(ret_type)                 \
+    ku::Watcher::CallbackGuard callback_guard__;    \
+    if (ku::Watcher::TimedOut())                    \
+        return ret_type()
+
+
 #define DEFINE_JS_CALLBACK1(ret_type, cls, name,                        \
                             arg_type, arg_name)                         \
     ret_type cls::name(arg_type arg)                                    \
     {                                                                   \
+        JS_CALLBACK_GUARD(ret_type);                                    \
         try {                                                           \
             return ku::GetBg<cls>(arg.Holder()).name##Impl(arg);        \
         } JS_CATCH(ret_type)                                            \
@@ -303,6 +341,7 @@ namespace ku
                             arg2_type, arg2_name)                       \
     ret_type cls::name(arg1_type arg1, arg2_type arg2)                  \
     {                                                                   \
+        JS_CALLBACK_GUARD(ret_type);                                    \
         try {                                                           \
             return ku::GetBg<cls>(arg2.Holder()).name##Impl(arg1, arg2);\
         } JS_CATCH(ret_type)                                            \
