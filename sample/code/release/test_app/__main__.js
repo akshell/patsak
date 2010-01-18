@@ -408,7 +408,7 @@ db_test_suite.testRelVarCreate = function () {
              });
   db.legal._create({x: bool._default(new Date())});
   db.legal._insert({});
-  check("db.legal._all()[0].x === true");
+  check("db.legal._getValue()[0].x === true");
   db.legal._drop();
   checkThrow(TypeError, "db.illegal._create({x: date._default(42)})");
 };
@@ -507,7 +507,7 @@ db_test_suite.testInsert = function () {
   db.User._where('id >= 3')._del();
   checkEqualTo("items(db.Empty._insert({}))", []);
   checkThrow(ak.ConstraintError, "db.Empty._insert({})");
-  db.Empty._all()._del();
+  db.Empty._getValue()._del();
 };
 
 
@@ -610,8 +610,8 @@ db_test_suite.testCount = function () {
 
 
 db_test_suite.testAll = function () {
-  check("db.User._all().field('id').sort()", [0, 1, 2]);
-  check("db.User._all()._where('!(id % 2)')._by('-id').field('name')",
+  check("db.User._getValue().field('id').sort()", [0, 1, 2]);
+  check("db.User._getValue()._where('!(id % 2)')._by('-id').field('name')",
         ['den', 'anton']);
   check("db.User._where('id == $', 0)[0]['name']",
         'anton');
@@ -621,7 +621,7 @@ db_test_suite.testAll = function () {
 
 
 db_test_suite.testUpdate = function () {
-  var initial = db.User._all();
+  var initial = db.User._getValue();
   initial._perform();
   checkThrow(ak.UsageError, "db.User._where('id == 0')._update({})");
   checkThrow(ak.UsageError, "db.User._where('id == 0')._update()");
@@ -647,15 +647,15 @@ db_test_suite.testUpdate = function () {
               {name: '$1', age: '$2', flooder: '$3'},
               tuple.name, tuple.age, tuple.flooder);
           });
-  checkEqualTo(function () { return mapItems(db.User._all()); },
+  checkEqualTo(function () { return mapItems(db.User._getValue()); },
                mapItems(initial));
 };
 
 
 db_test_suite.testDelete = function () {
-  var initial = db.User._all();
+  var initial = db.User._getValue();
   initial._perform();
-  checkThrow(ak.ConstraintError, "db.User._all()._del()");
+  checkThrow(ak.ConstraintError, "db.User._getValue()._del()");
   var tricky_name = 'xx\'y\'zz\'';
   db.User._insert({id: 3, name: tricky_name, age: 15, flooder: true});
   db.User._by('name')._where('id == 3')._update({name: 'name + 1'});
@@ -683,7 +683,7 @@ db_test_suite.testStress = function () {
 db_test_suite.testPg = function () {
   db.pg_class._create({x: number});
   db.pg_class._insert({x: 0});
-  checkEqualTo(function () { return mapItems(db.pg_class._all()); },
+  checkEqualTo(function () { return mapItems(db.pg_class._getValue()); },
                [[['x', 0]]]);
   db.pg_class._drop();
 };

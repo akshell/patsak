@@ -769,7 +769,7 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, DropCb,
                              const Arguments&) const;
 
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, AllCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetValueCb,
                              const Arguments&) const;
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetIntegersCb,
@@ -874,7 +874,7 @@ DEFINE_JS_CLASS(RelVarBg, "RelVar", object_template, proto_template)
     SetFunction(proto_template, "_create", CreateCb);
     SetFunction(proto_template, "_insert", InsertCb);
     SetFunction(proto_template, "_drop", DropCb);
-    SetFunction(proto_template, "_all", AllCb);
+    SetFunction(proto_template, "_getValue", GetValueCb);
     SetFunction(proto_template, "_getIntegers", GetIntegersCb);
     SetFunction(proto_template, "_getSerials", GetSerialsCb);
     SetFunction(proto_template, "_getDefaults", GetDefaultsCb);
@@ -984,7 +984,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, DropCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, AllCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, GetValueCb,
                     const Arguments&, /*args*/) const
 {
     return JSNew<SelectionBg>(name_, Specs());

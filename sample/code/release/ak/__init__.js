@@ -51,7 +51,8 @@
   function makeRelVarDelegation(func_name)
   {
     ak.RelVar.prototype[func_name] = function () {
-      return ak.Selection.prototype[func_name].apply(this._all(), arguments);
+      return ak.Selection.prototype[func_name].apply(this._getValue(),
+                                                     arguments);
     };
   }
 
