@@ -754,6 +754,7 @@ void MainRunner::Parse(int argc, char** argv)
     po::options_description generic_options("Generic options");
     generic_options.add_options()
         ("help,h", "print help message")
+        ("rev,r", "print revision")
         ("config-file,f",
          po::value<string>(&config_file_)->default_value(DEFAULT_CONFIG_FILE),
          "config file path")
@@ -831,6 +832,12 @@ void MainRunner::Parse(int argc, char** argv)
             " [options] app_name [user_name spot_name]");
         visible_options.add(generic_options).add(config_options);
         cout << visible_options << "\n";
+        exit(0);
+    }
+
+    if (vm.count("rev")) {
+        // REVISION must be provided as a compiler option
+        cout << REVISION << '\n';
         exit(0);
     }
 }

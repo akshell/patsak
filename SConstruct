@@ -2,6 +2,7 @@
 # (c) 2008-2010 by Anton Korenyushkin
 
 from os.path import join
+from subprocess import Popen, PIPE
 
 vars = Variables()
 vars.Add('mode', 'build mode (release, debug, cov)', 'release')
@@ -58,8 +59,11 @@ objects = invoke_script('src', '', 'env')
 test_objects = invoke_script('test', 'test', 'test_env')
 sample_files = SConscript('sample/code/SConscript', duplicate=False)
 
-main_obj = env.Object(target=join('obj', env['mode'], 'main.o'),
-                      source='src/main.cc')
+revision = Popen(['hg', 'id', '-in'], stdout=PIPE).stdout.read()[:-1]
+main_env = env.Clone()
+main_env.Append(CCFLAGS=['-DREVISION=\\"%s\\"' % revision])
+main_obj = main_env.Object(target=join('obj', env['mode'], 'main.o'),
+                           source='src/main.cc')
 
 ################################################################################
 
