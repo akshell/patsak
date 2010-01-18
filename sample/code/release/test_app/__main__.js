@@ -336,6 +336,11 @@ db_test_suite.testConstructors = function () {
 };
 
 
+db_test_suite.testRelVarIdentity = function () {
+  check("db.someRelVar === db.someRelVar");
+};
+
+
 db_test_suite.testRelVarCreate = function () {
   checkThrow(ak.UsageError, "db.illegal._create()");
   checkThrow(TypeError, "db.illegal._create('str')");

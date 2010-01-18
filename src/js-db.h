@@ -59,11 +59,14 @@ namespace ku
         DECLARE_JS_CLASS(DBBg);
         
         DBBg();
+        ~DBBg();
 
     private:
+        v8::Persistent<v8::Object> rel_vars_;
+        
         DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetRelVarCb,
                              v8::Local<v8::String>,
-                             const v8::AccessorInfo&) const;
+                             const v8::AccessorInfo&);
         
         static v8::Handle<v8::Value> SetRelVarCb(v8::Local<v8::String> property,
                                                  v8::Local<v8::Value> value,

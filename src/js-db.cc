@@ -1206,11 +1206,24 @@ DBBg::DBBg()
 }
 
 
+DBBg::~DBBg()
+{
+    rel_vars_.Dispose();
+}
+
+
 DEFINE_JS_CALLBACK2(Handle<v8::Value>, DBBg, GetRelVarCb,
                     Local<String>, property,
-                    const AccessorInfo&, /*info*/) const
+                    const AccessorInfo&, /*info*/)
 {
-    return JSNew<RelVarBg>(Stringify(property));
+    if (rel_vars_.IsEmpty())
+        rel_vars_ = Persistent<Object>::New(Object::New());
+    Handle<v8::Value> result(rel_vars_->Get(property));
+    if (!result->IsUndefined())
+        return result;
+    result = JSNew<RelVarBg>(Stringify(property));
+    rel_vars_->Set(property, result);
+    return result;
 }
 
 
