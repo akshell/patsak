@@ -544,7 +544,7 @@ db_test_suite.testWhere = function () {
                [[['id', 0], ['name', 'anton']]]);
   checkThrow(ak.UsageError, "ak.query('User')._where()");
   checkEqualTo("db.User._where('forsome (x in {}) true').length", 3);
-  checkEqualTo("db.User._where('true').relVar.name", 'User');
+  checkEqualTo("db.User._where('true')._getRelVarName()", 'User');
   checkThrow(ak.QueryError, "ak.query('{i: 1}')._where('!i->name')._perform()");
   checkEqualTo(("ak.query(' Post ')" +
                 "._where('author->name == $', 'anton')" +

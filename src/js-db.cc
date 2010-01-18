@@ -731,8 +731,8 @@ namespace
         virtual Handle<v8::Value>
         InstantiateWithSpecs(const Specs& new_specs) const;
 
-        DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetRelVarCb,
-                             Local<String>, const AccessorInfo&);
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetRelVarNameCb,
+                             const Arguments&) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, UpdateCb,
                              const Arguments&) const;
@@ -796,12 +796,7 @@ namespace
 DEFINE_JS_CLASS(SelectionBg, "Selection", object_template, proto_template)
 {
     InitRelObjectTemplate(object_template);
-    object_template->SetAccessor(String::NewSymbol("relVar"),
-                                 GetRelVarCb,
-                                 0,
-                                 Handle<v8::Value>(),
-                                 DEFAULT,
-                                 ReadOnly | DontEnum | DontDelete);
+    SetFunction(proto_template, "_getRelVarName", GetRelVarNameCb);
     SetFunction(proto_template, "_update", UpdateCb);
     SetFunction(proto_template, "_del", DelCb);
 }
@@ -826,11 +821,10 @@ SelectionBg::InstantiateWithSpecs(const Specs& new_specs) const
 }
 
 
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, SelectionBg, GetRelVarCb,
-                    Local<String>, /*property*/,
-                    const AccessorInfo&, /*info*/)
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, SelectionBg, GetRelVarNameCb,
+                    const Arguments&, /*args*/) const
 {
-    return JSNew<RelVarBg>(GetRelVarName());
+    return String::New(GetRelVarName().c_str());
 }
 
 
