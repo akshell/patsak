@@ -545,6 +545,8 @@ db_test_suite.testWhere = function () {
                 "._where('author->name == $', 'anton')" +
                 ".field('title')"),
                ['first', 'third']);
+  checkEqualTo("db.User._where('name == \\'anton\\'').field('age')", [22]);
+  checkEqualTo("db.User._where('name == \"den\"').field('age')", [23]);
 };
 
 

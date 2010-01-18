@@ -516,9 +516,12 @@ Parser::Parser()
             
             EXPR = (
                 lexeme_d[
-                    LITER(confix_p('"',
-                                   *('"' | c_escape_ch_p[EXPR.str += arg1]),
-                                   '"'),
+                    LITER((confix_p('"',
+                                    *('"' | c_escape_ch_p[EXPR.str += arg1]),
+                                    '"') |
+                           confix_p('\'',
+                                    *('\'' | c_escape_ch_p[EXPR.str += arg1]),
+                                    '\'')),
                           Type::STRING,
                           EXPR.str)]),
 

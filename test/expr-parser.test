@@ -17,6 +17,18 @@ true
 *)
 
 *(
+"just \"hello\""
+**
+"just "hello""
+*)
+
+*(
+'just \'another\' "hello"'
+**
+"just 'another' "hello""
+*)
+
+*(
 (42)
 **
 42
