@@ -757,8 +757,8 @@ namespace
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetNameCb,
                              Local<String>, const AccessorInfo&) const;
 
-        DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetHeaderCb,
-                             Local<String>, const AccessorInfo&) const;
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetHeaderCb,
+                             const Arguments&) const;
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, CreateCb,
                              const Arguments&) const;
@@ -870,7 +870,7 @@ DEFINE_JS_CLASS(RelVarBg, "RelVar", object_template, proto_template)
     SelectionBg::GetJSClass();
     RelBg::GetJSClass().AddSubClass(SelectionBg::GetJSClass());
     object_template->SetAccessor(String::NewSymbol("name"), GetNameCb);
-    object_template->SetAccessor(String::NewSymbol("header"), GetHeaderCb);
+    SetFunction(proto_template, "_getHeader", GetHeaderCb);
     SetFunction(proto_template, "_create", CreateCb);
     SetFunction(proto_template, "_insert", InsertCb);
     SetFunction(proto_template, "_drop", DropCb);
@@ -910,9 +910,8 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelVarBg, GetNameCb,
 }
 
 
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, RelVarBg, GetHeaderCb,
-                    Local<String>, /*property*/,
-                    const AccessorInfo&, /*info*/) const
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RelVarBg, GetHeaderCb,
+                    const Arguments&, /*args*/) const
 {
     Handle<Object> result(Object::New());
     BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader())
