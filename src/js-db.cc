@@ -122,8 +122,6 @@ namespace
 
     StringSet ReadStringSet(const Arguments& args)
     {
-        if (args.Length() == 1)
-            return ReadStringSet(args[0]);
         StringSet result;
         result.reserve(args.Length());
         for (int i = 0; i < args.Length(); ++i)

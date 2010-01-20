@@ -10,10 +10,10 @@ var constrs = ak.constrs;
 var fs = ak.fs;
 var apps = ak.apps;
 
-var number = ak._dbMediator.number;
-var string = ak._dbMediator.string;
-var bool = ak._dbMediator.bool;
-var date = ak._dbMediator.date;
+var number = ak._dbm.number;
+var string = ak._dbm.string;
+var bool = ak._dbm.bool;
+var date = ak._dbm.date;
 
 [
   'query',
@@ -28,8 +28,7 @@ var date = ak._dbMediator.date;
   'getAppsByLabel'
 ].map(function (name) {
         ak[name] = function () {
-          return ak._dbMediator['_' + name].apply(ak._dbMediator,
-                                                  arguments);
+          return ak._dbm['_' + name].apply(ak._dbm, arguments);
         };
       });
 
@@ -289,7 +288,7 @@ function mapItems(iterable) {
 
 
 db_test_suite.setUp = function () {
-  ak.dropRelVars(keys(db));
+  ak.dropRelVars.apply(this, keys(db));
 
   db.Dummy._create({id: number});
   db.Empty._create({});
@@ -301,7 +300,7 @@ db_test_suite.setUp = function () {
                    title: string,
                    text: string,
                    author: number._integer()._foreign('User', 'id')},
-                  ak.unique(['title', 'author']));
+                  ak.unique('title', 'author'));
   db.Comment._create({id: number._serial()._unique(),
                       text: string,
                       author: number._integer()._foreign('User', 'id'),
@@ -326,7 +325,7 @@ db_test_suite.setUp = function () {
 
 
 db_test_suite.tearDown = function () {
-  ak.dropRelVars(keys(db));
+  ak.dropRelVars.apply(this, keys(db));
 };
 
 
@@ -350,11 +349,6 @@ db_test_suite.testRelVarCreate = function () {
   checkThrow(ak.UsageError, "db['ab#cd']");
   checkThrow(ak.UsageError, "db['']");
   checkThrow(ak.RelVarExistsError, "db.User._create({})");
-  checkThrow(TypeError,
-             function () {
-               var obj = {length: 15};
-               db.illegal._create({x: number}, ak.unique(obj));
-             });
 
   var obj = {toString: function () { return 'x'; }};
   db.legal._create({x: number}, ak.unique(obj));
@@ -370,7 +364,7 @@ db_test_suite.testRelVarCreate = function () {
 
   checkThrow(ak.UsageError,
              function () {
-               db.illegal._create({x: number}, ak.unique([]));
+               db.illegal._create({x: number}, ak.unique());
              });
 
   checkThrow(ak.UsageError,
@@ -420,7 +414,7 @@ db_test_suite.testConstr = function () {
   checkThrow(ak.UsageError,
              "ak.foreign('a', 'b')");
   checkThrow(ak.UsageError,
-             "ak.unique(['a', 'a'])");
+             "ak.unique('a', 'a')");
   checkThrow(ak.UsageError,
              "ak.unique('a', 'a')");
   ak.check('field != 0');
@@ -446,8 +440,6 @@ db_test_suite.testDropRelVars = function () {
   checkThrow(ak.RelVarDependencyError, "ak.dropRelVars('User', 'Post')");
   checkThrow(ak.UsageError,
              "ak.dropRelVars('Comment', 'Comment')");
-  checkThrow(ak.UsageError,
-             "ak.dropRelVars(['Comment', 'Comment'])");
 
   db.rel1._create({x: number}, ak.unique('x'));
   db.rel2._create({x: number}, ak.foreign('x', 'rel1', 'x'));
@@ -572,11 +564,6 @@ db_test_suite.testBy = function () {
 
 
 db_test_suite.testOnly = function () {
-  checkThrow(TypeError,
-             function () {
-               var obj = {length: 1};
-               ak.query('User')._only(obj);
-             });
   check("db.User._only('name') instanceof ak.Selection");
 };
 
