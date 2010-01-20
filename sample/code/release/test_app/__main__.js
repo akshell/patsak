@@ -273,7 +273,7 @@ base_test_suite.testConstruct = function () {
                3);
   checkThrow(ak.UsageError, "ak._construct()");
   checkThrow(ak.UsageError, "ak._construct(42, [])");
-  checkThrow(ak.UsageError, "ak._construct(function () {}, 42)");
+  checkThrow(TypeError, "ak._construct(function () {}, 42)");
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -370,14 +370,13 @@ db_test_suite.testRelVarCreate = function () {
   checkThrow(ak.UsageError,
              function () {
                db.illegal._create({x: number, y: number},
-                                  ak.foreign(['x', 'y'], 'User', 'id'));
+                                  ak.foreign(['x', 'y'], 'User', ['id']));
              });
 
   checkThrow(TypeError,
              function () {
-               var obj = {length: 1};
                db.illegal._create({undefined: number},
-                                  ak.foreign(obj, 'Post', 'id'));
+                                  ak.foreign(['id'], 'Post', 'id'));
              });
   checkThrow(ak.UsageError,
              function () {
@@ -427,7 +426,7 @@ db_test_suite.testConstr = function () {
   checkThrow(ak.UsageError,
              function () {
                db.illegal._create({x: number},
-                                  ak.foreign('x', 'User', 'age'));
+                                  ak.foreign(['x'], 'User', ['age']));
              });
 };
 
@@ -442,7 +441,7 @@ db_test_suite.testDropRelVars = function () {
              "ak.dropRelVars('Comment', 'Comment')");
 
   db.rel1._create({x: number}, ak.unique('x'));
-  db.rel2._create({x: number}, ak.foreign('x', 'rel1', 'x'));
+  db.rel2._create({x: number}, ak.foreign(['x'], 'rel1', ['x']));
   checkThrow(ak.RelVarDependencyError, "db.rel1._drop()");
   ak.dropRelVars('rel1', 'rel2');
   checkThrow(ak.NoSuchRelVarError, "ak.dropRelVars('Comment', 'no_such')");
@@ -696,7 +695,7 @@ db_test_suite.testDate = function () {
   var other_date = new Date(2009, 0, 15, 13, 27, 11, 481);
   db.d1._insert({d: some_date});
   checkEqualTo("db.d1.field('d')", [some_date]);
-  db.d2._create({d: date}, ak.foreign('d', 'd1', 'd'));
+  db.d2._create({d: date}, ak.foreign(['d'], 'd1', ['d']));
   checkThrow(ak.ConstraintError,
              function () { db.d2._insert({d: other_date}); });
   db.d1._insert({d: other_date});
@@ -765,7 +764,7 @@ db_test_suite.testForeignKey = function () {
                ak.foreign(['title', 'author'],
                           'Post',
                           ['title', 'author']),
-               ak.foreign('ref', 'r', 'id'),
+               ak.foreign(['ref'], 'r', ['id']),
                ak.unique('id'));
   checkEqualTo(function () {
                  return map(function (fk) {
@@ -1025,7 +1024,7 @@ request_app_test_suite.testRequest = function ()
   check("!fs._exists('file1') && !fs._exists('file2')");
   fs.remove('hello');
   checkThrow(ak.NoSuchAppError, "ak._requestApp('no_such_app', 'hi')");
-  checkThrow(TypeError, "ak._requestApp('another_app', '', {length: 1})");
+  checkThrow(TypeError, "ak._requestApp('another_app', '', 42)");
   checkEqualTo(
     function () {
       fs._write('file3', 'text');

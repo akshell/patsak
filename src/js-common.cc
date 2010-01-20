@@ -50,33 +50,27 @@ void ku::CheckArgsLength(const Arguments& args, int length) {
 }
 
 
-int32_t ku::GetArrayLikeLength(Handle<v8::Value> value)
+size_t ku::GetArrayLikeLength(Handle<v8::Value> value)
 {
     if (!value->IsObject())
-        return -1;
+        throw Error(Error::TYPE, "Array-like required (non-object provided)");
     Handle<Object> object(value->ToObject());
     Handle<String> length_string(String::NewSymbol("length"));
     if (!object->Has(length_string))
-        return -1;
+        throw Error(Error::TYPE, "Array-like required (length not found)");
     Handle<v8::Value> length_value(object->Get(length_string));
     if (!length_value->IsInt32())
-        return -1;
+        throw Error(Error::TYPE, "Array-like required (length is not integer)");
     int32_t result = length_value->ToInt32()->Value();
     if (result < 0)
-        return -1;
+        throw Error(Error::TYPE, "Array-like required (length is negative)");
     return result;
 }
 
 
-Handle<v8::Value> ku::GetArrayLikeItem(Handle<v8::Value> value, int32_t index)
+Handle<v8::Value> ku::GetArrayLikeItem(Handle<v8::Value> value, size_t index)
 {
-    Handle<Object> object(value->ToObject());
-    KU_ASSERT(!object.IsEmpty());
-    Handle<v8::Value> index_value(Integer::New(index));
-    if (!object->Has(index_value->ToString()))
-        throw Error(Error::TYPE, "Bad array like object");
-    Handle<v8::Value> result(object->Get(index_value));
-    return result;
+    return value->ToObject()->Get(Integer::New(index));
 }
 
 

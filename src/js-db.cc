@@ -104,17 +104,13 @@ namespace
     
     StringSet ReadStringSet(v8::Handle<v8::Value> value)
     {
+        size_t length = GetArrayLikeLength(value);
         StringSet result;
-        int32_t length = GetArrayLikeLength(value);
-        if (length == -1) {
-            result.add_sure(Stringify(value));
-        } else {
-            result.reserve(length);
-            for (int32_t i = 0; i < length; ++i) {
-                Handle<v8::Value> item(GetArrayLikeItem(value, i));
-                if (!result.add_unsure(Stringify(item)))
-                    throw Error(Error::USAGE, "Duplicating names");
-            }
+        result.reserve(length);
+        for (size_t i = 0; i < length; ++i) {
+            Handle<v8::Value> item(GetArrayLikeItem(value, i));
+            if (!result.add_unsure(Stringify(item)))
+                throw Error(Error::USAGE, "Duplicating names");
         }
         return result;
     }

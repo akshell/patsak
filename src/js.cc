@@ -328,12 +328,10 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ConstructCb,
     if (!args[0]->IsFunction ())
         throw Error(Error::USAGE, "First argument must be function");
     Handle<Function> constructor(Handle<Function>::Cast(args[0]));
-    int32_t length = GetArrayLikeLength(args[1]);
-    if (length == -1)
-        throw Error(Error::USAGE, "Second argument must be array-like");
+    size_t length = GetArrayLikeLength(args[1]);
     vector<Handle<v8::Value> > arguments;
     arguments.reserve(length);
-    for (int32_t i = 0; i < length; ++i)
+    for (size_t i = 0; i < length; ++i)
         arguments.push_back(GetArrayLikeItem(args[1], i));
     return constructor->NewInstance(length, &arguments[0]);
 }
@@ -348,11 +346,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestAppCb,
     
     vector<Handle<v8::Value> > file_values;
     if (args.Length() > 2) {
-        int32_t length = GetArrayLikeLength(args[2]);
-        if (length == -1)
-            throw Error(Error::TYPE, "Request file list must be array-like");
+        size_t length = GetArrayLikeLength(args[2]);
         file_values.reserve(length);
-        for (int32_t i = 0; i < length; ++i)
+        for (size_t i = 0; i < length; ++i)
             file_values.push_back(GetArrayLikeItem(args[2], i));
     }
     FSBg::FileAccessor file_accessor(fs_bg_, file_values);
