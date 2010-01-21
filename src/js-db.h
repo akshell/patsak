@@ -27,17 +27,44 @@ namespace ku
     private:
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, QueryCb,
                              const v8::Arguments&) const;
-        
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DropRelVarsCb,
-                             const v8::Arguments&) const;
-        
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, UniqueCb,
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CountCb,
                              const v8::Arguments&) const;
 
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ForeignCb,
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CreateCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DropCb,
                              const v8::Arguments&) const;
 
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CheckCb,
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ListCb,
+                             const v8::Arguments&) const;
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetHeaderCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetIntegerCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetSerialCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetDefaultCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetUniqueCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetForeignCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, InsertCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DelCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, UpdateCb,
                              const v8::Arguments&) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DescribeAppCb,
@@ -51,33 +78,6 @@ namespace ku
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetAppsByLabelCb,
                              const v8::Arguments&) const;
-    };
-
-
-    class DBBg {
-    public:
-        DECLARE_JS_CLASS(DBBg);
-        
-        DBBg();
-        ~DBBg();
-
-    private:
-        v8::Persistent<v8::Object> rel_vars_;
-        
-        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetRelVarCb,
-                             v8::Local<v8::String>,
-                             const v8::AccessorInfo&);
-        
-        static v8::Handle<v8::Value> SetRelVarCb(v8::Local<v8::String> property,
-                                                 v8::Local<v8::Value> value,
-                                                 const v8::AccessorInfo& info);
-        
-        DECLARE_JS_CALLBACK2(v8::Handle<v8::Boolean>, HasRelVarCb,
-                             v8::Local<v8::String>,
-                             const v8::AccessorInfo&) const;
-        
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Array>, EnumRelVarsCb,
-                             const v8::AccessorInfo&) const;
     };
 }
 

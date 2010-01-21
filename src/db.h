@@ -238,7 +238,6 @@ namespace ku
         void Commit();
 
         StringSet GetRelVarNames() const;
-        bool HasRelVar(const std::string& rel_var_name) const;
 
         const RichHeader&
         GetRelVarRichHeader(const std::string& rel_var_name) const;
@@ -252,7 +251,6 @@ namespace ku
                           const Constrs& constrs);
         
         void DropRelVars(const StringSet& rel_var_names);
-        void DropRelVar(const std::string& rel_var_name);
         
         QueryResult Query(const std::string& query_str,
                           const Values& params = Values(),

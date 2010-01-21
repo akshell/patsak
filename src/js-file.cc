@@ -99,7 +99,7 @@ namespace
 
 DEFINE_JS_CLASS(DataBg, "Data", /*object_template*/, proto_template)
 {
-    SetFunction(proto_template, "_toString", ToStringCb);
+    SetFunction(proto_template, "toString", ToStringCb);
 }
 
 
@@ -129,7 +129,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DataBg, ToStringCb,
     // TODO NewExternal seems to be broken in new v8 (trunk rev. 2780)
     // May be DataStringResource should be re-enabled for optimization reasons
 
-    string encoding(args.Length() ? Stringify(args[0]).c_str() : "UTF-8");
+    CheckArgsLength(args, 1);
+    string encoding(Stringify(args[0]));
     iconv_t cd = iconv_open("UTF-16LE", encoding.c_str());
     if (cd == reinterpret_cast<iconv_t>(-1))
         throw (errno == EINVAL
@@ -345,16 +346,16 @@ DEFINE_JS_CLASS(FSBg, "FS", /*object_template*/, proto_template)
 {
     TempFileBg::GetJSClass();
     DataBg::GetJSClass();
-    SetFunction(proto_template, "_read", ReadCb);
-    SetFunction(proto_template, "_list", ListCb);
-    SetFunction(proto_template, "_exists", ExistsCb);
-    SetFunction(proto_template, "_isDir", IsDirCb);
-    SetFunction(proto_template, "_isFile", IsFileCb);
-    SetFunction(proto_template, "_makeDir", MakeDirCb);
-    SetFunction(proto_template, "_write", WriteCb);
-    SetFunction(proto_template, "_remove", RemoveCb);
-    SetFunction(proto_template, "_rename", RenameCb);
-    SetFunction(proto_template, "_copyFile", CopyFileCb);
+    SetFunction(proto_template, "read", ReadCb);
+    SetFunction(proto_template, "list", ListCb);
+    SetFunction(proto_template, "exists", ExistsCb);
+    SetFunction(proto_template, "isDir", IsDirCb);
+    SetFunction(proto_template, "isFile", IsFileCb);
+    SetFunction(proto_template, "makeDir", MakeDirCb);
+    SetFunction(proto_template, "write", WriteCb);
+    SetFunction(proto_template, "remove", RemoveCb);
+    SetFunction(proto_template, "rename", RenameCb);
+    SetFunction(proto_template, "copyFile", CopyFileCb);
 }
 
 

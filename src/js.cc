@@ -121,7 +121,7 @@ JSClass<ScriptBg>& ScriptBg::GetJSClass() {
 void ScriptBg::AdjustTemplates(Handle<ObjectTemplate> /*object_template*/,
                                Handle<ObjectTemplate> proto_template)
 {
-    SetFunction(proto_template, "_run", RunCb);
+    SetFunction(proto_template, "run", RunCb);
 }
 
 
@@ -209,46 +209,21 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestAppCb,
                              const Arguments&) const;
     };
-
-
-    template <typename BgT>
-    void SetObjectTemplate(Handle<ObjectTemplate> holder_template,
-                           const string& name)
-    {
-        Set(holder_template, name, BgT::GetJSClass().GetObjectTemplate());
-    }
-
-
-    void SetPlace(Handle<Object> holder,
-                  const string& name,
-                  const Place& place,
-                  PropertyAttribute attribs = None)
-    {
-        Handle<Object> object(Object::New());
-        Set(object, "name", String::New(place.app_name.c_str()));
-        if (!place.spot_name.empty()) {
-            Handle<Object> spot(Object::New());
-            Set(spot, "name", String::New(place.spot_name.c_str()));
-            Set(spot, "owner", String::New(place.owner_name.c_str()));
-            Set(object, "spot", spot);
-        }
-        Set(holder, name, object, attribs);
-    }
 }
 
 
 DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 {
     ScriptBg::GetJSClass();
-    SetFunction(proto_template, "_print", PrintCb);
-    SetFunction(proto_template, "_setObjectProp", SetObjectPropCb);
-    SetFunction(proto_template, "_readCode", ReadCodeCb);
-    SetFunction(proto_template, "_hash", HashCb);
-    SetFunction(proto_template, "_construct", ConstructCb);
-    SetFunction(proto_template, "_requestApp", RequestAppCb);
-    SetObjectTemplate<DBMediatorBg>(object_template, "_dbm");
-    SetObjectTemplate<DBBg>(object_template, "db");
-    SetObjectTemplate<FSBg>(object_template, "fs");
+    SetFunction(proto_template, "print", PrintCb);
+    SetFunction(proto_template, "setObjectProp", SetObjectPropCb);
+    SetFunction(proto_template, "readCode", ReadCodeCb);
+    SetFunction(proto_template, "hash", HashCb);
+    SetFunction(proto_template, "construct", ConstructCb);
+    SetFunction(proto_template, "requestApp", RequestAppCb);
+    Set(object_template, "_dbm",
+        DBMediatorBg::GetJSClass().GetObjectTemplate(), DontEnum);
+    Set(object_template, "fs", FSBg::GetJSClass().GetObjectTemplate());
 }
 
 
@@ -264,10 +239,18 @@ AKBg::AKBg(const Place& place,
 }
 
 
-void AKBg::Init(Handle<Object> object) const
+void AKBg::Init(Handle<Object> ak) const
 {
-    JSClassBase::InitConstructors(object);
-    SetPlace(object, "app", place_);
+    JSClassBase::InitConstructors(ak);
+    Handle<Object> app(Object::New());
+    Set(app, "name", String::New(place_.app_name.c_str()));
+    if (!place_.spot_name.empty()) {
+        Handle<Object> spot(Object::New());
+        Set(spot, "name", String::New(place_.spot_name.c_str()));
+        Set(spot, "owner", String::New(place_.owner_name.c_str()));
+        Set(app, "spot", spot);
+    }
+    Set(ak, "app", app);
 }
 
 
@@ -293,7 +276,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetObjectPropCb,
     if (attributes < 0 || attributes >= 8)
         throw Error(Error::USAGE,
                     ("Property attribute must be a "
-                     "non-negative integer less than 8"));
+                     "unsigned integer less than 8"));
     object->Set(args[1], args[3], static_cast<PropertyAttribute>(attributes));
     return Undefined();
 }
@@ -340,30 +323,26 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ConstructCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestAppCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 2);
+    CheckArgsLength(args, 4);
     string app_name(Stringify(args[0]));
     string request(Stringify(args[1]));
     
+    size_t length = GetArrayLikeLength(args[2]);
     vector<Handle<v8::Value> > file_values;
-    if (args.Length() > 2) {
-        size_t length = GetArrayLikeLength(args[2]);
-        file_values.reserve(length);
-        for (size_t i = 0; i < length; ++i)
-            file_values.push_back(GetArrayLikeItem(args[2], i));
-    }
+    file_values.reserve(length);
+    for (size_t i = 0; i < length; ++i)
+        file_values.push_back(GetArrayLikeItem(args[2], i));
     FSBg::FileAccessor file_accessor(fs_bg_, file_values);
     
     const Chars* data_ptr = 0;
     Chars data;
-    if (args.Length() > 3) {
-        const DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(args[3]);
-        if (data_bg_ptr) {
-            data_ptr = &data_bg_ptr->GetData();
-        } else {
-            String::Utf8Value utf8_value(args[3]);
-            data.assign(*utf8_value, *utf8_value + utf8_value.length());
-            data_ptr = &data;
-        }
+    const DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(args[3]);
+    if (data_bg_ptr) {
+        data_ptr = &data_bg_ptr->GetData();
+    } else if (!args[3]->IsNull() && !args[3]->IsUndefined()) {
+        String::Utf8Value utf8_value(args[3]);
+        data.assign(*utf8_value, *utf8_value + utf8_value.length());
+        data_ptr = &data;
     }
         
     Chars result(app_accessor_(app_name,
@@ -593,7 +572,6 @@ private:
     DB& db_;
     CodeReader code_reader_;
     DBMediatorBg db_mediator_bg_;
-    DBBg db_bg_;
     FSBg fs_bg_;
     AKBg ak_bg_;
     GlobalBg global_bg_;
@@ -645,7 +623,6 @@ Program::Impl::Impl(const Place& place,
     SetInternal(global_proto, "ak", &ak_bg_);
     ak_ = Persistent<Object>::New(Get(global_proto, "ak")->ToObject());
     SetInternal(ak_, "_dbm", &db_mediator_bg_);
-    SetInternal(ak_, "db", &db_bg_);
     SetInternal(ak_, "fs", &fs_bg_);
 
     Context::Scope context_scope(context_);

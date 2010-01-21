@@ -226,7 +226,7 @@ namespace
         RelVars rel_vars_;
 
         size_t GetRelVarIdx(const string& rel_var_name) const; // never throws
-        static void CheckNameSize(const string& name);
+        static void CheckName(const string& name);
     };
 
     
@@ -340,7 +340,7 @@ void DBMeta::CreateRelVar(pqxx::work& work,
              MAX_REL_VAR_NUMBER).str());
         throw Error(Error::DB_QUOTA, message);
     }
-    CheckNameSize(rel_var_name);
+    CheckName(rel_var_name);
     if (rich_header.size() > MAX_ATTR_NUMBER) {
         static const string message(
             (format("Maximum attribute number is %1%") %
@@ -351,7 +351,7 @@ void DBMeta::CreateRelVar(pqxx::work& work,
         throw Error(Error::REL_VAR_EXISTS,
                     "RelVar \"" + rel_var_name + "\" already exists");
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-        CheckNameSize(rich_attr.GetName());
+        CheckName(rich_attr.GetName());
     RelVar rel_var(rel_var_name, rich_header, constrs);
     if (!rich_header.empty()) {
         StringSet all_field_names;
@@ -381,8 +381,10 @@ size_t DBMeta::GetRelVarIdx(const string& rel_var_name) const
 }
 
 
-void DBMeta::CheckNameSize(const string& name)
+void DBMeta::CheckName(const string& name)
 {
+    if (name.empty())
+        throw Error(Error::USAGE, "Identifier can't be empty");
     if (name.size() > MAX_NAME_SIZE) {
         static const string message (
             (format("RelVar and attribute name length must be "
@@ -390,6 +392,16 @@ void DBMeta::CheckNameSize(const string& name)
              MAX_NAME_SIZE).str());
         throw Error(Error::DB_QUOTA, message);
     }
+    const locale& loc(locale::classic());
+    if (name[0] != '_' && !isalpha(name[0], loc))
+        throw Error(Error::USAGE,
+                    ("First identifier character must be "
+                     "a letter or underscore"));
+    for (size_t i = 1; i < name.size(); ++i)
+        if (name[i] != '_' && !isalnum(name[i], loc))
+            throw Error(Error::USAGE,
+                        ("Identifier must consist only of "
+                         "letters, digits or underscores"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1143,16 +1155,6 @@ void Access::Commit()
 }
 
 
-bool Access::HasRelVar(const string& rel_var_name) const
-{
-    const RelVars& rel_vars(db_impl_.GetManager().GetMeta().GetRelVars());
-    BOOST_FOREACH(const RelVar& rel_var, rel_vars)
-        if (rel_var.GetName() == rel_var_name)
-            return true;
-    return false;
-}
-
-
 StringSet Access::GetRelVarNames() const
 {
     const RelVars& rel_vars(db_impl_.GetManager().GetMeta().GetRelVars());
@@ -1189,14 +1191,6 @@ void Access::CreateRelVar(const string& name,
 void Access::DropRelVars(const StringSet& rel_var_names)
 {
     db_impl_.GetManager().ChangeMeta().DropRelVars(*work_ptr_, rel_var_names);
-}
-
-
-void Access::DropRelVar(const string& rel_var_name)
-{
-    StringSet rel_var_names;
-    rel_var_names.add_sure(rel_var_name);
-    DropRelVars(rel_var_names);
 }
 
 

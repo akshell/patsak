@@ -84,7 +84,10 @@ void ku::SetFunction(Handle<Template> template_,
                      const string& name,
                      InvocationCallback callback)
 {
-    Set(template_, name.c_str(), FunctionTemplate::New(callback), DontEnum);
+    Set(template_,
+        ('_' + name).c_str(),
+        FunctionTemplate::New(callback),
+        DontEnum);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
