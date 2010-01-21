@@ -284,8 +284,6 @@ namespace
         void operator()(pqxx::work& work) const;
 
     private:
-        static const size_t NOT_FOUND_IDX = static_cast<size_t>(-1);
-        
         RelVars& rel_vars_;
         orset<string> del_names_;
 
@@ -321,7 +319,7 @@ const RelVars& DBMeta::GetRelVars() const
 const RelVar& DBMeta::GetRelVar(const string& rel_var_name) const
 {
     size_t idx = GetRelVarIdx(rel_var_name);
-    if (idx == static_cast<size_t>(-1))
+    if (idx == MINUS_ONE)
         throw Error(Error::NO_SUCH_REL_VAR,
                     "No such RelVar: \"" + rel_var_name + '"');
     return rel_vars_[idx];
@@ -347,7 +345,7 @@ void DBMeta::CreateRelVar(pqxx::work& work,
              MAX_ATTR_NUMBER).str());
         throw Error(Error::DB_QUOTA, message);
     }
-    if (GetRelVarIdx(rel_var_name) != static_cast<size_t>(-1))
+    if (GetRelVarIdx(rel_var_name) != MINUS_ONE)
         throw Error(Error::REL_VAR_EXISTS,
                     "RelVar \"" + rel_var_name + "\" already exists");
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
@@ -748,7 +746,7 @@ vector<size_t> RelVarsDropper::Prepare() const
     for (size_t i = 0; i < rel_vars_.size(); ++i) {
         const RelVar& rel_var(rel_vars_[i]);
         size_t idx = GetDelNameIdx(rel_var.GetName());
-        if (idx != NOT_FOUND_IDX) {
+        if (idx != MINUS_ONE) {
             result[idx] = i;
             continue;
         }
@@ -756,7 +754,7 @@ vector<size_t> RelVarsDropper::Prepare() const
             const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
             const string& ref_rel_var_name(foreign_key_ptr->ref_rel_var_name);
             if (foreign_key_ptr &&
-                GetDelNameIdx(ref_rel_var_name) != NOT_FOUND_IDX)
+                GetDelNameIdx(ref_rel_var_name) != MINUS_ONE)
                 throw Error(Error::REL_VAR_DEPENDENCY,
                             ("Attempt to delete a group of RelVars "
                              "with a RelVar \"" +
@@ -781,7 +779,7 @@ size_t RelVarsDropper::GetDelNameIdx(const string& rel_var_name) const
                                            del_names_.end(),
                                            rel_var_name));
     return (itr == del_names_.end()
-            ? NOT_FOUND_IDX
+            ? MINUS_ONE
             : itr - del_names_.begin());
 }
 
@@ -1195,25 +1193,33 @@ void Access::DropRelVars(const StringSet& rel_var_names)
 
 
 QueryResult Access::Query(const string& query_str,
-                          const Values& params,
-                          const Specs& specs) const
+                          const Values& query_params,
+                          const Strings& by_strs,
+                          const Values& /* TODO: by_params*/,
+                          size_t start,
+                          size_t length) const
 {
-    return db_impl_.GetQuerist().Query(*work_ptr_, query_str, params, specs);
+    Specs specs;
+    BOOST_FOREACH(const string& by_str, by_strs)
+        specs.push_back(BySpec(by_str, Values()));
+    if (start != 0 || length != MINUS_ONE)
+        specs.push_back(WindowSpec(start, length));
+    return db_impl_.GetQuerist().Query(
+        *work_ptr_, query_str, query_params, specs);
 }
 
 
-unsigned long Access::Count(const string& query_str,
-                            const Values& params,
-                            const Specs& specs) const
+unsigned long Access::Count(const string& query_str, const Values& params) const
 {
-    return db_impl_.GetQuerist().Count(*work_ptr_, query_str, params, specs);
+    return db_impl_.GetQuerist().Count(*work_ptr_, query_str, params, Specs());
 }
 
 
 unsigned long Access::Update(const string& rel_var_name,
+                             const string& where_str,
+                             const Values& where_params,
                              const StringMap& field_expr_map,
-                             const Values& params,
-                             const WhereSpecs& where_specs)
+                             const Values& update_params)
 {
     db_impl_.GetQuotaController().Check(*work_ptr_);
     
@@ -1224,12 +1230,14 @@ unsigned long Access::Update(const string& rel_var_name,
         // FIXME it's wrong estimation for expressions
         size += field_expr.second.size();
     }
+    WhereSpecs where_specs;
+    where_specs.push_back(WhereSpec(where_str, where_params));
     unsigned long rows_count;
     pqxx::subtransaction sub_work(*work_ptr_);
     try {
-        rows_count = db_impl_.GetQuerist().Update(sub_work, rel_var_name,
-                                                  field_expr_map,
-                                                  params, where_specs);
+        rows_count = db_impl_.GetQuerist().Update(
+            sub_work, rel_var_name,
+            field_expr_map, update_params, where_specs);
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
@@ -1245,8 +1253,11 @@ unsigned long Access::Update(const string& rel_var_name,
 
 
 unsigned long Access::Delete(const string& rel_var_name,
-                             const WhereSpecs& where_specs)
+                             const string& where_str,
+                             const Values& params)
 {
+    WhereSpecs where_specs;
+    where_specs.push_back(WhereSpec(where_str, params));
     unsigned long rows_count;
     pqxx::subtransaction sub_work(*work_ptr_);
     try {

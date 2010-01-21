@@ -253,20 +253,24 @@ namespace ku
         void DropRelVars(const StringSet& rel_var_names);
         
         QueryResult Query(const std::string& query_str,
-                          const Values& params = Values(),
-                          const Specs& specs = Specs()) const;
+                          const Values& query_params = Values(),
+                          const Strings& by_strs = Strings(),
+                          const Values& by_params = Values(),
+                          size_t start = 0,
+                          size_t length = MINUS_ONE) const;
 
         unsigned long Count(const std::string& query_str,
-                            const Values& params,
-                            const Specs& specs) const;
+                            const Values& params = Values()) const;
 
         unsigned long Update(const std::string& rel_var_name,
+                             const std::string& where_str,
+                             const Values& where_params,
                              const StringMap& field_expr_map,
-                             const Values& params,
-                             const WhereSpecs& where_specs);
+                             const Values& update_params = Values());
 
         unsigned long Delete(const std::string& rel_var_name,
-                             const WhereSpecs& where_specs);
+                             const std::string& where_str,
+                             const Values& params = Values());
         
         Values Insert(const std::string& rel_var_name,
                       const ValueMap& value_map);

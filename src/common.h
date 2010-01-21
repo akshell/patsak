@@ -280,6 +280,8 @@ namespace ku
     typedef std::map<std::string, std::string> StringMap;
     typedef std::map<std::string, Value> ValueMap;
     typedef std::vector<char> Chars;
+
+    const size_t MINUS_ONE = static_cast<size_t>(-1);
 }
 
 #endif // COMMON_H

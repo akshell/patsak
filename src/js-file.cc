@@ -144,7 +144,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DataBg, ToStringCb,
     size_t out_left = buf.size();
     size_t ret = iconv(cd, &in_ptr, &in_left, &out_ptr, &out_left);
     iconv_close(cd);
-    if (ret == static_cast<size_t>(-1))
+    if (ret == MINUS_ONE)
         throw MakeErrnoError();
     size_t length = buf.size() - out_left;
     KU_ASSERT(length % 2 == 0);

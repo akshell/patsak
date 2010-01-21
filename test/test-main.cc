@@ -597,9 +597,6 @@ namespace
         void LoadRelVarFromString(const string& rel_var_name,
                                   const string& str);
         Table Query(const string& query);
-        Table ComplexQuery(const string& query,
-                           const Values& params,
-                           const Specs& specs);
         Table DumpRelVar(const string& rel_var_name);
         void InsertValues(const string& rel_var_name, const Values& values);
         void CreateRelVar(const string& rel_var_name, const Table& table);
@@ -635,16 +632,8 @@ void DBFixture::LoadRelVarFromString(const string& rel_var_name,
 
 Table DBFixture::Query(const string& query)
 {
-    return ComplexQuery(query, Values(), Specs());
-}
-
-
-Table DBFixture::ComplexQuery(const string& query,
-                              const Values& params = Values(),
-                              const Specs& specs = Specs())
-{
     Access access(db);
-    QueryResult query_result(access.Query(query, params, specs));
+    QueryResult query_result(access.Query(query));
     Table result(query_result.GetHeader());
     for (size_t idx = 0; idx < query_result.GetSize(); ++idx)
         result.AddRow(*query_result.GetValuesPtr(idx));
@@ -654,7 +643,7 @@ Table DBFixture::ComplexQuery(const string& query,
 
 Table DBFixture::DumpRelVar(const string& rel_var_name)
 {
-    Table result(ComplexQuery(rel_var_name));
+    Table result(Query(rel_var_name));
     Access access(db);
     result.SetRichHeader(access.GetRelVarRichHeader(rel_var_name));
     result.SetConstrs(access.GetRelVarConstrs(rel_var_name));
@@ -1032,51 +1021,4 @@ BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
     LoadRelVarFromString("s_p_ref",
                          "id\nnumber\nfk id - s - sid\nfk id - p - pid\n---");
     BOOST_CHECK_THROW(Query("s_p_ref.id->city"), Error);
-
-    Specs specs;
-    Values where_values;
-    where_values.push_back(Value(Type::NUMBER, 25));
-    where_values.push_back(Value(Type::STRING, "Blake"));
-    specs.push_back(WhereSpec("status < $1 && sname != $2",
-                              where_values));
-    StringSet only_fields1;
-    only_fields1.add_sure("city");
-    only_fields1.add_sure("sid");
-    only_fields1.add_sure("sname");
-    specs.push_back(OnlySpec(only_fields1));
-    StringSet only_fields2;
-    only_fields2.add_sure("sid");
-    specs.push_back(OnlySpec(only_fields2));
-    Values by_values;
-    by_values.push_back(Value(Type::NUMBER, 2));
-    by_values.push_back(Value(Type::NUMBER, 7));
-    specs.push_back(BySpec("sid * $1 % $2", by_values));
-    Values query_values;
-    query_values.push_back(Value(Type::STRING, "Athens"));
-    
-    RichHeader sample_rich_header;
-    sample_rich_header.add_sure(RichAttr("sid", Type::NUMBER));
-    vector<Values> sample_values_list;
-    Values sample_values;
-    sample_values.push_back(Value(Type::NUMBER, 4));
-    sample_values_list.push_back(sample_values);
-    sample_values[0] = Value(Type::NUMBER, 1);
-    sample_values_list.push_back(sample_values);
-    sample_values[0] = Value(Type::NUMBER, 2);
-    sample_values_list.push_back(sample_values);
-
-    for (int i = 0; i < 20; ++i) {
-        Table t(ComplexQuery("s where city != $", query_values, specs));
-        BOOST_CHECK(t.GetRichHeader() == sample_rich_header);
-        ValuesSet values_set(t.GetValuesSet());
-        BOOST_CHECK(vector<Values>(values_set.begin(), values_set.end()) ==
-                    sample_values_list);
-    }
-    
-    specs.push_back(OnlySpec(StringSet()));
-    ValuesSet one_empty_values;
-    one_empty_values.add_sure(Values());
-    BOOST_CHECK(ComplexQuery("s where city != $",
-                             query_values,
-                             specs).GetValuesSet() == one_empty_values);
 }

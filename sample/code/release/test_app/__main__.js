@@ -17,14 +17,20 @@ var bool = ak._dbm.bool;
 var date = ak._dbm.date;
 
 
-function query(str, params, by) {
-  return dbm._query(str, params || [], by || []);
+function query(query, query_params, by, by_params, start, length) {
+  return dbm._query(query,
+                    query_params || [],
+                    by || [],
+                    by_params || [],
+                    start || 0,
+                    length);
 }
 
 
-function field(name, str, params, by) {
+function field(name, str, params, by, by_params, start, length) {
   return Array.prototype.map.call(
-    query('for (x in ' + str + ') x.' + name, params, by),
+    query('for (x in ' + str + ') x.' + name,
+          params, by, by_params, start, length),
     function (item) { return item[name]; });
 }
 
@@ -423,6 +429,12 @@ db_test_suite.testCreate = function () {
                       {x: number},
                       {foreign: [[['x'], 'User', ['age']]]});
              });
+  checkThrow(ak.UsageError,
+             function () {
+               create('illegal',
+                      {x: number},
+                      {foreign: [[['x'], 'User', ['id', 'age']]]});
+             });
 };
 
 
@@ -461,8 +473,7 @@ db_test_suite.testQuery = function () {
                },
                [[['id', 0], ['name', 'anton']]]);
   checkEqualTo("query('User where forsome (x in {}) true').length", 3);
-  // TODO
-  //   checkThrow(ak.QueryError, "query('{i: 1}')._where('!i->name')._perform()");
+  checkThrow(ak.QueryError, "query('{i: 1} where i->name')");
   checkEqualTo("field('title', ' Post where author->name == $', ['anton'])",
                ['first', 'third']);
   checkEqualTo("field('age', 'User where name == \\'anton\\'')", [22]);
@@ -521,23 +532,14 @@ db_test_suite.testBy = function () {
 };
 
 
-// TODO
-// db_test_suite.testSubrel = function () {
-//   checkEqualTo("db.Count._subrel(8).field('i')", [8, 9]);
-//   checkEqualTo("db.Count._subrel(1, 8)._subrel(2, 5)._subrel(3, 4).field('i')",
-//                [6, 7]);
-//   checkEqualTo("db.Count._subrel(10)", []);
-//   checkEqualTo("db.Count._subrel(0, 5)._subrel(6)", []);
-//   checkEqualTo(("db.Count" +
-//                 "._subrel(0, 7)" +
-//                 "._only('i')" +
-//                 "._where('i != $', 5)" +
-//                 "._by('i + $', 1)" +
-//                 "._subrel(1, 10)" +
-//                 "._count()"),
-//                5);
-//   checkThrow(TypeError, "db.Count._subrel(-1)");
-// };
+db_test_suite.testStartLength = function () {
+  checkEqualTo("field('i', 'Count', [], ['i'], [], 8)", [8, 9]);
+  checkEqualTo("field('i', 'Count', [], ['i'], [], 6, 2)", [6, 7]);
+  checkEqualTo("field('i', 'Count', [], ['i'], [], 10)", []);
+  checkEqualTo("field('i', 'Count where i != 5', [], ['i'], [], 1, 6)",
+               [1, 2, 3, 4, 6, 7]);
+  checkThrow(TypeError, "query('Count', [], ['i'], [], -1)");
+};
 
 
 db_test_suite.testCount = function () {

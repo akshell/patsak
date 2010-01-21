@@ -119,6 +119,15 @@ namespace
                 throw Error(Error::USAGE, "Dumplicating names");
         return result;
     }
+
+
+    size_t ReadUnsigned(const Handle<v8::Value> value)
+    {
+        int32_t result;
+        if (!value->IsInt32() || (result = value->Int32Value()) < 0)
+            throw Error(Error::TYPE, "Unsigned integer required");
+        return result;
+    }
 }    
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -421,19 +430,25 @@ void DBMediatorBg::Init(v8::Handle<v8::Object> object) const
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, QueryCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 3);
-    Specs specs;
-    size_t length = GetArrayLikeLength(args[2]);
-    specs.reserve(length);
-    for (size_t i = 0; i < length; ++i)
-        specs.push_back(
-            BySpec(Stringify(GetArrayLikeItem(args[2], i)), Values()));
+    CheckArgsLength(args, 6);
+    size_t by_length = GetArrayLikeLength(args[2]);
+    Strings by_strs;
+    by_strs.reserve(by_length);
+    for (size_t i = 0; i < by_length; ++i)
+        by_strs.push_back(Stringify(GetArrayLikeItem(args[2], i)));
     QueryResult query_result(
-        access_ptr->Query(Stringify(args[0]), ReadParams(args[1]), specs));
-    size_t size = query_result.GetSize();
+        access_ptr->Query(Stringify(args[0]),
+                          ReadParams(args[1]),
+                          by_strs,
+                          ReadParams(args[3]),
+                          ReadUnsigned(args[4]),
+                          (args[5]->IsUndefined() || args[5]->IsNull()
+                           ? MINUS_ONE
+                           : ReadUnsigned(args[5]))));
+    size_t result_length = query_result.GetSize();
     const Header& header(query_result.GetHeader());
-    Handle<Array> result(Array::New(size));
-    for (size_t tuple_idx = 0; tuple_idx < size; ++tuple_idx) {
+    Handle<Array> result(Array::New(result_length));
+    for (size_t tuple_idx = 0; tuple_idx < result_length; ++tuple_idx) {
         Handle<Object> item(Object::New());
         auto_ptr<Values> values_ptr(query_result.GetValuesPtr(tuple_idx));
         KU_ASSERT(values_ptr.get() && values_ptr->size() == header.size());
@@ -452,7 +467,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, CountCb,
 {
     CheckArgsLength(args, 2);
     return Integer::New(
-        access_ptr->Count(Stringify(args[0]), ReadParams(args[1]), Specs()));
+        access_ptr->Count(Stringify(args[0]), ReadParams(args[1])));
 }
 
 
@@ -652,10 +667,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DelCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 3);
-    WhereSpecs where_specs;
-    where_specs.push_back(WhereSpec(Stringify(args[1]), ReadParams(args[2])));
-    unsigned long rows_number = access_ptr->Delete(Stringify(args[0]),
-                                                   where_specs);
+    unsigned long rows_number = access_ptr->Delete(
+        Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]));
     return Number::New(static_cast<double>(rows_number));
 }
 
@@ -673,12 +686,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, UpdateCb,
         field_expr_map.insert(StringMap::value_type(Stringify(prop.key),
                                                     Stringify(prop.value)));
     }
-    WhereSpecs where_specs;
-    where_specs.push_back(WhereSpec(Stringify(args[1]), ReadParams(args[2])));
-    unsigned long rows_number = access_ptr->Update(Stringify(args[0]),
-                                                   field_expr_map,
-                                                   ReadParams(args[4]),
-                                                   where_specs);
+    unsigned long rows_number = access_ptr->Update(
+        Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]),
+        field_expr_map, ReadParams(args[4]));
     return Number::New(static_cast<double>(rows_number));
 }
 
