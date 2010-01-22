@@ -248,7 +248,7 @@ Type Control::GetParamType(size_t pos) const
 void Control::PrintParam(size_t pos)
 {
     CheckParam(pos);
-    if (item_.param_shift == RAW_SHIFT)
+    if (item_.param_shift == MINUS_ONE)
         *this << item_.param_strings[pos - 1];
     else
         *this << '$' << (item_.param_shift + pos);
@@ -1041,12 +1041,12 @@ namespace
             return;
         os << " LIMIT ";
         size_t param_shift = window_ptr->param_shift;
-        if (param_shift == RAW_SHIFT)
+        if (param_shift == MINUS_ONE)
             os << window_ptr->limit;
         else
             os << '$' << param_shift + 1;
         os << " OFFSET ";
-        if (param_shift == RAW_SHIFT)
+        if (param_shift == MINUS_ONE)
             os << window_ptr->offset;
         else
             os << '$' << param_shift + 2;
@@ -1144,7 +1144,7 @@ string Translator::TranslateUpdate(const TranslateItem& update_item,
                                "",
                                rel_var_name,
                                header,
-                               (update_item.param_shift == RAW_SHIFT
+                               (update_item.param_shift == MINUS_ONE
                                 ? TranslateItem(field_expr.second,
                                                 update_item.param_types,
                                                 update_item.param_strings)

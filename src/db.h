@@ -16,60 +16,6 @@
 namespace ku
 {
     ////////////////////////////////////////////////////////////////////////////
-    // Specs
-    ////////////////////////////////////////////////////////////////////////////
-
-    struct WhereSpec {
-        std::string expr_str;
-        Values params;
-
-        WhereSpec(const std::string& expr_str, const Values& params)
-            : expr_str(expr_str), params(params) {}
-    };
-
-
-    typedef std::vector<WhereSpec> WhereSpecs;
-
-
-    struct BySpec {
-        std::string expr_str;
-        Values params;
-
-        BySpec(const std::string& expr_str, const Values& params)
-            : expr_str(expr_str), params(params) {}
-    };
-
-
-    struct OnlySpec {
-        StringSet field_names;
-
-        explicit OnlySpec(const StringSet& field_names)
-            : field_names(field_names) {}
-    };
-
-
-    struct WindowSpec {
-        static const unsigned long ALL = static_cast<unsigned long>(-1);
-        
-        unsigned long offset;
-        unsigned long limit;
-
-        WindowSpec(unsigned long offset, unsigned long limit)
-            : offset(offset), limit(limit) {}
-    };
-
-
-    typedef boost::variant<
-        WhereSpec,
-        BySpec,
-        OnlySpec,
-        WindowSpec>
-    Spec;
-
-    
-    typedef std::vector<Spec> Specs;
-
-    ////////////////////////////////////////////////////////////////////////////
     // Constrs
     ////////////////////////////////////////////////////////////////////////////
 
@@ -134,15 +80,6 @@ namespace ku
     class Access;
 
 
-    /// Database transaction function interface
-    class Transactor {
-    public:
-        virtual void operator()(Access& access) = 0;
-        virtual void Reset() {}
-        virtual ~Transactor() {}
-    };
-    
-
     /// Database entry point
     class DB {
     public:
@@ -164,23 +101,6 @@ namespace ku
     // Access
     ////////////////////////////////////////////////////////////////////////////
     
-    /// Result of successful query, i.e. a list of tuples
-    class QueryResult {
-    public:
-        class Impl;
-
-        QueryResult(const Impl* impl_ptr);
-        ~QueryResult();
-        size_t GetSize() const;
-        std::auto_ptr<Values> GetValuesPtr(size_t idx) const;
-        const Header& GetHeader() const;
-        size_t GetMemoryUsage() const;
-        
-    private:
-        boost::shared_ptr<const Impl> impl_ptr_;
-    };
-
-
     class RichAttr {
     public:
         RichAttr(const std::string& name,
@@ -203,6 +123,15 @@ namespace ku
     
     typedef orset<RichAttr, ByNameComparator<RichAttr>, ByNameFinder<RichAttr> >
     RichHeader;
+
+
+    struct QueryResult {
+        Header header;
+        std::vector<Values> tuples;
+
+        QueryResult(const Header& header, const std::vector<Values>& tuples)
+            : header(header), tuples(tuples) {}
+    };
 
 
     struct App {
@@ -259,18 +188,18 @@ namespace ku
                           size_t start = 0,
                           size_t length = MINUS_ONE) const;
 
-        unsigned long Count(const std::string& query_str,
-                            const Values& params = Values()) const;
+        size_t Count(const std::string& query_str,
+                     const Values& params = Values()) const;
 
-        unsigned long Update(const std::string& rel_var_name,
-                             const std::string& where_str,
-                             const Values& where_params,
-                             const StringMap& field_expr_map,
-                             const Values& update_params = Values());
+        size_t Update(const std::string& rel_var_name,
+                      const std::string& where_str,
+                      const Values& where_params,
+                      const StringMap& field_expr_map,
+                      const Values& update_params = Values());
 
-        unsigned long Delete(const std::string& rel_var_name,
-                             const std::string& where_str,
-                             const Values& params = Values());
+        size_t Delete(const std::string& rel_var_name,
+                      const std::string& where_str,
+                      const Values& params = Values());
         
         Values Insert(const std::string& rel_var_name,
                       const ValueMap& value_map);

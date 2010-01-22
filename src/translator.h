@@ -38,9 +38,6 @@ namespace ku
     };
 
 
-    const size_t RAW_SHIFT = static_cast<size_t>(-1);
-    
-
     struct TranslateItem {
         std::string ku_str;
         Types param_types;
@@ -59,7 +56,7 @@ namespace ku
                       const Strings& param_strings)
             : ku_str(ku_str)
             , param_types(param_types)
-            , param_shift(RAW_SHIFT)
+            , param_shift(MINUS_ONE)
             , param_strings(param_strings) {
             KU_ASSERT(param_types.size() == param_strings.size());
         }
@@ -70,8 +67,6 @@ namespace ku
 
 
     struct Window {
-        static const unsigned long ALL = static_cast<unsigned long>(-1);
-
         size_t param_shift;
         unsigned long offset;
         unsigned long limit;
@@ -80,7 +75,7 @@ namespace ku
             : param_shift(param_shift) {}
 
         Window(unsigned long offset, unsigned long limit)
-            : param_shift(RAW_SHIFT), offset(offset), limit(limit) {}
+            : param_shift(MINUS_ONE), offset(offset), limit(limit) {}
     };
 
 

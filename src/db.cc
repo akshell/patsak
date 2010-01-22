@@ -4,22 +4,24 @@
 /// \file db.cc
 /// Database access interface impl
 
-#include "querist.h"
+#include "db.h"
 #include "translator.h"
 #include "utils.h"
 
+#include <pqxx/pqxx>
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/foreach.hpp>
 
 
 using namespace std;
 using namespace ku;
 using boost::format;
 using boost::scoped_ptr;
-using boost::shared_ptr;
 using boost::static_visitor;
 using boost::apply_visitor;
 using boost::lexical_cast;
+using boost::noncopyable;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,12 +37,71 @@ namespace
     const unsigned long long QUOTA_MULTIPLICATOR = 1024 * 1024;
     
 #ifdef TEST
-    const unsigned ADDED_SIZE_MULTIPLICATOR = 16;
-    const unsigned long CHANGED_ROWS_COUNT_LIMIT = 10;
+    const size_t ADDED_SIZE_MULTIPLICATOR = 16;
+    const size_t CHANGED_ROWS_COUNT_LIMIT = 10;
 #else
-    const unsigned ADDED_SIZE_MULTIPLICATOR = 4;
-    const unsigned long CHANGED_ROWS_COUNT_LIMIT = 10000;
+    const size_t ADDED_SIZE_MULTIPLICATOR = 4;
+    const size_t CHANGED_ROWS_COUNT_LIMIT = 10000;
 #endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// BOOST_FOREACH extensions
+///////////////////////////////////////////////////////////////////////////////
+
+namespace boost
+{
+    /// For BOOST_FOREACH to work with pqxx::result
+    template<>
+    struct range_mutable_iterator<pqxx::result>
+    {
+        typedef pqxx::result::const_iterator type;
+    };
+
+
+    /// For BOOST_FOREACH to work with pqxx::result::tuple
+    template<>
+    struct range_mutable_iterator<pqxx::result::tuple>
+    {
+        typedef pqxx::result::tuple::const_iterator type;
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Quoter
+///////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    class Quoter {
+    public:
+        explicit Quoter(pqxx::connection& conn)
+            : conn_(conn) {}
+
+        explicit Quoter(const pqxx::transaction_base& work)
+            : conn_(work.conn()) {}
+
+        std::string operator()(const PgLiter& pg_liter) const {
+            return pg_liter.quote_me ? conn_.quote(pg_liter.str) : pg_liter.str;
+        }
+
+        std::string operator()(const Value& value) const {
+            return (*this)(value.GetPgLiter());
+        }
+
+        Strings operator()(const Values& values) const {
+            Strings result;
+            result.reserve(values.size());
+            for (Values::const_iterator itr = values.begin();
+                 itr != values.end();
+                 ++itr)
+                result.push_back((*this)(*itr));
+            return result;
+        }
+
+    private:
+        pqxx::connection_base& conn_;
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,7 +276,7 @@ namespace
         const RelVars& GetRelVars() const;
         
         void CreateRelVar(pqxx::work& work,
-                          const Querist& querist,
+                          const Translator& translator,
                           const string& rel_var_name,
                           const RichHeader& rich_header,
                           const Constrs& constrs);
@@ -257,7 +318,7 @@ namespace
     public:
         RelVarCreator(const DBMeta& db_meta, const RelVar& rel_var);
 
-        void operator()(pqxx::work& work, const Querist& querist) const;
+        void operator()(pqxx::work& work, const Translator& translator) const;
 
     private:
         const RelVar& rel_var_;
@@ -266,7 +327,7 @@ namespace
                          OmitInvoker& print_sep,
                          const Quoter& quoter) const;
 
-        void PrintConstrs(const Querist& querist,
+        void PrintConstrs(const Translator& translator,
                           ostream& os,
                           OmitInvoker& print_sep) const;
 
@@ -327,7 +388,7 @@ const RelVar& DBMeta::GetRelVar(const string& rel_var_name) const
 
 
 void DBMeta::CreateRelVar(pqxx::work& work,
-                          const Querist& querist,
+                          const Translator& translator,
                           const string& rel_var_name,
                           const RichHeader& rich_header,
                           const Constrs& constrs)
@@ -358,8 +419,7 @@ void DBMeta::CreateRelVar(pqxx::work& work,
             all_field_names.add_sure(rich_attr.GetName());
         rel_var.GetConstrs().push_back(Unique(all_field_names));
     }
-    RelVarCreator rel_creator(*this, rel_var);
-    rel_creator(work, querist);
+    RelVarCreator(*this, rel_var)(work, translator);
     rel_vars_.push_back(rel_var);
 }
 
@@ -588,14 +648,15 @@ RelVarCreator::RelVarCreator(const DBMeta& db_meta, const RelVar& rel_var)
 }
 
 
-void RelVarCreator::operator()(pqxx::work& work, const Querist& querist) const
+void RelVarCreator::operator()(pqxx::work& work,
+                               const Translator& translator) const
 {
     ostringstream oss;
     PrintCreateSequences(oss);
     oss << "CREATE TABLE \"" << rel_var_.GetName() << "\" (";
     OmitInvoker print_sep((SepPrinter(oss)));
     PrintHeader(oss, print_sep, Quoter(work));
-    PrintConstrs(querist, oss, print_sep);
+    PrintConstrs(translator, oss, print_sep);
     oss << ");";
     PrintAlterSequences(oss);
     work.exec(oss.str());
@@ -631,11 +692,11 @@ namespace
 {
     class ConstrPrinter : public static_visitor<void> {
     public:
-        ConstrPrinter(const Querist& querist,
+        ConstrPrinter(const Translator& translator,
                       const RelVar& rel_var,
                       ostream& os,
                       OmitInvoker& print_sep)
-            : querist_(querist)
+            : translator_(translator)
             , rel_var_(rel_var)
             , os_(os)
             , print_sep_(print_sep) {}
@@ -657,14 +718,14 @@ namespace
         void operator()(const Check& check) {
             print_sep_();
             os_ << "CHECK ("
-                << querist_.TranslateExpr(check.expr_str,
-                                          rel_var_.GetName(),
-                                          rel_var_.GetHeader())
+                << translator_.TranslateExpr(check.expr_str,
+                                             rel_var_.GetName(),
+                                             rel_var_.GetHeader())
                 << ')';
         }
 
     private:
-        const Querist& querist_;
+        const Translator& translator_;
         const RelVar& rel_var_;
         ostream& os_;
         OmitInvoker& print_sep_;
@@ -682,11 +743,11 @@ namespace
 }
 
 
-void RelVarCreator::PrintConstrs(const Querist& querist,
+void RelVarCreator::PrintConstrs(const Translator& translator,
                                  ostream& os,
                                  OmitInvoker& print_sep) const
 {
-    ConstrPrinter constr_printer(querist, rel_var_, os, print_sep);
+    ConstrPrinter constr_printer(translator, rel_var_, os, print_sep);
     BOOST_FOREACH(const Constr& constr, rel_var_.GetConstrs())
         apply_visitor(constr_printer, constr);
 }
@@ -1003,7 +1064,7 @@ public:
 
     pqxx::connection& GetConnection();
     Manager& GetManager();
-    Querist& GetQuerist();
+    const Translator& GetTranslator() const;
     QuotaController& GetQuotaController();
 
 private:
@@ -1013,7 +1074,7 @@ private:
     unsigned long long fs_quota_;
     Manager manager_;
     DBViewerImpl db_viewer_;
-    Querist querist_;
+    Translator translator_;
     scoped_ptr<QuotaController> quota_controller_ptr_;
 };
 
@@ -1026,7 +1087,7 @@ DB::Impl::Impl(const string& opt,
     , try_count_(try_count)
     , manager_(schema_name)
     , db_viewer_(manager_, Quoter(conn_))
-    , querist_(db_viewer_, conn_)
+    , translator_(db_viewer_)
 {
     static const format create_cmd("SELECT ku.create_schema('%1%');");
     static const format set_cmd("SET search_path TO \"%1%\", pg_catalog;");
@@ -1047,8 +1108,8 @@ DB::Impl::Impl(const string& opt,
         const pqxx::result::tuple& tuple(pqxx_result[0]);
         if (tuple[0].is_null())
             Fail("App \"" + app_name + "\" does not exist");
-        db_quota_ = QUOTA_MULTIPLICATOR * tuple[0].as<unsigned long>();
-        fs_quota_ = QUOTA_MULTIPLICATOR * tuple[1].as<unsigned long>();
+        db_quota_ = QUOTA_MULTIPLICATOR * tuple[0].as<size_t>();
+        fs_quota_ = QUOTA_MULTIPLICATOR * tuple[1].as<size_t>();
         work.commit(); // don't remove it, stupid idiot! is sets search_path!
     }
     quota_controller_ptr_.reset(new QuotaController(schema_name, db_quota_));
@@ -1079,9 +1140,9 @@ Manager& DB::Impl::GetManager()
 }
 
 
-Querist&DB::Impl:: GetQuerist()
+const Translator& DB::Impl::GetTranslator() const
 {
-    return querist_;
+    return translator_;
 }
 
 
@@ -1119,6 +1180,29 @@ unsigned long long DB::GetFSQuota() const
 ////////////////////////////////////////////////////////////////////////////////
 // Access definitions
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    Values GetTupleValues(const pqxx::result::tuple& tuple,
+                          const Header& header)
+    {
+        KU_ASSERT(tuple.size() == header.size());
+        Values result;
+        result.reserve(tuple.size());
+        for (size_t i = 0; i < tuple.size(); ++i) {
+            pqxx::result::field field(tuple[i]);
+            Type type(header[i].GetType());
+            if (type == Type::NUMBER)
+                result.push_back(Value(type, field.as<double>()));
+            else if (type == Type::BOOLEAN)
+                result.push_back(Value(type, field.as<bool>()));
+            else
+                result.push_back(Value(type, field.as<string>()));
+        }
+        return result;
+    }
+}
+
 
 class Access::WorkWrapper {
 public:
@@ -1182,7 +1266,7 @@ void Access::CreateRelVar(const string& name,
                           const Constrs& constrs)
 {
     db_impl_.GetManager().ChangeMeta().CreateRelVar(
-        *work_ptr_, db_impl_.GetQuerist(), name, rich_header, constrs);
+        *work_ptr_, db_impl_.GetTranslator(), name, rich_header, constrs);
 }
 
 
@@ -1199,27 +1283,52 @@ QueryResult Access::Query(const string& query_str,
                           size_t start,
                           size_t length) const
 {
-    Specs specs;
+    Quoter quoter(db_impl_.GetConnection());
+    TranslateItem query_item(
+        query_str, GetValuesTypes(query_params), quoter(query_params));
+    TranslateItems by_items;
+    by_items.reserve(by_strs.size());
     BOOST_FOREACH(const string& by_str, by_strs)
-        specs.push_back(BySpec(by_str, Values()));
+        by_items.push_back(TranslateItem(by_str));
+    auto_ptr<Window> window_ptr;
     if (start != 0 || length != MINUS_ONE)
-        specs.push_back(WindowSpec(start, length));
-    return db_impl_.GetQuerist().Query(
-        *work_ptr_, query_str, query_params, specs);
+        window_ptr.reset(new Window(start, length));
+    Translation translation(
+        db_impl_.GetTranslator().TranslateQuery(query_item,
+                                                TranslateItems(),
+                                                by_items,
+                                                0,
+                                                window_ptr.get()));
+    pqxx::result pqxx_result(work_ptr_->exec(translation.sql_str));
+    QueryResult result(translation.header, vector<Values>());
+    if (result.header.empty()) {
+        if (!pqxx_result.empty())
+            result.tuples.push_back(Values());
+    } else {
+        result.tuples.reserve(pqxx_result.size());
+        BOOST_FOREACH(const pqxx::result::tuple& pqxx_tuple, pqxx_result)
+            result.tuples.push_back(GetTupleValues(pqxx_tuple, result.header));
+    }
+    return result;
 }
 
 
-unsigned long Access::Count(const string& query_str, const Values& params) const
+size_t Access::Count(const string& query_str, const Values& params) const
 {
-    return db_impl_.GetQuerist().Count(*work_ptr_, query_str, params, Specs());
+    Quoter quoter(db_impl_.GetConnection());
+    TranslateItem query_item(query_str, GetValuesTypes(params), quoter(params));
+    string sql_str(db_impl_.GetTranslator().TranslateCount(query_item));
+    pqxx::result pqxx_result(work_ptr_->exec(sql_str));
+    KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
+    return pqxx_result[0][0].as<size_t>();
 }
 
 
-unsigned long Access::Update(const string& rel_var_name,
-                             const string& where_str,
-                             const Values& where_params,
-                             const StringMap& field_expr_map,
-                             const Values& update_params)
+size_t Access::Update(const string& rel_var_name,
+                      const string& where_str,
+                      const Values& where_params,
+                      const StringMap& field_expr_map,
+                      const Values& update_params)
 {
     db_impl_.GetQuotaController().Check(*work_ptr_);
     
@@ -1230,14 +1339,21 @@ unsigned long Access::Update(const string& rel_var_name,
         // FIXME it's wrong estimation for expressions
         size += field_expr.second.size();
     }
-    WhereSpecs where_specs;
-    where_specs.push_back(WhereSpec(where_str, where_params));
-    unsigned long rows_count;
+    Quoter quoter(db_impl_.GetConnection());
+    TranslateItem update_item(rel_var_name,
+                              GetValuesTypes(update_params),
+                              quoter(update_params));
+    TranslateItems where_items;
+    where_items.push_back(TranslateItem(where_str,
+                                        GetValuesTypes(where_params),
+                                        quoter(where_params)));
+    string sql_str(
+        db_impl_.GetTranslator().TranslateUpdate(
+            update_item, field_expr_map, where_items));
+    size_t result;
     pqxx::subtransaction sub_work(*work_ptr_);
     try {
-        rows_count = db_impl_.GetQuerist().Update(
-            sub_work, rel_var_name,
-            field_expr_map, update_params, where_specs);
+        result = sub_work.exec(sql_str).affected_rows();
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
@@ -1246,31 +1362,33 @@ unsigned long Access::Update(const string& rel_var_name,
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
     }
-    db_impl_.GetQuotaController().DataWereAdded(rows_count, size);
+    db_impl_.GetQuotaController().DataWereAdded(result, size);
     sub_work.commit();
-    return rows_count;
+    return result;
 }
 
 
-unsigned long Access::Delete(const string& rel_var_name,
-                             const string& where_str,
-                             const Values& params)
+size_t Access::Delete(const string& rel_var_name,
+                      const string& where_str,
+                      const Values& params)
 {
-    WhereSpecs where_specs;
-    where_specs.push_back(WhereSpec(where_str, params));
-    unsigned long rows_count;
+    Quoter quoter(db_impl_.GetConnection());
+    TranslateItems where_items;
+    where_items.push_back(
+        TranslateItem(where_str, GetValuesTypes(params), quoter(params)));
+    string sql_str(
+        db_impl_.GetTranslator().TranslateDelete(rel_var_name, where_items));
+    size_t result;
     pqxx::subtransaction sub_work(*work_ptr_);
     try {
-        rows_count = db_impl_.GetQuerist().Delete(sub_work,
-                                                  rel_var_name,
-                                                  where_specs);
+        result = sub_work.exec(sql_str).affected_rows();
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
-    }    
+    }
     sub_work.commit();
-    return rows_count;
-}    
+    return result;
+}
 
 
 Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)

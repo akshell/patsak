@@ -634,9 +634,9 @@ Table DBFixture::Query(const string& query)
 {
     Access access(db);
     QueryResult query_result(access.Query(query));
-    Table result(query_result.GetHeader());
-    for (size_t idx = 0; idx < query_result.GetSize(); ++idx)
-        result.AddRow(*query_result.GetValuesPtr(idx));
+    Table result(query_result.header);
+    BOOST_FOREACH(const Values& values, query_result.tuples)
+        result.AddRow(values);
     return result;
 }
 
@@ -914,7 +914,7 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
 
     StringSet only_name_fields;
     only_name_fields.add_sure("name");
-    Window window(42, Window::ALL);
+    Window window(42, MINUS_ONE);
     Translation ultimate_trans(translator.TranslateQuery(query_item,
                                                          where_items,
                                                          by_items,
@@ -991,13 +991,6 @@ BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
                       bind(&DBFixture::Query, this, _1),
                       &ReadTableFromString)();
 
-    {
-        Access access(db);
-        QueryResult query_result(access.Query("s"));
-        BOOST_CHECK(
-            !query_result.GetValuesPtr(query_result.GetSize()).get());
-    }
-    
     LoadRelVarFromString("str", "val\nstring\n---\n'test\\\"");
     BOOST_CHECK(Query("str").GetValuesSet().at(0).at(0) ==
                 Value(Type::STRING, "'test\\\""));

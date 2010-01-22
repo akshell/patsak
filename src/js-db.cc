@@ -436,7 +436,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, QueryCb,
     by_strs.reserve(by_length);
     for (size_t i = 0; i < by_length; ++i)
         by_strs.push_back(Stringify(GetArrayLikeItem(args[2], i)));
-    QueryResult query_result(
+    const QueryResult& query_result(
         access_ptr->Query(Stringify(args[0]),
                           ReadParams(args[1]),
                           by_strs,
@@ -445,17 +445,17 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, QueryCb,
                           (args[5]->IsUndefined() || args[5]->IsNull()
                            ? MINUS_ONE
                            : ReadUnsigned(args[5]))));
-    size_t result_length = query_result.GetSize();
-    const Header& header(query_result.GetHeader());
+    size_t result_length = query_result.tuples.size();
+    const Header& header(query_result.header);
     Handle<Array> result(Array::New(result_length));
     for (size_t tuple_idx = 0; tuple_idx < result_length; ++tuple_idx) {
         Handle<Object> item(Object::New());
-        auto_ptr<Values> values_ptr(query_result.GetValuesPtr(tuple_idx));
-        KU_ASSERT(values_ptr.get() && values_ptr->size() == header.size());
+        const Values& values(query_result.tuples[tuple_idx]);
+        KU_ASSERT(values.size() == header.size());
         for (size_t attr_idx = 0; attr_idx < header.size(); ++attr_idx)
             Set(item,
                 header[attr_idx].GetName(),
-                MakeV8Value((*values_ptr)[attr_idx]));
+                MakeV8Value(values[attr_idx]));
         result->Set(Integer::New(tuple_idx), item);
     }
     return result;
