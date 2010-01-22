@@ -52,21 +52,9 @@ namespace ku
     };
 
 
-    /// Print string surrounded by double quotes to a stream
-    class Quoted
-    {
-    public:
-        explicit Quoted(const std::string& str)
-            : str_(str) {}
-
-        friend std::ostream& operator<<(std::ostream& os,
-                                        const Quoted& quoted) {
-            return os << '"' << quoted.str_ << '"';
-        }
-
-    private:
-        std::string str_;
-    };
+    inline std::string Quoted(const std::string& str) {
+        return '"' + str + '"';
+    }
     
 
     /// Get type of each value in a list

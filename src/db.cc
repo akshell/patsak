@@ -444,7 +444,7 @@ void DBMeta::CheckName(const string& name)
     if (name.empty())
         throw Error(Error::USAGE, "Identifier can't be empty");
     if (name.size() > MAX_NAME_SIZE) {
-        static const string message (
+        static const string message(
             (format("RelVar and attribute name length must be "
                     "no more than %1% characters") %
              MAX_NAME_SIZE).str());
@@ -1276,32 +1276,24 @@ void Access::DropRelVars(const StringSet& rel_var_names)
 }
 
 
-QueryResult Access::Query(const string& query_str,
+QueryResult Access::Query(const string& query,
                           const Values& query_params,
-                          const Strings& by_strs,
-                          const Values& /* TODO: by_params*/,
+                          const Strings& by_exprs,
+                          const Values& by_params,
                           size_t start,
                           size_t length) const
 {
-    Quoter quoter(db_impl_.GetConnection());
-    TranslateItem query_item(
-        query_str, GetValuesTypes(query_params), quoter(query_params));
-    TranslateItems by_items;
-    by_items.reserve(by_strs.size());
-    BOOST_FOREACH(const string& by_str, by_strs)
-        by_items.push_back(TranslateItem(by_str));
-    auto_ptr<Window> window_ptr;
-    if (start != 0 || length != MINUS_ONE)
-        window_ptr.reset(new Window(start, length));
-    Translation translation(
-        db_impl_.GetTranslator().TranslateQuery(query_item,
-                                                TranslateItems(),
-                                                by_items,
-                                                0,
-                                                window_ptr.get()));
-    pqxx::result pqxx_result(work_ptr_->exec(translation.sql_str));
-    QueryResult result(translation.header, vector<Values>());
-    if (result.header.empty()) {
+    Header header;
+    string sql(db_impl_.GetTranslator().TranslateQuery(header,
+                                                       query,
+                                                       query_params,
+                                                       by_exprs,
+                                                       by_params,
+                                                       start,
+                                                       length));
+    pqxx::result pqxx_result(work_ptr_->exec(sql));
+    QueryResult result(header, vector<Values>());
+    if (header.empty()) {
         if (!pqxx_result.empty())
             result.tuples.push_back(Values());
     } else {
@@ -1313,22 +1305,20 @@ QueryResult Access::Query(const string& query_str,
 }
 
 
-size_t Access::Count(const string& query_str, const Values& params) const
+size_t Access::Count(const string& query, const Values& params) const
 {
-    Quoter quoter(db_impl_.GetConnection());
-    TranslateItem query_item(query_str, GetValuesTypes(params), quoter(params));
-    string sql_str(db_impl_.GetTranslator().TranslateCount(query_item));
-    pqxx::result pqxx_result(work_ptr_->exec(sql_str));
+    string sql(db_impl_.GetTranslator().TranslateCount(query, params));
+    pqxx::result pqxx_result(work_ptr_->exec(sql));
     KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
     return pqxx_result[0][0].as<size_t>();
 }
 
 
 size_t Access::Update(const string& rel_var_name,
-                      const string& where_str,
+                      const string& where,
                       const Values& where_params,
                       const StringMap& field_expr_map,
-                      const Values& update_params)
+                      const Values& expr_params)
 {
     db_impl_.GetQuotaController().Check(*work_ptr_);
     
@@ -1339,21 +1329,15 @@ size_t Access::Update(const string& rel_var_name,
         // FIXME it's wrong estimation for expressions
         size += field_expr.second.size();
     }
-    Quoter quoter(db_impl_.GetConnection());
-    TranslateItem update_item(rel_var_name,
-                              GetValuesTypes(update_params),
-                              quoter(update_params));
-    TranslateItems where_items;
-    where_items.push_back(TranslateItem(where_str,
-                                        GetValuesTypes(where_params),
-                                        quoter(where_params)));
-    string sql_str(
-        db_impl_.GetTranslator().TranslateUpdate(
-            update_item, field_expr_map, where_items));
+    string sql(db_impl_.GetTranslator().TranslateUpdate(rel_var_name,
+                                                        where,
+                                                        where_params,
+                                                        field_expr_map,
+                                                        expr_params));
     size_t result;
     pqxx::subtransaction sub_work(*work_ptr_);
     try {
-        result = sub_work.exec(sql_str).affected_rows();
+        result = sub_work.exec(sql).affected_rows();
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
@@ -1369,19 +1353,16 @@ size_t Access::Update(const string& rel_var_name,
 
 
 size_t Access::Delete(const string& rel_var_name,
-                      const string& where_str,
+                      const string& where,
                       const Values& params)
 {
-    Quoter quoter(db_impl_.GetConnection());
-    TranslateItems where_items;
-    where_items.push_back(
-        TranslateItem(where_str, GetValuesTypes(params), quoter(params)));
-    string sql_str(
-        db_impl_.GetTranslator().TranslateDelete(rel_var_name, where_items));
+    string sql(db_impl_.GetTranslator().TranslateDelete(rel_var_name,
+                                                        where,
+                                                        params));
     size_t result;
     pqxx::subtransaction sub_work(*work_ptr_);
     try {
-        result = sub_work.exec(sql_str).affected_rows();
+        result = sub_work.exec(sql).affected_rows();
     } catch (const pqxx::integrity_constraint_violation& err) {
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());

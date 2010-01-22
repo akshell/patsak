@@ -478,6 +478,8 @@ db_test_suite.testQuery = function () {
                ['first', 'third']);
   checkEqualTo("field('age', 'User where name == \\'anton\\'')", [22]);
   checkEqualTo("field('age', 'User where name == \"den\"')", [23]);
+  checkThrow(ak.QueryError, "query('for (x in {f: 1}) x.f->k')");
+  checkThrow(ak.QueryError, "query('{f: 1}', [], ['f->k'])");
 };
 
 
@@ -518,16 +520,27 @@ db_test_suite.testGetHeader = function () {
 
 db_test_suite.testBy = function () {
   create('ByTest', {x: number, y: number});
-  dbm._insert('ByTest', {x: 0, y: 1});
-  dbm._insert('ByTest', {x: 1, y: 7});
-  dbm._insert('ByTest', {x: 2, y: 3});
-  dbm._insert('ByTest', {x: 3, y: 9});
-  dbm._insert('ByTest', {x: 4, y: 4});
-  dbm._insert('ByTest', {x: 5, y: 2});
-  // TODO
-  //   checkEqualTo(("query('ByTest')._where('y != $', 9)" +
-  //                 "._by('x * $1 % $2', 2, 7).field('y')"),
-  //                [1, 4, 7, 2, 3]);
+  dbm._insert('ByTest', {x: 0, y: 0});
+  dbm._insert('ByTest', {x: 1, y: 14});
+  dbm._insert('ByTest', {x: 2, y: 21});
+  dbm._insert('ByTest', {x: 3, y: 0});
+  dbm._insert('ByTest', {x: 4, y: 0});
+  dbm._insert('ByTest', {x: 5, y: 5});
+  dbm._insert('ByTest', {x: 8, y: 3});
+  dbm._insert('ByTest', {x: 9, y: 32});
+  checkEqualTo(
+    function () {
+      return mapItems(
+        query('ByTest where y != $',
+              [5],
+              ['x * $1 % $2', 'y % $3'],
+              [2, 7, 10],
+              3, 3));
+    },
+    [[["x", 1], ["y", 14]], [["x", 2], ["y", 21]], [["x", 9], ["y", 32]]]);
+  checkEqualTo("field('x', 'ByTest', [], ['x'], [], 5)", [5, 8, 9]);
+  checkEqualTo("field('x', 'ByTest', [], ['x'], [], 0, 2)", [0, 1]);
+  checkEqualTo("query('ByTest', [], [], [], 3, 6).length", 5);
   dbm._drop('ByTest');
 };
 
@@ -592,8 +605,10 @@ db_test_suite.testDel = function () {
   checkThrow(ak.ConstraintError, "dbm._del('User', 'true', [])");
   var tricky_name = 'xx\'y\'zz\'';
   dbm._insert('User', {id: 3, name: tricky_name, age: 15, flooder: true});
+  dbm._insert('Post', {id: 3, title: "", text: "", author: 3});
   dbm._update('User', 'id == 3', [], {name: 'name + 1'}, []);
   checkEqualTo("field('name', 'User where id == 3')", [tricky_name + 1]);
+  checkEqualTo("dbm._del('Post', 'author->name == $', ['xx\\'y\\'zz\\'1'])", 1);
   checkEqualTo("dbm._del('User', 'age == $', [15])", 1);
   checkEqualTo("field('id', 'User', [], ['id'])", [0, 1, 2]);
 };
@@ -614,8 +629,6 @@ db_test_suite.testStress = function () {
       [[["id", 0], ["age", 22]], [["id", 2], ["age", 23]]]);
     this.testUpdate();
     this.testDel();
-    // TODO
-    //     this.testSubrel();
   };
 };
 

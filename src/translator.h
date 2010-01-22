@@ -38,86 +38,35 @@ namespace ku
     };
 
 
-    struct TranslateItem {
-        std::string ku_str;
-        Types param_types;
-        size_t param_shift;
-        Strings param_strings;
-        
-        TranslateItem(const std::string& ku_str,
-                      const Types& param_types = Types(),
-                      size_t param_shift = 0)
-            : ku_str(ku_str)
-            , param_types(param_types)
-            , param_shift(param_shift) {}
-
-        TranslateItem(const std::string& ku_str,
-                      const Types& param_types,
-                      const Strings& param_strings)
-            : ku_str(ku_str)
-            , param_types(param_types)
-            , param_shift(MINUS_ONE)
-            , param_strings(param_strings) {
-            KU_ASSERT(param_types.size() == param_strings.size());
-        }
-    };
-
-
-    typedef std::vector<TranslateItem> TranslateItems;
-
-
-    struct Window {
-        size_t param_shift;
-        unsigned long offset;
-        unsigned long limit;
-
-        explicit Window(size_t param_shift)
-            : param_shift(param_shift) {}
-
-        Window(unsigned long offset, unsigned long limit)
-            : param_shift(MINUS_ONE), offset(offset), limit(limit) {}
-    };
-
-
-    struct Translation {
-        std::string sql_str;
-        Header header;
-
-        Translation(const std::string& sql_str, const Header& header)
-            : sql_str(sql_str), header(header) {}
-    };
-
-
     /// Translator class. Manages translation from ku language to SQL.
     class Translator {
     public:
         explicit Translator(const DBViewer& db_viewer);
 
-        Translation TranslateQuery(
-            const TranslateItem& query_item,
-            const TranslateItems& where_items = TranslateItems(),
-            const TranslateItems& by_items = TranslateItems(),
-            const StringSet* only_fields_ptr = 0,
-            const Window* window_ptr = 0) const;
+        std::string TranslateQuery(Header& header,
+                                   const std::string& query,
+                                   const Values& query_params = Values(),
+                                   const Strings& by_exprs = Strings(),
+                                   const Values& by_params = Values(),
+                                   size_t start = 0,
+                                   size_t length = MINUS_ONE) const;
         
-        std::string TranslateCount(
-            const TranslateItem& query_item,
-            const TranslateItems& where_items = TranslateItems(),
-            const Window* window_ptr = 0) const;
+        std::string TranslateCount(const std::string& query,
+                                   const Values& params) const;
 
-        std::string TranslateUpdate(
-            const TranslateItem& update_item,
-            const StringMap& field_expr_map,
-            const TranslateItems& where_items = TranslateItems()) const;
+        std::string TranslateUpdate(const std::string& rel_var_name,
+                                    const std::string& where,
+                                    const Values& where_params,
+                                    const StringMap& field_expr_map,
+                                    const Values& expr_params) const;
 
-        std::string TranslateDelete(
-            const std::string& rel_var_name,
-            const TranslateItems& where_items = TranslateItems()) const;
+        std::string TranslateDelete(const std::string& rel_var_name,
+                                    const std::string& where,
+                                    const Values& params) const;
 
-        std::string TranslateExpr(
-            const std::string& ku_expr_str,
-            const std::string& rel_var_name,
-            const Header& rel_header) const;
+        std::string TranslateExpr(const std::string& expr,
+                                  const std::string& rel_var_name,
+                                  const Header& header) const;
                        
     private:
         const DBViewer& db_viewer_;

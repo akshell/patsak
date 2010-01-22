@@ -796,8 +796,9 @@ namespace
         TranslateFunctor(Translator& translator)
             : translator_(translator) {}
 
-        string operator()(const string& ku_query) const {
-            return translator_.TranslateQuery(TranslateItem(ku_query)).sql_str;
+        string operator()(const string& query) const {
+            Header header;
+            return translator_.TranslateQuery(header, query);
         }
 
     private:
@@ -833,148 +834,67 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
                       Error);
 
 
-    Types param_types;
-    param_types.push_back(Type::STRING);
-    param_types.push_back(Type::NUMBER);
-    TranslateItem query_item("{name: $1, age: $2}", param_types);
-    Translation trans(translator.TranslateQuery(query_item));
-    BOOST_CHECK(
-        WordComparator()(trans.sql_str,
-                         "SELECT DISTINCT $1 AS \"name\", $2 AS \"age\""));
+    Values params;
+    params.push_back(Value(Type::STRING, "anton"));
+    params.push_back(Value(Type::NUMBER, 23));
     Header header;
-    header.add_sure(Attr("name", Type::STRING));
-    header.add_sure(Attr("age", Type::NUMBER));
-    BOOST_CHECK(trans.header == Header(header));
+    BOOST_CHECK_EQUAL(
+        translator.TranslateQuery(header, "{name: $1, age: $2}", params),
+        "SELECT DISTINCT 'anton' AS \"name\", 23 AS \"age\"");
+    BOOST_CHECK_EQUAL(
+        lexical_cast<string>(header),
+        "{\"name\": \"string\", \"age\": \"number\"}");
 
-    Strings param_strs;
-    param_strs.push_back("'anton'");
-    param_strs.push_back("22");
-    Translation
-        str_trans(translator.TranslateQuery(
-                      TranslateItem("{name: $1, age: $2}",
-                                    param_types,
-                                    param_strs)));
-    BOOST_CHECK(
-        WordComparator()(str_trans.sql_str,
-                         "SELECT DISTINCT 'anton' AS \"name\", 22 AS \"age\""));
+    Strings by_exprs;
+    by_exprs.push_back("id % $1");
+    by_exprs.push_back("name + $2");
+    Values by_params;
+    by_params.push_back(Value(Type::NUMBER, 42));
+    by_params.push_back(Value(Type::STRING, "abc"));
+    BOOST_CHECK_EQUAL(
+        translator.TranslateQuery(header, "User", Values(),
+                                  by_exprs, by_params, 3, 4),
+        "SELECT * FROM (SELECT DISTINCT \"User\".* FROM \"User\") AS \"@\" "
+        "ORDER BY (\"@\".\"id\" % 42), (\"@\".\"name\" || 'abc') "
+        "LIMIT 4 OFFSET 3");
+    BOOST_CHECK_EQUAL(
+        translator.TranslateQuery(header, "User", Values(),
+                                  Strings(), Values(), 5),
+        "SELECT DISTINCT \"User\".* FROM \"User\" OFFSET 5");
+    BOOST_CHECK_EQUAL(
+        translator.TranslateQuery(header, "User", Values(),
+                                  Strings(), Values(), 0, 6),
+        "SELECT DISTINCT \"User\".* FROM \"User\" LIMIT 6");
 
-    Types spec_param_types;
-    spec_param_types.push_back(Type::STRING);
-    spec_param_types.push_back(Type::NUMBER);
-    TranslateItems where_items;
-    where_items.push_back(TranslateItem("name != $1 && age > $2",
-                                        spec_param_types,
-                                        2));
-    Translation where_trans(translator.TranslateQuery(query_item, where_items));
-    BOOST_CHECK(
-        WordComparator()(where_trans.sql_str,
-                         "SELECT * "
-                         "FROM (SELECT DISTINCT $1 AS \"name\", $2 AS \"age\") "
-                         "AS \"@\" "
-                         "WHERE ((\"@\".\"name\" <> $3) "
-                         "AND (\"@\".\"age\" > $4))"));
+    params.clear();
+    params.push_back(Value(Type::NUMBER, 2));
+    BOOST_CHECK_EQUAL(
+        translator.TranslateCount("User where id % $ == 0", params),
+        "SELECT COUNT(*) FROM ("
+        "SELECT DISTINCT \"User\".* "
+        "FROM \"User\" "
+        "WHERE ((\"User\".\"id\" % 2) = 0)) AS \"@\"");
 
-    TranslateItems by_items;
-    by_items.push_back(TranslateItem("age"));
-    Translation
-        by_trans(translator.TranslateQuery(query_item,
-                                           TranslateItems(),
-                                           by_items));
-    BOOST_CHECK(
-        WordComparator()(by_trans.sql_str,
-                         "SELECT * "
-                         "FROM (SELECT DISTINCT $1 AS \"name\", $2 AS \"age\") "
-                         "AS \"@\" "
-                         "ORDER BY \"@\".\"age\""));
-
-    StringSet fields;
-    fields.add_sure("id");
-    fields.add_sure("name");
-    Translation
-        only_trans(translator.TranslateQuery(TranslateItem("User"),
-                                             TranslateItems(),
-                                             TranslateItems(),
-                                             &fields));
-    BOOST_CHECK(
-        WordComparator()(only_trans.sql_str,
-                         "SELECT DISTINCT \"id\", \"name\" "
-                         "FROM (SELECT DISTINCT \"User\".* FROM \"User\") "
-                         "AS \"@\""));
-    StringSet empty_string_set;
-    Translation
-        empty_only_trans(translator.TranslateQuery(TranslateItem("User"),
-                                                   TranslateItems(),
-                                                   TranslateItems(),
-                                                   &empty_string_set));
-    BOOST_CHECK(
-        WordComparator()(empty_only_trans.sql_str,
-                         "SELECT DISTINCT 1 "
-                         "FROM (SELECT DISTINCT \"User\".* FROM \"User\") "
-                         "AS \"@\""));
-
-    StringSet only_name_fields;
-    only_name_fields.add_sure("name");
-    Window window(42, MINUS_ONE);
-    Translation ultimate_trans(translator.TranslateQuery(query_item,
-                                                         where_items,
-                                                         by_items,
-                                                         &only_name_fields,
-                                                         &window));
-    BOOST_CHECK(
-        WordComparator()(ultimate_trans.sql_str,
-                         "SELECT DISTINCT ON (\"@\".\"age\") \"name\" "
-                         "FROM (SELECT DISTINCT $1 AS \"name\", $2 AS \"age\") "
-                         "AS \"@\" "
-                         "WHERE ((\"@\".\"name\" <> $3) "
-                         "AND (\"@\".\"age\" > $4)) "
-                         "ORDER BY \"@\".\"age\" "
-                         "LIMIT 4294967295 "
-                         "OFFSET 42"));
-
-    BOOST_CHECK(
-        WordComparator()(translator.TranslateCount(query_item, where_items),
-                         "SELECT COUNT(*) "
-                         "FROM (SELECT DISTINCT $1 AS \"name\", $2 AS \"age\") "
-                         "AS \"@\" "
-                         "WHERE ((\"@\".\"name\" <> $3) "
-                         "AND (\"@\".\"age\" > $4))"));
-
-    TranslateItems delete_where_items;
-    Types types1;
-    types1.push_back(Type::STRING);
-    delete_where_items.push_back(TranslateItem("name != $", types1));
-    Types types2;
-    types2.push_back(Type::NUMBER);
-    delete_where_items.push_back(TranslateItem("age > $1", types2, 1));
-
-    BOOST_CHECK(
-        WordComparator()(translator.TranslateDelete("User", delete_where_items),
-                         "DELETE FROM \"User\" "
-                         "WHERE (\"User\".\"name\" <> $1) "
-                         "AND (\"User\".\"age\" > $2)"));
-
-    TranslateItems update_where_items(delete_where_items);
+    BOOST_CHECK_EQUAL(
+        translator.TranslateDelete("User","id % $ == 0", params),
+        "DELETE FROM \"User\" WHERE ((\"User\".\"id\" % 2) = 0)");
+    
     StringMap field_expr_map;
     field_expr_map.insert(
         StringMap::value_type("flooder", "id == 0 || !flooder"));
     field_expr_map.insert(
         StringMap::value_type("name", "name + id + $"));
-    Types types3;
-    types3.push_back(Type::BOOLEAN);
-    TranslateItem update_item("User", types3, 2);
-
-    BOOST_CHECK(
-        WordComparator()(translator.TranslateUpdate(update_item,
-                                                    field_expr_map,
-                                                    update_where_items),
-                         "UPDATE \"User\" "
-                         "SET \"flooder\" = ((\"User\".\"id\" = 0) "
-                         "OR NOT \"User\".\"flooder\"), "
-                         "\"name\" = ((\"User\".\"name\" || "
-                         "ku.to_string(\"User\".\"id\")) || "
-                         "ku.to_string($3)) "
-                         "WHERE (\"User\".\"name\" <> $1) "
-                         "AND (\"User\".\"age\" > $2)"));
+    Values expr_params;
+    expr_params.push_back(Value(Type::STRING, "abc"));
+    BOOST_CHECK_EQUAL(
+        translator.TranslateUpdate(
+            "User", "id % $ == 0", params, field_expr_map, expr_params),
+        "UPDATE \"User\" SET "
+        "\"flooder\" = "
+        "((\"User\".\"id\" = 0) OR NOT \"User\".\"flooder\"), "
+        "\"name\" = "
+        "((\"User\".\"name\" || ku.to_string(\"User\".\"id\")) || 'abc') "
+        "WHERE ((\"User\".\"id\" % 2) = 0)");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
