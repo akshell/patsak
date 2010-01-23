@@ -75,6 +75,8 @@ class Test(unittest.TestCase):
         self._check_launch([], 1)
         self._check_launch(['--unknown-option', APP_NAME], 1)
         self._check_launch(['--help'])
+        self._check_launch(['--rev'])
+        self._check_launch(['--code-dir', '', APP_NAME], 1)
         self._check_launch(['--expr', '2+2', APP_NAME], 1)
         self._check_test_launch([], 1)
         self._check_test_launch([APP_NAME, USER_NAME], 1)
