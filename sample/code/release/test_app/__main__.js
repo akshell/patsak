@@ -459,6 +459,9 @@ db_test_suite.testQuery = function () {
   checkEqualTo("mapItems(query('User[name, age, flooder] where +id == \"0\"'))",
                [[["name", "anton"], ["age", 22], ["flooder", true]]]);
   checkThrow(ak.UsageError, "dbm._query()");
+  checkThrow(TypeError, "query('User', {})");
+  checkThrow(TypeError, "query('User', {length: 0.5})");
+  checkThrow(TypeError, "query('User', {length: -1})");
   checkThrow(ak.NoSuchRelVarError, "query('dfsa')");
   checkEqualTo(function () {
                  return mapItems(

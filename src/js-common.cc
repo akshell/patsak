@@ -141,21 +141,11 @@ Handle<Function> JSClassBase::GetFunction()
 }
 
 
-void JSClassBase::AddSubClass(const JSClassBase& subclass)
-{
-    KU_ASSERT(!cast_js_classes_.empty());
-    cast_js_classes_.push_back(subclass.function_template_);
-}
-
-
 void* JSClassBase::Cast(Handle<v8::Value> value)
 {
     GetFunction();
-    while (!type_switch_->match(value)) {
-        if (!value->IsObject())
-            return 0;
-        value = value->ToObject()->GetPrototype();
-    }
+    if (!type_switch_->match(value))
+        return 0;
     Handle<v8::Value> internal_field(value->ToObject()->GetInternalField(0));
     KU_ASSERT(internal_field->IsExternal());
     Handle<External> external = Handle<External>::Cast(internal_field);

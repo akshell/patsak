@@ -109,7 +109,6 @@ namespace ku
         
         ~JSClassBase();
         
-        void AddSubClass(const JSClassBase& subclass);
         void* Cast(v8::Handle<v8::Value> value);
         v8::Handle<v8::ObjectTemplate> GetProtoTemplate() const;
 
@@ -134,9 +133,6 @@ namespace ku
         v8::Handle<v8::Object> Instantiate(T* bg_ptr);
         void Attach(v8::Handle<v8::Object> object, T* bg_ptr);
         T* Cast(v8::Handle<v8::Value> value);
-        
-        template<typename U>
-        void AddSubClass(const JSClass<U>& subclass);
 
     private:
         static void DeleteCb(v8::Persistent<v8::Value> object,
@@ -175,15 +171,6 @@ template <typename T>
 T* ku::JSClass<T>::Cast(v8::Handle<v8::Value> value)
 {
     return static_cast<T*>(JSClassBase::Cast(value));
-}
-
-
-template <typename T>
-template <typename U>
-void ku::JSClass<T>::AddSubClass(const JSClass<U>& subclass)
-{
-    while (false) { *(static_cast<T**>(0)) = static_cast<U*>(0); }
-    JSClassBase::AddSubClass(subclass);
 }
 
 
