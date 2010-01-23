@@ -16,12 +16,9 @@ namespace ku
     extern Access* access_ptr;
 
 
-    class DBMediatorBg {
+    class DBBg {
     public:
-        DECLARE_JS_CLASS(DBMediatorBg);
-        
-        DBMediatorBg();
-
+        DECLARE_JS_CLASS(DBBg);
         void Init(v8::Handle<v8::Object> object) const;
 
     private:

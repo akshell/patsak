@@ -385,11 +385,10 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, CheckCb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DBMediatorBg definitions
+// DBBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(DBMediatorBg, "_DBMediator",
-                /*object_template*/, proto_template)
+DEFINE_JS_CLASS(DBBg, "DB", /*object_template*/, proto_template)
 {
     TypeBg::GetJSClass();
     SetFunction(proto_template, "query", QueryCb);
@@ -413,12 +412,7 @@ DEFINE_JS_CLASS(DBMediatorBg, "_DBMediator",
 }
 
 
-DBMediatorBg::DBMediatorBg()
-{
-}
-
-
-void DBMediatorBg::Init(v8::Handle<v8::Object> object) const
+void DBBg::Init(v8::Handle<v8::Object> object) const
 {
     Set(object, "number", JSNew<TypeBg>(Type::NUMBER));
     Set(object, "string", JSNew<TypeBg>(Type::STRING));
@@ -427,7 +421,7 @@ void DBMediatorBg::Init(v8::Handle<v8::Object> object) const
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, QueryCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, QueryCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 6);
@@ -462,7 +456,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, QueryCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, CountCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CountCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 2);
@@ -471,7 +465,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, CountCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, CreateCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 5);
@@ -514,7 +508,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, CreateCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DropCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropCb,
                     const Arguments&, args) const
 {
     access_ptr->DropRelVars(ReadStringSet(args));
@@ -522,7 +516,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DropCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, ListCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, ListCb,
                     const Arguments&, /*args*/) const
 {
     StringSet rel_var_name_set(access_ptr->GetRelVarNames());
@@ -533,7 +527,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, ListCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetHeaderCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetHeaderCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
@@ -546,7 +540,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetHeaderCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetIntegerCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetIntegerCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
@@ -561,7 +555,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetIntegerCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetSerialCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetSerialCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
@@ -575,7 +569,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetSerialCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetDefaultCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetDefaultCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
@@ -588,7 +582,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetDefaultCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetUniqueCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetUniqueCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
@@ -604,7 +598,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetUniqueCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetForeignCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetForeignCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
@@ -627,7 +621,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetForeignCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, InsertCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, InsertCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 2);
@@ -651,7 +645,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, InsertCb,
 }    
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DelCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DelCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 3);
@@ -661,7 +655,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DelCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, UpdateCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, UpdateCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 5);
@@ -681,7 +675,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, UpdateCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DescribeAppCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DescribeAppCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
@@ -698,7 +692,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, DescribeAppCb,
 
 
 #define DEFINE_JS_CALLBACK_APPS(name)                               \
-    DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, name##Cb,  \
+    DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, name##Cb,  \
                         const Arguments&, args) const {             \
         CheckArgsLength(args, 1);                                   \
         return MakeV8Array(access_ptr->name(Stringify(args[0])));   \

@@ -9,21 +9,20 @@ var types = ak.types;
 var constrs = ak.constrs;
 var fs = ak.fs;
 var apps = ak.apps;
-var dbm = ak._dbm;
 
-var number = ak._dbm.number;
-var string = ak._dbm.string;
-var bool = ak._dbm.bool;
-var date = ak._dbm.date;
+var number = ak.db.number;
+var string = ak.db.string;
+var bool = ak.db.bool;
+var date = ak.db.date;
 
 
 function query(query, query_params, by, by_params, start, length) {
-  return dbm._query(query,
-                    query_params || [],
-                    by || [],
-                    by_params || [],
-                    start || 0,
-                    length);
+  return db._query(query,
+                   query_params || [],
+                   by || [],
+                   by_params || [],
+                   start || 0,
+                   length);
 }
 
 
@@ -37,11 +36,11 @@ function field(name, str, params, by, by_params, start, length) {
 
 function create(name, header, constrs) {
   constrs = constrs || {};
-  return dbm._create(name,
-                     header,
-                     constrs.unique || [],
-                     constrs.foreign || [],
-                     constrs.check || []);
+  return db._create(name,
+                    header,
+                    constrs.unique || [],
+                    constrs.foreign || [],
+                    constrs.check || []);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,9 +171,7 @@ base_test_suite.testType = function () {
 base_test_suite.testConstructors = function () {
   check("this instanceof ak.Global");
   check("ak instanceof ak.AK");
-  check("keys(ak).indexOf('_DBMediator') == -1");
-  check("'_DBMediator' in ak");
-  check("keys(ak).indexOf('_dbm') == -1");
+  check("db instanceof ak.DB");
   check("keys(ak).indexOf('AK') != -1");
 };
 
@@ -302,7 +299,7 @@ function mapItems(iterable) {
 
 
 db_test_suite.setUp = function () {
-  dbm._drop.apply(dbm, dbm._list());
+  db._drop.apply(db, db._list());
 
   create('Dummy', {id: number});
   create('Empty', {});
@@ -332,39 +329,39 @@ db_test_suite.setUp = function () {
       post: number._integer()._foreign('Post', 'id')
     });
 
-  dbm._insert('User', {name: 'anton', age: 22, flooder: 15});
-  dbm._insert('User', {name: 'marina', age: 25, flooder: false});
-  dbm._insert('User', {name: 'den', age: 23});
+  db._insert('User', {name: 'anton', age: 22, flooder: 15});
+  db._insert('User', {name: 'marina', age: 25, flooder: false});
+  db._insert('User', {name: 'den', age: 23});
 
-  dbm._insert('Post', {title: 'first', text: 'hello world', author: 0});
-  dbm._insert('Post', {title: 'second', text: 'hi', author: 1});
-  dbm._insert('Post', {title: 'third', text: 'yo!', author: 0});
+  db._insert('Post', {title: 'first', text: 'hello world', author: 0});
+  db._insert('Post', {title: 'second', text: 'hi', author: 1});
+  db._insert('Post', {title: 'third', text: 'yo!', author: 0});
 
-  dbm._insert('Comment', {text: 42, author: 1, post: 0});
-  dbm._insert('Comment', {text: 'rrr', author: 0, post: 0});
-  dbm._insert('Comment', {text: 'ololo', author: 2, post: 2});
+  db._insert('Comment', {text: 42, author: 1, post: 0});
+  db._insert('Comment', {text: 'rrr', author: 0, post: 0});
+  db._insert('Comment', {text: 'ololo', author: 2, post: 2});
 
   create('Count', {i: number});
   for (var i = 0; i < 10; ++i)
-    dbm._insert('Count', {i: i});
+    db._insert('Count', {i: i});
 
-  checkEqualTo("dbm._list().sort()",
+  checkEqualTo("db._list().sort()",
                ["Comment", "Count", "Dummy", "Empty", "Post", "User"]);
 };
 
 
 db_test_suite.tearDown = function () {
-  dbm._drop.apply(dbm, dbm._list());
+  db._drop.apply(db, db._list());
 };
 
 
 db_test_suite.testCreate = function () {
-  checkThrow(ak.UsageError, "dbm._create('illegal', {})");
+  checkThrow(ak.UsageError, "db._create('illegal', {})");
   checkThrow(ak.UsageError, "create('', {})");
   checkThrow(ak.UsageError, "create('123bad', {})");
   checkThrow(ak.UsageError, "create('illegal', {'_@': number})");
   checkThrow(TypeError, "create('illegal', 'str')");
-  checkThrow(TypeError, "dbm._create('illegal', {}, 'str', [], [])");
+  checkThrow(TypeError, "db._create('illegal', {}, 'str', [], [])");
   checkThrow(TypeError, "create('illegal', {field: 15})");
   checkThrow(ak.RelVarExistsError, "create('User', {})");
 
@@ -409,9 +406,9 @@ db_test_suite.testCreate = function () {
                create('illegal', attrs);
              });
   create('legal', {x: bool._default(new Date())});
-  dbm._insert('legal', {});
+  db._insert('legal', {});
   check("query('legal')[0].x === true");
-  dbm._drop('legal');
+  db._drop('legal');
   checkThrow(TypeError, "create('illegal', {x: date._default(42)})");
 
   checkThrow(ak.UsageError,
@@ -445,25 +442,25 @@ db_test_suite.testCreate = function () {
 
 db_test_suite.testDropRelVars = function () {
   create('NewRelVar', {x: number});
-  dbm._drop('NewRelVar');
-  check("!('NewRelVar' in dbm._list())");
-  checkThrow(ak.RelVarDependencyError, "dbm._drop('User')");
-  checkThrow(ak.RelVarDependencyError, "dbm._drop('User', 'Post')");
+  db._drop('NewRelVar');
+  check("!('NewRelVar' in db._list())");
+  checkThrow(ak.RelVarDependencyError, "db._drop('User')");
+  checkThrow(ak.RelVarDependencyError, "db._drop('User', 'Post')");
   checkThrow(ak.UsageError,
-             "dbm._drop('Comment', 'Comment')");
+             "db._drop('Comment', 'Comment')");
 
   create('rv1', {x: number._unique()});
   create('rv2', {x: number._foreign('rv1', 'x')});
-  checkThrow(ak.RelVarDependencyError, "dbm._drop('rv1')");
-  dbm._drop('rv1', 'rv2');
-  checkThrow(ak.NoSuchRelVarError, "dbm._drop('Comment', 'no_such')");
+  checkThrow(ak.RelVarDependencyError, "db._drop('rv1')");
+  db._drop('rv1', 'rv2');
+  checkThrow(ak.NoSuchRelVarError, "db._drop('Comment', 'no_such')");
 };
 
 
 db_test_suite.testQuery = function () {
   checkEqualTo("mapItems(query('User[name, age, flooder] where +id == \"0\"'))",
                [[["name", "anton"], ["age", 22], ["flooder", true]]]);
-  checkThrow(ak.UsageError, "dbm._query()");
+  checkThrow(ak.UsageError, "db._query()");
   checkThrow(TypeError, "query('User', {})");
   checkThrow(TypeError, "query('User', {length: 0.5})");
   checkThrow(TypeError, "query('User', {length: -1})");
@@ -492,33 +489,33 @@ db_test_suite.testQuery = function () {
 
 
 db_test_suite.testInsert = function () {
-  checkThrow(ak.UsageError, "dbm._insert('User')");
-  checkThrow(TypeError, "dbm._insert('User', 15)");
-  checkThrow(ak.FieldError, "dbm._insert('User', {'@': 'abc'})");
+  checkThrow(ak.UsageError, "db._insert('User')");
+  checkThrow(TypeError, "db._insert('User', 15)");
+  checkThrow(ak.FieldError, "db._insert('User', {'@': 'abc'})");
   checkThrow(ak.ConstraintError,
-             "dbm._insert('Comment', {id: 2, text: 'yo', author: 5, post: 0})");
+             "db._insert('Comment', {id: 2, text: 'yo', author: 5, post: 0})");
   checkThrow(ak.FieldError,
-             "dbm._insert('User', {id: 2})");
+             "db._insert('User', {id: 2})");
   checkThrow(ak.FieldError,
-             "dbm._insert('Empty', {x: 5})");
+             "db._insert('Empty', {x: 5})");
   checkEqualTo(
-    "items(dbm._insert('User', {name: 'xxx', age: false}))",
+    "items(db._insert('User', {name: 'xxx', age: false}))",
     [['id', 3], ['name', 'xxx'], ['age', 0], ['flooder', true]]);
-  var tuple = dbm._insert('User', {id: 4, name: 'yyy', age: 'asdf'});
+  var tuple = db._insert('User', {id: 4, name: 'yyy', age: 'asdf'});
   check(isNaN(tuple.age));
   checkThrow(ak.ConstraintError,
-             "dbm._insert('User', {id: 'asdf', name: 'zzz', age: 42})");
+             "db._insert('User', {id: 'asdf', name: 'zzz', age: 42})");
   checkThrow(ak.ConstraintError,
-             "dbm._insert('User', {name: 'zzz', age: 42})");
-  dbm._del('User', 'id >= 3', []);
-  checkEqualTo("items(dbm._insert('Empty', {}))", []);
-  checkThrow(ak.ConstraintError, "dbm._insert('Empty', {})");
-  dbm._del('Empty', 'true', []);
+             "db._insert('User', {name: 'zzz', age: 42})");
+  db._del('User', 'id >= 3', []);
+  checkEqualTo("items(db._insert('Empty', {}))", []);
+  checkThrow(ak.ConstraintError, "db._insert('Empty', {})");
+  db._del('Empty', 'true', []);
 };
 
 
 db_test_suite.testGetHeader = function () {
-  checkEqualTo("items(dbm._getHeader('User')).sort()",
+  checkEqualTo("items(db._getHeader('User')).sort()",
                [['age', 'number'],
                 ['flooder', 'boolean'],
                 ['id', 'serial'],
@@ -528,14 +525,14 @@ db_test_suite.testGetHeader = function () {
 
 db_test_suite.testBy = function () {
   create('ByTest', {x: number, y: number});
-  dbm._insert('ByTest', {x: 0, y: 0});
-  dbm._insert('ByTest', {x: 1, y: 14});
-  dbm._insert('ByTest', {x: 2, y: 21});
-  dbm._insert('ByTest', {x: 3, y: 0});
-  dbm._insert('ByTest', {x: 4, y: 0});
-  dbm._insert('ByTest', {x: 5, y: 5});
-  dbm._insert('ByTest', {x: 8, y: 3});
-  dbm._insert('ByTest', {x: 9, y: 32});
+  db._insert('ByTest', {x: 0, y: 0});
+  db._insert('ByTest', {x: 1, y: 14});
+  db._insert('ByTest', {x: 2, y: 21});
+  db._insert('ByTest', {x: 3, y: 0});
+  db._insert('ByTest', {x: 4, y: 0});
+  db._insert('ByTest', {x: 5, y: 5});
+  db._insert('ByTest', {x: 8, y: 3});
+  db._insert('ByTest', {x: 9, y: 32});
   checkEqualTo(
     function () {
       return mapItems(
@@ -549,7 +546,7 @@ db_test_suite.testBy = function () {
   checkEqualTo("field('x', 'ByTest', [], ['x'], [], 5)", [5, 8, 9]);
   checkEqualTo("field('x', 'ByTest', [], ['x'], [], 0, 2)", [0, 1]);
   checkEqualTo("query('ByTest', [], [], [], 3, 6).length", 5);
-  dbm._drop('ByTest');
+  db._drop('ByTest');
 };
 
 
@@ -564,17 +561,18 @@ db_test_suite.testStartLength = function () {
 
 
 db_test_suite.testCount = function () {
-  checkEqualTo("dbm._count('User', [])", 3);
-  checkEqualTo("dbm._count('union({i: 1}, {i: 2}, {i: 3})', [])", 3);
+  checkEqualTo("db._count('User', [])", 3);
+  checkEqualTo("db._count('union({i: 1}, {i: 2}, {i: 3})', [])", 3);
   checkEqualTo(
-    "dbm._count('Post.author where id < 2 && author->flooder', [])",
+    "db._count('Post.author where id < 2 && author->flooder', [])",
     1);
 };
 
 
 db_test_suite.testAll = function () {
   check("field('id', 'User').sort()", [0, 1, 2]);
-  check("field('name', 'User where !(id % 2)', [], ['-name'])", ['den', 'anton']);
+  check("field('name', 'User where !(id % 2)', [], ['-name'])",
+        ['den', 'anton']);
   check("query('User where id == $', [0])[0]['name']", 'anton');
   check("field('id', 'User where name != $', ['den'], ['-id'])", [1, 0]);
 };
@@ -582,42 +580,42 @@ db_test_suite.testAll = function () {
 
 db_test_suite.testUpdate = function () {
   var initial = query('User');
-  checkThrow(ak.UsageError, "dbm._update('User', 'id == 0', [], {}, [])");
-  checkThrow(ak.UsageError, "dbm._update('User', 'id == 0', [], {})");
-  checkThrow(TypeError, "dbm._update('User', 'id == 0', [], 1, [])");
+  checkThrow(ak.UsageError, "db._update('User', 'id == 0', [], {}, [])");
+  checkThrow(ak.UsageError, "db._update('User', 'id == 0', [], {})");
+  checkThrow(TypeError, "db._update('User', 'id == 0', [], 1, [])");
   checkThrow(ak.ConstraintError,
-             "dbm._update('User', 'id == 0', [], {id: '$'}, ['asdf'])");
-  checkEqualTo("dbm._update('User', 'id == 0', [], {name: '$'}, ['ANTON'])",
+             "db._update('User', 'id == 0', [], {id: '$'}, ['asdf'])");
+  checkEqualTo("db._update('User', 'id == 0', [], {name: '$'}, ['ANTON'])",
                1);
   checkEqualTo("field('name', 'User where id == 0')", ['ANTON']);
-  var rows_number = dbm._update('User',
-                                'name != $',
-                                ['marina'],
-                                {age: 'age + $1', flooder: 'flooder || $2'},
-                                [2, 'yo!']);
+  var rows_number = db._update('User',
+                               'name != $',
+                               ['marina'],
+                               {age: 'age + $1', flooder: 'flooder || $2'},
+                               [2, 'yo!']);
   check(rows_number == 2);
   for (var i = 0; i < 10; ++i)
     checkThrow(
       ak.ConstraintError,
-      "dbm._update('User', 'name == $', ['den'], {id: '4'}, [])");
+      "db._update('User', 'name == $', ['den'], {id: '4'}, [])");
   forEach(initial, function (tuple) {
-            dbm._update('User', 'id == $', [tuple.id],
-                        {name: '$1', age: '$2', flooder: '$3'},
-                        [tuple.name, tuple.age, tuple.flooder]);
+            db._update('User', 'id == $', [tuple.id],
+                       {name: '$1', age: '$2', flooder: '$3'},
+                       [tuple.name, tuple.age, tuple.flooder]);
           });
   checkEqualTo("mapItems(query('User'))", mapItems(initial));
 };
 
 
 db_test_suite.testDel = function () {
-  checkThrow(ak.ConstraintError, "dbm._del('User', 'true', [])");
+  checkThrow(ak.ConstraintError, "db._del('User', 'true', [])");
   var tricky_name = 'xx\'y\'zz\'';
-  dbm._insert('User', {id: 3, name: tricky_name, age: 15, flooder: true});
-  dbm._insert('Post', {id: 3, title: "", text: "", author: 3});
-  dbm._update('User', 'id == 3', [], {name: 'name + 1'}, []);
+  db._insert('User', {id: 3, name: tricky_name, age: 15, flooder: true});
+  db._insert('Post', {id: 3, title: "", text: "", author: 3});
+  db._update('User', 'id == 3', [], {name: 'name + 1'}, []);
   checkEqualTo("field('name', 'User where id == 3')", [tricky_name + 1]);
-  checkEqualTo("dbm._del('Post', 'author->name == $', ['xx\\'y\\'zz\\'1'])", 1);
-  checkEqualTo("dbm._del('User', 'age == $', [15])", 1);
+  checkEqualTo("db._del('Post', 'author->name == $', ['xx\\'y\\'zz\\'1'])", 1);
+  checkEqualTo("db._del('User', 'age == $', [15])", 1);
   checkEqualTo("field('id', 'User', [], ['id'])", [0, 1, 2]);
 };
 
@@ -643,23 +641,23 @@ db_test_suite.testStress = function () {
 
 db_test_suite.testPg = function () {
   create('pg_class', {x: number});
-  dbm._insert('pg_class', {x: 0});
+  db._insert('pg_class', {x: 0});
   checkEqualTo(function () { return mapItems(query('pg_class')); },
                [[['x', 0]]]);
-  dbm._drop('pg_class');
+  db._drop('pg_class');
 };
 
 
 db_test_suite.testCheck = function () {
   create('silly', {n: number._check('n != 42')});
   create('dummy', {b: bool, s: string}, {check: ['b || s == "hello"']});
-  dbm._insert('silly', {n: 0});
-  checkThrow(ak.ConstraintError, "dbm._insert('silly', {n: 42})");
-  dbm._insert('dummy', {b: true, s: 'hi'});
-  dbm._insert('dummy', {b: false, s: 'hello'});
-  checkThrow(ak.ConstraintError, "dbm._insert('dummy', {b: false, s: 'oops'})");
-  dbm._drop('silly');
-  dbm._drop('dummy');
+  db._insert('silly', {n: 0});
+  checkThrow(ak.ConstraintError, "db._insert('silly', {n: 42})");
+  db._insert('dummy', {b: true, s: 'hi'});
+  db._insert('dummy', {b: false, s: 'hello'});
+  checkThrow(ak.ConstraintError, "db._insert('dummy', {b: false, s: 'oops'})");
+  db._drop('silly');
+  db._drop('dummy');
 };
 
 
@@ -667,15 +665,15 @@ db_test_suite.testDate = function () {
   create('d1', {d: date}, {unique: [['d']]});
   var some_date = new Date(Date.parse('Wed, Mar 04 2009 16:12:09 GMT'));
   var other_date = new Date(2009, 0, 15, 13, 27, 11, 481);
-  dbm._insert('d1', {d: some_date});
+  db._insert('d1', {d: some_date});
   checkEqualTo("field('d', 'd1')", [some_date]);
   create('d2', {d: date}, {foreign: [[['d'], 'd1', ['d']]]});
   checkThrow(ak.ConstraintError,
-             function () { dbm._insert('d2', {d: other_date}); });
-  dbm._insert('d1', {d: other_date});
+             function () { db._insert('d2', {d: other_date}); });
+  db._insert('d1', {d: other_date});
   checkEqualTo("field('d', 'd1', [], ['-d'])", [some_date, other_date]);
-  dbm._insert('d2', {d: other_date});
-  dbm._drop('d1', 'd2');
+  db._insert('d2', {d: other_date});
+  db._drop('d1', 'd2');
 };
 
 
@@ -688,20 +686,20 @@ db_test_suite.testDefault = function () {
            b: bool._default(true),
            d: date._default(now)
          });
-  checkEqualTo("items(dbm._getDefault('def')).sort()",
+  checkEqualTo("items(db._getDefault('def')).sort()",
                [['b', true],
                 ['d', now],
                 ['n', 42],
                 ['s', 'hello, world!']]);
-  dbm._insert('def', {});
-  checkThrow(ak.ConstraintError, "dbm._insert('def', {})");
-  dbm._insert('def', {b: false});
-  dbm._insert('def', {n: 0, s: 'hi'});
+  db._insert('def', {});
+  checkThrow(ak.ConstraintError, "db._insert('def', {})");
+  db._insert('def', {b: false});
+  db._insert('def', {n: 0, s: 'hi'});
   checkEqualTo(function () { return mapItems(query('def', [], ['b', 'n'])); },
                [[['n', 42], ['s', 'hello, world!'], ['b', false], ['d', now]],
                 [['n', 0], ['s', 'hi'], ['b', true], ['d', now]],
                 [['n', 42], ['s', 'hello, world!'], ['b', true], ['d', now]]]);
-  dbm._drop('def');
+  db._drop('def');
 };
 
 
@@ -711,16 +709,16 @@ db_test_suite.testIntegerSerial = function () {
   checkThrow(ak.UsageError, "number._serial()._integer()");
   checkThrow(ak.UsageError, "number._serial()._serial()");
   checkThrow(ak.UsageError, "number._integer()._integer()");
-  checkEqualTo("dbm._getInteger('Comment').sort()", ['author', 'id', 'post']);
+  checkEqualTo("db._getInteger('Comment').sort()", ['author', 'id', 'post']);
   create('rv',
          {
            x: number._serial(),
            y: number._serial(),
            z: number._integer()
          });
-  checkEqualTo("dbm._getInteger('rv').sort()", ['x', 'y', 'z']);
-  checkEqualTo("dbm._getSerial('rv').sort()", ['x', 'y']);
-  dbm._drop('rv');
+  checkEqualTo("db._getInteger('rv').sort()", ['x', 'y', 'z']);
+  checkEqualTo("db._getSerial('rv').sort()", ['x', 'y']);
+  db._drop('rv');
 };
 
 
@@ -728,10 +726,10 @@ db_test_suite.testUnique = function () {
   create('rv',
          {a: number, b: string, c: bool},
          {unique: [['a', 'b'], ['b', 'c'], ['c']]});
-  checkEqualTo("dbm._getUnique('rv').sort()",
+  checkEqualTo("db._getUnique('rv').sort()",
                [['a', 'b'], ['a', 'b', 'c'], ['b', 'c'], ['c']]);
-  checkEqualTo("dbm._getUnique('Dummy')", [['id']]);
-  dbm._drop('rv');
+  checkEqualTo("db._getUnique('Dummy')", [['id']]);
+  db._drop('rv');
 };
 
 
@@ -749,12 +747,12 @@ db_test_suite.testForeignKey = function () {
              [['ref'], 'rv', ['id']]],
            unique: [['id']]
          });
-  checkEqualTo("dbm._getForeign('rv').sort()",
+  checkEqualTo("db._getForeign('rv').sort()",
                [
                  [["ref"], "rv", ["id"]],
                  [["title", "author"], "Post", ["title", "author"]]
                ]);
-  dbm._drop('rv');
+  db._drop('rv');
 };
 
 
@@ -767,7 +765,7 @@ db_test_suite.testRelVarNumber = function () {
   checkThrow(ak.NoSuchRelVarError,
              function () {
                for (var i = 0; i < 500; ++i)
-                 dbm._drop('rv' + i);
+                 db._drop('rv' + i);
              });
 };
 
@@ -780,60 +778,60 @@ db_test_suite.testQuota = function () {
     array.push('x');
   var str = array.join('');
   checkThrow(ak.ConstraintError,
-             function () { dbm._insert('rv', {i: 0, s: str + 'x'}); });
+             function () { db._insert('rv', {i: 0, s: str + 'x'}); });
   // Slow DB size quota test, uncomment to run
   //   checkThrow(ak.DBQuotaError,
   //   function () {
   //     for (var i = 0; ; ++i)
-  //       dbm._insert('rv', {i: i, s: str});
+  //       db._insert('rv', {i: i, s: str});
   //   });
-  dbm._drop('rv');
+  db._drop('rv');
 };
 
 
 db_test_suite.testDescribeApp = function () {
-  checkEqualTo(items(dbm._describeApp('test_app')),
+  checkEqualTo(items(db._describeApp('test_app')),
                [['admin', 'test_user'],
                 ['developers', ['Odysseus', 'Achilles']],
                 ['email', 'a@b.com'],
                 ['summary', 'test app'],
                 ['description', 'test app...'],
                 ['labels', ['1', '2']]]);
-  checkEqualTo(items(dbm._describeApp('another_app')),
+  checkEqualTo(items(db._describeApp('another_app')),
                [["admin", "Odysseus"],
                 ["developers", []],
                 ["email", "x@y.com"],
                 ["summary", "another app"],
                 ["description", "another app..."],
                 ["labels", ["1"]]]);
-  checkThrow(ak.NoSuchAppError, "dbm._describeApp('no_such_app')");
-  checkThrow(ak.UsageError, "dbm._describeApp()");
+  checkThrow(ak.NoSuchAppError, "db._describeApp('no_such_app')");
+  checkThrow(ak.UsageError, "db._describeApp()");
 };
 
 
 db_test_suite.testGetAdminedApps = function () {
-  checkEqualTo(dbm._getAdminedApps('test_user').sort(),
+  checkEqualTo(db._getAdminedApps('test_user').sort(),
                ['ak', 'bad_app', 'blocking_app',
                 'lib', 'test_app', 'throwing_app']);
-  checkEqualTo(dbm._getAdminedApps('Achilles'), []);
+  checkEqualTo(db._getAdminedApps('Achilles'), []);
   checkThrow(ak.NoSuchUserError,
-             function () { dbm._getAdminedApps('no_such_user'); });
+             function () { db._getAdminedApps('no_such_user'); });
 
 };
 
 
 db_test_suite.testGetDevelopedApps = function () {
-  checkEqualTo(dbm._getDevelopedApps('Odysseus').sort(), ['ak', 'test_app']);
-  checkEqualTo(dbm._getDevelopedApps('test_user'), []);
+  checkEqualTo(db._getDevelopedApps('Odysseus').sort(), ['ak', 'test_app']);
+  checkEqualTo(db._getDevelopedApps('test_user'), []);
   checkThrow(ak.NoSuchUserError,
-             function () { dbm._getDevelopedApps('no_such_user'); });
+             function () { db._getDevelopedApps('no_such_user'); });
 };
 
 
 db_test_suite.testGetAppsByLabel = function () {
-  checkEqualTo(dbm._getAppsByLabel('1').sort(), ['another_app', 'test_app']);
-  checkEqualTo(dbm._getAppsByLabel('2'), ['test_app']);
-  checkEqualTo(dbm._getAppsByLabel('no_such_label'), []);
+  checkEqualTo(db._getAppsByLabel('1').sort(), ['another_app', 'test_app']);
+  checkEqualTo(db._getAppsByLabel('2'), ['test_app']);
+  checkEqualTo(db._getAppsByLabel('no_such_label'), []);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

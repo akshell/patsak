@@ -221,8 +221,7 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
     SetFunction(proto_template, "hash", HashCb);
     SetFunction(proto_template, "construct", ConstructCb);
     SetFunction(proto_template, "requestApp", RequestAppCb);
-    Set(object_template, "_dbm",
-        DBMediatorBg::GetJSClass().GetObjectTemplate(), DontEnum);
+    Set(object_template, "db", DBBg::GetJSClass().GetObjectTemplate());
     Set(object_template, "fs", FSBg::GetJSClass().GetObjectTemplate());
 }
 
@@ -571,7 +570,7 @@ private:
     bool initialized_;
     DB& db_;
     CodeReader code_reader_;
-    DBMediatorBg db_mediator_bg_;
+    DBBg db_bg_;
     FSBg fs_bg_;
     AKBg ak_bg_;
     GlobalBg global_bg_;
@@ -622,12 +621,12 @@ Program::Impl::Impl(const Place& place,
     global_proto->SetInternalField(0, External::New(&global_bg_));
     SetInternal(global_proto, "ak", &ak_bg_);
     ak_ = Persistent<Object>::New(Get(global_proto, "ak")->ToObject());
-    SetInternal(ak_, "_dbm", &db_mediator_bg_);
+    SetInternal(ak_, "db", &db_bg_);
     SetInternal(ak_, "fs", &fs_bg_);
 
     Context::Scope context_scope(context_);
     ak_bg_.Init(ak_);
-    db_mediator_bg_.Init(Get(ak_, "_dbm")->ToObject());
+    db_bg_.Init(Get(ak_, "db")->ToObject());
     Set(ak_, "dbQuota", Number::New(db_.GetDBQuota()), DontEnum);
     Set(ak_, "fsQuota", Number::New(db_.GetFSQuota()), DontEnum);
     // Run init.js script
