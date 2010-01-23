@@ -299,7 +299,7 @@ function mapItems(iterable) {
 
 
 db_test_suite.setUp = function () {
-  db._drop.apply(db, db._list());
+  db._drop(db._list());
 
   create('Dummy', {id: number});
   create('Empty', {});
@@ -351,7 +351,7 @@ db_test_suite.setUp = function () {
 
 
 db_test_suite.tearDown = function () {
-  db._drop.apply(db, db._list());
+  db._drop(db._list());
 };
 
 
@@ -408,7 +408,7 @@ db_test_suite.testCreate = function () {
   create('legal', {x: bool._default(new Date())});
   db._insert('legal', {});
   check("query('legal')[0].x === true");
-  db._drop('legal');
+  db._drop(['legal']);
   checkThrow(TypeError, "create('illegal', {x: date._default(42)})");
 
   checkThrow(ak.UsageError,
@@ -442,18 +442,17 @@ db_test_suite.testCreate = function () {
 
 db_test_suite.testDropRelVars = function () {
   create('NewRelVar', {x: number});
-  db._drop('NewRelVar');
+  db._drop(['NewRelVar']);
   check("!('NewRelVar' in db._list())");
-  checkThrow(ak.RelVarDependencyError, "db._drop('User')");
-  checkThrow(ak.RelVarDependencyError, "db._drop('User', 'Post')");
-  checkThrow(ak.UsageError,
-             "db._drop('Comment', 'Comment')");
+  checkThrow(ak.RelVarDependencyError, "db._drop(['User'])");
+  checkThrow(ak.RelVarDependencyError, "db._drop(['User', 'Post'])");
+  checkThrow(ak.UsageError, "db._drop(['Comment', 'Comment'])");
 
   create('rv1', {x: number._unique()});
   create('rv2', {x: number._foreign('rv1', 'x')});
-  checkThrow(ak.RelVarDependencyError, "db._drop('rv1')");
-  db._drop('rv1', 'rv2');
-  checkThrow(ak.NoSuchRelVarError, "db._drop('Comment', 'no_such')");
+  checkThrow(ak.RelVarDependencyError, "db._drop(['rv1'])");
+  db._drop(['rv1', 'rv2']);
+  checkThrow(ak.NoSuchRelVarError, "db._drop(['Comment', 'no_such'])");
 };
 
 
@@ -546,7 +545,7 @@ db_test_suite.testBy = function () {
   checkEqualTo("field('x', 'ByTest', [], ['x'], [], 5)", [5, 8, 9]);
   checkEqualTo("field('x', 'ByTest', [], ['x'], [], 0, 2)", [0, 1]);
   checkEqualTo("query('ByTest', [], [], [], 3, 6).length", 5);
-  db._drop('ByTest');
+  db._drop(['ByTest']);
 };
 
 
@@ -644,7 +643,7 @@ db_test_suite.testPg = function () {
   db._insert('pg_class', {x: 0});
   checkEqualTo(function () { return mapItems(query('pg_class')); },
                [[['x', 0]]]);
-  db._drop('pg_class');
+  db._drop(['pg_class']);
 };
 
 
@@ -656,8 +655,7 @@ db_test_suite.testCheck = function () {
   db._insert('dummy', {b: true, s: 'hi'});
   db._insert('dummy', {b: false, s: 'hello'});
   checkThrow(ak.ConstraintError, "db._insert('dummy', {b: false, s: 'oops'})");
-  db._drop('silly');
-  db._drop('dummy');
+  db._drop(['silly', 'dummy']);
 };
 
 
@@ -673,7 +671,7 @@ db_test_suite.testDate = function () {
   db._insert('d1', {d: other_date});
   checkEqualTo("field('d', 'd1', [], ['-d'])", [some_date, other_date]);
   db._insert('d2', {d: other_date});
-  db._drop('d1', 'd2');
+  db._drop(['d1', 'd2']);
 };
 
 
@@ -699,7 +697,7 @@ db_test_suite.testDefault = function () {
                [[['n', 42], ['s', 'hello, world!'], ['b', false], ['d', now]],
                 [['n', 0], ['s', 'hi'], ['b', true], ['d', now]],
                 [['n', 42], ['s', 'hello, world!'], ['b', true], ['d', now]]]);
-  db._drop('def');
+  db._drop(['def']);
 };
 
 
@@ -718,7 +716,7 @@ db_test_suite.testIntegerSerial = function () {
          });
   checkEqualTo("db._getInteger('rv').sort()", ['x', 'y', 'z']);
   checkEqualTo("db._getSerial('rv').sort()", ['x', 'y']);
-  db._drop('rv');
+  db._drop(['rv']);
 };
 
 
@@ -729,7 +727,7 @@ db_test_suite.testUnique = function () {
   checkEqualTo("db._getUnique('rv').sort()",
                [['a', 'b'], ['a', 'b', 'c'], ['b', 'c'], ['c']]);
   checkEqualTo("db._getUnique('Dummy')", [['id']]);
-  db._drop('rv');
+  db._drop(['rv']);
 };
 
 
@@ -752,7 +750,7 @@ db_test_suite.testForeignKey = function () {
                  [["ref"], "rv", ["id"]],
                  [["title", "author"], "Post", ["title", "author"]]
                ]);
-  db._drop('rv');
+  db._drop(['rv']);
 };
 
 
@@ -765,7 +763,7 @@ db_test_suite.testRelVarNumber = function () {
   checkThrow(ak.NoSuchRelVarError,
              function () {
                for (var i = 0; i < 500; ++i)
-                 db._drop('rv' + i);
+                 db._drop(['rv' + i]);
              });
 };
 
@@ -785,7 +783,7 @@ db_test_suite.testQuota = function () {
   //     for (var i = 0; ; ++i)
   //       db._insert('rv', {i: i, s: str});
   //   });
-  db._drop('rv');
+  db._drop(['rv']);
 };
 
 

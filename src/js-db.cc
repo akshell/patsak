@@ -110,17 +110,6 @@ namespace
     }
 
 
-    StringSet ReadStringSet(const Arguments& args)
-    {
-        StringSet result;
-        result.reserve(args.Length());
-        for (int i = 0; i < args.Length(); ++i)
-            if (!result.add_unsure(Stringify(args[i])))
-                throw Error(Error::USAGE, "Dumplicating names");
-        return result;
-    }
-
-
     size_t ReadUnsigned(const Handle<v8::Value> value)
     {
         int32_t result;
@@ -511,7 +500,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropCb,
                     const Arguments&, args) const
 {
-    access_ptr->DropRelVars(ReadStringSet(args));
+    CheckArgsLength(args, 1);
+    access_ptr->DropRelVars(ReadStringSet(args[0]));
     return Undefined();
 }
 
