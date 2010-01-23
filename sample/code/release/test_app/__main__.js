@@ -36,7 +36,12 @@ function field(name, str, params, by, by_params, start, length) {
 
 
 function create(name, header, constrs) {
-  return dbm._create(name, header, constrs || {});
+  constrs = constrs || {};
+  return dbm._create(name,
+                     header,
+                     constrs.unique || [],
+                     constrs.foreign || [],
+                     constrs.check || []);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -359,7 +364,7 @@ db_test_suite.testCreate = function () {
   checkThrow(ak.UsageError, "create('123bad', {})");
   checkThrow(ak.UsageError, "create('illegal', {'_@': number})");
   checkThrow(TypeError, "create('illegal', 'str')");
-  checkThrow(TypeError, "create('illegal', {}, 'str')");
+  checkThrow(TypeError, "dbm._create('illegal', {}, 'str', [], [])");
   checkThrow(TypeError, "create('illegal', {field: 15})");
   checkThrow(ak.RelVarExistsError, "create('User', {})");
 
@@ -744,18 +749,11 @@ db_test_suite.testForeignKey = function () {
              [['ref'], 'rv', ['id']]],
            unique: [['id']]
          });
-  checkEqualTo(function () {
-                 return map(function (fk) {
-                              return items(fk).sort();
-                            },
-                            dbm._getForeign('rv')).sort();
-               },
-               [[["keyFields", ["ref"]],
-                 ["refFields", ["id"]],
-                 ["refRelVar", "rv"]],
-                [["keyFields", ["title", "author"]],
-                 ["refFields", ["title", "author"]],
-                 ["refRelVar", "Post"]]]);
+  checkEqualTo("dbm._getForeign('rv').sort()",
+               [
+                 [["ref"], "rv", ["id"]],
+                 [["title", "author"], "Post", ["title", "author"]]
+               ]);
   dbm._drop('rv');
 };
 

@@ -474,7 +474,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, CountCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, CreateCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 3);
+    CheckArgsLength(args, 5);
     if (!args[1]->IsObject())
         throw Error(Error::TYPE, "Header must be an object");
     RichHeader rich_header;
@@ -490,36 +490,24 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, CreateCb,
                                       type_bg.GetDefaultPtr()));
         type_bg.CollectConstrs(name, constrs);
     }
-    if (!args[2]->IsObject())
-        throw Error(Error::TYPE, "Constraint definition must be an object");
-    Handle<Object> object(args[2]->ToObject());
-    Handle<v8::Value> unique(Get(object, "unique"));
-    if (!unique->IsUndefined()) {
-        size_t length = GetArrayLikeLength(unique);
-        for (size_t i = 0; i < length; ++i)
-            constrs.push_back(
-                Unique(ReadStringSet(GetArrayLikeItem(unique, i))));
+    size_t unique_length = GetArrayLikeLength(args[2]);
+    for (size_t i = 0; i < unique_length; ++i)
+        constrs.push_back(
+            Unique(ReadStringSet(GetArrayLikeItem(args[2], i))));
+    size_t foreign_length = GetArrayLikeLength(args[3]);
+    for (size_t i = 0; i < foreign_length; ++i) {
+        Handle<v8::Value> item(GetArrayLikeItem(args[3], i));
+        if (GetArrayLikeLength(item) != 3)
+            throw Error(Error::USAGE,
+                        "Foreign item must be an array of length 3");
+        constrs.push_back(
+            ForeignKey(ReadStringSet(GetArrayLikeItem(item, 0)),
+                       Stringify(GetArrayLikeItem(item, 1)),
+                       ReadStringSet(GetArrayLikeItem(item, 2))));
     }
-    Handle<v8::Value> check(Get(object, "check"));
-    if (!check->IsUndefined()) {
-        size_t length = GetArrayLikeLength(check);
-        for (size_t i = 0; i < length; ++i)
-            constrs.push_back(Check(Stringify(GetArrayLikeItem(check, i))));
-    }
-    Handle<v8::Value> foreign(Get(object, "foreign"));
-    if (!foreign->IsUndefined()) {
-        size_t length = GetArrayLikeLength(foreign);
-        for (size_t i = 0; i < length; ++i) {
-            Handle<v8::Value> item(GetArrayLikeItem(foreign, i));
-            if (GetArrayLikeLength(item) != 3)
-                throw Error(Error::USAGE,
-                            "Foreign item must be an array of length 3");
-            constrs.push_back(
-                ForeignKey(ReadStringSet(GetArrayLikeItem(item, 0)),
-                           Stringify(GetArrayLikeItem(item, 1)),
-                           ReadStringSet(GetArrayLikeItem(item, 2))));
-        }
-    }
+    size_t check_length = GetArrayLikeLength(args[4]);
+    for (size_t i = 0; i < check_length; ++i)
+        constrs.push_back(Check(Stringify(GetArrayLikeItem(args[4], i))));
     access_ptr->CreateRelVar(Stringify(args[0]), rich_header, constrs);
     return Undefined();
     
@@ -625,14 +613,14 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBMediatorBg, GetForeignCb,
     BOOST_FOREACH(const Constr& constr, GetRelVarConstrs(args[0])) {
         const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
         if (foreign_key_ptr) {
-            Handle<Object> object(Object::New());
-            Set(object, "keyFields",
-                MakeV8Array(foreign_key_ptr->key_field_names));
-            Set(object, "refRelVar",
-                String::New(foreign_key_ptr->ref_rel_var_name.c_str()));
-            Set(object, "refFields",
-                MakeV8Array(foreign_key_ptr->ref_field_names));
-            result->Set(Integer::New(i++), object);
+            Handle<Array> item(Array::New(3));
+            item->Set(Integer::New(0),
+                      MakeV8Array(foreign_key_ptr->key_field_names));
+            item->Set(Integer::New(1),
+                      String::New(foreign_key_ptr->ref_rel_var_name.c_str()));
+            item->Set(Integer::New(2),
+                      MakeV8Array(foreign_key_ptr->ref_field_names));
+            result->Set(Integer::New(i++), item);
         }
     }
     return result;
