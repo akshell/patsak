@@ -24,10 +24,6 @@ namespace ku
 
         explicit Unique(const StringSet& field_names)
             : field_names(field_names) {}
-
-        bool operator==(const Unique& other) const {
-            return field_names == other.field_names;
-        }
     };
     
 
@@ -42,12 +38,6 @@ namespace ku
             : key_field_names(key_field_names)
             , ref_rel_var_name(ref_rel_var_name)
             , ref_field_names(ref_field_names) {}
-        
-        bool operator==(const ForeignKey& other) const {
-            return (key_field_names == other.key_field_names &&
-                    ref_rel_var_name == other.ref_rel_var_name &&
-                    ref_field_names == other.ref_field_names);
-        }        
     };
 
 
@@ -56,10 +46,6 @@ namespace ku
 
         explicit Check(const std::string& expr_str)
             : expr_str(expr_str) {}
-
-        bool operator==(const Check& other) const {
-            return expr_str == other.expr_str;
-        }        
     };
 
 

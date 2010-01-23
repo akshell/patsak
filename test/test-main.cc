@@ -28,6 +28,8 @@ using boost::bind;
 using boost::function;
 using boost::lexical_cast;
 using boost::noncopyable;
+using boost::static_visitor;
+using boost::apply_visitor;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,14 +247,49 @@ BOOST_AUTO_TEST_CASE(parser_test)
 // Comparison stuff
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace
+{
+    class ConstrCompareVisitor : public static_visitor<bool> {
+    public:
+        template <typename T, typename U>
+        bool operator()(const T& /*lhs*/, const U& /*rhs*/) const {
+            return false;
+        }
+        
+        bool operator()(const Unique& lhs, const Unique& rhs) const {
+            return lhs.field_names == rhs.field_names;
+        }
+
+        bool operator()(const ForeignKey& lhs, const ForeignKey& rhs) const {
+            return (lhs.key_field_names  == rhs.key_field_names &&
+                    lhs.ref_rel_var_name == rhs.ref_rel_var_name &&
+                    lhs.ref_field_names  == rhs.ref_field_names);
+        }
+    
+        bool operator()(const Check& lhs, const Check& rhs) const {
+            return lhs.expr_str == rhs.expr_str;
+        }
+    };
+
+    
+    class ConstrComparator : public binary_function<Constr, Constr, bool> {
+    public:
+        bool operator()(const Constr& lhs, const Constr& rhs) const {
+            return apply_visitor(ConstrCompareVisitor(), lhs, rhs);
+        }
+    };
+}
+
+
 namespace ku
 {
     bool operator==(const Constrs& lhs, const Constrs& rhs)
     {
-        return (orset<Constr>(lhs.begin(), lhs.end(), false) ==
-                orset<Constr>(rhs.begin(), rhs.end(), false));
+        return (
+            orset<Constr, ConstrComparator>(lhs.begin(), lhs.end(), false) ==
+            orset<Constr, ConstrComparator>(rhs.begin(), rhs.end(), false));
     }
-
+    
     
     bool operator==(const Value& lhs, const Value& rhs)
     {
