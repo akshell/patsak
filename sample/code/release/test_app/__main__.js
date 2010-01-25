@@ -10,10 +10,10 @@ var constrs = ak.constrs;
 var fs = ak.fs;
 var apps = ak.apps;
 
-var number = ak.db.number;
-var string = ak.db.string;
-var bool = ak.db.bool;
-var date = ak.db.date;
+var number = ak.db._number;
+var string = ak.db._string;
+var bool = ak.db._boolean;
+var date = ak.db._date;
 
 
 function query(query, query_params, by, by_params, start, length) {

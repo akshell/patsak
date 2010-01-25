@@ -403,10 +403,10 @@ DEFINE_JS_CLASS(DBBg, "DB", /*object_template*/, proto_template)
 
 void DBBg::Init(v8::Handle<v8::Object> object) const
 {
-    Set(object, "number", JSNew<TypeBg>(Type::NUMBER));
-    Set(object, "string", JSNew<TypeBg>(Type::STRING));
-    Set(object, "bool", JSNew<TypeBg>(Type::BOOLEAN));
-    Set(object, "date", JSNew<TypeBg>(Type::DATE));
+    Set(object, "_number", JSNew<TypeBg>(Type::NUMBER), DontEnum);
+    Set(object, "_string", JSNew<TypeBg>(Type::STRING), DontEnum);
+    Set(object, "_boolean", JSNew<TypeBg>(Type::BOOLEAN), DontEnum);
+    Set(object, "_date", JSNew<TypeBg>(Type::DATE), DontEnum);
 }
 
 
