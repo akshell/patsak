@@ -406,6 +406,7 @@ namespace
 OkResponse::OkResponse(Handle<v8::Value> value)
     : utf8_value_(value)
 {
+    GetData();
 }
 
 
@@ -681,20 +682,24 @@ auto_ptr<Response> Program::Impl::Run(Handle<Function> function,
     Access access(db_);
     access_ptr = &access;
     TryCatch try_catch;
-    Handle<v8::Value> result;
+    Handle<v8::Value> value;
     {
         Watcher::ExecutionGuard guard;
-        result = function->Call(object, 1, &arg);
+        value = function->Call(object, 1, &arg);
+    }
+    auto_ptr<Response> result;
+    if (Watcher::TimedOut()) {
+        result.reset(new ErrorResponse("<Timed out>"));
+    } else if (try_catch.HasCaught() || value.IsEmpty()) {
+        // I don't know the difference in these conditions but together
+        // they handle all cases
+        result.reset(new ExceptionResponse(try_catch));
+    } else {
+        result.reset(new OkResponse(value));
+        access.Commit();
     }
     access_ptr = 0;
-    if (Watcher::TimedOut())
-        return auto_ptr<Response>(new ErrorResponse("<Timed out>"));
-    // I don't know the difference in these conditions but together
-    // they handle all cases
-    if (try_catch.HasCaught() || result.IsEmpty())
-        return auto_ptr<Response>(new ExceptionResponse(try_catch));
-    access.Commit();
-    return auto_ptr<Response>(new OkResponse(result));
+    return result;
 }
     
 
