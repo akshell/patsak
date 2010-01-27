@@ -84,7 +84,7 @@ namespace ku
         enum Tag {
             NUMBER,
             STRING,
-            BOOLEAN,
+            BOOL,
             DATE,
             DUMMY
         };

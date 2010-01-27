@@ -43,12 +43,12 @@ CREATE FUNCTION ku.to_number(t timestamp(3)) RETURNS float8 AS $$
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE FUNCTION ku.to_boolean(f float8) RETURNS bool AS $$
+CREATE FUNCTION ku.to_bool(f float8) RETURNS bool AS $$
     SELECT CASE WHEN $1 = 0 OR $1 = 'NaN'::float8 THEN false ELSE true END;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE FUNCTION ku.to_boolean(t text) RETURNS bool AS $$
+CREATE FUNCTION ku.to_bool(t text) RETURNS bool AS $$
     SELECT CASE WHEN $1 = '' THEN false ELSE true END;
 $$ LANGUAGE SQL IMMUTABLE;
 

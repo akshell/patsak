@@ -1194,7 +1194,7 @@ namespace
             Type type(header[i].GetType());
             if (type == Type::NUMBER)
                 result.push_back(Value(type, field.as<double>()));
-            else if (type == Type::BOOLEAN)
+            else if (type == Type::BOOL)
                 result.push_back(Value(type, field.as<bool>()));
             else
                 result.push_back(Value(type, field.as<string>()));

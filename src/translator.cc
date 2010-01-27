@@ -617,7 +617,7 @@ void SelectBuilder::BuildWhere(const Expr& expr,
     if (liter_ptr && liter_ptr->value.GetBool())
         return;
     control_ << " WHERE ";
-    control_.TranslateAndCastExpr(expr, this_rv_ptr, Type::BOOLEAN);
+    control_.TranslateAndCastExpr(expr, this_rv_ptr, Type::BOOL);
 }       
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -787,9 +787,9 @@ Type ExprTranslator::operator()(const Quant& quant) const
     const RangeVar* this_rv_ptr = (quant.rvs.size() == 1
                                    ? &quant.rvs.front()
                                    : 0);
-    control_.TranslateAndCastExpr(quant.pred, this_rv_ptr, Type::BOOLEAN);
+    control_.TranslateAndCastExpr(quant.pred, this_rv_ptr, Type::BOOL);
     control_ << "))";
-    return Type::BOOLEAN;
+    return Type::BOOL;
 }
 
 
@@ -827,7 +827,7 @@ Type ExprTranslator::operator()(const Unary& unary) const
 Type ExprTranslator::operator()(const Cond& cond) const
 {
     control_ << "(CASE WHEN ";
-    control_.TranslateAndCastExpr(cond.term, this_rv_ptr_, Type::BOOLEAN);
+    control_.TranslateAndCastExpr(cond.term, this_rv_ptr_, Type::BOOL);
     string yes_str, no_str;
     Type yes_type, no_type;
     {
@@ -1031,7 +1031,7 @@ string Translator::TranslateUpdate(const string& rel_var_name,
                                         header,
                                         where,
                                         where_params,
-                                        Type::BOOLEAN);
+                                        Type::BOOL);
     return oss.str();
 }
 
@@ -1048,7 +1048,7 @@ string Translator::TranslateDelete(const string& rel_var_name,
                             db_viewer_.GetRelVarHeader(rel_var_name),
                             where,
                             params,
-                            Type::BOOLEAN));
+                            Type::BOOL));
 }
 
 
@@ -1061,5 +1061,5 @@ string Translator::TranslateExpr(const string& ku_expr_str,
                            rel_header,
                            ku_expr_str,
                            Values(),
-                           Type::BOOLEAN);
+                           Type::BOOL);
 }

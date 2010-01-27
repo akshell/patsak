@@ -1,5 +1,5 @@
 id      name    age     flooder  reg_date
-number  string  number  boolean  date
+number  string  number  bool     date
 
 unique id
 unique name

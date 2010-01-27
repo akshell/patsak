@@ -49,7 +49,7 @@ string Type::GetPgStr(Trait trait) const
 
 string Type::GetKuStr(Trait trait) const
 {
-    static const char* ku_strs[] = {"number", "string", "boolean", "date"};
+    static const char* ku_strs[] = {"number", "string", "bool", "date"};
 
     KU_ASSERT(tag_ < DUMMY && IsApplicable(trait));
     if (trait == COMMON)
@@ -71,7 +71,7 @@ Type ku::PgType(const string& pg_type)
     } else if (pg_type == "text") {
         return Type::STRING;
     } else if (pg_type == "bool") {
-        return Type::BOOLEAN;
+        return Type::BOOL;
     } else {
         KU_ASSERT(pg_type == "timestamp");
         return Type::DATE;
@@ -85,8 +85,8 @@ Type ku::KuType(const string& ku_type)
         return Type::NUMBER;
     } else if (ku_type == "string") {
         return Type::STRING;
-    } else if (ku_type == "boolean") {
-        return Type::BOOLEAN;
+    } else if (ku_type == "bool") {
+        return Type::BOOL;
     } else {
         KU_ASSERT(ku_type == "date");
         return Type::DATE;
@@ -146,7 +146,7 @@ string BinaryOp::GetKuStr() const
 Type BinaryOp::GetCommonType(Type left_type, Type right_type) const
 {
     if (IsLogical(tag_))
-        return Type::BOOLEAN;
+        return Type::BOOL;
 
     if (IsComparison(tag_)) {
         if (left_type == right_type)
@@ -165,7 +165,7 @@ Type BinaryOp::GetCommonType(Type left_type, Type right_type) const
 Type BinaryOp::GetResultType(Type common_type) const
 {
     if (IsComparison(tag_))
-        return Type::BOOLEAN;
+        return Type::BOOL;
     return common_type;
 }
 
@@ -217,7 +217,7 @@ Type UnaryOp::GetOpType() const
         return Type::NUMBER;
     default:
         KU_ASSERT(tag_ == NEG);
-        return Type::BOOLEAN;
+        return Type::BOOL;
     }   
 }
 
@@ -345,7 +345,7 @@ namespace
         }
         
         virtual Type GetType() const {
-            return Type::BOOLEAN;
+            return Type::BOOL;
         }
         
         virtual PgLiter GetPgLiter() const {
@@ -443,7 +443,7 @@ namespace
             return new NumberValue(s.substr(0, 5) == "'NaN'"
                                    ? numeric_limits<double>::quiet_NaN()
                                    : lexical_cast<double>(s));
-        } else if (type == Type::BOOLEAN) {
+        } else if (type == Type::BOOL) {
             KU_ASSERT(s == "true" || s == "false");
             return new BooleanValue(s == "true");
         } else {
@@ -480,7 +480,7 @@ Value::Value(const Type& type, const char* c)
 
 Value::Value(const Type& type, bool b)
 {
-    KU_ASSERT(type == Type::BOOLEAN);
+    KU_ASSERT(type == Type::BOOL);
     pimpl_.reset(new BooleanValue(b));
 }
 
@@ -541,7 +541,7 @@ Value Value::Cast(Type cast_type) const
         return Value(cast_type, GetDouble());
     if (cast_type == Type::STRING)
         return Value(cast_type, GetString());
-    if (cast_type == Type::BOOLEAN)
+    if (cast_type == Type::BOOL)
         return Value(cast_type, GetBool());
     KU_ASSERT(cast_type == Type::DATE);
     throw Error(Error::TYPE,

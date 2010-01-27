@@ -51,7 +51,7 @@ namespace
     ku::Value ReadKuValue(Handle<v8::Value> v8_value)
     {
         if (v8_value->IsBoolean())
-            return ku::Value(Type::BOOLEAN, v8_value->BooleanValue());
+            return ku::Value(Type::BOOL, v8_value->BooleanValue());
         if (v8_value->IsNumber())
             return ku::Value(Type::NUMBER, v8_value->NumberValue());
         if (v8_value->IsDate())
@@ -78,7 +78,7 @@ namespace
             return Number::New(ku_value.GetDouble());
         else if (type == Type::STRING)
             return String::New(ku_value.GetString().c_str());
-        else if (type == Type::BOOLEAN) 
+        else if (type == Type::BOOL) 
             return Boolean::New(ku_value.GetBool());
         else {
             KU_ASSERT(type == Type::DATE);
@@ -184,7 +184,7 @@ namespace
 
 namespace
 {
-    /// number, string and boolean background
+    /// number, string and bool background
     class TypeBg {
     public:
         DECLARE_JS_CLASS(TypeBg);
@@ -405,7 +405,7 @@ void DBBg::Init(v8::Handle<v8::Object> object) const
 {
     Set(object, "_number", JSNew<TypeBg>(Type::NUMBER), DontEnum);
     Set(object, "_string", JSNew<TypeBg>(Type::STRING), DontEnum);
-    Set(object, "_boolean", JSNew<TypeBg>(Type::BOOLEAN), DontEnum);
+    Set(object, "_bool", JSNew<TypeBg>(Type::BOOL), DontEnum);
     Set(object, "_date", JSNew<TypeBg>(Type::DATE), DontEnum);
 }
 

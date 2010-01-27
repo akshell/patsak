@@ -12,7 +12,7 @@ var apps = ak.apps;
 
 var number = ak.db._number;
 var string = ak.db._string;
-var bool = ak.db._boolean;
+var bool = ak.db._bool;
 var date = ak.db._date;
 
 
@@ -163,7 +163,7 @@ base_test_suite.testUse = function () {
 base_test_suite.testType = function () {
   check("number.name == 'number'");
   check("string.name == 'string'");
-  check("bool.name == 'boolean'");
+  check("bool.name == 'bool'");
   check("date.name == 'date'");
 };
 
@@ -516,7 +516,7 @@ db_test_suite.testInsert = function () {
 db_test_suite.testGetHeader = function () {
   checkEqualTo("items(db._getHeader('User')).sort()",
                [['age', 'number'],
-                ['flooder', 'boolean'],
+                ['flooder', 'bool'],
                 ['id', 'serial'],
                 ['name', 'string']]);
 };

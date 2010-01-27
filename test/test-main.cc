@@ -478,7 +478,7 @@ Value Table::ReadValue(istream& is, const Type& type)
         string s;
         is >> s;
         return Value(type, s);
-    } else if (type == Type::BOOLEAN) {
+    } else if (type == Type::BOOL) {
         string s;
         is >> s;
         BOOST_CHECK(s == "true" || s == "false");
@@ -964,7 +964,7 @@ BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
     BOOST_CHECK_THROW(InsertValues("empty", Values()), Error);
     BOOST_CHECK(Query("empty").GetValuesSet().size() == 1);
 
-    LoadRelVarFromString("bool", "val\nboolean\n---\ntrue\nfalse");
+    LoadRelVarFromString("bool", "val\nbool\n---\ntrue\nfalse");
 
     BOOST_CHECK_THROW(Query("sp[sid, pid]->sname"), Error);
 
