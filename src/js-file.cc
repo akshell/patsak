@@ -253,14 +253,14 @@ Strings FSManager::List() const
 
 void FSManager::MkDir() const
 {
-    if (mkdir(path_.c_str(), S_IRWXU) == -1)
+    if (mkdir(path_.c_str(), 0755) == -1)
         throw MakeErrnoError();
 }
 
 
 void FSManager::Write(const char* data_ptr, size_t size) const
 {
-    int fd = creat(path_.c_str(), S_IRUSR | S_IWUSR);
+    int fd = creat(path_.c_str(), 0644);
     if (fd == -1)
         throw MakeErrnoError();
     ssize_t bytes_written = write(fd, data_ptr, size);
