@@ -691,6 +691,7 @@ namespace
         string socket_dir_, guard_dir_;
         string db_user_, db_password_, db_name_;
         string app_name_, owner_name_, spot_name_;
+        string path_suffix_;
         bool test_mode_;
         unsigned wait_;
         string config_file_;
@@ -704,7 +705,6 @@ namespace
         void Check() const;
         void MakePathesAbsolute();
         bool IsRelease() const;
-        string GetPathSuffix() const;
         auto_ptr<DB> InitDB() const;
         auto_ptr<AppAccessor> InitAppAccessor() const;
 
@@ -840,6 +840,20 @@ void MainRunner::Parse(int argc, char** argv)
         cout << REVISION << '\n';
         exit(0);
     }
+    
+    if (IsRelease()) {
+        path_suffix_ = "/release/" + app_name_;
+    } else {
+        string owner_dir_name(owner_name_);
+        BOOST_FOREACH(char& c, owner_dir_name) {
+            if (c == ' ')
+                c = '-';
+            else if (c >= 'A' && c <= 'Z')
+                c += 'a' - 'A';
+        }
+        path_suffix_ =
+            "/spots/" + app_name_ + '/' + owner_dir_name + '/' + spot_name_;
+    }
 }
 
 
@@ -900,14 +914,6 @@ bool MainRunner::IsRelease() const
 }
 
 
-string MainRunner::GetPathSuffix() const
-{
-    return (IsRelease()
-            ? "/release/" + app_name_
-            : "/spots/" + app_name_ + '/' + owner_name_ + '/' + spot_name_);
-}
-
-
 auto_ptr<DB> MainRunner::InitDB() const
 {
     string options("user=" + db_user_ +
@@ -955,9 +961,9 @@ auto_ptr<Program> MainRunner::InitProgram(DB& db,
     return auto_ptr<Program>(new Program(Place(app_name_,
                                                owner_name_,
                                                spot_name_),
-                                         code_dir_ + GetPathSuffix(),
+                                         code_dir_ + path_suffix_,
                                          code_dir_ + "/release/",
-                                         media_dir_ + GetPathSuffix(),
+                                         media_dir_ + path_suffix_,
                                          db,
                                          app_accessor));
 }
@@ -988,7 +994,7 @@ void MainRunner::RunServer(Program& program)
                    : app_name_ + ':' + owner_name_ + '@' + spot_name_) +
                   ": ");
     
-    string socket_path(socket_dir_ + GetPathSuffix());
+    string socket_path(socket_dir_ + path_suffix_);
     remove(socket_path.c_str());
     asio::io_service io_service;
     stream_protocol::acceptor acceptor(io_service);
