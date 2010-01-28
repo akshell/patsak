@@ -338,7 +338,7 @@ Chars AppAccessorImpl::operator()(const string& app_name,
     buffers.push_back(asio::buffer(process_header));
 
     string data_header;
-    if (data_ptr) {
+    if (data_ptr && !data_ptr->empty()) {
         data_header = "\nDATA " + lexical_cast<string>(data_ptr->size()) + '\n';
         buffers.push_back(asio::buffer(data_header));
         buffers.push_back(asio::buffer(*data_ptr));
@@ -499,8 +499,10 @@ void RequestHandler::HandleProcess()
             istream(&buf_) >> size;
             NextLine();
             Read(size + 1);
-            data_ptr.reset(new Chars(size));
-            is_.read(&(data_ptr->front()), size);
+            if (size) {
+                data_ptr.reset(new Chars(size));
+                is_.read(&(data_ptr->front()), size);
+            }
             NextLine();
             ReadLine();
             is_ >> command;

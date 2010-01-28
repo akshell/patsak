@@ -746,11 +746,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     Set(ak_, "_files", file_array, DontEnum);
 
     Set(ak_, "_user", String::New(user.c_str()), DontEnum);
-
-    if (issuer.empty())
-        ak_->Delete(String::New("_issuer"));
-    else
-        Set(ak_, "_issuer", String::New(issuer.c_str()), DontEnum);
+    Set(ak_, "_issuer", String::New(issuer.c_str()), DontEnum);
 
     auto_ptr<Response> result(Run(Handle<Function>::Cast(func_value),
                                   object,
