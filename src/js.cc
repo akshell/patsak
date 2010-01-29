@@ -14,6 +14,7 @@
 #include <boost/bind.hpp>
 
 #include <sstream>
+#include <setjmp.h>
 
 
 using namespace ku;
@@ -515,8 +516,6 @@ string ExceptionResponse::MakeExceptionDescr(const TryCatch& try_catch)
         oss << Stringify(message->Get());
     else if (!exception.IsEmpty())
         oss << Stringify(exception);
-    else if (Context::GetCurrent()->HasOutOfMemoryException())
-        oss << "<Out of memory>";
     else
         oss << "<Unknown exception>";
     return oss.str();
@@ -544,6 +543,24 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// HandleFatalError
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    jmp_buf environment;
+
+    
+    void HandleFatalError(const char* location, const char* message)
+    {
+        if (string(message) != "Allocation failed - process out of memory")
+            Fail(string("Fatal error in ") + location + ": " + message);
+        longjmp(environment, 1);
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
 // Program::Impl
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -565,7 +582,7 @@ public:
                                const string& issuer);
 
     auto_ptr<Response> Eval(const string& user, const Chars& expr);
-    bool IsOperable() const;
+    bool IsDead() const;
     
 private:
     bool initialized_;
@@ -608,6 +625,8 @@ Program::Impl::Impl(const Place& place,
     , fs_bg_(media_dir, db.GetFSQuota())
     , ak_bg_(place, code_reader_, app_accessor, fs_bg_)
 {
+    V8::SetFatalErrorHandler(HandleFatalError);
+    
     ResourceConstraints rc;
     rc.set_max_young_space_size(MAX_YOUNG_SPACE_SIZE);
     rc.set_max_old_space_size(MAX_OLD_SPACE_SIZE);
@@ -617,7 +636,6 @@ Program::Impl::Impl(const Place& place,
     
     HandleScope handle_scope;
     context_ = Context::New(NULL, GlobalBg::GetJSClass().GetObjectTemplate());
-    V8::IgnoreOutOfMemoryException();
     Handle<Object> global_proto(context_->Global()->GetPrototype()->ToObject());
     global_proto->SetInternalField(0, External::New(&global_bg_));
     SetInternal(global_proto, "ak", &ak_bg_);
@@ -669,9 +687,9 @@ auto_ptr<Response> Program::Impl::Eval(const string& user, const Chars& expr)
 }
 
 
-bool Program::Impl::IsOperable() const
+bool Program::Impl::IsDead() const
 {
-    return !context_->HasOutOfMemoryException();
+    return V8::IsDead();
 }
 
 
@@ -679,6 +697,8 @@ auto_ptr<Response> Program::Impl::Run(Handle<Function> function,
                                       Handle<Object> object,
                                       Handle<v8::Value> arg)
 {
+    if (setjmp(environment))
+        return auto_ptr<Response>(new ErrorResponse("<Out of memory>"));
     Access access(db_);
     access_ptr = &access;
     TryCatch try_catch;
@@ -808,7 +828,7 @@ auto_ptr<Response> Program::Eval(const string& user, const Chars& expr)
 }
 
 
-bool Program::IsOperable() const
+bool Program::IsDead() const
 {
-    return pimpl_->IsOperable();
+    return pimpl_->IsDead();
 }

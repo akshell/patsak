@@ -453,7 +453,7 @@ bool RequestHandler::Handle()
         is_ >> request;
         if (request == "PROCESS") {
             HandleProcess();
-            return program_.IsOperable();
+            return !program_.IsDead();
         }
         if (request == "STATUS") {
             Write("OK\n");
