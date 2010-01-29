@@ -380,6 +380,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, CheckCb,
 DEFINE_JS_CLASS(DBBg, "DB", /*object_template*/, proto_template)
 {
     TypeBg::GetJSClass();
+    SetFunction(proto_template, "rollback", RollBackCb);
     SetFunction(proto_template, "query", QueryCb);
     SetFunction(proto_template, "count", CountCb);
     SetFunction(proto_template, "create", CreateCb);
@@ -401,12 +402,34 @@ DEFINE_JS_CLASS(DBBg, "DB", /*object_template*/, proto_template)
 }
 
 
+DBBg::DBBg()
+    : rolled_back_(false)
+{
+}
+
+
 void DBBg::Init(v8::Handle<v8::Object> object) const
 {
     Set(object, "_number", JSNew<TypeBg>(Type::NUMBER), DontEnum);
     Set(object, "_string", JSNew<TypeBg>(Type::STRING), DontEnum);
     Set(object, "_bool", JSNew<TypeBg>(Type::BOOL), DontEnum);
     Set(object, "_date", JSNew<TypeBg>(Type::DATE), DontEnum);
+}
+
+
+bool DBBg::WasRolledBack()
+{
+    bool result = rolled_back_;
+    rolled_back_ = false;
+    return result;
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, RollBackCb,
+                    const Arguments&, /*args*/)
+{
+    rolled_back_ = true;
+    return Undefined();
 }
 
 

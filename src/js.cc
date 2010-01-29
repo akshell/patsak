@@ -696,7 +696,8 @@ auto_ptr<Response> Program::Impl::Run(Handle<Function> function,
         result.reset(new ExceptionResponse(try_catch));
     } else {
         result.reset(new OkResponse(value));
-        access.Commit();
+        if (!db_bg_.WasRolledBack())
+            access.Commit();
     }
     access_ptr = 0;
     return result;

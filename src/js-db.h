@@ -19,9 +19,16 @@ namespace ku
     class DBBg {
     public:
         DECLARE_JS_CLASS(DBBg);
+        DBBg();
         void Init(v8::Handle<v8::Object> object) const;
+        bool WasRolledBack();
 
     private:
+        bool rolled_back_;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RollBackCb,
+                             const v8::Arguments&);
+        
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, QueryCb,
                              const v8::Arguments&) const;
 

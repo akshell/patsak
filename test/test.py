@@ -183,7 +183,14 @@ class Test(unittest.TestCase):
                           'ak.fs._read(ak._files[0])'))
         self.assert_(not os.path.exists(wuzzup_path))
 
-        talk('PROCESS ak.db._create("xxx", {}); throw 1')
+        self.assertEqual(
+            talk('PROCESS ak.db._create("xxx", {}, [], [], []); throw 1'),
+            'ERROR\nLine 1, column 39\nUncaught 1')
+        self.assertEqual(talk('PROCESS "xxx" in ak.db._list()'), 'OK\nfalse')
+        self.assertEqual(
+            talk('PROCESS '
+                 'ak.db._create("xxx", {}, [], [], []); ak.db._rollback()'),
+            'OK\nundefined')
         self.assertEqual(talk('PROCESS "xxx" in ak.db._list()'), 'OK\nfalse')
 
         # Timed out test. Long to run.
