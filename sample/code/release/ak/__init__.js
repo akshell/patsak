@@ -12,14 +12,6 @@
   ak.DONT_DELETE = 1 << 2;
 
 
-  ak._setObjectProp(Object.prototype,
-                    'setProp',
-                    ak.DONT_ENUM,
-                    function (name, attrs, value) {
-                      return ak._setObjectProp(this, name, attrs, value);
-                    });
-
-
   ak.fs.remove = function (path) {
     if (ak.fs._isDir(path)) {
       var children = ak.fs._list(path);
@@ -30,7 +22,8 @@
   };
 
 
-  ak.Data.prototype.setProp(
+  ak._set(
+    ak.Data.prototype,
     'toString',
     ak.DONT_ENUM,
     function (encoding) {

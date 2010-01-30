@@ -37,7 +37,7 @@
   defineErrorClass('Metadata', ak.CoreError);
 
 
-  ak._setObjectProp(
+  ak._set(
     ak, '_errors', 7,
     [
       TypeError,

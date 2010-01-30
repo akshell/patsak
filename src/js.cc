@@ -195,7 +195,7 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, PrintCb,
                              const Arguments&) const;
         
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, SetObjectPropCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, SetCb,
                              const Arguments&) const;
         
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadCodeCb,
@@ -217,7 +217,7 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 {
     ScriptBg::GetJSClass();
     SetFunction(proto_template, "print", PrintCb);
-    SetFunction(proto_template, "setObjectProp", SetObjectPropCb);
+    SetFunction(proto_template, "set", SetCb);
     SetFunction(proto_template, "readCode", ReadCodeCb);
     SetFunction(proto_template, "hash", HashCb);
     SetFunction(proto_template, "construct", ConstructCb);
@@ -263,7 +263,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, PrintCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetObjectPropCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 4);
@@ -278,7 +278,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetObjectPropCb,
                     ("Property attribute must be a "
                      "unsigned integer less than 8"));
     object->Set(args[1], args[3], static_cast<PropertyAttribute>(attributes));
-    return Undefined();
+    return object;
 }
 
 

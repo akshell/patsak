@@ -176,17 +176,21 @@ base_test_suite.testConstructors = function () {
 };
 
 
-base_test_suite.testSetObjectProp = function () {
+base_test_suite.testSet = function () {
   var obj = {};
-  checkThrow(ak.UsageError, "ak._setObjectProp()");
-  checkThrow(TypeError, "ak._setObjectProp(1, 'f', 0, 42)");
-  ak._setObjectProp(obj, 'read_only', ak.READ_ONLY, 1);
-  obj.setProp('dont_enum', ak.DONT_ENUM, 2);
-  obj.setProp('dont_delete', ak.DONT_DELETE, 3);
+  checkThrow(ak.UsageError, "ak._set()");
+  checkThrow(TypeError, "ak._set(1, 'f', 0, 42)");
+  checkEqualTo(
+    function () {
+      return ak._set(obj, 'read_only', ak.READ_ONLY, 1);
+    },
+    obj);
+  ak._set(obj, 'dont_enum', ak.DONT_ENUM, 2);
+  ak._set(obj, 'dont_delete', ak.DONT_DELETE, 3);
   checkThrow(TypeError,
-             function () { ak._setObjectProp(obj, 'field', {}, 42); });
+             function () { ak._set(obj, 'field', {}, 42); });
   checkThrow(ak.UsageError,
-             function () { ak._setObjectProp(obj, 'field', 8, 42); });
+             function () { ak._set(obj, 'field', 8, 42); });
   check(function () {
           obj.read_only = 5;
           return obj.read_only == 1;
