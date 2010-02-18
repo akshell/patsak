@@ -50,14 +50,18 @@ namespace
     class CodeReader {
     public:
         CodeReader(const string& code_path, const string& include_path);
-        Chars operator()(const string& path) const;
-        Chars operator()(const string& app_name, const string& path) const;
-        
+        Chars Read(const string& path) const;
+        Chars Read(const string& app_name, const string& path) const;
+        time_t GetModDate(const string& path) const;
+        time_t GetModDate(const string& app_name, const string& path) const;
+
     private:
         string code_path_;
         string include_path_;
 
-        Chars Read(const string& base_path, const string& path) const;
+        void CheckPath(const string& path) const;
+        Chars DoRead(const string& base_path, const string& path) const;
+        time_t DoGetModDate(const string& base_path, const string& path) const;
     };
 }
 
@@ -68,24 +72,51 @@ CodeReader::CodeReader(const string& code_path, const string& include_path)
 }
 
 
-Chars CodeReader::operator()(const string& path) const
+Chars CodeReader::Read(const string& path) const
 {
-    return Read(code_path_, path);
+    return DoRead(code_path_, path);
 }
 
 
-Chars CodeReader::operator()(const string& app_name, const string& path) const
+Chars CodeReader::Read(const string& app_name, const string& path) const
 {
     access_ptr->CheckAppExists(app_name);
-    return Read(include_path_ + '/' + app_name, path);
+    return DoRead(include_path_ + '/' + app_name, path);
 }
 
 
-Chars CodeReader::Read(const string& base_path, const string& path) const
+time_t CodeReader::GetModDate(const string& path) const
+{
+    return DoGetModDate(code_path_, path);
+}
+
+
+time_t CodeReader::GetModDate(const string& app_name, const string& path) const
+{
+    access_ptr->CheckAppExists(app_name);
+    return DoGetModDate(include_path_ + '/' + app_name, path);
+}
+
+
+void CodeReader::CheckPath(const string& path) const
 {
     if (GetPathDepth(path) <= 0)
         throw Error(Error::PATH, "Code path \"" + path + "\" is illegal");
+}
+
+
+Chars CodeReader::DoRead(const string& base_path, const string& path) const
+{
+    CheckPath(path);
     return ReadFileData(base_path + '/' + path);
+}
+
+
+time_t CodeReader::DoGetModDate(const string& base_path,
+                                const string& path) const
+{
+    CheckPath(path);
+    return GetStat(base_path + '/' + path)->st_mtime;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,6 +232,9 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadCodeCb,
                              const Arguments&) const;
         
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetCodeModDateCb,
+                             const Arguments&) const;
+        
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, HashCb,
                              const Arguments&) const;
         
@@ -219,6 +253,7 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
     SetFunction(proto_template, "print", PrintCb);
     SetFunction(proto_template, "set", SetCb);
     SetFunction(proto_template, "readCode", ReadCodeCb);
+    SetFunction(proto_template, "getCodeModDate", GetCodeModDateCb);
     SetFunction(proto_template, "hash", HashCb);
     SetFunction(proto_template, "construct", ConstructCb);
     SetFunction(proto_template, "requestApp", RequestAppCb);
@@ -287,9 +322,22 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ReadCodeCb,
 {
     CheckArgsLength(args, 1);
     Chars data = (args.Length() == 1
-                  ? code_reader_(Stringify(args[0]))
-                  : code_reader_(Stringify(args[0]), Stringify(args[1])));
+                  ? code_reader_.Read(Stringify(args[0]))
+                  : code_reader_.Read(Stringify(args[0]),
+                                      Stringify(args[1])));
     return String::New(&data[0], data.size());
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, GetCodeModDateCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    time_t date = (args.Length() == 1
+                   ? code_reader_.GetModDate(Stringify(args[0]))
+                   : code_reader_.GetModDate(Stringify(args[0]),
+                                             Stringify(args[1])));
+    return Date::New(static_cast<double>(date) * 1000);
 }
 
 

@@ -9,7 +9,6 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/foreach.hpp>
 
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <dirent.h>
@@ -53,6 +52,64 @@ namespace
         }
         return Error(tag, strerror(errno));
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Interface functions
+////////////////////////////////////////////////////////////////////////////////
+
+Chars ku::ReadFileData(const std::string& path)
+{
+    int fd = open(path.c_str(), O_RDONLY);
+    if (fd == -1)
+        throw MakeErrnoError();
+    struct stat st;
+    int ret = fstat(fd, &st);
+    KU_ASSERT(ret == 0);
+    if (S_ISDIR(st.st_mode)) {
+        close(fd);
+        throw Error(Error::ENTRY_IS_DIR, "Attempt to read directory");
+    }
+    KU_ASSERT(S_ISREG(st.st_mode));
+    Chars result(st.st_size);
+    ssize_t bytes_readen = read(fd, &result[0], st.st_size);
+    KU_ASSERT(bytes_readen == st.st_size);
+    close(fd);
+    return result;
+}
+
+
+auto_ptr<struct stat> ku::GetStat(const string& path, bool ignore_error)
+{
+    auto_ptr<struct stat> result(new struct stat());
+    if (stat(path.c_str(), result.get()) != -1)
+        return result;
+    if (ignore_error)
+        return auto_ptr<struct stat>();
+    throw MakeErrnoError();
+}
+
+
+int ku::GetPathDepth(const std::string& path)
+{
+    int depth = 0;
+    for (size_t from = 0; from < path.size(); ++from) {
+        size_t to = path.find('/', from);
+        if (to == from)
+            continue;
+        string component = path.substr(from, to - from);
+        if (component == "..") {
+            if (!depth)
+                return -1;
+            --depth;
+        } else if (component != ".") {
+            ++depth;
+        }
+        if (to == string::npos)
+            break;
+        from = to;
+    }
+    return depth;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,137 +235,6 @@ void TempFileBg::ClearPath()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// FSManager
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class FSManager {
-    public:
-        FSManager(const string& path);
-        bool Exists() const;
-        bool IsDir() const;
-        bool IsFile() const;
-        time_t GetModDate() const;
-        Strings List() const;
-        void MkDir() const;
-        void Write(const char* data_ptr, size_t size) const;
-        void Remove() const;
-        void Rename(const string& dest) const;
-        void CopyFile(const string& dest) const;
-        
-    private:
-        string path_;
-
-        auto_ptr<struct stat> GetStat() const;
-    };
-}
-
-
-FSManager::FSManager(const string& path)
-    : path_(path)
-{
-}
-
-
-bool FSManager::Exists() const
-{
-    return GetStat().get();
-}
-
-
-bool FSManager::IsDir() const
-{
-    auto_ptr<struct stat> stat_ptr(GetStat());
-    if (!stat_ptr.get())
-        return false;
-    return S_ISDIR(stat_ptr->st_mode);
-}
-
-
-bool FSManager::IsFile() const
-{
-    auto_ptr<struct stat> stat_ptr(GetStat());
-    if (!stat_ptr.get())
-        return false;
-    KU_ASSERT(S_ISDIR(stat_ptr->st_mode) || S_ISREG(stat_ptr->st_mode));
-    return S_ISREG(stat_ptr->st_mode);
-}
-
-
-time_t FSManager::GetModDate() const
-{
-    auto_ptr<struct stat> stat_ptr(GetStat());
-    if (!stat_ptr.get())
-        throw Error(Error::NO_SUCH_ENTRY, "No such entry: \"" + path_ + '"');
-    return stat_ptr->st_mtime;
-}
-
-
-Strings FSManager::List() const
-{
-    DIR* dir_ptr = opendir(path_.c_str());
-    if (!dir_ptr)
-        throw MakeErrnoError();
-    Strings result;
-    while (struct dirent* dirent_ptr = readdir(dir_ptr)) {
-        string item(dirent_ptr->d_name);
-        if (item != "." && item != "..")
-            result.push_back(item);
-    }
-    closedir(dir_ptr);
-    return result;
-}
-
-
-void FSManager::MkDir() const
-{
-    if (mkdir(path_.c_str(), 0755) == -1)
-        throw MakeErrnoError();
-}
-
-
-void FSManager::Write(const char* data_ptr, size_t size) const
-{
-    int fd = creat(path_.c_str(), 0644);
-    if (fd == -1)
-        throw MakeErrnoError();
-    ssize_t bytes_written = write(fd, data_ptr, size);
-    KU_ASSERT(static_cast<size_t>(bytes_written) == size);
-    close(fd);
-}
-
-
-void FSManager::Remove() const
-{
-    if (remove(path_.c_str()) == -1)
-        throw MakeErrnoError();
-}
-
-
-void FSManager::Rename(const string& dest) const
-{
-    if (rename(path_.c_str(), dest.c_str()) == -1)
-        throw MakeErrnoError();
-}
-
-
-void FSManager::CopyFile(const string& dest) const
-{
-    Chars data = ReadFileData(path_);
-    FSManager(dest).Write(&data[0], data.size());
-}
-
-
-auto_ptr<struct stat> FSManager::GetStat() const
-{
-    auto_ptr<struct stat> result(new struct stat());
-    if (stat(path_.c_str(), result.get()) == -1)
-        return auto_ptr<struct stat>();
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // FSBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -366,7 +292,6 @@ DEFINE_JS_CLASS(FSBg, "FS", /*object_template*/, proto_template)
     SetFunction(proto_template, "write", WriteCb);
     SetFunction(proto_template, "remove", RemoveCb);
     SetFunction(proto_template, "rename", RenameCb);
-    SetFunction(proto_template, "copyFile", CopyFileCb);
 }
 
 
@@ -430,7 +355,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ExistsCb,
 {
     CheckArgsLength(args, 1);
     string path(ReadPath(args[0], true));
-    return Boolean::New(FSManager(path).Exists());
+    return Boolean::New(GetStat(path, true).get());
 }
 
 
@@ -439,7 +364,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsDirCb,
 {
     CheckArgsLength(args, 1);
     string path(ReadPath(args[0], true));
-    return Boolean::New(FSManager(path).IsDir());
+    auto_ptr<struct stat> stat_ptr(GetStat(path, true));
+    return Boolean::New(stat_ptr.get() && S_ISDIR(stat_ptr->st_mode));
 }
 
 
@@ -448,7 +374,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsFileCb,
 {
     CheckArgsLength(args, 1);
     string path(ReadPath(args[0], true));
-    return Boolean::New(FSManager(path).IsFile());
+    auto_ptr<struct stat> stat_ptr(GetStat(path, true));
+    return Boolean::New(stat_ptr.get() && S_ISREG(stat_ptr->st_mode));
 }
 
 
@@ -457,7 +384,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, GetModDateCb,
 {
     CheckArgsLength(args, 1);
     string path(ReadPath(args[0], true));
-    return Date::New(static_cast<double>(FSManager(path).GetModDate()) * 1000);
+    return Date::New(static_cast<double>(GetStat(path)->st_mtime) * 1000);
 }
 
 
@@ -466,10 +393,17 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ListCb,
 {
     CheckArgsLength(args, 1);
     string path(ReadPath(args[0], true));
-    Strings items(FSManager(path).List());
-    Handle<Array> result(Array::New(items.size()));
-    for (size_t i = 0; i < items.size(); ++i)
-        result->Set(Integer::New(i), String::New(items[i].c_str()));
+    DIR* dir_ptr = opendir(path.c_str());
+    if (!dir_ptr)
+        throw MakeErrnoError();
+    Handle<Array> result(Array::New());
+    size_t i = 0;
+    while (struct dirent* dirent_ptr = readdir(dir_ptr)) {
+        string name(dirent_ptr->d_name);
+        if (name != "." && name != "..")
+            result->Set(Integer::New(i++), String::New(name.c_str()));
+    }
+    closedir(dir_ptr);
     return result;
 }
 
@@ -480,7 +414,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, MakeDirCb,
     CheckArgsLength(args, 1);
     CheckTotalSize(DIRECTORY_SIZE);
     string path(ReadPath(args[0], false));
-    FSManager(path).MkDir();
+    if (mkdir(path.c_str(), 0755) == -1)
+        throw MakeErrnoError();
     total_size_ += DIRECTORY_SIZE;
     return Undefined();
 }
@@ -507,8 +442,14 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, WriteCb,
     }
     if (size > old_size)
         CheckTotalSize(size - old_size);
-    
-    FSManager(path).Write(data_ptr, size);
+
+    int fd = creat(path.c_str(), 0644);
+    if (fd == -1)
+        throw MakeErrnoError();
+    ssize_t bytes_written = write(fd, data_ptr, size);
+    KU_ASSERT(static_cast<size_t>(bytes_written) == size);
+    close(fd);
+
     total_size_ += GetFileSize(path);
     total_size_ -= old_size;
     return Undefined();
@@ -521,7 +462,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RemoveCb,
     CheckArgsLength(args, 1);
     string path(ReadPath(args[0], false));
     unsigned long long size = GetFileSize(path);
-    FSManager(path).Remove();
+    if (remove(path.c_str()) == -1)
+        throw MakeErrnoError();
     total_size_ -= size;
     MarkTempFileRemoved(args[0]);
     return Undefined();
@@ -534,22 +476,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RenameCb,
     CheckArgsLength(args, 2);
     string from_path(ReadPath(args[0], false));
     string to_path(ReadPath(args[1], false));
-    FSManager(from_path).Rename(to_path);
+    if (rename(from_path.c_str(), to_path.c_str()) == -1)
+        throw MakeErrnoError();
     MarkTempFileRemoved(args[0]);
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, CopyFileCb,
-                    const Arguments&, args)
-{
-    CheckArgsLength(args, 2);
-    string from_path(ReadPath(args[0], false));
-    string to_path(ReadPath(args[1], false));
-    unsigned long long size = GetFileSize(from_path);
-    CheckTotalSize(size);
-    FSManager(from_path).CopyFile(to_path);
-    total_size_ += size;
     return Undefined();
 }
 
@@ -589,51 +518,4 @@ FSBg::FileAccessor::~FileAccessor()
 const Strings& FSBg::FileAccessor::GetFullPathes() const
 {
     return full_pathes_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// ReadFileData and GetPathDepth definitions
-////////////////////////////////////////////////////////////////////////////////
-
-Chars ku::ReadFileData(const std::string& path)
-{
-    int fd = open(path.c_str(), O_RDONLY);
-    if (fd == -1)
-        throw MakeErrnoError();
-    struct stat st;
-    int ret = fstat(fd, &st);
-    KU_ASSERT(ret == 0);
-    if (S_ISDIR(st.st_mode)) {
-        close(fd);
-        throw Error(Error::ENTRY_IS_DIR, "Attempt to read directory");
-    }
-    KU_ASSERT(S_ISREG(st.st_mode));
-    Chars result(st.st_size);
-    ssize_t bytes_readen = read(fd, &result[0], st.st_size);
-    KU_ASSERT(bytes_readen == st.st_size);
-    close(fd);
-    return result;
-}
-
-
-int ku::GetPathDepth(const std::string& path)
-{
-    int depth = 0;
-    for (size_t from = 0; from < path.size(); ++from) {
-        size_t to = path.find('/', from);
-        if (to == from)
-            continue;
-        string component = path.substr(from, to - from);
-        if (component == "..") {
-            if (!depth)
-                return -1;
-            --depth;
-        } else if (component != ".") {
-            ++depth;
-        }
-        if (to == string::npos)
-            break;
-        from = to;
-    }
-    return depth;
 }

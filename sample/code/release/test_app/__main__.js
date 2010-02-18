@@ -221,6 +221,15 @@ base_test_suite.testReadCode = function () {
 };
 
 
+base_test_suite.testGetCodeModDate = function () {
+  check("ak._getCodeModDate('__main__.js') > new Date('01.01.2010')");
+  check("ak._getCodeModDate('lib', '0.1/42.js') < new Date()");
+  checkThrow(ak.NoSuchEntryError, "ak._getCodeModDate('no-such-file')");
+  checkThrow(ak.NoSuchEntryError, "ak._getCodeModDate('lib', 'no-such-file')");
+  checkThrow(ak.NoSuchAppError, "ak._getCodeModDate('no-such-app', 'file')");
+};
+
+
 base_test_suite.testScript = function () {
   check("(new ak.Script('2+2'))._run() === 4");
   check("ak.Script('2+2', 'name')._run() === 4");
@@ -962,15 +971,6 @@ file_test_suite.testRename = function () {
   checkEqualTo("fs._read('dir2/dir3/subdir/hello')", 'hello world!');
   fs._rename('dir2/dir3', 'dir1');
   checkThrow(ak.NoSuchEntryError, "fs._rename('no_such_file', 'xxx')");
-};
-
-
-file_test_suite.testCopyFile = function () {
-  fs._copyFile('dir1/subdir/hello', 'dir2/hello');
-  checkEqualTo("fs._read('dir2/hello')", 'hello world!');
-  fs._remove('dir2/hello');
-  checkThrow(ak.NoSuchEntryError, "fs._copyFile('no_such', 'never_created')");
-  checkThrow(ak.EntryIsDirError, "fs._copyFile('file', 'dir1/subdir')");
 };
 
 

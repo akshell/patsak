@@ -11,9 +11,21 @@
 
 #include <boost/shared_ptr.hpp>
 
+#include <sys/stat.h>
+
 
 namespace ku
 {
+    Chars ReadFileData(const std::string& path);
+
+    std::auto_ptr<struct stat> GetStat(const std::string& path,
+                                       bool ignore_error = false);
+
+    /// Calculate the depth of directory nesting for relative or absolute path.
+    /// Return 0 for empty or root path, -1 for path beyond root or parent.
+    int GetPathDepth(const std::string& path);
+
+    
     /// Data background
     class DataBg {
     public:
@@ -93,9 +105,6 @@ namespace ku
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RenameCb,
                              const v8::Arguments&) const;
-        
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CopyFileCb,
-                             const v8::Arguments&);
     };
 
 
@@ -113,15 +122,6 @@ namespace ku
         unsigned long long initial_size_;
         Strings full_pathes_;
     };
-    
-
-    /// Try to read whole file into the vector.
-    Chars ReadFileData(const std::string& path);
-
-
-    /// Calculate the depth of directory nesting for relative or absolute path.
-    /// Return 0 for empty or root path, -1 for path beyond root or parent.
-    int GetPathDepth(const std::string& path);
 }
 
 #endif // JS_FILE_H
