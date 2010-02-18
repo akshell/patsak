@@ -67,9 +67,6 @@ namespace ku
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ReadCb,
                              const v8::Arguments&) const;
         
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ListCb,
-                             const v8::Arguments&) const;
-        
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ExistsCb,
                              const v8::Arguments&) const;
         
@@ -77,6 +74,12 @@ namespace ku
                              const v8::Arguments&) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, IsFileCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetModDateCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ListCb,
                              const v8::Arguments&) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, MakeDirCb,

@@ -189,6 +189,7 @@ namespace
         bool Exists() const;
         bool IsDir() const;
         bool IsFile() const;
+        time_t GetModDate() const;
         Strings List() const;
         void MkDir() const;
         void Write(const char* data_ptr, size_t size) const;
@@ -232,6 +233,15 @@ bool FSManager::IsFile() const
         return false;
     KU_ASSERT(S_ISDIR(stat_ptr->st_mode) || S_ISREG(stat_ptr->st_mode));
     return S_ISREG(stat_ptr->st_mode);
+}
+
+
+time_t FSManager::GetModDate() const
+{
+    auto_ptr<struct stat> stat_ptr(GetStat());
+    if (!stat_ptr.get())
+        throw Error(Error::NO_SUCH_ENTRY, "No such entry: \"" + path_ + '"');
+    return stat_ptr->st_mtime;
 }
 
 
@@ -347,10 +357,11 @@ DEFINE_JS_CLASS(FSBg, "FS", /*object_template*/, proto_template)
     TempFileBg::GetJSClass();
     DataBg::GetJSClass();
     SetFunction(proto_template, "read", ReadCb);
-    SetFunction(proto_template, "list", ListCb);
     SetFunction(proto_template, "exists", ExistsCb);
     SetFunction(proto_template, "isDir", IsDirCb);
     SetFunction(proto_template, "isFile", IsFileCb);
+    SetFunction(proto_template, "getModDate", GetModDateCb);
+    SetFunction(proto_template, "list", ListCb);
     SetFunction(proto_template, "makeDir", MakeDirCb);
     SetFunction(proto_template, "write", WriteCb);
     SetFunction(proto_template, "remove", RemoveCb);
@@ -414,19 +425,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ReadCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ListCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    string path(ReadPath(args[0], true));
-    Strings items(FSManager(path).List());
-    Handle<Array> result(Array::New(items.size()));
-    for (size_t i = 0; i < items.size(); ++i)
-        result->Set(Integer::New(i), String::New(items[i].c_str()));
-    return result;
-}
-
-
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ExistsCb,
                     const Arguments&, args) const
 {
@@ -451,6 +449,28 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsFileCb,
     CheckArgsLength(args, 1);
     string path(ReadPath(args[0], true));
     return Boolean::New(FSManager(path).IsFile());
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, GetModDateCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    string path(ReadPath(args[0], true));
+    return Date::New(static_cast<double>(FSManager(path).GetModDate()) * 1000);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ListCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    string path(ReadPath(args[0], true));
+    Strings items(FSManager(path).List());
+    Handle<Array> result(Array::New(items.size()));
+    for (size_t i = 0; i < items.size(); ++i)
+        result->Set(Integer::New(i), String::New(items[i].c_str()));
+    return result;
 }
 
 

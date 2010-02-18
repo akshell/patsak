@@ -882,12 +882,6 @@ file_test_suite.testRead = function () {
 };
 
 
-file_test_suite.testList = function () {
-  checkEqualTo("fs._list('').sort()", ['dir1', 'dir2', 'file']);
-  checkThrow(ak.NoSuchEntryError, "fs._list('no_such_dir')");
-};
-
-
 file_test_suite.testExists = function () {
   checkEqualTo("fs._exists('')", true);
   checkEqualTo("fs._exists('dir1/subdir/hello')", true);
@@ -911,31 +905,17 @@ file_test_suite.testIsFile = function () {
 };
 
 
-file_test_suite.testRemove = function () {
-  fs._write('new-file', 'data');
-  fs._remove('new-file');
-  fs._makeDir('dir2/new-dir');
-  fs._remove('dir2/new-dir');
+file_test_suite.testList = function () {
   checkEqualTo("fs._list('').sort()", ['dir1', 'dir2', 'file']);
-  checkEqualTo("fs._list('dir2')", []);
-  checkThrow(ak.DirIsNotEmptyError, "fs._remove('dir1')");
+  checkThrow(ak.NoSuchEntryError, "fs._list('no_such_dir')");
 };
 
 
-file_test_suite.testWrite = function () {
-  fs._write('wuzzup', 'yo wuzzup!');
-  checkEqualTo("fs._read('wuzzup')", 'yo wuzzup!');
-  fs._write('hello', fs._read('dir1/subdir/hello'));
-  checkEqualTo("fs._read('hello')", 'hello world!');
-  fs._remove('wuzzup');
-  checkThrow(ak.EntryIsNotDirError, "fs._write('file/xxx', '')");
-  checkThrow(ak.PathError,
-             function () {
-               var array = [];
-               for (var i = 0; i < 1000; ++i)
-                 array.push('x');
-               fs._write(array.join(''), '');
-             });
+file_test_suite.testGetModDate = function () {
+  fs._write('hello', '');
+  check("Math.abs(new Date() - fs._getModDate('hello')) < 2000");
+  checkThrow(ak.NoSuchEntryError, "fs._getModDate('no-such-file')");
+  fs._remove('hello');
 };
 
 
@@ -948,12 +928,32 @@ file_test_suite.testMakeDir = function () {
 };
 
 
-file_test_suite.testCopyFile = function () {
-  fs._copyFile('dir1/subdir/hello', 'dir2/hello');
-  checkEqualTo("fs._read('dir2/hello')", 'hello world!');
-  fs._remove('dir2/hello');
-  checkThrow(ak.NoSuchEntryError, "fs._copyFile('no_such', 'never_created')");
-  checkThrow(ak.EntryIsDirError, "fs._copyFile('file', 'dir1/subdir')");
+file_test_suite.testWrite = function () {
+  fs._write('wuzzup', 'yo wuzzup!');
+  checkEqualTo("fs._read('wuzzup')", 'yo wuzzup!');
+  fs._remove('wuzzup');
+  fs._write('hello', fs._read('dir1/subdir/hello'));
+  checkEqualTo("fs._read('hello')", 'hello world!');
+  fs._remove('hello');
+  checkThrow(ak.EntryIsNotDirError, "fs._write('file/xxx', '')");
+  checkThrow(ak.PathError,
+             function () {
+               var array = [];
+               for (var i = 0; i < 1000; ++i)
+                 array.push('x');
+               fs._write(array.join(''), '');
+             });
+};
+
+
+file_test_suite.testRemove = function () {
+  fs._write('new-file', 'data');
+  fs._remove('new-file');
+  fs._makeDir('dir2/new-dir');
+  fs._remove('dir2/new-dir');
+  checkEqualTo("fs._list('').sort()", ['dir1', 'dir2', 'file']);
+  checkEqualTo("fs._list('dir2')", []);
+  checkThrow(ak.DirIsNotEmptyError, "fs._remove('dir1')");
 };
 
 
@@ -962,6 +962,15 @@ file_test_suite.testRename = function () {
   checkEqualTo("fs._read('dir2/dir3/subdir/hello')", 'hello world!');
   fs._rename('dir2/dir3', 'dir1');
   checkThrow(ak.NoSuchEntryError, "fs._rename('no_such_file', 'xxx')");
+};
+
+
+file_test_suite.testCopyFile = function () {
+  fs._copyFile('dir1/subdir/hello', 'dir2/hello');
+  checkEqualTo("fs._read('dir2/hello')", 'hello world!');
+  fs._remove('dir2/hello');
+  checkThrow(ak.NoSuchEntryError, "fs._copyFile('no_such', 'never_created')");
+  checkThrow(ak.EntryIsDirError, "fs._copyFile('file', 'dir1/subdir')");
 };
 
 
