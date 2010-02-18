@@ -1,9 +1,6 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-/// \file debug.cc
-/// Debugging stuff definitions
-
 #include "debug.h"
 
 #include <boost/lexical_cast.hpp>

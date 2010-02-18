@@ -1,9 +1,6 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-/// \file translator.h
-/// Ku-to-SQL translator interface
-
 #ifndef TRANSLATOR_H
 #define TRANSLATOR_H
 
@@ -12,8 +9,8 @@
 
 namespace ku
 {
-    /// Database view provider. Translator accesses database through an instance
-    /// of subclass of this type.
+    // Database view provider. Translator accesses database through an instance
+    // of subclass of this type.
     class DBViewer {
     public:
         struct RelVarFields {
@@ -38,7 +35,6 @@ namespace ku
     };
 
 
-    /// Translator class. Manages translation from ku language to SQL.
     class Translator {
     public:
         explicit Translator(const DBViewer& db_viewer);

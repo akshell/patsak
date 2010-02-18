@@ -1,9 +1,6 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-/// \file js-db.cc
-/// JavaScript database stuff
-
 #include "js-db.h"
 #include "db.h"
 
@@ -184,7 +181,6 @@ namespace
 
 namespace
 {
-    /// number, string and bool background
     class TypeBg {
     public:
         DECLARE_JS_CLASS(TypeBg);

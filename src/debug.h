@@ -1,9 +1,6 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-/// \file debug.h
-/// Debugging stuff
-
 #ifndef DEBUG_H
 #define DEBUG_H
 
@@ -26,22 +23,17 @@
 
 namespace ku
 {
-    /// Prefix for all log messages
+    // Prefix for all log messages
     extern std::string log_prefix;
     
-    /// Write a message to a log
     void Log(const std::string& message);
 
-
-    /// Return current backtrace
     std::string Backtrace();
 
-
-    /// Write a log message and exit
+    // Write a log message and exit
     void Fail(const std::string& message) __attribute__((noreturn));
     
-    
-    /// Assertion fail function
+    // Assertion fail function
     void FailOnAssertion(const char* cond,
                          const char* file,
                          int line,

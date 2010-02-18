@@ -1,9 +1,6 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-/// \file orset.h
-/// Ordered set interface and impl
-
 #ifndef ORSET_H
 #define ORSET_H
 
@@ -28,7 +25,6 @@ namespace ku
     };
 
     
-    /// Ordered set container
     template <typename T,
               typename CompT = std::equal_to<T>,
               typename FindT = item_finder<T, CompT> >

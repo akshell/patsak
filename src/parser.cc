@@ -1,9 +1,6 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-/// \file parser.cc
-/// Query language parser implementation
-
 #include "parser.h"
 #include "utils.h"
 
@@ -28,7 +25,7 @@ using boost::noncopyable;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-    /// Range var definition data
+    // Range var definition data
     struct RVDef {
         StringSet id_list;
         Rel rel;
@@ -37,7 +34,7 @@ namespace {
             : id_list(id_list), rel(rel) {}
     };
 
-    /// Stack based range var lookuper
+    // Stack based range var lookuper
     class Lookuper {
     public:
         typedef orset<RangeVar> RangeVars;
@@ -63,8 +60,7 @@ Lookuper::Lookuper()
 }
 
 
-/// Warning!!! Deep copy of rel happens here.
-/// May be should be refactored.
+// XXX: Deep copy of rel happens here. May be should be refactored.
 Lookuper::RangeVars Lookuper::EnterScope(const RVDef& rv_def)
 {
     RangeVars rvs;
@@ -127,7 +123,7 @@ struct P;
 
 namespace
 {
-    /// Lazy function struct for addition of unique values to orset
+    // Lazy function struct for addition of unique values to orset
     struct CheckedAdd {
         template <typename ContT, typename ItemT>
         struct result {
@@ -142,7 +138,7 @@ namespace
     };
 
 
-    /// Lazy function struct for push_back-ing to vector
+    // Lazy function struct for push_back-ing to vector
     struct PushBack {
         template <typename ContT, typename ItemT>
         struct result {
@@ -206,7 +202,6 @@ namespace
 #undef CLOSURE3
     
 
-    /// Parser class.
     class Parser : public noncopyable {
     public:
         Rel ParseRel(const string& str);

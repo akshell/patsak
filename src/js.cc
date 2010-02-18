@@ -1,9 +1,6 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-/// \file js.h
-/// JavaScript interpreter impl
-
 #include "js.h"
 #include "js-db.h"
 #include "js-file.h"
@@ -46,7 +43,7 @@ namespace
 
 namespace
 {
-    /// Class for read access to code files of current and other applications
+    // Class for read access to code files of current and other applications
     class CodeReader {
     public:
         CodeReader(const string& code_path, const string& include_path);
@@ -125,7 +122,6 @@ time_t CodeReader::DoGetModDate(const string& base_path,
 
 namespace
 {
-    /// Script background
     class ScriptBg {
     public:
         DECLARE_JS_CLASS(ScriptBg);
@@ -205,7 +201,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, ScriptBg, RunCb,
 
 namespace
 {
-    /// ak background
     class AKBg {
     public:
         DECLARE_JS_CLASS(AKBg);
@@ -414,7 +409,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestAppCb,
 
 namespace
 {
-    /// Global background
     class GlobalBg {
     public:
         DECLARE_JS_CLASS(GlobalBg);
@@ -436,7 +430,6 @@ DEFINE_JS_CLASS(GlobalBg, "Global", object_template, /*proto_template*/)
 
 namespace
 {
-    /// Result of a successful evaluation
     class OkResponse : public Response {
     public:
         OkResponse(Handle<v8::Value> value);
@@ -482,7 +475,6 @@ const char* OkResponse::GetData() const
 
 namespace
 {
-    /// Evaluation failure descriptor
     class ErrorResponse : public Response {
     public:
         ErrorResponse(const string& descr);

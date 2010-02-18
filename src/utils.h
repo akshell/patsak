@@ -1,9 +1,6 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-/// \file utils.h
-/// Handy utilites
-
 #ifndef UTILS_H
 #define UTILS_H
 
@@ -17,7 +14,7 @@
 
 namespace ku
 {
-    /// Functor which passes count times, then calls a given function
+    // Functor which passes count times, then calls a given function
     class OmitInvoker {
     public:
         typedef boost::function<void ()> Func;
@@ -38,7 +35,7 @@ namespace ku
     };
 
 
-    /// Print symbol to a stream
+    // Print symbol to a stream
     class SepPrinter {
     public:
         SepPrinter(std::ostream& os, const std::string& sep = ", ")
@@ -57,7 +54,6 @@ namespace ku
     }
     
 
-    /// Get type of each value in a list
     inline Types GetValuesTypes(const Values& values)
     {
         Types result;
@@ -70,9 +66,9 @@ namespace ku
     }
 
 
-    /// Wrapper holding data after setting
-    /// NB in most cases in parser data are retrieved only once, so
-    /// they could be freed immediately.
+    // Wrapper holding data after setting
+    // NB in most cases in parser data are retrieved only once, so
+    // they could be freed immediately.
     template <typename T>
     class Wrapper {
     public:

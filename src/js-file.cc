@@ -1,9 +1,6 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-/// \file js-data.cc
-/// JavaScript binary data handler impl
-
 #include "js-file.h"
 
 #include <boost/lexical_cast.hpp>

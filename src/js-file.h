@@ -1,9 +1,6 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-/// \file js-data.h
-/// JavaScript binary data handler interface
-
 #ifndef JS_FILE_H
 #define JS_FILE_H
 
@@ -21,12 +18,11 @@ namespace ku
     std::auto_ptr<struct stat> GetStat(const std::string& path,
                                        bool ignore_error = false);
 
-    /// Calculate the depth of directory nesting for relative or absolute path.
-    /// Return 0 for empty or root path, -1 for path beyond root or parent.
+    // Calculate the depth of directory nesting for relative or absolute path.
+    // Return 0 for empty or root path, -1 for path beyond root or parent.
     int GetPathDepth(const std::string& path);
 
     
-    /// Data background
     class DataBg {
     public:
         DECLARE_JS_CLASS(DataBg);
@@ -43,7 +39,6 @@ namespace ku
     };
 
 
-    /// Temprorary file background
     class TempFileBg {
     public:
         DECLARE_JS_CLASS(TempFileBg);
@@ -57,7 +52,6 @@ namespace ku
     };
 
 
-    /// File system accessor background
     class FSBg {
     public:
         class FileAccessor;
@@ -108,8 +102,8 @@ namespace ku
     };
 
 
-    /// Interface for access to full media files pathes.
-    /// Controls changes in file size after external operations.
+    // Interface for access to full media file pathes.
+    // Controls changes in file size after external operations.
     class FSBg::FileAccessor {
     public:
         FileAccessor(FSBg& fs_bg,

@@ -1,9 +1,6 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-/// \file db.cc
-/// Database access interface impl
-
 #include "db.h"
 #include "translator.h"
 #include "utils.h"
@@ -51,7 +48,7 @@ namespace
 
 namespace boost
 {
-    /// For BOOST_FOREACH to work with pqxx::result
+    // For BOOST_FOREACH to work with pqxx::result
     template<>
     struct range_mutable_iterator<pqxx::result>
     {
@@ -59,7 +56,7 @@ namespace boost
     };
 
 
-    /// For BOOST_FOREACH to work with pqxx::result::tuple
+    // For BOOST_FOREACH to work with pqxx::result::tuple
     template<>
     struct range_mutable_iterator<pqxx::result::tuple>
     {
@@ -268,7 +265,6 @@ void RelVar::InitHeader()
 
 namespace
 {
-    /// Database metadata
     class DBMeta {
     public:
         DBMeta(pqxx::work& work, const string& schema_name);
@@ -291,7 +287,6 @@ namespace
     };
 
     
-    /// Constraints loader functor. Works on a whole group.
     class ConstrsLoader {
     public:
         ConstrsLoader(RelVars& rel_vars);
@@ -313,7 +308,6 @@ namespace
     };
     
 
-    /// RelVar creation functor
     class RelVarCreator {
     public:
         RelVarCreator(const DBMeta& db_meta, const RelVar& rel_var);
@@ -336,8 +330,8 @@ namespace
     };
     
 
-    /// RelVar drop functor. Works on a group. Requires it not to have
-    /// foreign key reference relations with dependents outside the group.
+    // RelVar drop functor. Works on a group. Requires it not to have
+    // foreign key reference relations with dependents outside the group.
     class RelVarsDropper {
     public:
         RelVarsDropper(RelVars& rel_vars,
@@ -850,7 +844,6 @@ size_t RelVarsDropper::GetDelNameIdx(const string& rel_var_name) const
 
 namespace
 {
-    /// Metadata manager. Maintains metadata consistensy.
     class Manager {
     public:
         Manager(const string& schema_name);
@@ -906,7 +899,7 @@ DBMeta& Manager::ChangeMeta()
 
 namespace
 {
-    /// Implementation of DBViewer providing access to database for translator
+    // Implementation of DBViewer providing access to database for translator
     class DBViewerImpl : public DBViewer {
     public:
         DBViewerImpl(const Manager& manager, const Quoter& quoter);
@@ -984,7 +977,7 @@ Error DBViewerImpl::MakeKeyError(const RelVarFields& key,
 
 namespace
 {
-    /// Database space quota controller. Full of heuristics.
+    // Database space quota controller. Full of heuristics.
     class QuotaController {
     public:
         QuotaController(const string& schema_name, unsigned long long quota);
@@ -1051,7 +1044,6 @@ unsigned long long QuotaController::CalculateTotalSize(pqxx::work& work) const
 // DB::Impl
 ////////////////////////////////////////////////////////////////////////////////
 
-/// Connection holder and transaction manager
 class DB::Impl {
 public:
     Impl(const string& opt,

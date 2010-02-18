@@ -1,9 +1,6 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-/// \file js-common.cc
-/// General JavaScript helpers impl
-
 #include "js-common.h"
 
 #include <boost/foreach.hpp>

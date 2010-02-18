@@ -1,9 +1,6 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-/// \file js-db.h
-/// JavaScript database stuff interfaces
-
 #ifndef JS_DB_H
 #define JS_DB_H
 

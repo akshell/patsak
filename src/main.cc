@@ -1,9 +1,6 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-/// \file main.cc
-/// Program entry point
-
 #include "js.h"
 #include "db.h"
 

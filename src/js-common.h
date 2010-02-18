@@ -1,9 +1,6 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-/// \file js-common.h
-/// General JavaScript helpers
-
 #ifndef JS_COMMON_H
 #define JS_COMMON_H
 
@@ -19,7 +16,6 @@
 
 namespace v8
 {
-    /// Just handy
     inline PropertyAttribute operator|(v8::PropertyAttribute lhs,
                                        v8::PropertyAttribute rhs)
     {
@@ -66,7 +62,6 @@ namespace ku
     };
     
 
-    /// Object property enumerator. Must be only stack-allocated
     class PropEnumerator {
     public:
         explicit PropEnumerator(v8::Handle<v8::Object> object)
@@ -123,7 +118,6 @@ namespace ku
     };
     
     
-    /// JavaScript class background manager
     template <typename T>
     class JSClass : public JSClassBase {
     public:

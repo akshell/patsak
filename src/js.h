@@ -1,9 +1,6 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-/// \file js.h
-/// JavaScript interpreter interface
-
 #ifndef JS_H
 #define JS_H
 
@@ -16,7 +13,6 @@ namespace ku
     class Access;
 
 
-    /// Program response interface
     class Response {
     public:
         virtual ~Response() {}
@@ -26,7 +22,7 @@ namespace ku
     };
 
 
-    /// Other application accessor interface
+    // Other application accessor interface
     class AppAccessor {
     public:
         virtual Chars operator()(const std::string& app_name,
@@ -54,7 +50,6 @@ namespace ku
     };
     
 
-    /// JavaScript program abstraction
     class Program {
     public:
         Program(const Place& place,

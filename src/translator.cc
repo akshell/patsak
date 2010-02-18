@@ -1,9 +1,6 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-/// \file translator.cc
-/// Ku-to-SQL translator impl
-
 #include "translator.h"
 #include "parser.h"
 #include "utils.h"
@@ -34,8 +31,8 @@ namespace
 
 namespace
 {
-    /// Class for casting expressions to a particular type if necessary and
-    /// outputing them.
+    // Class for casting expressions to a particular type if necessary and
+    // outputing them.
     class Casted {
     public:
         Casted(Type from_type, Type to_type, const string& expr);
@@ -71,9 +68,9 @@ Casted::Casted(Type from_type, Type to_type, const string& expr)
 
 namespace
 {
-    /// Translation control class. One instance per translation.
-    /// Manages the translation process,
-    /// provides means for output and db access.
+    // Translation control class. One instance per translation.
+    // Manages the translation process,
+    // provides means for output and db access.
     class Control {
     public:
         struct BindUnit {
@@ -86,8 +83,8 @@ namespace
         
         typedef vector<BindUnit> BindData;
 
-        /// Scope for binding rangevars.
-        /// Must only be stack allocated
+        // Scope for binding rangevars.
+        // Must only be stack allocated
         class BindScope {
         public:
             BindScope(Control& control, const BindData& bind_data);
@@ -97,8 +94,8 @@ namespace
             Control& control_;
         };
 
-        /// Scope for catching output.
-        /// Must only be stack allocated
+        // Scope for catching output.
+        // Must only be stack allocated
         class StringScope {
         public:
             StringScope(Control& control, string& str);
@@ -144,7 +141,6 @@ namespace
     };
 
 
-    /// Relation translator visitor
     class RelTranslator : public static_visitor<Header> {
     public:
         RelTranslator(Control& control)
@@ -161,7 +157,6 @@ namespace
     };
 
     
-    /// Expression translator visitor
     class ExprTranslator : public static_visitor<Type> {
     public:
         ExprTranslator(Control& control, const RangeVar* this_rv_ptr);
@@ -337,7 +332,7 @@ namespace
     typedef orset<RangeVar> RangeVarSet;
 
 
-    /// Collect unbound rangevars from expression
+    // Collect unbound rangevars from expression
     class ExprRangeVarCollector : public static_visitor<void> {
     public:
         ExprRangeVarCollector(RangeVarSet& rvs)
@@ -413,7 +408,7 @@ void ExprRangeVarCollector::operator()(const Cond& cond)
 
 namespace
 {
-    /// Collect unbound rangevars from prototypes
+    // Collect unbound rangevars from prototypes
     class ProtoRangeVarCollector : public static_visitor<void> {
     public:
         ProtoRangeVarCollector(RangeVarSet& rvs)
@@ -453,7 +448,7 @@ void ProtoRangeVarCollector::operator()(const NamedExpr& ne) const
 
 namespace
 {
-    /// Print header of SELECT and collect Header of the relation.
+    // Print header of SELECT and collect Header of the relation.
     class ProtoTranslator : public static_visitor<void> {
     public:
         ProtoTranslator(Control& control)
@@ -541,7 +536,7 @@ void ProtoTranslator::AddAttr(const Attr& attr)
 
 namespace
 {
-    /// Build SELECT part by part. Used for translating Quant and Select.
+    // Build SELECT part by part. Used for translating Quant and Select.
     class SelectBuilder {
     public:
         SelectBuilder(Control& control);
@@ -626,8 +621,8 @@ void SelectBuilder::BuildWhere(const Expr& expr,
 
 namespace
 {
-    /// MultiField expression translator.
-    /// Translates only MultiFields in fact being unifields
+    // MultiField expression translator.
+    // Translates only MultiFields in fact being unifields
     class FieldTranslator {
     public:
         FieldTranslator(Control& control,

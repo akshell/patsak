@@ -1,9 +1,6 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-/// \file common.h
-/// Common ku abstractions
-
 #ifndef COMMON_H
 #define COMMON_H
 
@@ -20,7 +17,6 @@ namespace ku
 {
     ////////////////////////////////////////////////////////////////////////////
     
-    /// Class of errors which are to be exposed to JavaScript
     class Error : public std::runtime_error {
     public:
         enum Tag {
@@ -73,7 +69,6 @@ namespace ku
 
     ////////////////////////////////////////////////////////////////////////////
 
-    /// Type abstraction
     class Type : private
     boost::equivalent<
         Type,
@@ -89,7 +84,6 @@ namespace ku
             DUMMY
         };
 
-        /// Additional type information
         enum Trait {
             COMMON,
             INTEGER,
@@ -114,16 +108,11 @@ namespace ku
     };
 
 
-    /// Type from pg type string
     Type PgType(const std::string& pg_type);
-
-    
-    /// Type from ku type string
     Type KuType(const std::string& ku_type);
 
     ////////////////////////////////////////////////////////////////////////////
 
-    /// Postgres literal. Quoting-needed flag is included.
     class PgLiter {
     public:
         std::string str;
@@ -135,7 +124,6 @@ namespace ku
 
     ////////////////////////////////////////////////////////////////////////////
 
-    /// Value which could be placed into DB
     class Value: private boost::equality_comparable<Value> {
     public:
         class Impl;
@@ -163,7 +151,6 @@ namespace ku
 
     ////////////////////////////////////////////////////////////////////////////
 
-    /// Binary operation
     class BinaryOp {
     public:
         enum Tag {
@@ -193,7 +180,6 @@ namespace ku
     };
 
 
-    /// Unary operation
     class UnaryOp {
     public:
         enum Tag {
@@ -213,7 +199,6 @@ namespace ku
 
     ////////////////////////////////////////////////////////////////////////////
     
-    /// Relational attribute (name and type)
     class Attr : private boost::equality_comparable<Attr> {
     public:
         Attr(const std::string& name, Type type)
@@ -254,19 +239,18 @@ namespace ku
     };
 
 
-    /// Relation attributes
     typedef orset<Attr, ByNameComparator<Attr>, ByNameFinder<Attr> > Header;
 
 
-    /// Get type of an attribute in a header. Throw error if attribute
-    /// with such name does not exist
+    // Get type of an attribute in a header. Throw error if attribute
+    // with such name does not exist
     inline Type GetAttrType(const Header& header, const std::string& attr_name)
     {
         return header.find(attr_name).GetType();
     }
     
     
-    /// Print header in ku style
+    // Print header in ku style
     std::ostream& operator<<(std::ostream& os, const Header& header);
 
     ////////////////////////////////////////////////////////////////////////////

@@ -1,9 +1,6 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-/// \file parser.h
-/// Query language parser interface
-
 #ifndef PARSER_H
 #define PARSER_H
 
@@ -17,7 +14,6 @@ namespace ku
 {
     ////////////////////////////////////////////////////////////////////////////
     
-    /// Base relation from DB table
     struct Base {
         std::string name;
 
@@ -29,7 +25,6 @@ namespace ku
     struct Select;
 
 
-    /// Relation
     typedef boost::variant<
         Base,
         boost::recursive_wrapper<Select>,
@@ -72,7 +67,6 @@ namespace ku
     
     ////////////////////////////////////////////////////////////////////////////
 
-    /// Literal expr
     struct Liter {
         Value value;
         
@@ -80,7 +74,7 @@ namespace ku
     };
 
 
-    /// Rangevar field expr or [multi]field proto
+    // Rangevar field expr or [multi]field proto
     struct MultiField {
         typedef std::vector<StringSet> Path;
 
@@ -102,7 +96,6 @@ namespace ku
     };
 
     
-    /// Positional argument
     struct PosArg {
         unsigned pos;
 
@@ -110,14 +103,12 @@ namespace ku
     };
 
     
-    // Recursive Expr classes forward declarations
     struct Quant;
     struct Binary;
     struct Unary;
     struct Cond;
     
 
-    /// Expression
     typedef boost::variant<
         Liter,
         MultiField,
@@ -130,7 +121,6 @@ namespace ku
 
     ////////////////////////////////////////////////////////////////////////////
 
-    /// Quantifier expr
     struct Quant {    
         typedef orset<RangeVar> RangeVars;
         
@@ -143,7 +133,6 @@ namespace ku
     };
 
 
-    /// Binary expr
     struct Binary {
         BinaryOp op;
         Expr left;
@@ -155,7 +144,6 @@ namespace ku
     };
 
 
-    /// Unary expr
     struct Unary {
         UnaryOp op;
         Expr operand;
@@ -165,7 +153,6 @@ namespace ku
     };
 
 
-    /// Conditional (?:) expr
     struct Cond {
         Expr term;
         Expr yes;
@@ -177,7 +164,6 @@ namespace ku
 
     ////////////////////////////////////////////////////////////////////////////
 
-    /// Representation of syntax {name: expr}
     struct NamedExpr {
         std::string name;
         Expr expr;
@@ -190,7 +176,6 @@ namespace ku
     typedef boost::variant<RangeVar, MultiField, NamedExpr> Proto;
 
 
-    /// The most common relation
     struct Select {
         typedef std::vector<Proto> Protos;
 
@@ -202,7 +187,6 @@ namespace ku
     };
     
 
-    /// Representaion of syntax [rel, ...]
     struct Union {
         Rel left;
         Rel right;
@@ -213,10 +197,7 @@ namespace ku
 
     ////////////////////////////////////////////////////////////////////////////
 
-    /// Parse rel from a string
     Rel ParseRel(const std::string& str);
-    
-    /// Parse expr from a string
     Expr ParseExpr(const std::string& str);
 
     std::ostream& operator<<(std::ostream& os, const RangeVar& rv);

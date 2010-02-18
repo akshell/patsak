@@ -1,9 +1,6 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-/// \file test-main.cc
-/// Test entry point
-
 #define BOOST_TEST_MAIN
 
 
@@ -38,7 +35,7 @@ using boost::apply_visitor;
 
 namespace
 {
-    /// Class for reading test pairs from a file
+    // Class for reading test pairs from a file
     class TestReader {
     public:
         typedef pair<string, string> Pair;
@@ -104,8 +101,8 @@ bool TestReader::Begins(const string& str, const string& prefix)
 
 namespace
 {
-    /// Class transforming parts of test pairs into type T
-    /// and comparing results
+    // Class transforming parts of test pairs into type T
+    // and comparing results
     template <typename T, typename CompT = equal_to<T> >
     class FileTester {
     public:
@@ -145,14 +142,14 @@ namespace
 
 namespace
 {
-    /// String null transformation
+    // String null transformation
     string NullTransform(const string& str)
     {
         return str;
     }
     
 
-    /// Word-by-word string comparison
+    // Word-by-word string comparison
     class WordComparator : public binary_function<string, string, bool> {
     public:
         bool operator()(const string& str1, const string& str2) const {
@@ -165,7 +162,7 @@ namespace
     };
 
 
-    /// Functor adaptor (returns printed result)
+    // Functor adaptor (returns printed result)
     template <typename Func>
     struct StrFunctor {
         Func f;
@@ -178,7 +175,7 @@ namespace
     };
 
 
-    /// StrFunctor instantiator
+    // StrFunctor instantiator
     template <typename Func>
     StrFunctor<Func> StrFunc(Func f)
     {
@@ -186,7 +183,7 @@ namespace
     }
 
 
-    /// Routine for common case of string based file tests
+    // Routine for common case of string based file tests
     void TestFileStr(const string& file_name,
                      const function<string (const string&)>& trans1)
     {
@@ -321,7 +318,7 @@ namespace
 {
     typedef orset<Values> ValuesSet;
         
-    /// In-memory relation representation
+    // In-memory relation representation
     class Table {
     public:
         Table(const RichHeader& rich_header,

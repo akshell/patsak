@@ -1,9 +1,6 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-/// \file db.h
-/// Database access interface
-
 #ifndef DB_H
 #define DB_H
 
@@ -49,7 +46,6 @@ namespace ku
     };
 
 
-    /// Table constraints representation
     typedef boost::variant<
         Unique,
         ForeignKey,
@@ -66,7 +62,6 @@ namespace ku
     class Access;
 
 
-    /// Database entry point
     class DB {
     public:
         DB(const std::string& opt,
@@ -144,7 +139,6 @@ namespace ku
     };
 
 
-    /// Transaction means of database operations
     class Access {
     public:
         explicit Access(DB& db);
@@ -157,8 +151,8 @@ namespace ku
         const RichHeader&
         GetRelVarRichHeader(const std::string& rel_var_name) const;
 
-        /// Relation constraints do not save their order after
-        /// store/load from DB. Check constraints are not restored at all.
+        // Relation constraints do not save their order after
+        // store/load from DB. Check constraints are not restored at all.
         const Constrs& GetRelVarConstrs(const std::string& rel_var_name) const;
         
         void CreateRelVar(const std::string& name,
