@@ -523,6 +523,16 @@ db_test_suite.testInsert = function () {
   checkEqualTo("items(db._insert('Empty', {}))", []);
   checkThrow(ak.ConstraintError, "db._insert('Empty', {})");
   db._del('Empty', 'true', []);
+  create('Num', {n: number, i: number._integer()._default(3.14)});
+  checkEqualTo("db._insert('Num', {n: 0}).i", 3);
+  checkEqualTo("db._insert('Num', {n: 1.5, i: 1.5}).i", 2);
+  checkEqualTo("db._insert('Num', {n: Infinity}).n", Infinity);
+  checkEqualTo("db._insert('Num', {n: -Infinity}).n", -Infinity);
+  check("isNaN(db._insert('Num', {n: NaN}).n)");
+  checkThrow(ak.ConstraintError, "db._insert('Num', {n: 0, i: Infinity})");
+  checkThrow(ak.ConstraintError, "db._insert('Num', {n: 0, i: -Infinity})");
+  checkThrow(ak.ConstraintError, "db._insert('Num', {n: 0, i: NaN})");
+  db._drop(['Num']);
 };
 
 

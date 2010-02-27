@@ -8,6 +8,8 @@
 #include <boost/lexical_cast.hpp>
 #include "boost/date_time/posix_time/posix_time.hpp"
 
+#include <limits>
+
 
 using namespace std;
 using namespace ku;
@@ -269,9 +271,13 @@ namespace
         }
         
         virtual PgLiter GetPgLiter() const {
-            return PgLiter((repr_ == repr_
-                            ? lexical_cast<string>(repr_)
-                            : "'NaN'::float8"),
+            return PgLiter((repr_ != repr_
+                            ? "'NaN'::float8"
+                            : repr_ == numeric_limits<double>::infinity()
+                            ? "'Infinity'::float8"
+                            : repr_ == -numeric_limits<double>::infinity()
+                            ? "'-Infinity'::float8"
+                            : lexical_cast<string>(repr_)),
                            false);
         }
         
