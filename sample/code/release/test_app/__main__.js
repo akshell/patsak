@@ -422,7 +422,7 @@ db_test_suite.testCreate = function () {
   db._insert('legal', {});
   check("query('legal')[0].x === true");
   db._drop(['legal']);
-  checkThrow(TypeError, "create('illegal', {x: date._default(42)})");
+  checkThrow(TypeError, "create('illegal', {x: date._default('illegal')})");
 
   checkThrow(ak.UsageError,
              "create('illegal', {}, {foreign: [['a', 'b']]})");
@@ -684,7 +684,7 @@ db_test_suite.testCheck = function () {
 
 db_test_suite.testDate = function () {
   create('d1', {d: date}, {unique: [['d']]});
-  var some_date = new Date(Date.parse('Wed, Mar 04 2009 16:12:09 GMT'));
+  var some_date = new Date('Wed, Mar 04 2009 16:12:09 GMT');
   var other_date = new Date(2009, 0, 15, 13, 27, 11, 481);
   db._insert('d1', {d: some_date});
   checkEqualTo("field('d', 'd1')", [some_date]);
@@ -694,6 +694,11 @@ db_test_suite.testDate = function () {
   db._insert('d1', {d: other_date});
   checkEqualTo("field('d', 'd1', [], ['-d'])", [some_date, other_date]);
   db._insert('d2', {d: other_date});
+  db._insert('d1', {d: 3.14});
+  db._insert('d1', {d: false});
+  db._insert('d1', {d: 'Sat, 27 Feb 2010 16:14:20 GMT'});
+  checkThrow(TypeError, "db._insert('d1', {d: new Date('invalid')})");
+  checkThrow(TypeError, "db._insert('d1', {d: 'invalid'})");
   db._drop(['d1', 'd2']);
 };
 

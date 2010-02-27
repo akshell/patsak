@@ -562,6 +562,26 @@ string ExceptionResponse::MakeExceptionDescr(const TryCatch& try_catch)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// ParseDate from common.h
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    Handle<Function> parse_date_func;
+}
+
+
+double ku::ParseDate(const string& str)
+{
+    KU_ASSERT(!parse_date_func.IsEmpty());
+    Handle<v8::Value> value(String::New(str.c_str()));
+    Handle<v8::Value> result(
+        parse_date_func->Call(Context::GetCurrent()->Global(), 1, &value));
+    KU_ASSERT(result->IsNumber());
+    return result->NumberValue();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // ComputeStackLimit
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -688,6 +708,11 @@ Program::Impl::Impl(const Place& place,
     db_bg_.Init(Get(ak_, "db")->ToObject());
     Set(ak_, "dbQuota", Number::New(db_.GetDBQuota()), DontEnum);
     Set(ak_, "fsQuota", Number::New(db_.GetFSQuota()), DontEnum);
+
+    parse_date_func = Persistent<Function>::New(
+        Handle<Function>::Cast(
+            Get(Get(context_->Global(), "Date")->ToObject(), "parse")));
+    
     // Run init.js script
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
                                                       sizeof(INIT_JS)),

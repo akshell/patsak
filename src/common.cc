@@ -433,6 +433,8 @@ namespace
             return new NumberValue(d);
         } else {
             KU_ASSERT(type == Type::DATE);
+            if (d != d)
+                throw Error(Error::TYPE, "Invalid date");
             return new DateValue(DateValue::GetEpoch() + milliseconds(d));
         }
     }
@@ -547,8 +549,10 @@ Value Value::Cast(Type cast_type) const
     if (cast_type == Type::BOOL)
         return Value(cast_type, GetBool());
     KU_ASSERT(cast_type == Type::DATE);
-    throw Error(Error::TYPE,
-                "It's impossible to convert any type to date");
+    return Value(cast_type,
+                 (GetType() == Type::STRING
+                  ? ParseDate(GetString())
+                  : GetDouble()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

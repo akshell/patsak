@@ -124,6 +124,10 @@ namespace ku
 
     ////////////////////////////////////////////////////////////////////////////
 
+    // To be defined by an upper level
+    double ParseDate(const std::string& str);
+
+
     class Value: private boost::equality_comparable<Value> {
     public:
         class Impl;
