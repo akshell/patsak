@@ -285,7 +285,7 @@ DEFINE_JS_CLASS(FSBg, "FS", /*object_template*/, proto_template)
     SetFunction(proto_template, "isFile", IsFileCb);
     SetFunction(proto_template, "getModDate", GetModDateCb);
     SetFunction(proto_template, "list", ListCb);
-    SetFunction(proto_template, "makeDir", MakeDirCb);
+    SetFunction(proto_template, "createDir", CreateDirCb);
     SetFunction(proto_template, "write", WriteCb);
     SetFunction(proto_template, "remove", RemoveCb);
     SetFunction(proto_template, "rename", RenameCb);
@@ -405,7 +405,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ListCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, MakeDirCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, CreateDirCb,
                     const Arguments&, args)
 {
     CheckArgsLength(args, 1);

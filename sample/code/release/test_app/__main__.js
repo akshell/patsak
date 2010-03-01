@@ -870,9 +870,9 @@ var file_test_suite = {};
 file_test_suite.setUp = function ()
 {
   forEach(ak.fs._list(''), ak.fs.remove);
-  fs._makeDir('dir1');
-  fs._makeDir('dir2');
-  fs._makeDir('dir1/subdir');
+  fs._createDir('dir1');
+  fs._createDir('dir2');
+  fs._createDir('dir1/subdir');
   fs._write('file', 'some text');
   fs._write('dir1/subdir/hello', 'hello world!');
   fs._write('dir1/subdir/привет', 'привет!');
@@ -944,11 +944,11 @@ file_test_suite.testGetModDate = function () {
 
 
 file_test_suite.testMakeDir = function () {
-  fs._makeDir('dir2/ddd');
+  fs._createDir('dir2/ddd');
   checkEqualTo("fs._list('dir2')", ['ddd']);
   checkEqualTo("fs._list('dir2/ddd')", []);
   fs._remove('dir2/ddd');
-  checkThrow(ak.EntryExistsError, "fs._makeDir('file')");
+  checkThrow(ak.EntryExistsError, "fs._createDir('file')");
 };
 
 
@@ -973,7 +973,7 @@ file_test_suite.testWrite = function () {
 file_test_suite.testRemove = function () {
   fs._write('new-file', 'data');
   fs._remove('new-file');
-  fs._makeDir('dir2/new-dir');
+  fs._createDir('dir2/new-dir');
   fs._remove('dir2/new-dir');
   checkEqualTo("fs._list('').sort()", ['dir1', 'dir2', 'file']);
   checkEqualTo("fs._list('dir2')", []);
@@ -1050,7 +1050,7 @@ request_app_test_suite.testRequest = function ()
              "ak._requestApp('another_app', '', ['no-such-file'], null)");
   checkThrow(ak.EntryIsDirError,
              function () {
-               fs._makeDir('dir');
+               fs._createDir('dir');
                try {
                  ak._requestApp('another_app', '', ['dir'], null);
                } finally {
