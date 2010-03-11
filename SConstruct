@@ -57,7 +57,7 @@ def invoke_script(dir, obj_dir, exports):
 
 objects = invoke_script('src', '', 'env')
 test_objects = invoke_script('test', 'test', 'test_env')
-sample_files = SConscript('sample/code/SConscript', duplicate=False)
+sample_files = SConscript('sample/SConscript', duplicate=False)
 
 revision = Popen(['hg', 'id', '-in'], stdout=PIPE).stdout.read()[:-1]
 main_env = env.Clone()

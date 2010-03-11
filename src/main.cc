@@ -839,20 +839,11 @@ void MainRunner::Parse(int argc, char** argv)
         cout << REVISION << '\n';
         exit(0);
     }
-    
-    if (IsRelease()) {
-        path_suffix_ = "/release/" + app_name_;
-    } else {
-        string owner_dir_name(owner_name_);
-        BOOST_FOREACH(char& c, owner_dir_name) {
-            if (c == ' ')
-                c = '-';
-            else if (c >= 'A' && c <= 'Z')
-                c += 'a' - 'A';
-        }
-        path_suffix_ =
-            "/spots/" + app_name_ + '/' + owner_dir_name + '/' + spot_name_;
-    }
+
+    path_suffix_ =
+        IsRelease()
+        ? "/release/" + app_name_
+        : "/spots/" + app_name_ + '/' + owner_name_ + '/' + spot_name_;
 }
 
 
@@ -957,8 +948,12 @@ auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
 auto_ptr<Program> MainRunner::InitProgram(DB& db,
                                           AppAccessor& app_accessor) const
 {
+    string spaced_owner_name(owner_name_);
+    BOOST_FOREACH(char& c, spaced_owner_name)
+        if (c == '-')
+            c = ' ';
     return auto_ptr<Program>(new Program(Place(app_name_,
-                                               owner_name_,
+                                               spaced_owner_name,
                                                spot_name_),
                                          code_dir_ + path_suffix_,
                                          code_dir_ + "/release/",

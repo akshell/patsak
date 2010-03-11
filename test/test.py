@@ -24,17 +24,17 @@ LOG_FILE      = os.path.join(TMP_DIR, 'log')
 GUARD_DIR     = os.path.join(TMP_DIR, 'guards')
 MEDIA_DIR     = os.path.join(TMP_DIR, 'media')
 CONFIG_PATH   = os.path.join(TMP_DIR, 'config')
-APP_NAME      = 'test_app'
-BAD_APP_NAME  = 'bad_app'
+APP_NAME      = 'test-app'
+BAD_APP_NAME  = 'bad-app'
 WAIT_APP_NAME = 'lib'
-USER_NAME     = 'test_user'
-SPOT_NAME     = 'test_spot'
+USER_NAME     = 'test-user'
+SPOT_NAME     = 'test-spot'
 DB_NAME       = 'test_patsak'
 DB_USER       = 'test'
 DB_PASSWORD   = 'test'
 DB_PARAMS     = 'user=%s password=%s dbname=%%s' % (DB_USER, DB_PASSWORD)
 TEST_DIR      = os.path.dirname(__file__)
-RELEASE_DIR   = os.path.join(TEST_DIR, '../sample/code/release')
+RELEASE_DIR   = os.path.join(TEST_DIR, '../sample/release')
 INIT_DB_PATH  = os.path.join(TEST_DIR, 'init-db.sql')
 FUNCS_PATH    = os.path.join(TEST_DIR, '../src/funcs.sql')
 
@@ -99,7 +99,7 @@ class Test(unittest.TestCase):
         self.assertEqual(self._eval('2+2').data, '4')
         self.assertEqual(self._eval('s="x"; while(1) s+=s').data,
                          '<Out of memory>')
-        self._check_launch(['--test', '--expr', '2+2', 'no_such_app'], 1)
+        self._check_launch(['--test', '--expr', '2+2', 'no-such-app'], 1)
         self._check_test_launch(['--expr', '2+2\n3+3', APP_NAME])
         self.assertEqual(self._eval('bug()').status, 'ERROR')
 
@@ -135,8 +135,8 @@ class Test(unittest.TestCase):
 
     def testReleaseServer(self):
         # populating media dir with initial data to test FSBg initialization
-        os.mkdir(MEDIA_DIR + '/release/test_app/dir')
-        open(MEDIA_DIR + '/release/test_app/dir/file', 'w').write('hello')
+        os.mkdir(MEDIA_DIR + '/release/test-app/dir')
+        open(MEDIA_DIR + '/release/test-app/dir/file', 'w').write('hello')
         
         _popen([self._exe_path,
                 '--config-file', CONFIG_PATH,
@@ -216,7 +216,7 @@ class Test(unittest.TestCase):
                          'FAIL\nDATA is not supported by EXPR')
         self.assertEqual(talk('PROCESS\nFILE file\nEXPR 3\n2+2'),
                          'FAIL\nFILE is not supported by EXPR')
-        self.assertEqual(talk('PROCESS\nISSUER test_app\nEXPR 3\n2+2'),
+        self.assertEqual(talk('PROCESS\nISSUER test-app\nEXPR 3\n2+2'),
                          'FAIL\nISSUER is not supported by EXPR')
         
         self.assertEqual(talk('PROCESS ak.app.spot'),
@@ -243,11 +243,11 @@ class Test(unittest.TestCase):
         self.assertEqual(talk('PROCESS answer'), 'OK\n42')
         self.assertEqual(
             talk('PROCESS ak.app.spot.owner + " " + ak.app.spot.name'),
-            'OK\ntest_user test_spot')
+            'OK\ntest user test-spot')
         self.assertEqual(
-            talk('PROCESS ak._requestApp("another_app", "hi", [], null)'),
+            talk('PROCESS ak._requestApp("another-app", "hi", [], null)'),
             'OK\n{"user":"","arg":"hi","data":null,' +
-            '"file_contents":[],"issuer":"test_app"}')
+            '"file_contents":[],"issuer":"test-app"}')
         self.assertEqual(
             talk('PROCESS function f() { f(); } f()'),
             'ERROR\nRangeError: Maximum call stack size exceeded')
@@ -317,7 +317,7 @@ def _write_config():
 db-name=%s
 db-user=%s
 db-password=%s
-code-dir=%s/../sample/code
+code-dir=%s/../sample
 socket-dir=%s
 guard-dir=%s
 media-dir=%s
