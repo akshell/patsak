@@ -129,7 +129,7 @@ function runTestSuites(test_suites) {
 var base_test_suite = {};
 
 
-var path = ak.path;
+var path = ak.include.path;
 
 base_test_suite.testInclude = function ()  {
   check("path == '__main__.js'");
@@ -141,10 +141,9 @@ base_test_suite.testInclude = function ()  {
   checkThrow(SyntaxError, "ak.include('bug.js')");
   checkThrow(SyntaxError, "ak.include('bug-includer.js')");
   checkThrow(ak.PathError, "ak.include('../out-of-base-dir.js')");
-  checkThrow(ak.CyclicIncludeError, "ak.include('self-includer.js')");
-  checkThrow(ak.CyclicIncludeError, "ak.include('cycle-includer1.js')");
+  checkThrow(ak.UsageError, "ak.include('self-includer.js')");
+  checkThrow(ak.UsageError, "ak.include('cycle-includer1.js')");
   checkThrow(ak.NoSuchAppError, "ak.include('no_such_lib', 'xxx.js')");
-  checkEqualTo("ak.include('lib/0.1/', '/42.js')", 42);
   checkEqualTo("ak.include('lib', '0.1/42.js')", 42);
   ak.include('//subdir///once.js');
   ak.include('subdir/../subdir//./once.js');
@@ -156,7 +155,7 @@ base_test_suite.testInclude = function ()  {
 
 
 base_test_suite.testUse = function () {
-  check("ak.use('lib/0.1') == 42");
+  check("ak.use('lib', '0.1') == 42");
 };
 
 
@@ -1040,8 +1039,7 @@ request_app_test_suite.testRequest = function ()
       '"issuer":"test-app"}');
   checkThrow(ak.NoSuchAppError,
              "ak._requestApp('invalid/app/name', '', [], null)");
-  checkThrow(ak.SelfRequestError,
-             "ak._requestApp('test-app', '2+2', [], null)");
+  checkThrow(ak.UsageError, "ak._requestApp('test-app', '2+2', [], null)");
   checkThrow(ak.ProcessingFailedError,
              "ak._requestApp('throwing-app', '', [], null)");
   checkThrow(ak.TimedOutError, "ak._requestApp('blocking-app', '', [], null)");

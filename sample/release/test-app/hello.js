@@ -1,2 +1,2 @@
-check("ak.path == 'hello.js'");
+check("ak.include.path == 'hello.js'");
 'hello';

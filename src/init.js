@@ -68,11 +68,9 @@
       defineErrorClass('EntryIsNotDir', ak.FSError),
       defineErrorClass('DirIsNotEmpty', ak.FSError),
       defineErrorClass('TempFileRemoved', ak.FSError),
-      defineErrorClass('CyclicInclude', ak.FSError),
       defineErrorClass('Conversion', ak.FSError),
 
       defineErrorClass('ProcessingFailed', ak.AppRequestError),
-      defineErrorClass('SelfRequest', ak.AppRequestError),
       defineErrorClass('TimedOut', ak.AppRequestError),
 
       defineErrorClass('NoSuchApp', ak.MetadataError),
@@ -108,41 +106,45 @@
   }
 
 
-  ak.path = undefined;
-
-
-  var baseApp = '';
-  var baseDir = '';
+  var currApp = '';
   var currDir = '';
   var includeStack = [];
   var includeResults = {};
 
 
-  function doInclude(app, path) {
+  ak.include = function (/* [app,] path */) {
+    if (!arguments.length)
+      throw ak.UsageError('At least one argument required');
+    var app, path;
+    if (arguments.length > 1) {
+      app = arguments[0];
+      path = arguments[1];
+    } else {
+      app = currApp;
+      path = arguments[0];
+      if (path[0] != '/')
+        path = currDir + path;
+    }
     path = canonicalize(path);
-    var identifier = app + '/' + path;
-    if (identifier in includeResults)
+    var identifier = app + ':' + path;
+    if (includeResults.hasOwnProperty(identifier))
       return includeResults[identifier];
     for (var i = 0; i < includeStack.length; ++i)
       if (includeStack[i] == identifier)
-        throw new ak.CyclicIncludeError(
+        throw ak.UsageError(
           'Recursive include of file "' + path + '"' +
           (app ? ' of ' + app + ' app': ''));
 
+    var oldCurrApp = currApp;
     var oldCurrDir = currDir;
-    var oldBaseDir = baseDir;
-    var oldBaseApp = baseApp;
-    var oldPath    = ak.path;
+    var oldPath = ak.include.path;
 
     var idx = path.lastIndexOf('/');
-    var newCurrDir = idx == -1 ? '' : path.substring(0, idx);
-    var newBaseDir = arguments.length > 1 ? newCurrDir : baseDir;
-
+    currDir = idx == -1 ? '' : path.substring(0, idx + 1);
+    currApp = app;
+    ak.include.path = path;
     includeStack.push(identifier);
-    baseApp = app;
-    currDir = newCurrDir;
-    baseDir = newBaseDir;
-    ak.path = path;
+
     try {
       var script = (app
                     ? new ak.Script(ak._readCode(app, path), app + ':' + path)
@@ -151,44 +153,16 @@
       includeResults[identifier] = result;
       return result;
     } finally {
-      ak.path = oldPath;
-      baseApp = oldBaseApp;
+      currApp = oldCurrApp;
       currDir = oldCurrDir;
-      baseDir = oldBaseDir;
+      ak.include.path = oldPath;
       includeStack.pop();
     }
-  }
-
-
-  ak.include = function (/* [libPath,] filePath */) {
-    var app, path;
-    switch (arguments.length) {
-    case 0:
-      throw new ak.UsageError('At least one argument required');
-    case 1:
-      var filePath = arguments[0] + '';
-      app = baseApp;
-      path = filePath[0] == '/' ? baseDir + filePath : currDir + '/' + filePath;
-      break;
-    default:
-      var libPath = arguments[0] + '';
-      var idx = libPath.indexOf('/');
-      if (idx == -1) {
-        app = libPath;
-        path = arguments[1] + '';
-      } else {
-        app = libPath.substring(0, idx);
-        path = libPath.substring(idx + 1) + '/' + arguments[1];
-      }
-      if (app == ak.app.name)
-        app = '';
-    }
-    return doInclude(app, path);
   };
 
 
-  ak.use = function (libPath) {
-    return ak.include(libPath, '__init__.js');
+  ak.use = function (app, path/* = '' */) {
+    return ak.include(app, (path ? path + '/' : '') + '__init__.js');
   };
 
 })();

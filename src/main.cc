@@ -312,7 +312,7 @@ Chars AppAccessorImpl::operator()(const string& app_name,
                                   const Access& access)
 {
     if (app_name == self_name_)
-        throw Error(Error::SELF_REQUEST, "Self request is forbidden");
+        throw Error(Error::USAGE, "Self request is forbidden");
     access.CheckAppExists(app_name);
     
     stream_protocol::endpoint endpoint(socket_dir_ + "/release/" + app_name);

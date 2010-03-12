@@ -1,1 +1,1 @@
-ak.include('42impl.js');
+42;
