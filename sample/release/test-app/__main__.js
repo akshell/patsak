@@ -814,23 +814,23 @@ db_test_suite.testQuota = function () {
 };
 
 
-db_test_suite.testDescribeApp = function () {
-  checkEqualTo(items(db._describeApp('test-app')),
+db_test_suite.testGetAppDescription = function () {
+  checkEqualTo(items(db._getAppDescription('test-app')),
                [['admin', 'test user'],
                 ['developers', ['Odysseus', 'Achilles']],
                 ['email', 'a@b.com'],
                 ['summary', 'test app'],
                 ['description', 'test app...'],
                 ['labels', ['1', '2']]]);
-  checkEqualTo(items(db._describeApp('another-app')),
+  checkEqualTo(items(db._getAppDescription('another-app')),
                [["admin", "Odysseus"],
                 ["developers", []],
                 ["email", "x@y.com"],
                 ["summary", "another app"],
                 ["description", "another app..."],
                 ["labels", ["1"]]]);
-  checkThrow(ak.NoSuchAppError, "db._describeApp('no-such-app')");
-  checkThrow(ak.UsageError, "db._describeApp()");
+  checkThrow(ak.NoSuchAppError, "db._getAppDescription('no-such-app')");
+  checkThrow(ak.UsageError, "db._getAppDescription()");
 };
 
 

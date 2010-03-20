@@ -391,7 +391,7 @@ DEFINE_JS_CLASS(DBBg, "DB", /*object_template*/, proto_template)
     SetFunction(proto_template, "insert", InsertCb);
     SetFunction(proto_template, "del", DelCb);
     SetFunction(proto_template, "update", UpdateCb);
-    SetFunction(proto_template, "describeApp", DescribeAppCb);
+    SetFunction(proto_template, "getAppDescription", GetAppDescriptionCb);
     SetFunction(proto_template, "getAdminedApps", GetAdminedAppsCb);
     SetFunction(proto_template, "getDevelopedApps", GetDevelopedAppsCb);
     SetFunction(proto_template, "getAppsByLabel", GetAppsByLabelCb);
@@ -684,7 +684,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, UpdateCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DescribeAppCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetAppDescriptionCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
