@@ -692,7 +692,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetAppDescriptionCb,
     Handle<Object> result(Object::New());
     Set(result, "admin", String::New(app.admin.c_str()));
     Set(result, "developers", MakeV8Array(app.developers));
-    Set(result, "email", String::New(app.email.c_str()));
     Set(result, "summary", String::New(app.summary.c_str()));
     Set(result, "description", String::New(app.description.c_str()));
     Set(result, "labels", MakeV8Array(app.labels));

@@ -182,11 +182,10 @@ $$ LANGUAGE SQL STABLE;
 
 CREATE FUNCTION ku.describe_app(
     name text,
-    OUT id int4, OUT admin text, OUT email text,
-    OUT summary text, OUT description text)
+    OUT id int4, OUT admin text, OUT summary text, OUT description text)
     RETURNS SETOF RECORD AS
 $$
-    SELECT app.id, usr.username, app.email, app.summary, app.description
+    SELECT app.id, usr.username, app.summary, app.description
     FROM public.main_app AS app, public.auth_user AS usr
     WHERE app.admin_id = usr.id
     AND app.name = $1;

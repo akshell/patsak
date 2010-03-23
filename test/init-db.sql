@@ -41,9 +41,9 @@ INSERT INTO "auth_user" VALUES (1, 'Odysseus');
 INSERT INTO "auth_user" VALUES (2, 'Achilles');
 INSERT INTO "main_label" VALUES (0, '1', 2);
 INSERT INTO "main_label" VALUES (1, '2', 1);
-INSERT INTO "main_app" VALUES (0, 'test-app', 0, 'a@b.com',
+INSERT INTO "main_app" VALUES (0, 'test-app', 0, '',
                                'test app', 'test app...', 1, 1);
-INSERT INTO "main_app" VALUES (1, 'another-app', 1, 'x@y.com',
+INSERT INTO "main_app" VALUES (1, 'another-app', 1, '',
                                'another app', 'another app...', 1, 1);
 INSERT INTO "main_app" VALUES (2, 'ak', 0, '', '', '', 1, 1);
 INSERT INTO "main_app" VALUES (3, 'lib', 0, '', '', '', 1, 1);

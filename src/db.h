@@ -118,20 +118,17 @@ namespace ku
     struct App {
         std::string admin;
         Strings developers;
-        std::string email;
         std::string summary;
         std::string description;
         Strings labels;
 
         App(const std::string& admin,
             const Strings& developers,
-            const std::string& email,
             const std::string& summary,
             const std::string& description,
             const Strings& labels)
             : admin(admin)
             , developers(developers)
-            , email(email)
             , summary(summary)
             , description(description)
             , labels(labels)

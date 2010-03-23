@@ -1503,7 +1503,6 @@ App Access::DescribeApp(const string& name) const
                StringsFromQueryResult(devs_pqxx_result),
                app_tuple[2].as<string>(),
                app_tuple[3].as<string>(),
-               app_tuple[4].as<string>(),
                StringsFromQueryResult(labels_pqxx_result));
 }
 

@@ -818,14 +818,12 @@ db_test_suite.testGetAppDescription = function () {
   checkEqualTo(items(db._getAppDescription('test-app')),
                [['admin', 'test user'],
                 ['developers', ['Odysseus', 'Achilles']],
-                ['email', 'a@b.com'],
                 ['summary', 'test app'],
                 ['description', 'test app...'],
                 ['labels', ['1', '2']]]);
   checkEqualTo(items(db._getAppDescription('another-app')),
                [["admin", "Odysseus"],
                 ["developers", []],
-                ["email", "x@y.com"],
                 ["summary", "another app"],
                 ["description", "another app..."],
                 ["labels", ["1"]]]);
