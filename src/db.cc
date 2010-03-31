@@ -1438,7 +1438,8 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::sql_error& err) {
-        KU_ASSERT(string(err.what()).substr(0, 14) == "ERROR:  Empty ");
+        KU_ASSERT_MESSAGE(string(err.what()).substr(0, 14) == "ERROR:  Empty ",
+                          string(err.what()) + err.query());
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
     }

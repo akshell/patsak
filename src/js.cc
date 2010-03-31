@@ -10,7 +10,6 @@
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
 
-#include <sstream>
 #include <setjmp.h>
 
 

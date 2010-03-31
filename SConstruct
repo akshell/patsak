@@ -25,7 +25,8 @@ COMMON_FLAGS = {
 MODE_FLAGS = {
     'release': {
         'LIBS': ['v8'],
-        'CCFLAGS': ['-O0'],
+        'CCFLAGS': ['-O0', '-DBACKTRACE'],
+        'LINKFLAGS': ['-rdynamic'],
         },
     'debug': {
         'LIBS': ['v8_g'],

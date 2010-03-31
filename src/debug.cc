@@ -78,13 +78,18 @@ void ku::Fail(const string& message)
 }
 
 
-void ku::FailOnAssertion(const char* cond,
-                         const char* file,
+void ku::FailOnAssertion(const string& file,
                          int line,
-                         const char* pretty_function)
+                         const string& pretty_function,
+                         const string& assertion,
+                         const string& message)
 {
-    Fail(string(file) + ':' +
-         lexical_cast<string>(line) + ": " +
-         pretty_function + ": " +
-         "Assertion `" + cond + "' failed.");
+    ostringstream oss;
+    oss << file << ':' << line << ": " << pretty_function << ": "
+        << "Assertion `" << assertion << "' failed";
+    if (message.empty())
+        oss << '.';
+    else
+        oss << ": " << message << '.';
+    Fail(oss.str());
 }
