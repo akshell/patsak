@@ -453,7 +453,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, QueryCb,
     for (size_t tuple_idx = 0; tuple_idx < result_length; ++tuple_idx) {
         Handle<Object> item(Object::New());
         const Values& values(query_result.tuples[tuple_idx]);
-        KU_ASSERT(values.size() == header.size());
+        KU_ASSERT_EQUAL(values.size(), header.size());
         for (size_t attr_idx = 0; attr_idx < header.size(); ++attr_idx)
             Set(item,
                 header[attr_idx].GetName(),
@@ -646,7 +646,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, InsertCb,
     string name(Stringify(args[0]));
     const RichHeader& rich_header(access_ptr->GetRelVarRichHeader(name));
     Values values(access_ptr->Insert(name, value_map));
-    KU_ASSERT(values.size() == rich_header.size());
+    KU_ASSERT_EQUAL(values.size(), rich_header.size());
     Handle<Object> result(Object::New());
     for (size_t i = 0; i < values.size(); ++i)
         Set(result, rich_header[i].GetName(), MakeV8Value(values[i]));

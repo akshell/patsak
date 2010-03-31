@@ -585,7 +585,7 @@ Control::BindData SelectBuilder::BuildFrom(const RangeVarSet& rvs) const
         Header header = control_.TranslateRel(rv.GetRel());
         bind_data.push_back(Control::BindUnit(rv, header));
         if (base_ptr)
-            KU_ASSERT(base_ptr->name == rv.GetName());
+            KU_ASSERT_EQUAL(base_ptr->name, rv.GetName());
         else
             control_ << ") AS " << Quoted(rv.GetName());
     }
@@ -724,7 +724,7 @@ string FieldTranslator::FollowReference(const string& rel_var_name,
 {
     DBViewer::RelVarFields key(rel_var_name, field_names);
     DBViewer::RelVarFields ref(control_.GetReference(key));
-    KU_ASSERT(ref.field_names.size() == field_names.size());
+    KU_ASSERT_EQUAL(ref.field_names.size(), field_names.size());
 
     print_from_sep_();
     from_oss_ << Quoted(ref.rel_var_name);

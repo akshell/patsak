@@ -62,7 +62,7 @@ Chars ku::ReadFileData(const std::string& path)
         throw MakeErrnoError();
     struct stat st;
     int ret = fstat(fd, &st);
-    KU_ASSERT(ret == 0);
+    KU_ASSERT_EQUAL(ret, 0);
     if (S_ISDIR(st.st_mode)) {
         close(fd);
         throw Error(Error::ENTRY_IS_DIR, "Attempt to read directory");
@@ -70,7 +70,7 @@ Chars ku::ReadFileData(const std::string& path)
     KU_ASSERT(S_ISREG(st.st_mode));
     Chars result(st.st_size);
     ssize_t bytes_readen = read(fd, &result[0], st.st_size);
-    KU_ASSERT(bytes_readen == st.st_size);
+    KU_ASSERT_EQUAL(bytes_readen, st.st_size);
     close(fd);
     return result;
 }
@@ -444,7 +444,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, WriteCb,
     if (fd == -1)
         throw MakeErrnoError();
     ssize_t bytes_written = write(fd, data_ptr, size);
-    KU_ASSERT(static_cast<size_t>(bytes_written) == size);
+    KU_ASSERT_EQUAL(static_cast<size_t>(bytes_written), size);
     close(fd);
 
     total_size_ += GetFileSize(path);

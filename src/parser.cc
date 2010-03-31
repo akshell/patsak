@@ -99,7 +99,7 @@ RangeVar Lookuper::Lookup(const string& name)
 
 void Lookuper::Reset()
 {
-    KU_ASSERT(stack_.size() == 1);
+    KU_ASSERT_EQUAL(stack_.size(), 1U);
     stack_.begin()->clear();
 }
 

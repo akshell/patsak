@@ -374,17 +374,17 @@ void AppAccessorImpl::LaunchApp(const string& app_name)
     if (pid) {
         close(pipe_fds[1]);
         pid_t child_pid = waitpid(pid, 0, 0);
-        KU_ASSERT(child_pid == pid);
+        KU_ASSERT_EQUAL(child_pid, pid);
         char buf[6];
         ssize_t count = read(pipe_fds[0], buf, 6);
         close(pipe_fds[0]);
-        KU_ASSERT(count == 6);
-        KU_ASSERT(string(buf, buf + 6) == "READY\n");
+        KU_ASSERT_EQUAL(count, 6);
+        KU_ASSERT_EQUAL(string(buf, buf + 6), "READY\n");
     } else {
         close(pipe_fds[0]);
         freopen("/dev/null", "w", stderr);
         int fd = dup2(pipe_fds[1], 1);
-        KU_ASSERT(fd == 1);
+        KU_ASSERT_EQUAL(fd, 1);
         if (pipe_fds[1] != 1)
             close(pipe_fds[1]);
         vector<char*> argv(args_.size() + 2);

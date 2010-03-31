@@ -396,7 +396,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestAppCb,
     if (string(&result[0], 3) == "OK\n") {
         return String::New(&result[3], result.size() - 3);
     } else {
-        KU_ASSERT(string(&result[0], 6) == "ERROR\n");
+        KU_ASSERT_MESSAGE(string(&result[0], 6) == "ERROR\n",
+                          string(&result[0], result.size()));
         throw Error(Error::PROCESSING_FAILED,
                     "Exception occured in \"" + app_name + "\" app");
     }

@@ -72,7 +72,7 @@ Type ku::PgType(const string& pg_type)
     } else if (pg_type == "bool") {
         return Type::BOOL;
     } else {
-        KU_ASSERT(pg_type == "timestamp");
+        KU_ASSERT_EQUAL(pg_type, "timestamp");
         return Type::DATE;
     }
 }
@@ -87,7 +87,7 @@ Type ku::KuType(const string& ku_type)
     } else if (ku_type == "bool") {
         return Type::BOOL;
     } else {
-        KU_ASSERT(ku_type == "date");
+        KU_ASSERT_EQUAL(ku_type, "date");
         return Type::DATE;
     }
 }
@@ -215,7 +215,7 @@ Type UnaryOp::GetOpType() const
     case MINUS:
         return Type::NUMBER;
     default:
-        KU_ASSERT(tag_ == NEG);
+        KU_ASSERT_EQUAL(tag_, NEG);
         return Type::BOOL;
     }   
 }
@@ -229,7 +229,7 @@ string UnaryOp::GetPgStr() const
     case MINUS:
         return "-";
     default:
-        KU_ASSERT(tag_ == NEG);
+        KU_ASSERT_EQUAL(tag_, NEG);
         return "NOT";
     }    
 }

@@ -186,7 +186,7 @@ RelVar::RelVar(pqxx::work& work, const string& name)
     pqxx::result pqxx_result = work.exec((format(query) % name_).str());
     rich_header_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
-        KU_ASSERT(tuple.size() == 3);
+        KU_ASSERT_EQUAL(tuple.size(), 3U);
         KU_ASSERT(!tuple[0].is_null() && ! tuple[1].is_null());
         string name(tuple[0].c_str());
         Type type(PgType(tuple[1].c_str()));
@@ -199,7 +199,8 @@ RelVar::RelVar(pqxx::work& work, const string& name)
         if (!tuple[2].is_null()) {
             string default_str(tuple[2].c_str());
             if (default_str.substr(0, 8) == "nextval(") {
-                KU_ASSERT(type == Type::NUMBER && trait == Type::INTEGER);
+                KU_ASSERT(type == Type::NUMBER);
+                KU_ASSERT(trait == Type::INTEGER);
                 trait = Type::SERIAL;
             } else {
                 default_ptr.reset(new Value(type, default_str));
@@ -357,7 +358,7 @@ DBMeta::DBMeta(pqxx::work& work, const string& schema_name)
     pqxx::result pqxx_result = work.exec((format(query) % schema_name).str());
     rel_vars_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
-        KU_ASSERT(tuple.size() == 1);
+        KU_ASSERT_EQUAL(tuple.size(), 1U);
         KU_ASSERT(!tuple[0].is_null());
         rel_vars_.push_back(RelVar(work, tuple[0].c_str()));
     }
@@ -485,8 +486,9 @@ void ConstrsLoader::LoadConstrs(pqxx::work& work, RelVar& rel_var) const
 void ConstrsLoader::SetConstrByPgTuple(RelVar& rel_var,
                                        const pqxx::result::tuple& tuple) const
 {
-    KU_ASSERT(tuple.size() == 4 && !tuple[0].is_null() && !tuple[1].is_null());
-    KU_ASSERT(string(tuple[0].c_str()).size() == 1);
+    KU_ASSERT_EQUAL(tuple.size(), 4U);
+    KU_ASSERT(!tuple[0].is_null() && !tuple[1].is_null());
+    KU_ASSERT_EQUAL(string(tuple[0].c_str()).size(), 1U);
     
     Constrs& constrs(rel_var.GetConstrs());
     const RichHeader& rich_header(rel_var.GetRichHeader());
@@ -510,7 +512,7 @@ void ConstrsLoader::SetConstrByPgTuple(RelVar& rel_var,
         break;
     }
     default:
-        KU_ASSERT(constr_code == 'c');
+        KU_ASSERT_EQUAL(constr_code, 'c');
         // TODO implement check constrs loading or at least loading of
         // their names
     };
@@ -545,7 +547,7 @@ vector<size_t> ConstrsLoader::ReadPgArray(const string& pg_array)
             break;
         char comma;
         iss.get(comma);
-        KU_ASSERT(comma == ',');
+        KU_ASSERT_EQUAL(comma, ',');
     }
     return result;
 }
@@ -1034,9 +1036,9 @@ unsigned long long QuotaController::CalculateTotalSize(pqxx::work& work) const
 {
     static const format query("SELECT ku.get_schema_size('%1%');");
     pqxx::result pqxx_result(work.exec((format(query) % schema_name_).str()));
-    KU_ASSERT(pqxx_result.size() == 1 &&
-              pqxx_result[0].size() == 1 &&
-              !pqxx_result[0][0].is_null());
+    KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
+    KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
+    KU_ASSERT(!pqxx_result[0][0].is_null());
     return lexical_cast<unsigned long long>(pqxx_result[0][0].c_str());
 }
 
@@ -1096,7 +1098,7 @@ DB::Impl::Impl(const string& opt,
         work.exec((format(set_cmd) % schema_name).str());
         pqxx::result pqxx_result(
             work.exec((format(quota_query) % app_name).str()));
-        KU_ASSERT(pqxx_result.size() == 1);
+        KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
         const pqxx::result::tuple& tuple(pqxx_result[0]);
         if (tuple[0].is_null())
             Fail("App \"" + app_name + "\" does not exist");
@@ -1178,7 +1180,7 @@ namespace
     Values GetTupleValues(const pqxx::result::tuple& tuple,
                           const Header& header)
     {
-        KU_ASSERT(tuple.size() == header.size());
+        KU_ASSERT_EQUAL(tuple.size(), header.size());
         Values result;
         result.reserve(tuple.size());
         for (size_t i = 0; i < tuple.size(); ++i) {
@@ -1301,7 +1303,8 @@ size_t Access::Count(const string& query, const Values& params) const
 {
     string sql(db_impl_.GetTranslator().TranslateCount(query, params));
     pqxx::result pqxx_result(work_ptr_->exec(sql));
-    KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
+    KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
+    KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
     return pqxx_result[0][0].as<size_t>();
 }
 
@@ -1334,7 +1337,7 @@ size_t Access::Update(const string& rel_var_name,
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::data_exception& err) {
-        KU_ASSERT(string(err.what()) == "ERROR:  integer out of range\n");
+        KU_ASSERT_EQUAL(string(err.what()), "ERROR:  integer out of range\n");
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
     }
@@ -1434,7 +1437,7 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::data_exception& err) {
-        KU_ASSERT(string(err.what()) == "ERROR:  integer out of range\n");
+        KU_ASSERT_EQUAL(string(err.what()), "ERROR:  integer out of range\n");
         sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::sql_error& err) {
@@ -1447,7 +1450,7 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
     sub_work.commit();
     if (rich_header.empty())
         return Values();
-    KU_ASSERT(pqxx_result.size() == 1);
+    KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
     return GetTupleValues(pqxx_result[0], rel_var.GetHeader());
 }
 
@@ -1465,7 +1468,7 @@ namespace
         Strings result;
         result.reserve(pqxx_result.size());
         BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
-            KU_ASSERT(tuple.size() == 1);
+            KU_ASSERT_EQUAL(tuple.size(), 1U);
             result.push_back(tuple[0].as<string>());
         }
         return result;
@@ -1478,7 +1481,8 @@ void Access::CheckAppExists(const string& name) const
     static const format query("SELECT ku.app_exists(%1%);");
     pqxx::result pqxx_result(
         work_ptr_->exec((format(query) % work_ptr_->quote(name)).str()));
-    KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
+    KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
+    KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
     if (pqxx_result[0][0].is_null())
         throw NoSuchApp(name);
 }
@@ -1513,7 +1517,8 @@ void Access::CheckUserExists(const string& name) const
     static const format query("SELECT ku.user_exists(%1%);");
     pqxx::result pqxx_result(
         work_ptr_->exec((format(query) % work_ptr_->quote(name)).str()));
-    KU_ASSERT(pqxx_result.size() == 1 && pqxx_result[0].size() == 1);
+    KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
+    KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
     if (pqxx_result[0][0].is_null())
         throw Error(Error::NO_SUCH_USER, "No such user: \"" + name + '"');
 }
