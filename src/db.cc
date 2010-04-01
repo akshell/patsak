@@ -408,11 +408,20 @@ void DBMeta::CreateRelVar(pqxx::work& work,
         CheckName(rich_attr.GetName());
     RelVar rel_var(rel_var_name, rich_header, constrs);
     if (!rich_header.empty()) {
-        StringSet all_field_names;
-        all_field_names.reserve(rich_header.size());
-        BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-            all_field_names.add_sure(rich_attr.GetName());
-        rel_var.GetConstrs().push_back(Unique(all_field_names));
+        bool has_unique = false;
+        BOOST_FOREACH(const Constr& constr, constrs) {
+            if (boost::get<Unique>(&constr)) {
+                has_unique = true;
+                break;
+            }
+        }
+        if (!has_unique) {
+            StringSet all_field_names;
+            all_field_names.reserve(rich_header.size());
+            BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
+                all_field_names.add_sure(rich_attr.GetName());
+            rel_var.GetConstrs().push_back(Unique(all_field_names));
+        }
     }
     RelVarCreator(*this, rel_var)(work, translator);
     rel_vars_.push_back(rel_var);

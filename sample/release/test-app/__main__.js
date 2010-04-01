@@ -490,8 +490,9 @@ db_test_suite.testQuery = function () {
                [[['id', 0], ['name', 'anton']]]);
   checkEqualTo("query('User where forsome (x in {}) true').length", 3);
   checkThrow(ak.QueryError, "query('{i: 1} where i->name')");
-  checkEqualTo("field('title', ' Post where author->name == $', ['anton'])",
-               ['first', 'third']);
+  checkEqualTo(
+    "field('title', ' Post where author->name == $', ['anton']).sort()",
+    ['first', 'third']);
   checkEqualTo("field('age', 'User where name == \\'anton\\'')", [22]);
   checkEqualTo("field('age', 'User where name == \"den\"')", [23]);
   checkThrow(ak.QueryError, "query('for (x in {f: 1}) x.f->k')");
@@ -752,7 +753,7 @@ db_test_suite.testUnique = function () {
          {a: number, b: string, c: bool},
          {unique: [['a', 'b'], ['b', 'c'], ['c']]});
   checkEqualTo("db._getUnique('rv').sort()",
-               [['a', 'b'], ['a', 'b', 'c'], ['b', 'c'], ['c']]);
+               [['a', 'b'], ['b', 'c'], ['c']]);
   checkEqualTo("db._getUnique('Dummy')", [['id']]);
   db._drop(['rv']);
 };
