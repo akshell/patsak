@@ -30,7 +30,7 @@ namespace
     const size_t MAX_NAME_SIZE = 60;
     const size_t MAX_ATTR_NUMBER = 500;
     const size_t MAX_REL_VAR_NUMBER = 500;
-    const size_t MAX_STRING_SIZE = 100 * 1024;
+    const size_t MAX_STRING_SIZE = 1024 * 1024;
     const unsigned long long QUOTA_MULTIPLICATOR = 1024 * 1024;
     
 #ifdef TEST

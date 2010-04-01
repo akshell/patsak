@@ -799,10 +799,9 @@ db_test_suite.testRelVarNumber = function () {
 db_test_suite.testQuota = function () {
   check("ak.dbQuota > 0");
   create('rv', {i: number._integer(), s: string});
-  var array = [];
-  for (var i = 0; i < 100 * 1024; ++i)
-    array.push('x');
-  var str = array.join('');
+  var str = 'x';
+  for (var i = 0; i < 20; ++i)
+    str += str;
   checkThrow(ak.ConstraintError,
              function () { db._insert('rv', {i: 0, s: str + 'x'}); });
   // Slow DB size quota test, uncomment to run
