@@ -857,6 +857,13 @@ db_test_suite.testGetAppsByLabel = function () {
   checkEqualTo(db._getAppsByLabel('no_such_label'), []);
 };
 
+
+db_test_suite.testBigIndexRow = function () {
+  create('rv', {s: string});
+  checkThrow(ak.DBError, "db._insert('rv', {s: ak._readCode('__main__.js')})");
+  db._drop(['rv']);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 // File test suite
 ////////////////////////////////////////////////////////////////////////////////

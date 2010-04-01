@@ -1098,12 +1098,10 @@ DB::Impl::Impl(const string& opt,
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
     {
         pqxx::work work(conn_);
-        pqxx::subtransaction sub_work(work);
         try {
-            sub_work.exec((format(create_cmd) % schema_name).str());
-        } catch (const pqxx::sql_error&) {
-            sub_work.abort();
-        }
+            pqxx::subtransaction(work).exec(
+                (format(create_cmd) % schema_name).str());
+        } catch (const pqxx::sql_error&) {}
         work.exec((format(set_cmd) % schema_name).str());
         pqxx::result pqxx_result(
             work.exec((format(quota_query) % app_name).str()));
@@ -1339,19 +1337,16 @@ size_t Access::Update(const string& rel_var_name,
                                                         field_expr_map,
                                                         expr_params));
     size_t result;
-    pqxx::subtransaction sub_work(*work_ptr_);
     try {
-        result = sub_work.exec(sql).affected_rows();
+        result = pqxx::subtransaction(*work_ptr_).exec(sql).affected_rows();
     } catch (const pqxx::integrity_constraint_violation& err) {
-        sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::data_exception& err) {
-        KU_ASSERT_EQUAL(string(err.what()), "ERROR:  integer out of range\n");
-        sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
+    } catch (const pqxx::sql_error& err) {
+        throw Error(Error::DB, err.what());
     }
     db_impl_.GetQuotaController().DataWereAdded(result, size);
-    sub_work.commit();
     return result;
 }
 
@@ -1363,16 +1358,13 @@ size_t Access::Delete(const string& rel_var_name,
     string sql(db_impl_.GetTranslator().TranslateDelete(rel_var_name,
                                                         where,
                                                         params));
-    size_t result;
-    pqxx::subtransaction sub_work(*work_ptr_);
     try {
-        result = sub_work.exec(sql).affected_rows();
+        return pqxx::subtransaction(*work_ptr_).exec(sql).affected_rows();
     } catch (const pqxx::integrity_constraint_violation& err) {
-        sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
+    } catch (const pqxx::sql_error& err) {
+        throw Error(Error::DB, err.what());
     }
-    sub_work.commit();
-    return result;
 }
 
 
@@ -1439,24 +1431,18 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
         }
     }
     pqxx::result pqxx_result;
-    pqxx::subtransaction sub_work(*work_ptr_);
     try {
-        pqxx_result = sub_work.exec(sql_str);
+        pqxx_result = pqxx::subtransaction(*work_ptr_).exec(sql_str);
     } catch (const pqxx::integrity_constraint_violation& err) {
-        sub_work.abort();
         throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::data_exception& err) {
-        KU_ASSERT_EQUAL(string(err.what()), "ERROR:  integer out of range\n");
-        sub_work.abort();
+        throw Error(Error::CONSTRAINT, err.what());
+    } catch (const pqxx::plpgsql_raise& err) {
         throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::sql_error& err) {
-        KU_ASSERT_MESSAGE(string(err.what()).substr(0, 14) == "ERROR:  Empty ",
-                          string(err.what()) + err.query());
-        sub_work.abort();
-        throw Error(Error::CONSTRAINT, err.what());
+        throw Error(Error::DB, err.what());
     }
     db_impl_.GetQuotaController().DataWereAdded(1, size);
-    sub_work.commit();
     if (rich_header.empty())
         return Values();
     KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
