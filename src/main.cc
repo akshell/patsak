@@ -32,8 +32,8 @@ using boost::lexical_cast;
 
 namespace
 {
-    const boost::posix_time::milliseconds CONNECT_TIMEOUT(1000);
-    const boost::posix_time::milliseconds READ_TIMEOUT(1000);
+    const boost::posix_time::seconds CONNECT_TIMEOUT(3);
+    const boost::posix_time::seconds READ_TIMEOUT(3);
     const char DEFAULT_CONFIG_FILE[] = "/ak/patsak.conf";
     const ssize_t BUF_SIZE = 1024;
 }
