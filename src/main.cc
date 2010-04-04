@@ -462,7 +462,8 @@ bool RequestHandler::Handle()
         }
         throw ProcessingError("Unknown request: " + request);
     } catch (const asio::system_error& err) {
-        Log(string("Error on socket: ") + err.what());
+        if (err.code().value() != EPIPE)
+            Log(string("Error on socket: ") + err.what());
         return true;
     } catch (const exception& err) {
         Log(string("Error during request processing: ") + err.what());
