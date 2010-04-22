@@ -58,12 +58,15 @@ function error(descr) {
 
 
 function check(expr, descr) {
-  if (expr instanceof Function)
-    check(expr(), '' + expr);
-  if (!eval(expr)) {
+  if (expr instanceof Function) {
+    descr = descr || expr + '';
+    expr = expr();
+  } else if (typeof(expr) == 'string') {
     descr = descr || expr;
-    error(descr + ' check failed');
+    expr = eval(expr);
   }
+  if (!expr)
+    error(descr + ' check failed');
 }
 
 
@@ -233,30 +236,29 @@ base_test_suite.testScript = function () {
   check("(new ak.Script('2+2'))._run() === 4");
   check("ak.Script('2+2', 'name')._run() === 4");
   checkThrow(ak.UsageError, "new ak.Script()");
-  check(function () {
-          try {
-            new ak.Script('(');
-          } catch (error) {
-            return error instanceof SyntaxError;
-          }
-          return false;
-        });
-  check(function () {
-          try {
-            new ak.Script('asdfjkl')._run();
-          } catch (error) {
-            return error instanceof ReferenceError;
-          }
-          return false;
-        });
-  check(function () {
-          try {
-            new ak.Script('new ak.Script("(")', 'just string')._run();
-          } catch (error) {
-            return error instanceof SyntaxError;
-          }
-          return false;
-        });
+  checkThrow(SyntaxError, "new ak.Script('(')");
+  checkThrow(ReferenceError, "new ak.Script('undeclarated')._run()");
+  checkThrow(SyntaxError,
+             "new ak.Script('new ak.Script(\"(\")', 'just string')._run()");
+  try {
+    new ak.Script('undeclarated', 'some name', 10, 20)._run();
+    check(false);
+  } catch (error) {
+    check(error instanceof ReferenceError);
+    check(error.stack.indexOf('some name:11:21\n') != -1);
+  }
+  try {
+    new ak.Script('undeclarated', 'some name', 10)._run();
+    check(false);
+  } catch (error) {
+    check(error.stack.indexOf('some name:11:1\n') != -1);
+  }
+  try {
+    new ak.Script('undeclarated', 'some name', {}, 20)._run();
+    check(false);
+  } catch (error) {
+    check(error.stack.indexOf('some name:1:21\n') != -1);
+  }
 };
 
 

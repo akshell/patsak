@@ -164,13 +164,20 @@ Handle<v8::Value> ScriptBg::ConstructorCb(const Arguments& args)
     }
     try {
         CheckArgsLength(args, 1);
+        auto_ptr<ScriptOrigin> origin_ptr;
+        if (args.Length() > 1) {
+            Handle<Integer> line_offset, column_offset;
+            if (args.Length() > 2)
+                line_offset = args[2]->ToInteger();
+            if (args.Length() > 3)
+                column_offset = args[3]->ToInteger();
+            origin_ptr.reset(
+                new ScriptOrigin(args[1], line_offset, column_offset));
+        }
         Handle<Script> script(
-            args.Length() == 1
-            ? Script::Compile(args[0]->ToString())
-            : Script::Compile(args[0]->ToString(), args[1]));
+            Script::Compile(args[0]->ToString(), origin_ptr.get()));
         if (!script.IsEmpty())
-            ScriptBg::GetJSClass().Attach(args.This(),
-                                          new ScriptBg(script));
+            ScriptBg::GetJSClass().Attach(args.This(), new ScriptBg(script));
         return Handle<v8::Value>();
     } JS_CATCH(Handle<v8::Value>);
 }
