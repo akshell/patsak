@@ -426,7 +426,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestAppCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestHostCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 2);
+    CheckArgsLength(args, 3);
     asio::io_service io_service;
     tcp::resolver resolver(io_service);
     tcp::resolver::query query(Stringify(args[0]), Stringify(args[1]));
