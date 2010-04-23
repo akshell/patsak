@@ -427,10 +427,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestHostCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 2);
-    string server(Stringify(args[0]));
     asio::io_service io_service;
     tcp::resolver resolver(io_service);
-    tcp::resolver::query query(server, "http");
+    tcp::resolver::query query(Stringify(args[0]), Stringify(args[1]));
     tcp::socket socket(io_service);
     try {
         asio::error_code error_code = asio::error::host_not_found;
@@ -442,7 +441,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestHostCb,
         if (error_code)
             throw asio::system_error(error_code);
         Chars data;
-        const Chars* data_ptr(ReadData(args[1], data));
+        const Chars* data_ptr(ReadData(args[2], data));
         if (data_ptr)
             asio::write(socket,
                         asio::buffer(&data_ptr->front(), data_ptr->size()),

@@ -350,10 +350,11 @@ base_test_suite.testRequestApp = function () {
 
 
 base_test_suite.testRequestHost = function () {
-  var response = ak._requestHost('example.com', 'GET / HTTP/1.0\r\n\r\n') + '';
+  var response = ak._requestHost(
+    'example.com', 80, 'GET / HTTP/1.0\r\n\r\n') + '';
   check(response.substr(0, response.indexOf('\r')) == 'HTTP/1.1 200 OK');
   check(response.indexOf('2606') != -1);
-  checkThrow(ak.HostRequestError, "ak._requestHost('bad host name', '')");
+  checkThrow(ak.HostRequestError, "ak._requestHost('bad host name', 80, '')");
 };
 
 ////////////////////////////////////////////////////////////////////////////////
