@@ -9,6 +9,7 @@
 #include <boost/foreach.hpp>
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
+#include <asio.hpp>
 
 #include <setjmp.h>
 
@@ -19,6 +20,7 @@ using namespace v8;
 using boost::scoped_ptr;
 using boost::bind;
 using boost::noncopyable;
+using asio::ip::tcp;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,6 +246,9 @@ namespace
         
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestAppCb,
                              const Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestHostCb,
+                             const Arguments&) const;
     };
 }
 
@@ -258,6 +263,7 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
     SetFunction(proto_template, "hash", HashCb);
     SetFunction(proto_template, "construct", ConstructCb);
     SetFunction(proto_template, "requestApp", RequestAppCb);
+    SetFunction(proto_template, "requestHost", RequestHostCb);
     Set(object_template, "db", DBBg::GetJSClass().GetObjectTemplate());
     Set(object_template, "fs", FSBg::GetJSClass().GetObjectTemplate());
 }
@@ -369,6 +375,22 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ConstructCb,
 }
 
 
+namespace
+{
+    const Chars* ReadData(Handle<v8::Value> value, Chars& data)
+    {
+        if (value->IsNull() || value->IsUndefined())
+            return 0;
+        const DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(value);
+        if (data_bg_ptr)
+            return &data_bg_ptr->GetData();
+        String::Utf8Value utf8_value(value);
+        data.assign(*utf8_value, *utf8_value + utf8_value.length());
+        return &data;
+    }
+}
+
+
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestAppCb,
                     const Arguments&, args) const
 {
@@ -383,21 +405,11 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestAppCb,
         file_values.push_back(GetArrayLikeItem(args[2], i));
     FSBg::FileAccessor file_accessor(fs_bg_, file_values);
     
-    const Chars* data_ptr = 0;
     Chars data;
-    const DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(args[3]);
-    if (data_bg_ptr) {
-        data_ptr = &data_bg_ptr->GetData();
-    } else if (!args[3]->IsNull() && !args[3]->IsUndefined()) {
-        String::Utf8Value utf8_value(args[3]);
-        data.assign(*utf8_value, *utf8_value + utf8_value.length());
-        data_ptr = &data;
-    }
-        
     Chars result(app_accessor_(app_name,
                                request,
                                file_accessor.GetFullPathes(),
-                               data_ptr,
+                               ReadData(args[3], data),
                                *access_ptr));
     KU_ASSERT(result.size() >= 3);
     if (string(&result[0], 3) == "OK\n") {
@@ -407,6 +419,42 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestAppCb,
                           string(&result[0], result.size()));
         throw Error(Error::PROCESSING_FAILED,
                     "Exception occured in \"" + app_name + "\" app");
+    }
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestHostCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 2);
+    string server(Stringify(args[0]));
+    asio::io_service io_service;
+    tcp::resolver resolver(io_service);
+    tcp::resolver::query query(server, "http");
+    tcp::socket socket(io_service);
+    try {
+        asio::error_code error_code = asio::error::host_not_found;
+        for (tcp::resolver::iterator itr = resolver.resolve(query);
+             itr != tcp::resolver::iterator();
+             ++itr)
+            if (!socket.connect(*itr, error_code))
+                break;
+        if (error_code)
+            throw asio::system_error(error_code);
+        Chars data;
+        const Chars* data_ptr(ReadData(args[1], data));
+        if (data_ptr)
+            asio::write(socket,
+                        asio::buffer(&data_ptr->front(), data_ptr->size()),
+                        asio::transfer_all());
+        asio::streambuf buf;
+        asio::read(socket, buf, asio::transfer_all(), error_code);
+        if (error_code != asio::error::eof)
+            throw asio::system_error(error_code);
+        const char* ptr = asio::buffer_cast<const char*>(buf.data());
+        return JSNew<DataBg>(auto_ptr<Chars>(new Chars(ptr, ptr + buf.size())));
+    } catch (const asio::system_error& error) {
+        throw Error(Error::HOST_REQUEST, error.what());
     }
 }
 

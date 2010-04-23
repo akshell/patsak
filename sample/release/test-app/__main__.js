@@ -300,6 +300,62 @@ base_test_suite.testConstruct = function () {
   checkThrow(TypeError, "ak._construct(function () {}, 42)");
 };
 
+
+base_test_suite.testRequestApp = function () {
+  forEach(ak.fs._list(''), ak.fs.remove);
+  fs._write('file1', 'wuzzup');
+  fs._write('file2', 'yo ho ho');
+  fs._write('hello', 'hello world!');
+  checkEqualTo(function () {
+                 return ak._requestApp('another-app',
+                                       fs._read('hello'),
+                                       ['file1', 'file2'],
+                                       'yo!!!');
+               },
+               '{"user":"' + ak._user + '",'+
+               '"arg":"hello world!","data":"yo!!!",' +
+               '"file_contents":["wuzzup","yo ho ho"],' +
+               '"issuer":"test-app"}');
+  check("!fs._exists('file1') && !fs._exists('file2')");
+  fs.remove('hello');
+  checkThrow(ak.NoSuchAppError,
+             "ak._requestApp('no-such-app', 'hi', [], null)");
+  checkThrow(TypeError, "ak._requestApp('another-app', '', 42, null)");
+  checkEqualTo(
+    function () {
+      fs._write('file3', 'text');
+      var result = ak._requestApp('another-app', '', [], fs._read('file3'));
+      fs.remove('file3');
+      return result;
+    },
+    '{"user":"' + ak._user + '",' +
+      '"arg":"",' +
+      '"data":"text",' +
+      '"file_contents":[],' +
+      '"issuer":"test-app"}');
+  checkThrow(ak.NoSuchAppError,
+             "ak._requestApp('invalid/app/name', '', [], null)");
+  checkThrow(ak.UsageError, "ak._requestApp('test-app', '2+2', [], null)");
+  checkThrow(ak.ProcessingFailedError,
+             "ak._requestApp('throwing-app', '', [], null)");
+  checkThrow(ak.TimedOutError, "ak._requestApp('blocking-app', '', [], null)");
+  checkThrow(ak.PathError, "ak._requestApp('another-app', '', ['..'], null)");
+  checkThrow(ak.NoSuchEntryError,
+             "ak._requestApp('another-app', '', ['no-such-file'], null)");
+  fs._createDir('dir');
+  checkThrow(ak.EntryIsDirError,
+             "ak._requestApp('another-app', '', ['dir'], null)");
+  checkThrow(TypeError, "ak._requestApp('another-app', 'hi', 42, null)");
+};
+
+
+base_test_suite.testRequestHost = function () {
+  var response = ak._requestHost('example.com', 'GET / HTTP/1.0\r\n\r\n') + '';
+  check(response.substr(0, response.indexOf('\r')) == 'HTTP/1.1 200 OK');
+  check(response.indexOf('2606') != -1);
+  checkThrow(ak.HostRequestError, "ak._requestHost('bad host name', '')");
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 // DB test suite
 ////////////////////////////////////////////////////////////////////////////////
@@ -1007,65 +1063,6 @@ file_test_suite.testQuota = function () {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// requestApp test suite
-////////////////////////////////////////////////////////////////////////////////
-
-var request_app_test_suite = {};
-
-request_app_test_suite.testRequest = function ()
-{
-  fs._write('file1', 'wuzzup');
-  fs._write('file2', 'yo ho ho');
-  fs._write('hello', 'hello world!');
-  checkEqualTo(function () {
-                 return ak._requestApp('another-app',
-                                       fs._read('hello'),
-                                       ['file1', 'file2'],
-                                       'yo!!!');
-               },
-               '{"user":"' + ak._user + '",'+
-               '"arg":"hello world!","data":"yo!!!",' +
-               '"file_contents":["wuzzup","yo ho ho"],' +
-               '"issuer":"test-app"}');
-  check("!fs._exists('file1') && !fs._exists('file2')");
-  fs.remove('hello');
-  checkThrow(ak.NoSuchAppError,
-             "ak._requestApp('no-such-app', 'hi', [], null)");
-  checkThrow(TypeError, "ak._requestApp('another-app', '', 42, null)");
-  checkEqualTo(
-    function () {
-      fs._write('file3', 'text');
-      var result = ak._requestApp('another-app', '', [], fs._read('file3'));
-      fs.remove('file3');
-      return result;
-    },
-    '{"user":"' + ak._user + '",' +
-      '"arg":"",' +
-      '"data":"text",' +
-      '"file_contents":[],' +
-      '"issuer":"test-app"}');
-  checkThrow(ak.NoSuchAppError,
-             "ak._requestApp('invalid/app/name', '', [], null)");
-  checkThrow(ak.UsageError, "ak._requestApp('test-app', '2+2', [], null)");
-  checkThrow(ak.ProcessingFailedError,
-             "ak._requestApp('throwing-app', '', [], null)");
-  checkThrow(ak.TimedOutError, "ak._requestApp('blocking-app', '', [], null)");
-  checkThrow(ak.PathError, "ak._requestApp('another-app', '', ['..'], null)");
-  checkThrow(ak.NoSuchEntryError,
-             "ak._requestApp('another-app', '', ['no-such-file'], null)");
-  checkThrow(ak.EntryIsDirError,
-             function () {
-               fs._createDir('dir');
-               try {
-                 ak._requestApp('another-app', '', ['dir'], null);
-               } finally {
-                 fs.remove('dir');
-               }
-             });
-  checkThrow(TypeError, "ak._requestApp('another-app', 'hi', 42, null)");
-};
-
-////////////////////////////////////////////////////////////////////////////////
 // Entry point
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1073,8 +1070,7 @@ function main() {
   runTestSuites([
                   base_test_suite,
                   db_test_suite,
-                  file_test_suite,
-                  request_app_test_suite
+                  file_test_suite
                 ]);
   return error_count;
 }

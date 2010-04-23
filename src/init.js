@@ -34,6 +34,7 @@
   defineErrorClass('DB', ak.CoreError);
   defineErrorClass('FS', ak.CoreError);
   defineErrorClass('AppRequest', ak.CoreError);
+  defineErrorClass('HostRequest', ak.CoreError);
   defineErrorClass('Metadata', ak.CoreError);
 
 
@@ -50,6 +51,7 @@
       ak.DBError,
       ak.FSError,
       ak.AppRequestError,
+      ak.HostRequestError,
       ak.MetadataError,
 
       defineErrorClass('DBQuota', ak.DBError),

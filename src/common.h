@@ -29,6 +29,7 @@ namespace ku
             DB,
             FS,
             APP_REQUEST,
+            HOST_REQUEST,
             METADATA,
 
             DB_QUOTA,
