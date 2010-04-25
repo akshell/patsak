@@ -14,70 +14,68 @@
     var fullName = name + 'Error';
     var result = function (message) {
       if (!(this instanceof arguments.callee))
-        return ak._construct(arguments.callee, arguments);
+        return _core.construct(arguments.callee, arguments);
       Error.captureStackTrace(this);
       this.message = message + '';
       return undefined;
     };
-    result.__name__ = result.prototype.name = 'ak.' + fullName;
+    result.__name__ = result.prototype.name = fullName;
     result.prototype.__proto__ = parent.prototype;
-    ak[fullName] = result;
+    _core[fullName] = result;
     return result;
   }
 
 
   defineErrorClass('Base', Error);
 
-  defineErrorClass('Core', ak.BaseError);
-  defineErrorClass('Usage', ak.BaseError);
+  defineErrorClass('Core', _core.BaseError);
+  defineErrorClass('Usage', _core.BaseError);
 
-  defineErrorClass('DB', ak.CoreError);
-  defineErrorClass('FS', ak.CoreError);
-  defineErrorClass('AppRequest', ak.CoreError);
-  defineErrorClass('HostRequest', ak.CoreError);
-  defineErrorClass('Metadata', ak.CoreError);
+  defineErrorClass('DB', _core.CoreError);
+  defineErrorClass('FS', _core.CoreError);
+  defineErrorClass('AppRequest', _core.CoreError);
+  defineErrorClass('HostRequest', _core.CoreError);
+  defineErrorClass('Metadata', _core.CoreError);
 
 
-  ak._set(
-    ak, '_errors', 7,
-    [
-      TypeError,
+  _core.errors = [
+    TypeError,
 
-      ak.BaseError,
+    _core.BaseError,
 
-      ak.CoreError,
-      ak.UsageError,
+    _core.CoreError,
+    _core.UsageError,
 
-      ak.DBError,
-      ak.FSError,
-      ak.AppRequestError,
-      ak.HostRequestError,
-      ak.MetadataError,
+    _core.DBError,
+    _core.FSError,
+    _core.AppRequestError,
+    _core.HostRequestError,
+    _core.MetadataError,
 
-      defineErrorClass('DBQuota', ak.DBError),
-      defineErrorClass('RelVarExists', ak.DBError),
-      defineErrorClass('NoSuchRelVar', ak.DBError),
-      defineErrorClass('RelVarDependency', ak.DBError),
-      defineErrorClass('Constraint', ak.DBError),
-      defineErrorClass('Field', ak.DBError),
-      defineErrorClass('Query', ak.DBError),
+    defineErrorClass('DBQuota', _core.DBError),
+    defineErrorClass('RelVarExists', _core.DBError),
+    defineErrorClass('NoSuchRelVar', _core.DBError),
+    defineErrorClass('RelVarDependency', _core.DBError),
+    defineErrorClass('Constraint', _core.DBError),
+    defineErrorClass('Field', _core.DBError),
+    defineErrorClass('Query', _core.DBError),
 
-      defineErrorClass('FSQuota', ak.FSError),
-      defineErrorClass('Path', ak.FSError),
-      defineErrorClass('EntryExists', ak.FSError),
-      defineErrorClass('NoSuchEntry', ak.FSError),
-      defineErrorClass('EntryIsDir', ak.FSError),
-      defineErrorClass('EntryIsNotDir', ak.FSError),
-      defineErrorClass('DirIsNotEmpty', ak.FSError),
-      defineErrorClass('TempFileRemoved', ak.FSError),
-      defineErrorClass('Conversion', ak.FSError),
+    defineErrorClass('FSQuota', _core.FSError),
+    defineErrorClass('Path', _core.FSError),
+    defineErrorClass('EntryExists', _core.FSError),
+    defineErrorClass('NoSuchEntry', _core.FSError),
+    defineErrorClass('EntryIsDir', _core.FSError),
+    defineErrorClass('EntryIsNotDir', _core.FSError),
+    defineErrorClass('DirIsNotEmpty', _core.FSError),
+    defineErrorClass('TempFileRemoved', _core.FSError),
+    defineErrorClass('Conversion', _core.FSError),
 
-      defineErrorClass('ProcessingFailed', ak.AppRequestError),
-      defineErrorClass('TimedOut', ak.AppRequestError),
+    defineErrorClass('ProcessingFailed', _core.AppRequestError),
+    defineErrorClass('TimedOut', _core.AppRequestError),
 
-      defineErrorClass('NoSuchApp', ak.MetadataError),
-      defineErrorClass('NoSuchUser', ak.MetadataError)
-    ]);
+    defineErrorClass('NoSuchApp', _core.MetadataError),
+    defineErrorClass('NoSuchUser', _core.MetadataError)
+  ];
 
   //////////////////////////////////////////////////////////////////////////////
   // include and use
@@ -88,7 +86,7 @@
     var resultBits = [];
     function checkNonEmpty() {
       if (!resultBits.length)
-        throw new ak.PathError('Code path "' + path + '" is illegal');
+        throw new _core.PathError('Code path "' + path + '" is illegal');
     }
     for (var i = 0; i < bits.length; ++i) {
       switch (bits[i]) {
@@ -114,9 +112,9 @@
   var includeResults = {};
 
 
-  ak.include = function (/* [app,] path */) {
+  _core.include = function (/* [app,] path */) {
     if (!arguments.length)
-      throw ak.UsageError('At least one argument required');
+      throw _core.UsageError('At least one argument required');
     var app, path;
     if (arguments.length > 1) {
       app = arguments[0];
@@ -133,38 +131,39 @@
       return includeResults[identifier];
     for (var i = 0; i < includeStack.length; ++i)
       if (includeStack[i] == identifier)
-        throw ak.UsageError(
+        throw _core.UsageError(
           'Recursive include of file "' + path + '"' +
           (app ? ' of ' + app + ' app': ''));
 
     var oldCurrApp = currApp;
     var oldCurrDir = currDir;
-    var oldPath = ak.include.path;
+    var oldPath = _core.include.path;
 
     var idx = path.lastIndexOf('/');
     currDir = idx == -1 ? '' : path.substring(0, idx + 1);
     currApp = app;
-    ak.include.path = path;
+    _core.include.path = path;
     includeStack.push(identifier);
 
     try {
-      var script = (app
-                    ? new ak.Script(ak._readCode(app, path), app + ':' + path)
-                    : new ak.Script(ak._readCode(path), path));
+      var script = (
+        app
+        ? new _core.Script(_core.readCode(app, path), app + ':' + path)
+        : new _core.Script(_core.readCode(path), path));
       var result = script._run();
       includeResults[identifier] = result;
       return result;
     } finally {
       currApp = oldCurrApp;
       currDir = oldCurrDir;
-      ak.include.path = oldPath;
+      _core.include.path = oldPath;
       includeStack.pop();
     }
   };
 
 
-  ak.use = function (app, path/* = '' */) {
-    return ak.include(app, (path ? path + '/' : '') + '__init__.js');
+  _core.use = function (app, path/* = '' */) {
+    return _core.include(app, (path ? path + '/' : '') + '__init__.js');
   };
 
 })();

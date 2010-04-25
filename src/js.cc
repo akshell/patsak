@@ -150,7 +150,7 @@ JSClass<ScriptBg>& ScriptBg::GetJSClass() {
 void ScriptBg::AdjustTemplates(Handle<ObjectTemplate> /*object_template*/,
                                Handle<ObjectTemplate> proto_template)
 {
-    SetFunction(proto_template, "run", RunCb);
+    SetFunction(proto_template, "_run", RunCb);
 }
 
 
@@ -204,19 +204,19 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, ScriptBg, RunCb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// AKBg
+// CoreBg
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    class AKBg {
+    class CoreBg {
     public:
-        DECLARE_JS_CLASS(AKBg);
+        DECLARE_JS_CLASS(CoreBg);
 
-        AKBg(const Place& place,
-             const CodeReader& code_reader,
-             AppAccessor& app_accessor,
-             FSBg& fs_bg);
+        CoreBg(const Place& place,
+               const CodeReader& code_reader,
+               AppAccessor& app_accessor,
+               FSBg& fs_bg);
 
         void Init(Handle<Object> object) const;
         
@@ -253,7 +253,7 @@ namespace
 }
 
 
-DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
+DEFINE_JS_CLASS(CoreBg, "Core", object_template, proto_template)
 {
     ScriptBg::GetJSClass();
     SetFunction(proto_template, "print", PrintCb);
@@ -269,10 +269,10 @@ DEFINE_JS_CLASS(AKBg, "AK", object_template, proto_template)
 }
 
 
-AKBg::AKBg(const Place& place,
-           const CodeReader& code_reader,
-           AppAccessor& app_accessor,
-           FSBg& fs_bg)
+CoreBg::CoreBg(const Place& place,
+               const CodeReader& code_reader,
+               AppAccessor& app_accessor,
+               FSBg& fs_bg)
     : place_(place)
     , code_reader_(code_reader)
     , app_accessor_(app_accessor)
@@ -281,9 +281,9 @@ AKBg::AKBg(const Place& place,
 }
 
 
-void AKBg::Init(Handle<Object> ak) const
+void CoreBg::Init(Handle<Object> core) const
 {
-    JSClassBase::InitConstructors(ak);
+    JSClassBase::InitConstructors(core);
     Handle<Object> app(Object::New());
     Set(app, "name", String::New(place_.app_name.c_str()));
     if (!place_.spot_name.empty()) {
@@ -292,11 +292,11 @@ void AKBg::Init(Handle<Object> ak) const
         Set(spot, "owner", String::New(place_.owner_name.c_str()));
         Set(app, "spot", spot);
     }
-    Set(ak, "app", app);
+    Set(core, "app", app);
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, PrintCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, PrintCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
@@ -305,7 +305,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, PrintCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, SetCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 4);
@@ -324,7 +324,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, SetCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ReadCodeCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, ReadCodeCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
@@ -336,7 +336,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ReadCodeCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, GetCodeModDateCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, GetCodeModDateCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
@@ -348,7 +348,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, GetCodeModDateCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, HashCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, HashCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
@@ -359,7 +359,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, HashCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, ConstructCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, ConstructCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 2);
@@ -391,7 +391,7 @@ namespace
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestAppCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestAppCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 4);
@@ -423,7 +423,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestAppCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, AKBg, RequestHostCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestHostCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 3);
@@ -473,9 +473,9 @@ namespace
 
 DEFINE_JS_CLASS(GlobalBg, "Global", object_template, /*proto_template*/)
 {
-    Set(object_template, "ak",
-        AKBg::GetJSClass().GetObjectTemplate(),
-        ReadOnly | DontDelete);
+    Set(object_template, "_core",
+        CoreBg::GetJSClass().GetObjectTemplate(),
+        ReadOnly | DontEnum | DontDelete);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -704,10 +704,10 @@ private:
     CodeReader code_reader_;
     DBBg db_bg_;
     FSBg fs_bg_;
-    AKBg ak_bg_;
+    CoreBg core_bg_;
     GlobalBg global_bg_;
     Persistent<Context> context_;
-    Persistent<Object> ak_;
+    Persistent<Object> core_;
     
     auto_ptr<Response> Run(Handle<Function> function,
                            Handle<Object> object,
@@ -737,7 +737,7 @@ Program::Impl::Impl(const Place& place,
     , db_(db)
     , code_reader_(code_dir, include_dir)
     , fs_bg_(media_dir, db.GetFSQuota())
-    , ak_bg_(place, code_reader_, app_accessor, fs_bg_)
+    , core_bg_(place, code_reader_, app_accessor, fs_bg_)
 {
     V8::SetFatalErrorHandler(HandleFatalError);
     
@@ -752,16 +752,16 @@ Program::Impl::Impl(const Place& place,
     context_ = Context::New(NULL, GlobalBg::GetJSClass().GetObjectTemplate());
     Handle<Object> global_proto(context_->Global()->GetPrototype()->ToObject());
     global_proto->SetInternalField(0, External::New(&global_bg_));
-    SetInternal(global_proto, "ak", &ak_bg_);
-    ak_ = Persistent<Object>::New(Get(global_proto, "ak")->ToObject());
-    SetInternal(ak_, "db", &db_bg_);
-    SetInternal(ak_, "fs", &fs_bg_);
+    SetInternal(global_proto, "_core", &core_bg_);
+    core_ = Persistent<Object>::New(Get(global_proto, "_core")->ToObject());
+    SetInternal(core_, "db", &db_bg_);
+    SetInternal(core_, "fs", &fs_bg_);
 
     Context::Scope context_scope(context_);
-    ak_bg_.Init(ak_);
-    db_bg_.Init(Get(ak_, "db")->ToObject());
-    Set(ak_, "dbQuota", Number::New(db_.GetDBQuota()), DontEnum);
-    Set(ak_, "fsQuota", Number::New(db_.GetFSQuota()), DontEnum);
+    core_bg_.Init(core_);
+    db_bg_.Init(Get(core_, "db")->ToObject());
+    Set(core_, "dbQuota", Number::New(db_.GetDBQuota()));
+    Set(core_, "fsQuota", Number::New(db_.GetFSQuota()));
 
     parse_date_func = Persistent<Function>::New(
         Handle<Function>::Cast(
@@ -779,7 +779,7 @@ Program::Impl::Impl(const Place& place,
 
 Program::Impl::~Impl()
 {
-    ak_.Dispose();
+    core_.Dispose();
     context_.Dispose();
 }
 
@@ -793,7 +793,7 @@ auto_ptr<Response> Program::Impl::Process(const string& user,
     HandleScope handle_scope;
     return Call(user, request,
                 file_pathes, data_ptr, issuer,
-                ak_, "_main");
+                core_, "main");
 }
 
 
@@ -854,10 +854,10 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     Context::Scope context_scope(context_);
     if (!initialized_) {
         Handle<Function> include_func(
-            Handle<Function>::Cast(Get(ak_, "include")));
+            Handle<Function>::Cast(Get(core_, "include")));
         KU_ASSERT(!include_func.IsEmpty());
         auto_ptr<Response> response_ptr(
-            Run(include_func, ak_, String::New("__main__.js")));
+            Run(include_func, core_, String::New("__main__.js")));
         if (response_ptr->GetStatus() != "OK")
             return response_ptr;
         initialized_ = true;
@@ -866,14 +866,14 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     Handle<v8::Value> func_value(Get(object, func_name));
     if (func_value.IsEmpty() || !func_value->IsFunction())
         return auto_ptr<Response>(
-            new ErrorResponse('"' + func_name + "\" is not a function"));
+            new ErrorResponse(func_name + " is not a function"));
     
     Handle<v8::Value> data_value;
     if (data_ptr.get())
         data_value = JSNew<DataBg>(data_ptr);
     else
         data_value = Null();
-    Set(ak_, "_data", data_value, DontEnum);
+    Set(core_, "data", data_value);
 
     Handle<Array> file_array(Array::New(file_pathes.size()));
     vector<Handle<Object> > files;
@@ -883,10 +883,10 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         files.push_back(file);
         file_array->Set(Integer::New(i), file);
     }
-    Set(ak_, "_files", file_array, DontEnum);
+    Set(core_, "files", file_array);
 
-    Set(ak_, "_user", String::New(user.c_str()), DontEnum);
-    Set(ak_, "_issuer", String::New(issuer.c_str()), DontEnum);
+    Set(core_, "user", String::New(user.c_str()));
+    Set(core_, "issuer", String::New(issuer.c_str()));
 
     auto_ptr<Response> result(Run(Handle<Function>::Cast(func_value),
                                   object,

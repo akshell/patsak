@@ -22,8 +22,8 @@ using boost::lexical_cast;
 void ku::ThrowError(const ku::Error& err) {
     static Persistent<Object> errors(
         Persistent<Object>::New(
-            Get(Get(Context::GetCurrent()->Global(), "ak")->ToObject(),
-                "_errors")->ToObject()));
+            Get(Get(Context::GetCurrent()->Global(), "_core")->ToObject(),
+                "errors")->ToObject()));
     Handle<v8::Value> message(String::New(err.what()));
     ThrowException(
         Function::Cast(*errors->Get(Integer::New(err.GetTag())))
@@ -81,10 +81,11 @@ void ku::SetFunction(Handle<Template> template_,
                      const string& name,
                      InvocationCallback callback)
 {
+    KU_ASSERT(!name.empty());
     Set(template_,
-        ('_' + name).c_str(),
+        name.c_str(),
         FunctionTemplate::New(callback),
-        DontEnum);
+        name[0] == '_' ? DontEnum : None);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,9 +156,7 @@ void JSClassBase::InitConstructors(Handle<Object> holder)
     BOOST_FOREACH(JSClassBase* class_ptr, GetInstancePtrs()) {
         const string& name(class_ptr->GetName());
         KU_ASSERT(name.size());
-        Set(holder, name,
-            class_ptr->GetFunction(),
-            (name[0] == '_' ? DontEnum : None));
+        Set(holder, name, class_ptr->GetFunction());
     }
 }
 

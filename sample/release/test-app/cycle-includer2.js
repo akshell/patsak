@@ -1,1 +1,1 @@
-ak.include('cycle-includer1.js');
+_core.include('cycle-includer1.js');

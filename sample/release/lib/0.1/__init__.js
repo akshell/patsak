@@ -1,1 +1,1 @@
-ak.include('42.js');
+_core.include('42.js');

@@ -1,4 +1,4 @@
 
-ak._main = function () {
+_core.main = function () {
   throw 42;
 };

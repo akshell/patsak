@@ -1,5 +1,5 @@
 
-ak._main = function () {
+_core.main = function () {
   while (true)
     ;
 };

@@ -1,1 +1,1 @@
-ak.include('bug.js');
+_core.include('bug.js');

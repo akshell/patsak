@@ -153,7 +153,7 @@ int ku::GetPathDepth(const std::string& path)
 
 DEFINE_JS_CLASS(DataBg, "Data", /*object_template*/, proto_template)
 {
-    SetFunction(proto_template, "toString", ToStringCb);
+    SetFunction(proto_template, "_toString", ToStringCb);
 }
 
 

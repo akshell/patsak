@@ -164,34 +164,35 @@ class Test(unittest.TestCase):
         self.assertEqual(talk('PROCESS\nDATA 0\n\nREQUEST 3\n2+2'), 'OK\n4')
         self.assertEqual(talk('PROCESS\nUSER anton\nEXPR 6\nmain()'), 'OK\n0')
         self.assertEqual(talk('PROCESS\nREQUEST 3\n2+2'), 'OK\n4')
-        self.assertEqual(talk('PROCESS ak._data'), 'OK\nnull')
-        self.assertEqual(talk('PROCESS\nREQUEST 8\nak._data'), 'OK\nnull')
+        self.assertEqual(talk('PROCESS _core.data'), 'OK\nnull')
+        self.assertEqual(talk('PROCESS\nREQUEST 10\n_core.data'), 'OK\nnull')
         self.assertEqual(talk('PROCESS\nDATA 5\nhello\n'
-                              'REQUEST 11\nak._data+""'),
+                              'REQUEST 13\n_core.data+""'),
                          'OK\nhello')
         wuzzup_path = os.path.join(TMP_DIR, 'wuzzup.txt')
         open(wuzzup_path, 'w').write('wuzzup!!1')
         self.assertEqual(talk('PROCESS\n\nFILE /does_not_exist\n'
                               'FILE ' + wuzzup_path + '\n'
-                              'REQUEST 25\nak.fs._read(ak._files[1])'),
+                              'REQUEST 30\n_core.fs.read(_core.files[1])'),
                          'OK\nwuzzup!!1')
         self.assert_(os.path.exists(wuzzup_path))
         self.assert_('Temp file is already removed' in
                      talk('PROCESS\nFILE ' + wuzzup_path + '\n' +
-                          'REQUEST 53\n'
-                          'ak.fs._remove(ak._files[0]);'
-                          'ak.fs._read(ak._files[0])'))
+                          'REQUEST 61\n'
+                          '_core.fs.remove(_core.files[0]);'
+                          '_core.fs.read(_core.files[0])'))
         self.assert_(not os.path.exists(wuzzup_path))
 
         self.assertEqual(
-            talk('PROCESS ak.db._create("xxx", {}, [], [], []); throw 1'),
-            'ERROR\nLine 1, column 39\nUncaught 1')
-        self.assertEqual(talk('PROCESS "xxx" in ak.db._list()'), 'OK\nfalse')
+            talk('PROCESS _core.db.create("xxx", {}, [], [], []); throw 1'),
+            'ERROR\nLine 1, column 41\nUncaught 1')
+        self.assertEqual(talk('PROCESS "xxx" in _core.db.list()'), 'OK\nfalse')
         self.assertEqual(
             talk('PROCESS '
-                 'ak.db._create("xxx", {}, [], [], []); ak.db._rollback()'),
+                 '_core.db.create("xxx", {}, [], [], []);'
+                 '_core.db.rollback()'),
             'OK\nundefined')
-        self.assertEqual(talk('PROCESS "xxx" in ak.db._list()'), 'OK\nfalse')
+        self.assertEqual(talk('PROCESS "xxx" in _core.db.list()'), 'OK\nfalse')
 
         # Timed out test. Long to run.
 #         self.assertEqual(talk('PROCESS for (;;) main();'),
@@ -219,7 +220,7 @@ class Test(unittest.TestCase):
         self.assertEqual(talk('PROCESS\nISSUER test-app\nEXPR 3\n2+2'),
                          'FAIL\nISSUER is not supported by EXPR')
         
-        self.assertEqual(talk('PROCESS ak.app.spot'),
+        self.assertEqual(talk('PROCESS _core.app.spot'),
                          'OK\nundefined')
         self.assertEqual(talk('STOP'), 'OK\n')
         self.assertRaises(socket.error, self._connect, socket_path)
@@ -239,13 +240,13 @@ class Test(unittest.TestCase):
             return self._talk_through_socket(socket_path, message)
         
         self.assertEqual(talk('PROCESS\nREQUEST 1\n1'),
-                         'ERROR\n"_main" is not a function')
+                         'ERROR\nmain is not a function')
         self.assertEqual(talk('PROCESS answer'), 'OK\n42')
         self.assertEqual(
-            talk('PROCESS ak.app.spot.owner + " " + ak.app.spot.name'),
+            talk('PROCESS _core.app.spot.owner + " " + _core.app.spot.name'),
             'OK\ntest user test-spot')
         self.assertEqual(
-            talk('PROCESS ak._requestApp("another-app", "hi", [], null)'),
+            talk('PROCESS _core.requestApp("another-app", "hi", [], null)'),
             'OK\n{"user":"","arg":"hi","data":null,' +
             '"file_contents":[],"issuer":"test-app"}')
         self.assertEqual(

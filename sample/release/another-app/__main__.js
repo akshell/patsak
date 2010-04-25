@@ -1,16 +1,16 @@
 
-ak._main = function (arg) {
+_core.main = function (arg) {
   var file_contents = [];
-  for (var i = 0; i < ak._files.length; ++i) {
-    file_contents.push(ak.fs._read(ak._files[i])._toString('UTF-8'));
-    ak.fs._remove(ak._files[i]);
+  for (var i = 0; i < _core.files.length; ++i) {
+    file_contents.push(_core.fs.read(_core.files[i])._toString('UTF-8'));
+    _core.fs.remove(_core.files[i]);
   }
   return JSON.stringify(
     {
-      user: ak._user,
+      user: _core.user,
       arg: arg,
-      data: ak._data ? ak._data._toString('UTF-8') : ak._data,
+      data: _core.data ? _core.data._toString('UTF-8') : _core.data,
       file_contents: file_contents,
-      issuer: ak._issuer
+      issuer: _core.issuer
     });
 };

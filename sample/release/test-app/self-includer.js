@@ -1,1 +1,1 @@
-ak.include('self-includer.js');
+_core.include('self-includer.js');

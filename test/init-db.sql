@@ -45,11 +45,10 @@ INSERT INTO "main_app" VALUES (0, 'test-app', 0, '',
                                'test app', 'test app...', 1, 1);
 INSERT INTO "main_app" VALUES (1, 'another-app', 1, '',
                                'another app', 'another app...', 1, 1);
-INSERT INTO "main_app" VALUES (2, 'ak', 0, '', '', '', 1, 1);
-INSERT INTO "main_app" VALUES (3, 'lib', 0, '', '', '', 1, 1);
-INSERT INTO "main_app" VALUES (4, 'bad-app', 0, '', '', '', 1, 1);
-INSERT INTO "main_app" VALUES (5, 'throwing-app', 0, '', '', '', 1, 1);
-INSERT INTO "main_app" VALUES (6, 'blocking-app', 0, '', '', '', 1, 1);
+INSERT INTO "main_app" VALUES (2, 'lib', 0, '', '', '', 1, 1);
+INSERT INTO "main_app" VALUES (3, 'bad-app', 0, '', '', '', 1, 1);
+INSERT INTO "main_app" VALUES (4, 'throwing-app', 0, '', '', '', 1, 1);
+INSERT INTO "main_app" VALUES (5, 'blocking-app', 0, '', '', '', 1, 1);
 INSERT INTO "main_app_labels" VALUES (0, 0, 0);
 INSERT INTO "main_app_labels" VALUES (1, 0, 1);
 INSERT INTO "main_app_labels" VALUES (2, 1, 0);

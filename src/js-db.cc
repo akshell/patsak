@@ -240,12 +240,12 @@ namespace
 DEFINE_JS_CLASS(TypeBg, "Type", object_template, proto_template)
 {
     object_template->SetAccessor(String::NewSymbol("name"), GetNameCb);
-    SetFunction(proto_template, "integer", IntegerCb);
-    SetFunction(proto_template, "serial", SerialCb);
-    SetFunction(proto_template, "default", DefaultCb);
-    SetFunction(proto_template, "unique", UniqueCb);
-    SetFunction(proto_template, "foreign", ForeignCb);
-    SetFunction(proto_template, "check", CheckCb);
+    SetFunction(proto_template, "_integer", IntegerCb);
+    SetFunction(proto_template, "_serial", SerialCb);
+    SetFunction(proto_template, "_default", DefaultCb);
+    SetFunction(proto_template, "_unique", UniqueCb);
+    SetFunction(proto_template, "_foreign", ForeignCb);
+    SetFunction(proto_template, "_check", CheckCb);
 }
 
 
@@ -406,10 +406,10 @@ DBBg::DBBg()
 
 void DBBg::Init(v8::Handle<v8::Object> object) const
 {
-    Set(object, "_number", JSNew<TypeBg>(Type::NUMBER), DontEnum);
-    Set(object, "_string", JSNew<TypeBg>(Type::STRING), DontEnum);
-    Set(object, "_bool", JSNew<TypeBg>(Type::BOOL), DontEnum);
-    Set(object, "_date", JSNew<TypeBg>(Type::DATE), DontEnum);
+    Set(object, "number", JSNew<TypeBg>(Type::NUMBER));
+    Set(object, "string", JSNew<TypeBg>(Type::STRING));
+    Set(object, "bool", JSNew<TypeBg>(Type::BOOL));
+    Set(object, "date", JSNew<TypeBg>(Type::DATE));
 }
 
 
