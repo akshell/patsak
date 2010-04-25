@@ -1,7 +1,7 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-_core.include('MochiKit.js');
+// _core.include('MochiKit.js');
 
 var include = _core.include;
 var Script = _core.Script;
@@ -87,6 +87,48 @@ function create(name, header, constrs) {
                    constrs.check || []);
 }
 
+
+function keys(object) {
+  var result = [];
+  for (var key in object)
+    result.push(key);
+  return result;
+}
+
+
+function items(object) {
+  var result = [];
+  for (var key in object)
+    result.push([key, object[key]]);
+  return result;
+}
+
+
+function equal(lhs, rhs) {
+  if (lhs == rhs)
+    return true;
+  if (lhs instanceof Date && rhs instanceof Date)
+    return lhs.getTime() == rhs.getTime();
+  if (lhs instanceof Array && rhs instanceof Array) {
+    if (lhs.length != rhs.length)
+      return false;
+    for (var i = 0; i < lhs.length; ++i)
+      if (!equal(lhs[i], rhs[i]))
+        return false;
+    return true;
+  }
+  return false;
+}
+
+
+function repr(value) {
+  if (typeof(value) == 'string')
+    return '"' + value + '"';
+  if (value instanceof Array)
+    return '[' + value.map(repr).join(', ') + ']';
+  return value + '';
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Test tools
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,7 +162,7 @@ function checkEqualTo(expr, value) {
     expr_value = expr();
   else
     expr_value = eval(expr);
-  if (compare(expr_value, value) != 0)
+  if (!equal(expr_value, value))
     error(expr + ' value ' + repr(expr_value) + ' != ' + repr(value));
 }
 
@@ -146,7 +188,7 @@ function runTestSuite(test_suite) {
   if (test_suite.setUp)
     test_suite.setUp();
   for (var field in test_suite) {
-    if (startsWith('test', field)) {
+    if (field.substr(0, 4) == 'test') {
       test_suite[field]();
       ++test_count;
     }
@@ -160,8 +202,8 @@ function runTestSuite(test_suite) {
 function runTestSuites(test_suites) {
   error_count = 0;
   var test_count = 0;
-  forEach(test_suites,
-          function (ts) { test_count += runTestSuite(ts); });
+  for (var i = 0; i < test_suites.length; ++i)
+    test_count += runTestSuite(test_suites[i]);
   print(prefix + (error_count ? error_count : 'No') +
         ' errors detected in ' +
         test_count + ' test cases in ' +
@@ -346,7 +388,7 @@ base_test_suite.testConstruct = function () {
 
 
 base_test_suite.testRequestApp = function () {
-  forEach(fs.list(''), remove);
+  fs.list('').forEach(remove);
   fs.write('file1', 'wuzzup');
   fs.write('file2', 'yo ho ho');
   fs.write('hello', 'hello world!');
@@ -405,11 +447,6 @@ base_test_suite.testRequestHost = function () {
 ////////////////////////////////////////////////////////////////////////////////
 
 var db_test_suite = {};
-
-
-function mapItems(iterable) {
-  return map(items, iterable);
-}
 
 
 db_test_suite.setUp = function () {
@@ -571,25 +608,26 @@ db_test_suite.testDropRelVars = function () {
 
 
 db_test_suite.testQuery = function () {
-  checkEqualTo("mapItems(query('User[name, age, flooder] where +id == \"0\"'))",
-               [[["name", "anton"], ["age", 22], ["flooder", true]]]);
+  checkEqualTo(
+    "query('User[name, age, flooder] where +id == \"0\"').map(items)",
+    [[["name", "anton"], ["age", 22], ["flooder", true]]]);
   checkThrow(UsageError, "db.query()");
   checkThrow(TypeError, "query('User', {})");
   checkThrow(TypeError, "query('User', {length: 0.5})");
   checkThrow(TypeError, "query('User', {length: -1})");
   checkThrow(NoSuchRelVarError, "query('dfsa')");
-  checkEqualTo(function () {
-                 return mapItems(
-                   query('Post.author->name where id == $', [0]));
-               },
-               [[['name', 'anton']]]);
+  checkEqualTo(
+    function () {
+      return query('Post.author->name where id == $', [0]).map(items);
+    },
+    [[['name', 'anton']]]);
   checkThrow(FieldError, "query('User.asdf')");
-  checkEqualTo(function () {
-                 return mapItems(
-                   query('User[id, name] where id == $1 && name == $2',
-                         [0, 'anton']));
-               },
-               [[['id', 0], ['name', 'anton']]]);
+  checkEqualTo(
+    function () {
+      return query('User[id, name] where id == $1 && name == $2',
+                   [0, 'anton']).map(items);
+    },
+    [[['id', 0], ['name', 'anton']]]);
   checkEqualTo("query('User where forsome (x in {}) true').length", 3);
   checkThrow(QueryError, "query('{i: 1} where i->name')");
   checkEqualTo(
@@ -659,12 +697,11 @@ db_test_suite.testBy = function () {
   db.insert('ByTest', {x: 9, y: 32});
   checkEqualTo(
     function () {
-      return mapItems(
-        query('ByTest where y != $',
-              [5],
-              ['x * $1 % $2', 'y % $3'],
-              [2, 7, 10],
-              3, 3));
+      return query('ByTest where y != $',
+                   [5],
+                   ['x * $1 % $2', 'y % $3'],
+                   [2, 7, 10],
+                   3, 3).map(items);
     },
     [[["x", 1], ["y", 14]], [["x", 2], ["y", 21]], [["x", 9], ["y", 32]]]);
   checkEqualTo("field('x', 'ByTest', [], ['x'], [], 5)", [5, 8, 9]);
@@ -722,12 +759,13 @@ db_test_suite.testUpdate = function () {
     checkThrow(
       ConstraintError,
       "db.update('User', 'name == $', ['den'], {id: '4'}, [])");
-  forEach(initial, function (tuple) {
-            db.update('User', 'id == $', [tuple.id],
-                      {name: '$1', age: '$2', flooder: '$3'},
-                      [tuple.name, tuple.age, tuple.flooder]);
-          });
-  checkEqualTo("mapItems(query('User'))", mapItems(initial));
+  initial.forEach(
+    function (tuple) {
+      db.update('User', 'id == $', [tuple.id],
+                {name: '$1', age: '$2', flooder: '$3'},
+                [tuple.name, tuple.age, tuple.flooder]);
+    });
+  checkEqualTo("query('User').map(items)", initial.map(items));
 };
 
 
@@ -748,13 +786,12 @@ db_test_suite.testStress = function () {
   for (var i = 0; i < 10; ++i) {
     checkEqualTo(
       function () {
-        return mapItems(
-          query(('User[id, age] where ' +
-                 'flooder && ' +
-                 '(forsome (Comment) ' +
-                 ' author == User.id && post->author->name == $)'),
-                ['anton'],
-                ['id']));
+        return query(('User[id, age] where ' +
+                      'flooder && ' +
+                      '(forsome (Comment) ' +
+                      ' author == User.id && post->author->name == $)'),
+                     ['anton'],
+                     ['id']).map(items);
       },
       [[["id", 0], ["age", 22]], [["id", 2], ["age", 23]]]);
     this.testUpdate();
@@ -766,7 +803,7 @@ db_test_suite.testStress = function () {
 db_test_suite.testPg = function () {
   create('pg_class', {x: number});
   db.insert('pg_class', {x: 0});
-  checkEqualTo(function () { return mapItems(query('pg_class')); },
+  checkEqualTo(function () { return query('pg_class').map(items); },
                [[['x', 0]]]);
   db.drop(['pg_class']);
 };
@@ -824,7 +861,7 @@ db_test_suite.testDefault = function () {
   checkThrow(ConstraintError, "db.insert('def', {})");
   db.insert('def', {b: false});
   db.insert('def', {n: 0, s: 'hi'});
-  checkEqualTo(function () { return mapItems(query('def', [], ['b', 'n'])); },
+  checkEqualTo(function () { return query('def', [], ['b', 'n']).map(items); },
                [[['n', 42], ['s', 'hello, world!'], ['b', false], ['d', now]],
                 [['n', 0], ['s', 'hi'], ['b', true], ['d', now]],
                 [['n', 42], ['s', 'hello, world!'], ['b', true], ['d', now]]]);
@@ -977,7 +1014,7 @@ var file_test_suite = {};
 
 file_test_suite.setUp = function ()
 {
-  forEach(fs.list(''), remove);
+  fs.list('').forEach(remove);
   fs.createDir('dir1');
   fs.createDir('dir2');
   fs.createDir('dir1/subdir');
@@ -988,7 +1025,7 @@ file_test_suite.setUp = function ()
 
 
 file_test_suite.tearDown = function () {
-  forEach(fs.list(''), remove);
+  fs.list('').forEach(remove);
 };
 
 
