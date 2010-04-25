@@ -857,7 +857,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
             Handle<Function>::Cast(Get(core_, "include")));
         KU_ASSERT(!include_func.IsEmpty());
         auto_ptr<Response> response_ptr(
-            Run(include_func, core_, String::New("__main__.js")));
+            Run(include_func, core_, String::New("main.js")));
         if (response_ptr->GetStatus() != "OK")
             return response_ptr;
         initialized_ = true;

@@ -179,7 +179,7 @@ var base_test_suite = {};
 var path = include.path;
 
 base_test_suite.testInclude = function ()  {
-  check("path == '__main__.js'");
+  check("path == 'main.js'");
   check("include.path === undefined");
   check("include('hello.js') == 'hello'");
   check("include('subdir/another-hello.js') == 'hello'");
@@ -197,7 +197,7 @@ base_test_suite.testInclude = function ()  {
   checkThrow(PathError, "include('')");
   checkThrow(PathError, "include('..')");
   checkThrow(PathError, "include('subdir/..')");
-  check("include('__main__.js') == '__main__.js value'");
+  check("include('main.js') == 'main.js value'");
 };
 
 
@@ -257,18 +257,18 @@ base_test_suite.testAppName = function () {
 
 base_test_suite.testReadCode = function () {
   check("readCode('subdir/hi.txt') == 'russian привет\\n'");
-  check("readCode('bad-app', '__main__.js') == 'wuzzup!!!!!!!!\\n'");
+  check("readCode('bad-app', 'main.js') == 'wuzzup!!!!!!!!\\n'");
   checkThrow(NoSuchAppError,
              "readCode('illegal/name', 'main.js')");
   checkThrow(PathError, "readCode('test-app', '')");
   checkThrow(PathError,
-             "readCode('test-app', 'subdir/../../another-app/__main__.js')");
+             "readCode('test-app', 'subdir/../../another-app/main.js')");
   checkThrow(UsageError, "readCode()");
 };
 
 
 base_test_suite.testGetCodeModDate = function () {
-  check("getCodeModDate('__main__.js') > new Date('01.01.2010')");
+  check("getCodeModDate('main.js') > new Date('01.01.2010')");
   check("getCodeModDate('lib', '0.1/42.js') < new Date()");
   checkThrow(NoSuchEntryError, "getCodeModDate('no-such-file')");
   checkThrow(NoSuchEntryError, "getCodeModDate('lib', 'no-such-file')");
@@ -964,7 +964,7 @@ db_test_suite.testGetAppsByLabel = function () {
 
 db_test_suite.testBigIndexRow = function () {
   create('rv', {s: string});
-  checkThrow(DBError, "db.insert('rv', {s: readCode('__main__.js')})");
+  checkThrow(DBError, "db.insert('rv', {s: readCode('main.js')})");
   db.drop(['rv']);
 };
 
@@ -1127,4 +1127,4 @@ _core.main = function (expr) {
 };
 
 
-'__main__.js value';
+'main.js value';
