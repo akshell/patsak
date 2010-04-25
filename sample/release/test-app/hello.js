@@ -1,2 +1,2 @@
-check("_core.include.path == 'hello.js'");
+assertSame(_core.include.path, 'hello.js');
 'hello';

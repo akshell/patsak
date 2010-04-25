@@ -10,7 +10,7 @@ _core.main = function (arg) {
       user: _core.user,
       arg: arg,
       data: _core.data ? _core.data._toString('UTF-8') : _core.data,
-      file_contents: file_contents,
+      fileContents: file_contents,
       issuer: _core.issuer
     });
 };

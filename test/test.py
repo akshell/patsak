@@ -248,7 +248,7 @@ class Test(unittest.TestCase):
         self.assertEqual(
             talk('PROCESS _core.requestApp("another-app", "hi", [], null)'),
             'OK\n{"user":"","arg":"hi","data":null,' +
-            '"file_contents":[],"issuer":"test-app"}')
+            '"fileContents":[],"issuer":"test-app"}')
         self.assertEqual(
             talk('PROCESS function f() { f(); } f()'),
             'ERROR\nRangeError: Maximum call stack size exceeded')
