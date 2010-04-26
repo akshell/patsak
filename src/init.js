@@ -131,7 +131,7 @@
       var code = app ? _core.readCode(app, path) : _core.readCode(path);
       var func = _core.Script(
         '(function (require, exports, module) {\n' + code + '\n})',
-        (app && app + ':') + path, 1)._run();
+        (app && app + ':') + path, -1)._run();
       var require = makeRequire(app, version, loc.slice(0, loc.length - 1));
       var exports = cache[key] = {};
       var module = {id: loc.join('/')};
