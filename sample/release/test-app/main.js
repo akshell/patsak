@@ -254,8 +254,8 @@ var baseTestSuite = {
     assertSame(obj.dontDelete, 3);
   },
 
-  testAppName: function () {
-    assertSame(_core.app.name, 'test-app');
+  testApp: function () {
+    assertSame(_core.app, 'test-app');
   },
 
   testReadCode: function () {

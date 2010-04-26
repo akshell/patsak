@@ -285,14 +285,11 @@ void CoreBg::Init(Handle<Object> core) const
 {
     JSClassBase::InitConstructors(core);
     Handle<Object> app(Object::New());
-    Set(app, "name", String::New(place_.app_name.c_str()));
+    Set(core, "app", String::New(place_.app_name.c_str()));
     if (!place_.spot_name.empty()) {
-        Handle<Object> spot(Object::New());
-        Set(spot, "name", String::New(place_.spot_name.c_str()));
-        Set(spot, "owner", String::New(place_.owner_name.c_str()));
-        Set(app, "spot", spot);
+        Set(core, "spot", String::New(place_.spot_name.c_str()));
+        Set(core, "owner", String::New(place_.owner_name.c_str()));
     }
-    Set(core, "app", app);
 }
 
 

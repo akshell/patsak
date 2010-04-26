@@ -116,7 +116,7 @@
         loc = parsePath(arguments[0], baseDir);
       } else {
         app = arguments[0];
-        if (!_core.app.spot && app == _core.app.name)
+        if (!_core.spot && app == _core.app)
           app = '';
         version = parsePath(arguments[1]);
         if (arguments.length == 2)
@@ -140,10 +140,10 @@
       if (app) {
         module.app = app;
       } else {
-        module.app = _core.app.name;
-        if (_core.app.spot) {
-          module.owner = _core.app.spot.owner;
-          module.spot = _core.app.spot.name;
+        module.app = _core.app;
+        if (_core.spot) {
+          module.owner = _core.owner;
+          module.spot = _core.spot;
         }
       }
       func(require, exports, module);

@@ -243,7 +243,7 @@ class Test(unittest.TestCase):
                          'ERROR\nmain is not a function')
         self.assertEqual(talk('PROCESS pass'), 'OK\ntrue')
         self.assertEqual(
-            talk('PROCESS _core.app.spot.owner + " " + _core.app.spot.name'),
+            talk('PROCESS _core.owner + " " + _core.spot'),
             'OK\ntest user test-spot')
         self.assertEqual(
             talk('PROCESS _core.requestApp("another-app", "hi", [], null)'),
