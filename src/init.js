@@ -78,92 +78,80 @@
   ];
 
   //////////////////////////////////////////////////////////////////////////////
-  // include and use
+  // require
   //////////////////////////////////////////////////////////////////////////////
 
-  function canonicalize(path) {
-    var bits = path.split('/');
-    var resultBits = [];
-    function checkNonEmpty() {
-      if (!resultBits.length)
-        throw new _core.PathError('Code path "' + path + '" is illegal');
-    }
-    for (var i = 0; i < bits.length; ++i) {
-      switch (bits[i]) {
+  var cache = {};
+
+
+  function parsePath(path, dir/* = [] */) {
+    var parts = path.split('/');
+    var result = dir && path[0] == '.' ? dir.slice() : [];
+    for (var i = 0; i < parts.length; ++i) {
+      switch (parts[i]) {
       case '':
       case '.':
         break;
       case '..':
-        checkNonEmpty();
-        resultBits.pop();
+        if (!result.length)
+          throw _core.PathError('Illegal code path: ' + path);
+        result.pop();
         break;
       default:
-        resultBits.push(bits[i]);
-      };
+        result.push(parts[i]);
+      }
     }
-    checkNonEmpty();
-    return resultBits.join('/');
+    return result;
   }
 
 
-  var currApp = '';
-  var currDir = '';
-  var includeStack = [];
-  var includeResults = {};
+  function makeRequire(baseApp, baseVersion, baseDir) {
+    return function () {
+      var app, version, dir, loc;
+      if (!arguments.length)
+        throw _core.UsageError('At least 1 argument required');
+      if (arguments.length == 1) {
+        app = baseApp;
+        version = baseVersion;
+        loc = parsePath(arguments[0], baseDir);
+      } else {
+        app = arguments[0];
+        if (!_core.app.spot && app == _core.app.name)
+          app = '';
+        version = parsePath(arguments[1]);
+        if (arguments.length == 2)
+          loc = ['index'];
+        else
+          loc = parsePath(arguments[2]);
+      }
+      var key = [app].concat(version, loc).join('/');
+      if (cache.hasOwnProperty(key))
+        return cache[key];
+      var path = version.concat(loc).join('/') + '.js';
+      var code = app ? _core.readCode(app, path) : _core.readCode(path);
+      var func = _core.Script(
+        '(function (require, exports, module) {\n' + code + '\n})',
+        (app && app + ':') + path, 1)._run();
+      var require = makeRequire(app, version, loc.slice(0, loc.length - 1));
+      var exports = cache[key] = {};
+      var module = {id: loc.join('/')};
+      if (version.length)
+        module.version = version.join('/');
+      if (app) {
+        module.app = app;
+      } else {
+        module.app = _core.app.name;
+        if (_core.app.spot) {
+          module.owner = _core.app.spot.owner;
+          module.spot = _core.app.spot.name;
+        }
+      }
+      func(require, exports, module);
+      return exports;
+    };
+  }
 
 
-  _core.include = function (/* [app,] path */) {
-    if (!arguments.length)
-      throw _core.UsageError('At least one argument required');
-    var app, path;
-    if (arguments.length > 1) {
-      app = arguments[0];
-      path = arguments[1];
-    } else {
-      app = currApp;
-      path = arguments[0];
-      if (path[0] != '/')
-        path = currDir + path;
-    }
-    path = canonicalize(path);
-    var identifier = app + ':' + path;
-    if (includeResults.hasOwnProperty(identifier))
-      return includeResults[identifier];
-    for (var i = 0; i < includeStack.length; ++i)
-      if (includeStack[i] == identifier)
-        throw _core.UsageError(
-          'Recursive include of file "' + path + '"' +
-          (app ? ' of ' + app + ' app': ''));
-
-    var oldCurrApp = currApp;
-    var oldCurrDir = currDir;
-    var oldPath = _core.include.path;
-
-    var idx = path.lastIndexOf('/');
-    currDir = idx == -1 ? '' : path.substring(0, idx + 1);
-    currApp = app;
-    _core.include.path = path;
-    includeStack.push(identifier);
-
-    try {
-      var script = (
-        app
-        ? new _core.Script(_core.readCode(app, path), app + ':' + path)
-        : new _core.Script(_core.readCode(path), path));
-      var result = script._run();
-      includeResults[identifier] = result;
-      return result;
-    } finally {
-      currApp = oldCurrApp;
-      currDir = oldCurrDir;
-      _core.include.path = oldPath;
-      includeStack.pop();
-    }
-  };
-
-
-  _core.use = function (app, path/* = '' */) {
-    return _core.include(app, (path ? path + '/' : '') + '__init__.js');
-  };
+  require = makeRequire('', [], []);
 
 })();

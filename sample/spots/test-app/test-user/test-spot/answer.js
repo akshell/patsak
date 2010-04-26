@@ -1,1 +1,1 @@
-42;
+exports.answer = 42;

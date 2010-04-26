@@ -853,11 +853,11 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
 {
     Context::Scope context_scope(context_);
     if (!initialized_) {
-        Handle<Function> include_func(
-            Handle<Function>::Cast(Get(core_, "include")));
-        KU_ASSERT(!include_func.IsEmpty());
+        Handle<Function> require_func(
+            Handle<Function>::Cast(Get(context_->Global(), "require")));
+        KU_ASSERT(!require_func.IsEmpty());
         auto_ptr<Response> response_ptr(
-            Run(include_func, core_, String::New("main.js")));
+            Run(require_func, context_->Global(), String::New("main")));
         if (response_ptr->GetStatus() != "OK")
             return response_ptr;
         initialized_ = true;

@@ -1,19 +1,18 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-var include = _core.include;
-var Script = _core.Script;
-var db = _core.db;
-var fs = _core.fs;
+Script = _core.Script;
+db = _core.db;
+fs = _core.fs;
 
-var number = db.number;
-var string = db.string;
-var bool = db.bool;
-var date = db.date;
+number = db.number;
+string = db.string;
+bool = db.bool;
+date = db.date;
 
-var READ_ONLY   = 1 << 0;
-var DONT_ENUM   = 1 << 1;
-var DONT_DELETE = 1 << 2;
+READ_ONLY   = 1 << 0;
+DONT_ENUM   = 1 << 1;
+DONT_DELETE = 1 << 2;
 
 
 [
@@ -195,34 +194,34 @@ function runTestSuites(suites) {
 // Base test suite
 ////////////////////////////////////////////////////////////////////////////////
 
-var path = include.path;
 var global = this;
 
 var baseTestSuite = {
-  testInclude: function ()  {
-    assertSame(path, 'main.js');
-    assertSame(include.path, undefined);
-    assertSame(include('hello.js'), 'hello');
-    assertSame(include('subdir/another-hello.js'), 'hello');
-    assertThrow(UsageError, include);
-    assertThrow(NoSuchEntryError, include, 'no-such-file.js');
-    assertThrow(SyntaxError, include, 'bug.js');
-    assertThrow(SyntaxError, include, 'bug-includer.js');
-    assertThrow(PathError, include, '../out-of-base-dir.js');
-    assertThrow(UsageError, include, 'self-includer.js');
-    assertThrow(UsageError, include, 'cycle-includer1.js');
-    assertThrow(NoSuchAppError, include, 'no-such-lib', 'xxx.js');
-    assertSame(include('lib', '0.1/42.js'), 42);
-    include('//subdir///once.js');
-    include('subdir/../subdir//./once.js');
-    assertThrow(PathError, include, '');
-    assertThrow(PathError, include, '..');
-    assertThrow(PathError, include, 'subdir/..');
-    assertSame(include('main.js'), 'main.js value');
-  },
-
-  testUse: function () {
-    assertSame(_core.use('lib', '0.1'), 42);
+  testRequire: function () {
+    [
+      'absolute',
+      'cyclic',
+      'determinism',
+      'exactExports',
+      'method',
+      'missing',
+      'monkeys',
+      'nested',
+      'relative',
+      'transitive',
+      'module/./../module//a'
+    ].forEach(
+      function (version) {
+        assert(require('lib', version).pass);
+      });
+    var object = require('subdir/index').object;
+    assertSame(require('test-app', '', 'subdir/../subdir//index').object,
+               object);
+    assertSame(require('test-app', 'subdir/.././subdir', './//./index').object,
+               object);
+    assertSame(require('test-app', 'subdir').object, object);
+    assertEqual(items(module), [['id', 'main'], ['app', 'test-app']]);
+    assertThrow(UsageError, require);
   },
 
   testType: function () {
@@ -271,7 +270,7 @@ var baseTestSuite = {
 
   testGetCodeModDate: function () {
     assert(getCodeModDate('main.js') > new Date('01.01.2010'));
-    assert(getCodeModDate('lib', '0.1/42.js') < new Date());
+    assert(getCodeModDate('lib', 'absolute/index.js') < new Date());
     assertThrow(NoSuchEntryError, getCodeModDate, 'no-such-file');
     assertThrow(NoSuchEntryError, getCodeModDate, 'lib', 'no-such-file');
     assertThrow(NoSuchAppError, getCodeModDate, 'no-such-app', 'file');
@@ -1017,9 +1016,9 @@ var fileTestSuite = {
 // Entry point
 ////////////////////////////////////////////////////////////////////////////////
 
-function main() {
+main = function () {
   return runTestSuites([baseTestSuite, dbTestSuite, fileTestSuite]);
-}
+};
 
 
 _core.main = function (expr) {
