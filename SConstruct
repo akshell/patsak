@@ -58,7 +58,6 @@ def invoke_script(dir, obj_dir, exports):
 
 objects = invoke_script('src', '', 'env')
 test_objects = invoke_script('test', 'test', 'test_env')
-sample_files = SConscript('sample/SConscript', duplicate=False)
 
 revision = Popen(['hg', 'id', '-in'], stdout=PIPE).stdout.read()[:-1]
 main_env = env.Clone()
@@ -93,10 +92,11 @@ env.AlwaysBuild(env.Alias('clean', None, 'rm -rf obj exe cov doc'))
 
 if env['mode'] == 'cov':
     cov_info = env.Command('cov/cov.info',
-                           [all, sample_files, 'test/test.py'],
+                           all,
                            'rm obj/cov/*.gcda obj/cov/test/*.gcda;'
                            'python test/test.py exe/cov;'
                            'lcov -d obj/cov/ -c -b . -o $TARGET')
+    env.AlwaysBuild(cov_info)
     cov_html = env.Command('cov/index.html', cov_info,
                            'genhtml -o cov $SOURCE')
     env.Alias('cov', cov_html)
