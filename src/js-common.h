@@ -28,6 +28,10 @@ namespace v8
 namespace ku
 {
     extern v8::Persistent<v8::Object> js_error_classes;
+
+    
+    class Propagate {};
+
     
     void ThrowError(const ku::Error& err);
     std::string Stringify(v8::Handle<v8::Value> value);
@@ -268,7 +272,9 @@ namespace ku
 
 
 #define JS_CATCH(ret_type)                                              \
-    catch (const ku::Error& err) {                                      \
+    catch (const ku::Propagate& err) {                                  \
+        return ret_type();                                              \
+    } catch (const ku::Error& err) {                                    \
         ku::ThrowError(err);                                            \
         return ret_type();                                              \
     } catch (const std::exception& err) {                               \

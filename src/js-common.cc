@@ -55,6 +55,8 @@ size_t ku::GetArrayLikeLength(Handle<v8::Value> value)
     if (!object->Has(length_string))
         throw Error(Error::TYPE, "Array-like required (length not found)");
     Handle<v8::Value> length_value(object->Get(length_string));
+    if (length_value.IsEmpty())
+        throw Propagate();
     if (!length_value->IsInt32())
         throw Error(Error::TYPE, "Array-like required (length is not integer)");
     int32_t result = length_value->ToInt32()->Value();
@@ -66,7 +68,10 @@ size_t ku::GetArrayLikeLength(Handle<v8::Value> value)
 
 Handle<v8::Value> ku::GetArrayLikeItem(Handle<v8::Value> value, size_t index)
 {
-    return value->ToObject()->Get(Integer::New(index));
+    Handle<v8::Value> result(value->ToObject()->Get(Integer::New(index)));
+    if (result.IsEmpty())
+        throw Propagate();
+    return result;
 }
 
 

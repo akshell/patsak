@@ -526,13 +526,19 @@ var dbTestSuite = {
   },
 
   testQuery: function () {
-    assertEqual(
-      query('User[name, age, flooder] where +id == "0"').map(items),
-      [[['name', 'anton'], ['age', 22], ['flooder', true]]]);
     assertThrow(UsageError, "db.query()");
     assertThrow(TypeError, query, 'User', {});
     assertThrow(TypeError, query, 'User', {length: 0.5});
     assertThrow(TypeError, query, 'User', {length: -1});
+    function E() {}
+    assertThrow(E, query, 'User', {get length() { throw new E(); }});
+    var object = {length: 1};
+    object.__defineGetter__(0, function () { throw new E(); });
+    assertThrow(E, query, 'User', object);
+
+    assertEqual(
+      query('User[name, age, flooder] where +id == "0"').map(items),
+      [[['name', 'anton'], ['age', 22], ['flooder', true]]]);
     assertThrow(NoSuchRelVarError, query, 'dfsa');
     assertEqual(
       query('Post.author->name where id == $', [0]).map(items),
