@@ -195,33 +195,29 @@ namespace ku
     }
 
 
-    template <typename T, typename Arg1T>
-    v8::Handle<v8::Object> JSNew(Arg1T arg1)
+    template <typename T, typename T1>
+    v8::Handle<v8::Object> JSNew(T1 arg1)
     {
         return T::GetJSClass().Instantiate(new T(arg1));
     }
 
 
-    template <typename T, typename Arg1T, typename Arg2T>
-    v8::Handle<v8::Object> JSNew(Arg1T arg1, Arg2T arg2)
+    template <typename T, typename T1, typename T2>
+    v8::Handle<v8::Object> JSNew(T1 arg1, T2 arg2)
     {
         return T::GetJSClass().Instantiate(new T(arg1, arg2));
     }
 
 
-    template <typename T, typename Arg1T, typename Arg2T, typename Arg3T>
-    v8::Handle<v8::Object> JSNew(Arg1T arg1, Arg2T arg2, Arg3T arg3)
+    template <typename T, typename T1, typename T2, typename T3>
+    v8::Handle<v8::Object> JSNew(T1 arg1, T2 arg2, T3 arg3)
     {
         return T::GetJSClass().Instantiate(new T(arg1, arg2, arg3));
     }
 
 
-    template <typename T,
-              typename Arg1T,
-              typename Arg2T,
-              typename Arg3T,
-              typename Arg4T>
-    v8::Handle<v8::Object> JSNew(Arg1T arg1, Arg2T arg2, Arg3T arg3, Arg4T arg4)
+    template <typename T, typename T1, typename T2, typename T3, typename T4>
+    v8::Handle<v8::Object> JSNew(T1 arg1, T2 arg2, T3 arg3, T4 arg4)
     {
         return T::GetJSClass().Instantiate(new T(arg1, arg2, arg3, arg4));
     }
@@ -271,12 +267,12 @@ namespace ku
 }
 
 
-#define JS_CATCH(ret_type)                                              \
+#define JS_CATCH(T)                                                     \
     catch (const ku::Propagate& err) {                                  \
-        return ret_type();                                              \
+        return T();                                                     \
     } catch (const ku::Error& err) {                                    \
         ku::ThrowError(err);                                            \
-        return ret_type();                                              \
+        return T();                                                     \
     } catch (const std::exception& err) {                               \
         ku::Fail(err.what());                                           \
     }
@@ -293,68 +289,62 @@ namespace ku
         static ku::JSClass<cls> result(name);                           \
         return result;                                                  \
     }                                                                   \
-    void cls::AdjustTemplates(v8::Handle<v8::ObjectTemplate> object_template, \
-                              v8::Handle<v8::ObjectTemplate> proto_template)
+    void cls::AdjustTemplates(                                          \
+        v8::Handle<v8::ObjectTemplate> object_template,                 \
+        v8::Handle<v8::ObjectTemplate> proto_template)
 
 
-#define DECLARE_JS_CALLBACK1(ret_type, name, arg_type)               \
-    static ret_type name(arg_type);                                  \
-    ret_type name##Impl(arg_type)
+#define DECLARE_JS_CALLBACK1(T, name, T1)                     \
+    static T name(T1);                                        \
+    T name##Impl(T1)
 
 
-#define DECLARE_JS_CALLBACK2(ret_type, name, arg1_type, arg2_type)   \
-    static ret_type name(arg1_type, arg2_type);                      \
-    ret_type name##Impl(arg1_type, arg2_type)
+#define DECLARE_JS_CALLBACK2(T, name, T1, T2)   \
+    static T name(T1, T2);                      \
+    T name##Impl(T1, T2)
 
 
-#define DECLARE_JS_CALLBACK3(ret_type, name, arg1_type, arg2_type, arg3_type) \
-    static ret_type name(arg1_type, arg2_type, arg3_type);              \
-    ret_type name##Impl(arg1_type, arg2_type, arg3_type)
+#define DECLARE_JS_CALLBACK3(T, name, T1, T2, T3)        \
+    static T name(T1, T2, T3);                           \
+    T name##Impl(T1, T2, T3)
 
 
-#define JS_CALLBACK_GUARD(ret_type)                 \
+#define JS_CALLBACK_GUARD(T)                        \
     ku::Watcher::CallbackGuard callback_guard__;    \
     if (ku::Watcher::TimedOut())                    \
-        return ret_type()
+        return T()
 
 
-#define DEFINE_JS_CALLBACK1(ret_type, cls, name,                        \
-                            arg_type, arg_name)                         \
-    ret_type cls::name(arg_type arg)                                    \
+#define DEFINE_JS_CALLBACK1(T, cls, name, T1, arg1)                     \
+    T cls::name(T1 a1)                                                  \
     {                                                                   \
-        JS_CALLBACK_GUARD(ret_type);                                    \
+        JS_CALLBACK_GUARD(T);                                           \
         try {                                                           \
-            return ku::GetBg<cls>(arg.Holder()).name##Impl(arg);        \
-        } JS_CATCH(ret_type)                                            \
+            return ku::GetBg<cls>(a1.Holder()).name##Impl(a1);          \
+        } JS_CATCH(T);                                                  \
     }                                                                   \
-    ret_type cls::name##Impl(arg_type arg_name)
+    T cls::name##Impl(T1 arg1)
 
 
-#define DEFINE_JS_CALLBACK2(ret_type, cls, name,                        \
-                            arg1_type, arg1_name,                       \
-                            arg2_type, arg2_name)                       \
-    ret_type cls::name(arg1_type arg1, arg2_type arg2)                  \
+#define DEFINE_JS_CALLBACK2(T, cls, name, T1, arg1, T2, arg2)           \
+    T cls::name(T1 a1, T2 a2)                                           \
     {                                                                   \
-        JS_CALLBACK_GUARD(ret_type);                                    \
+        JS_CALLBACK_GUARD(T);                                           \
         try {                                                           \
-            return ku::GetBg<cls>(arg2.Holder()).name##Impl(arg1, arg2);\
-        } JS_CATCH(ret_type)                                            \
+            return ku::GetBg<cls>(a2.Holder()).name##Impl(a1, a2);      \
+        } JS_CATCH(T);                                                  \
     }                                                                   \
-    ret_type cls::name##Impl(arg1_type arg1_name, arg2_type arg2_name)
+    T cls::name##Impl(T1 arg1, T2 arg2)
 
 
-#define DEFINE_JS_CALLBACK3(ret_type, cls, name,                        \
-                            arg1_type, arg1_name,                       \
-                            arg2_type, arg2_name,                       \
-                            arg3_type, arg3_name)                       \
-    ret_type cls::name(arg1_type arg1, arg2_type arg2, arg3_type arg3)  \
+#define DEFINE_JS_CALLBACK3(T, cls, name, T1, arg1, T2, arg2, T3, arg3) \
+    T cls::name(T1 a1, T2 a2, T3 a3)                                    \
     {                                                                   \
-        JS_CALLBACK_GUARD(ret_type);                                    \
+        JS_CALLBACK_GUARD(T);                                           \
         try {                                                           \
-            return ku::GetBg<cls>(arg3.Holder()).name##Impl(arg1, arg2, arg3); \
-        } JS_CATCH(ret_type)                                            \
+            return ku::GetBg<cls>(a3.Holder()).name##Impl(a1, a2, a3);  \
+        } JS_CATCH(T);                                                  \
     }                                                                   \
-    ret_type cls::name##Impl(                                           \
-        arg1_type arg1_name, arg2_type arg2_name, arg3_type arg3_name)
+    T cls::name##Impl(T1 arg1, T2 arg2, T3 arg3)
 
 #endif // JS_COMMON_H
