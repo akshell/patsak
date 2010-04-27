@@ -771,6 +771,9 @@ Program::Impl::Impl(const Place& place,
     KU_ASSERT(!script.IsEmpty());
     Handle<v8::Value> init_ret(script->Run());
     KU_ASSERT(!init_ret.IsEmpty());
+
+    js_error_classes = Persistent<Object>::New(
+        Get(core_, "errors")->ToObject()->Clone());
 }
 
 

@@ -19,14 +19,13 @@ using boost::lexical_cast;
 // Stuff
 ////////////////////////////////////////////////////////////////////////////////
 
+Persistent<Object> ku::js_error_classes;
+
+
 void ku::ThrowError(const ku::Error& err) {
-    static Persistent<Object> errors(
-        Persistent<Object>::New(
-            Get(Get(Context::GetCurrent()->Global(), "_core")->ToObject(),
-                "errors")->ToObject()));
     Handle<v8::Value> message(String::New(err.what()));
     ThrowException(
-        Function::Cast(*errors->Get(Integer::New(err.GetTag())))
+        Function::Cast(*js_error_classes->Get(Integer::New(err.GetTag())))
         ->NewInstance(1, &message));
 }
 

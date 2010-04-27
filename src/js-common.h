@@ -27,6 +27,8 @@ namespace v8
 
 namespace ku
 {
+    extern v8::Persistent<v8::Object> js_error_classes;
+    
     void ThrowError(const ku::Error& err);
     std::string Stringify(v8::Handle<v8::Value> value);
     void CheckArgsLength(const v8::Arguments& args, int length);
