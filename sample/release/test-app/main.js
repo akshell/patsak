@@ -2,6 +2,7 @@
 // (c) 2009-2010 by Anton Korenyushkin
 
 Script = _core.Script;
+Proxy = _core.Proxy;
 db = _core.db;
 fs = _core.fs;
 
@@ -381,6 +382,101 @@ var baseTestSuite = {
     assertSame(response.substr(0, response.indexOf('\r')), 'HTTP/1.1 200 OK');
     assert(response.indexOf('2606') != -1);
     assertThrow(HostRequestError, requestHost, 'bad host name', 80, '');
+  },
+
+  testProxy: function () {
+    assertSame(Proxy(), undefined);
+    assertThrow(UsageError, "new Proxy()");
+    assertThrow(TypeError, "new Proxy(42)");
+    assertThrow(TypeError, "(new Proxy({})).x");
+    assertEqual(
+      keys(new Proxy({enumerate: function () { return 42; }})), []);
+    assertEqual(
+      keys(new Proxy({enumerate: function () { return {length: 1.5}; }})), []);
+    assertEqual(
+      keys(new Proxy({enumerate: function () { return {length: -15}; }})), []);
+    var proxy = new Proxy(
+      {
+        object: {},
+
+        get: function (name) {
+          return (this.object.hasOwnProperty(name)
+                  ? this.object[name]
+                  : undefined);
+        },
+
+        set: function (name, value) {
+          this.object[name] = value + '!';
+        },
+
+        query: function (name) {
+          return this.object.hasOwnProperty(name);
+        },
+
+        del: function (name) {
+          return delete this.object[name];
+        },
+
+        enumerate: function () {
+          return keys(this.object);
+        }
+      });
+    assertSame(proxy.x, undefined);
+    assertEqual(keys(proxy), []);
+    assert(!('x' in proxy));
+    assert(!(0 in proxy));
+    assert(!('hasOwnProperty' in proxy));
+    proxy.x = 42;
+    proxy.y = 'yo';
+    proxy[0] = 'hi';
+    assert('x' in proxy);
+    assert(0 in proxy);
+    assertEqual(items(proxy), [['0', 'hi!'], ['x', '42!'], ['y', 'yo!']]);
+    assert(delete proxy.x &&
+           delete proxy.z &&
+           delete proxy[0] &&
+           delete proxy[1]);
+    assertEqual(items(proxy), [['y', 'yo!']]);
+
+    function E() {}
+    assertThrow(
+      E, function () { (new Proxy({get get() { throw new E(); }})).x += 42; });
+    function throwE() { throw new E(); }
+    var throwProxy = new Proxy(
+      {
+        get: throwE,
+        set: throwE,
+        query: throwE,
+        del: throwE,
+        enumerate: throwE
+      });
+    assertThrow(E, function () { throwProxy.x += 42; });
+    assertThrow(E, function () { throwProxy.x = 42; });
+    assert(!('x' in throwProxy ||
+             0 in throwProxy ||
+             delete throwProxy.x ||
+             delete throwProxy[0]));
+    assertEqual(keys(throwProxy), []);
+    assertEqual(
+      keys(
+        new Proxy(
+          {
+            enumerate: function () {
+              return {get length() { throw Error(); }};
+            }
+          })),
+      []);
+    assertEqual(
+      keys(
+        new Proxy(
+          {
+            enumerate: function () {
+              var object = {length: 2, 0: 0};
+              object.__defineGetter__(1, function () { throw Error(); });
+              return object;
+            }
+          })),
+      []);
   }
 };
 

@@ -59,7 +59,7 @@ size_t ku::GetArrayLikeLength(Handle<v8::Value> value)
         throw Propagate();
     if (!length_value->IsInt32())
         throw Error(Error::TYPE, "Array-like required (length is not integer)");
-    int32_t result = length_value->ToInt32()->Value();
+    int32_t result = length_value->Int32Value();
     if (result < 0)
         throw Error(Error::TYPE, "Array-like required (length is negative)");
     return result;

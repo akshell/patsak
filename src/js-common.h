@@ -307,6 +307,11 @@ namespace ku
     ret_type name##Impl(arg1_type, arg2_type)
 
 
+#define DECLARE_JS_CALLBACK3(ret_type, name, arg1_type, arg2_type, arg3_type) \
+    static ret_type name(arg1_type, arg2_type, arg3_type);              \
+    ret_type name##Impl(arg1_type, arg2_type, arg3_type)
+
+
 #define JS_CALLBACK_GUARD(ret_type)                 \
     ku::Watcher::CallbackGuard callback_guard__;    \
     if (ku::Watcher::TimedOut())                    \
@@ -336,5 +341,20 @@ namespace ku
         } JS_CATCH(ret_type)                                            \
     }                                                                   \
     ret_type cls::name##Impl(arg1_type arg1_name, arg2_type arg2_name)
+
+
+#define DEFINE_JS_CALLBACK3(ret_type, cls, name,                        \
+                            arg1_type, arg1_name,                       \
+                            arg2_type, arg2_name,                       \
+                            arg3_type, arg3_name)                       \
+    ret_type cls::name(arg1_type arg1, arg2_type arg2, arg3_type arg3)  \
+    {                                                                   \
+        JS_CALLBACK_GUARD(ret_type);                                    \
+        try {                                                           \
+            return ku::GetBg<cls>(arg3.Holder()).name##Impl(arg1, arg2, arg3); \
+        } JS_CATCH(ret_type)                                            \
+    }                                                                   \
+    ret_type cls::name##Impl(                                           \
+        arg1_type arg1_name, arg2_type arg2_name, arg3_type arg3_name)
 
 #endif // JS_COMMON_H
