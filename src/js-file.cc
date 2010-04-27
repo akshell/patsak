@@ -275,20 +275,20 @@ namespace
 }
 
 
-DEFINE_JS_CLASS(FSBg, "FS", /*object_template*/, proto_template)
+DEFINE_JS_CLASS(FSBg, "FS", object_template, /*proto_template*/)
 {
     TempFileBg::GetJSClass();
     DataBg::GetJSClass();
-    SetFunction(proto_template, "read", ReadCb);
-    SetFunction(proto_template, "exists", ExistsCb);
-    SetFunction(proto_template, "isDir", IsDirCb);
-    SetFunction(proto_template, "isFile", IsFileCb);
-    SetFunction(proto_template, "getModDate", GetModDateCb);
-    SetFunction(proto_template, "list", ListCb);
-    SetFunction(proto_template, "createDir", CreateDirCb);
-    SetFunction(proto_template, "write", WriteCb);
-    SetFunction(proto_template, "remove", RemoveCb);
-    SetFunction(proto_template, "rename", RenameCb);
+    SetFunction(object_template, "read", ReadCb);
+    SetFunction(object_template, "exists", ExistsCb);
+    SetFunction(object_template, "isDir", IsDirCb);
+    SetFunction(object_template, "isFile", IsFileCb);
+    SetFunction(object_template, "getModDate", GetModDateCb);
+    SetFunction(object_template, "list", ListCb);
+    SetFunction(object_template, "createDir", CreateDirCb);
+    SetFunction(object_template, "write", WriteCb);
+    SetFunction(object_template, "remove", RemoveCb);
+    SetFunction(object_template, "rename", RenameCb);
 }
 
 

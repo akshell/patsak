@@ -237,6 +237,7 @@ var baseTestSuite = {
     assert(_core instanceof _core.Core);
     assert(db instanceof _core.DB);
     assert(keys(_core).indexOf('Core') != -1);
+    assert(_core.hasOwnProperty('set'));
   },
 
   testSet: function () {

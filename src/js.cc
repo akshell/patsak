@@ -481,18 +481,18 @@ namespace
 }
 
 
-DEFINE_JS_CLASS(CoreBg, "Core", object_template, proto_template)
+DEFINE_JS_CLASS(CoreBg, "Core", object_template, /*proto_template*/)
 {
     ScriptBg::GetJSClass();
     ProxyBg::GetJSClass();
-    SetFunction(proto_template, "print", PrintCb);
-    SetFunction(proto_template, "set", SetCb);
-    SetFunction(proto_template, "readCode", ReadCodeCb);
-    SetFunction(proto_template, "getCodeModDate", GetCodeModDateCb);
-    SetFunction(proto_template, "hash", HashCb);
-    SetFunction(proto_template, "construct", ConstructCb);
-    SetFunction(proto_template, "requestApp", RequestAppCb);
-    SetFunction(proto_template, "requestHost", RequestHostCb);
+    SetFunction(object_template, "print", PrintCb);
+    SetFunction(object_template, "set", SetCb);
+    SetFunction(object_template, "readCode", ReadCodeCb);
+    SetFunction(object_template, "getCodeModDate", GetCodeModDateCb);
+    SetFunction(object_template, "hash", HashCb);
+    SetFunction(object_template, "construct", ConstructCb);
+    SetFunction(object_template, "requestApp", RequestAppCb);
+    SetFunction(object_template, "requestHost", RequestHostCb);
     Set(object_template, "db", DBBg::GetJSClass().GetObjectTemplate());
     Set(object_template, "fs", FSBg::GetJSClass().GetObjectTemplate());
 }

@@ -373,28 +373,28 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, CheckCb,
 // DBBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(DBBg, "DB", /*object_template*/, proto_template)
+DEFINE_JS_CLASS(DBBg, "DB", object_template, /*proto_template*/)
 {
     TypeBg::GetJSClass();
-    SetFunction(proto_template, "rollback", RollBackCb);
-    SetFunction(proto_template, "query", QueryCb);
-    SetFunction(proto_template, "count", CountCb);
-    SetFunction(proto_template, "create", CreateCb);
-    SetFunction(proto_template, "drop", DropCb);
-    SetFunction(proto_template, "list", ListCb);
-    SetFunction(proto_template, "getHeader", GetHeaderCb);
-    SetFunction(proto_template, "getInteger", GetIntegerCb);
-    SetFunction(proto_template, "getSerial", GetSerialCb);
-    SetFunction(proto_template, "getDefault", GetDefaultCb);
-    SetFunction(proto_template, "getUnique", GetUniqueCb);
-    SetFunction(proto_template, "getForeign", GetForeignCb);
-    SetFunction(proto_template, "insert", InsertCb);
-    SetFunction(proto_template, "del", DelCb);
-    SetFunction(proto_template, "update", UpdateCb);
-    SetFunction(proto_template, "getAppDescription", GetAppDescriptionCb);
-    SetFunction(proto_template, "getAdminedApps", GetAdminedAppsCb);
-    SetFunction(proto_template, "getDevelopedApps", GetDevelopedAppsCb);
-    SetFunction(proto_template, "getAppsByLabel", GetAppsByLabelCb);
+    SetFunction(object_template, "rollback", RollBackCb);
+    SetFunction(object_template, "query", QueryCb);
+    SetFunction(object_template, "count", CountCb);
+    SetFunction(object_template, "create", CreateCb);
+    SetFunction(object_template, "drop", DropCb);
+    SetFunction(object_template, "list", ListCb);
+    SetFunction(object_template, "getHeader", GetHeaderCb);
+    SetFunction(object_template, "getInteger", GetIntegerCb);
+    SetFunction(object_template, "getSerial", GetSerialCb);
+    SetFunction(object_template, "getDefault", GetDefaultCb);
+    SetFunction(object_template, "getUnique", GetUniqueCb);
+    SetFunction(object_template, "getForeign", GetForeignCb);
+    SetFunction(object_template, "insert", InsertCb);
+    SetFunction(object_template, "del", DelCb);
+    SetFunction(object_template, "update", UpdateCb);
+    SetFunction(object_template, "getAppDescription", GetAppDescriptionCb);
+    SetFunction(object_template, "getAdminedApps", GetAdminedAppsCb);
+    SetFunction(object_template, "getDevelopedApps", GetDevelopedAppsCb);
+    SetFunction(object_template, "getAppsByLabel", GetAppsByLabelCb);
 }
 
 
