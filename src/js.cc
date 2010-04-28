@@ -157,14 +157,8 @@ void ScriptBg::AdjustTemplates(Handle<ObjectTemplate> /*object_template*/,
 
 Handle<v8::Value> ScriptBg::ConstructorCb(const Arguments& args)
 {
-    if (!args.IsConstructCall()) {
-        vector<Handle<v8::Value> > arguments;
-        arguments.reserve(args.Length());
-        for (int i = 0; i < args.Length(); ++i)
-            arguments.push_back(args[i]);
-        return ScriptBg::GetJSClass().GetFunction()->NewInstance(args.Length(),
-                                                                 &arguments[0]);
-    }
+    if (!args.IsConstructCall())
+        return Undefined();
     try {
         CheckArgsLength(args, 1);
         auto_ptr<ScriptOrigin> origin_ptr;

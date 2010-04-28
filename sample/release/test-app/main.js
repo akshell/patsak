@@ -280,10 +280,10 @@ var baseTestSuite = {
 
   testScript: function () {
     assertSame((new Script('2+2'))._run(), 4);
-    assertSame(Script('2+2', 'name')._run(), 4);
+    assertSame(Script('2+2'), undefined);
     assertThrow(UsageError, "new Script()");
-    assertThrow(SyntaxError, Script, '(');
-    assertThrow(ReferenceError, "Script('undeclarated')._run()");
+    assertThrow(SyntaxError, "new Script('(')");
+    assertThrow(ReferenceError, "new Script('undeclarated')._run()");
     assertThrow(
       SyntaxError,
       function () { new Script('new Script("(")', 'just string')._run(); });
