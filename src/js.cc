@@ -604,8 +604,10 @@ namespace
         const DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(value);
         if (data_bg_ptr)
             return &data_bg_ptr->GetData();
-        String::Utf8Value utf8_value(value);
-        data.assign(*utf8_value, *utf8_value + utf8_value.length());
+        Handle<String> str(value->ToString());
+        int length = str->Utf8Length();
+        data.resize(length);
+        str->WriteUtf8(&data[0], length);
         return &data;
     }
 }
