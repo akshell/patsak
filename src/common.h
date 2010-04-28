@@ -21,6 +21,7 @@ namespace ku
     public:
         enum Tag {
             TYPE,
+            RANGE,
 
             BASE,
             CORE,

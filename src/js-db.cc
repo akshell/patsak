@@ -109,9 +109,11 @@ namespace
 
     size_t ReadUnsigned(const Handle<v8::Value> value)
     {
-        int32_t result;
-        if (!value->IsInt32() || (result = value->Int32Value()) < 0)
-            throw Error(Error::TYPE, "Unsigned integer required");
+        if (!value->IsInt32())
+            throw Error(Error::TYPE, "Ingeger required");
+        int32_t result = value->Int32Value();
+        if (result < 0)
+            throw Error(Error::RANGE, "Unsigned required");
         return result;
     }
 }    

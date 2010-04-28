@@ -40,6 +40,7 @@
 
   _core.errors = [
     TypeError,
+    RangeError,
 
     _core.BaseError,
 
