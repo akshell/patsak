@@ -16,6 +16,7 @@ using namespace ku;
 using namespace v8;
 using namespace std;
 using boost::lexical_cast;
+using boost::shared_ptr;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,7 +56,7 @@ namespace
 // Interface functions
 ////////////////////////////////////////////////////////////////////////////////
 
-Chars ku::ReadFileData(const std::string& path)
+auto_ptr<Chars> ku::ReadFileData(const std::string& path)
 {
     int fd = open(path.c_str(), O_RDONLY);
     if (fd == -1)
@@ -68,8 +69,8 @@ Chars ku::ReadFileData(const std::string& path)
         throw Error(Error::ENTRY_IS_DIR, "Attempt to read directory");
     }
     KU_ASSERT(S_ISREG(st.st_mode));
-    Chars result(st.st_size);
-    ssize_t bytes_readen = read(fd, &result[0], st.st_size);
+    auto_ptr<Chars> result(new Chars(st.st_size));
+    ssize_t bytes_readen = read(fd, &result->front(), st.st_size);
     KU_ASSERT_EQUAL(bytes_readen, st.st_size);
     close(fd);
     return result;
@@ -110,99 +111,310 @@ int ku::GetPathDepth(const std::string& path)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DataStringResource
+// BinaryBg::Reader definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: re-enable it
-
-// namespace
-// {
-//     class DataStringResource : public String::ExternalAsciiStringResource {
-//     public:
-//         DataStringResource(shared_ptr<Chars> data_ptr);
-//         virtual const char* data() const;
-//         virtual size_t length() const;
-        
-//     private:
-//         shared_ptr<Chars> data_ptr_;
-//     };
-// }
-
-
-// DataStringResource::DataStringResource(shared_ptr<Chars> data_ptr)
-//     : data_ptr_(data_ptr)
-// {
-//     KU_ASSERT(data_ptr_);
-// }
-
-
-// const char* DataStringResource::data() const
-// {
-//     return &(data_ptr_->front());
-// }
-
-
-// size_t DataStringResource::length() const
-// {
-//     return data_ptr_->size();
-// }
-
-////////////////////////////////////////////////////////////////////////////////
-// DataBg definitions
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_JS_CLASS(DataBg, "Data", /*object_template*/, proto_template)
+BinaryBg::Reader::Reader(Handle<v8::Value> value)
 {
+    if (value->IsNull() || value->IsUndefined()) {
+        binary_ptr_ = 0;
+    } else {
+        binary_ptr_ = BinaryBg::GetJSClass().Cast(value);
+        if (!binary_ptr_)
+            utf8_value_ptr_.reset(new String::Utf8Value(value));
+    }
+}
+
+
+BinaryBg::Reader::~Reader()
+{
+}
+
+
+const char* BinaryBg::Reader::GetStartPtr() const
+{
+    return (binary_ptr_
+            ? binary_ptr_->start_ptr_
+            : utf8_value_ptr_.get()
+            ? **utf8_value_ptr_
+            : 0);
+}
+
+
+size_t BinaryBg::Reader::GetSize() const
+{
+    return (binary_ptr_
+            ? binary_ptr_->size_
+            : utf8_value_ptr_.get()
+            ? utf8_value_ptr_->length()
+            : 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// BinaryBg::Holder
+////////////////////////////////////////////////////////////////////////////////
+
+class BinaryBg::Holder {
+public:
+    Holder(auto_ptr<Chars> data_ptr);
+    ~Holder();
+
+private:
+    Chars data_;
+};
+
+
+BinaryBg::Holder::Holder(auto_ptr<Chars> data_ptr)
+{
+    swap(data_, *data_ptr);
+    V8::AdjustAmountOfExternalAllocatedMemory(data_.size());
+}
+
+
+BinaryBg::Holder::~Holder()
+{
+    V8::AdjustAmountOfExternalAllocatedMemory(-data_.size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// BinaryBg
+////////////////////////////////////////////////////////////////////////////////
+
+JSClass<BinaryBg>& BinaryBg::GetJSClass()
+{
+    static JSClass<BinaryBg> result("Binary", ConstructorCb);
+    return result;
+}
+
+
+void BinaryBg::AdjustTemplates(Handle<ObjectTemplate> object_template,
+                               Handle<ObjectTemplate> proto_template)
+{
+    object_template->SetAccessor(String::NewSymbol("length"), GetLengthCb,
+                                 0, Handle<v8::Value>(), DEFAULT,
+                                 ReadOnly | DontEnum | DontDelete);
     SetFunction(proto_template, "_toString", ToStringCb);
+    SetFunction(proto_template, "_range", RangeCb);
+    SetFunction(proto_template, "_fill", FillCb);
 }
 
 
-DataBg::DataBg(std::auto_ptr<Chars> data_ptr)
-    : data_ptr_(data_ptr.release())
+namespace
 {
-    KU_ASSERT(data_ptr_);
-    V8::AdjustAmountOfExternalAllocatedMemory(data_ptr_->size());
+    string ReadLower(Handle<v8::Value> value) {
+        string result(Stringify(value));
+        BOOST_FOREACH(char& c, result)
+            c = tolower(c);
+        return result;
+    }
+
+
+    void transcode(const char* in_ptr,
+                   size_t in_length,
+                   const string& from_charset,
+                   const string& to_charset,
+                   Chars& out_data)
+    {
+        iconv_t cd = iconv_open(to_charset.c_str(), from_charset.c_str());
+        if (cd == reinterpret_cast<iconv_t>(-1))
+            throw Error(Error::CONVERSION,
+                        ("Conversion from \"" + from_charset +
+                         "\" to \"" + to_charset +
+                         "\" is not supported"));
+        out_data.resize(in_length + in_length / 8 + 32);
+        char* out_ptr = &out_data[0];
+        size_t out_length = out_data.size();
+        for (;;) {
+            size_t ret = iconv(cd,
+                               const_cast<char**>(&in_ptr), &in_length,
+                               &out_ptr, &out_length);
+            if (ret == MINUS_ONE && errno == E2BIG) {
+                char* old_start_ptr = &out_data[0];
+                size_t diff = in_length + in_length / 4 + 32;
+                out_data.resize(out_data.size() + diff);
+                out_length += diff;
+                out_ptr = &out_data[0] + (out_ptr - old_start_ptr);
+            } else {
+                iconv_close(cd);
+                if (ret == MINUS_ONE)
+                    throw MakeErrnoError();
+                out_data.resize(out_ptr - &out_data[0]);
+                return;
+            }
+        }
+    }
 }
 
 
-DataBg::~DataBg()
+Handle<v8::Value> BinaryBg::ConstructorCb(const Arguments& args)
 {
-    V8::AdjustAmountOfExternalAllocatedMemory(-data_ptr_->size());
+    if (!args.IsConstructCall())
+        return Undefined();
+    try {
+        auto_ptr<Chars> data_ptr(new Chars());
+        Chars& data(*data_ptr);
+        if (args.Length()) {
+            if (args[0]->IsInt32()) {
+                int32_t size = args[0]->Int32Value();
+                if (size < 0)
+                    throw Error(Error::RANGE, "Length must be positive");
+                data.assign(size,
+                            args.Length() > 1 ? args[1]->Uint32Value() : 0);
+            } else if (args[0]->IsString()) {
+                Handle<String> str(args[0]->ToString());
+                string charset(args.Length() > 1
+                               ? ReadLower(args[1])
+                               : "utf-8");
+                if (charset == "utf-8" || charset == "utf8") {
+                    int size = str->Utf8Length();
+                    data.resize(size);
+                    str->WriteUtf8(&data[0], size);
+                } else {
+                    String::Value utf16_value(str);
+                    transcode(reinterpret_cast<const char*>(*utf16_value),
+                              utf16_value.length() * 2,
+                              "utf-16",
+                              charset,
+                              data);
+                }
+            } else if (args[0]->IsArray()) {
+                Handle<Array> array(Handle<Array>::Cast(args[0]));
+                size_t size = array->Length();
+                data.resize(size);
+                for (size_t i = 0; i < size; ++i)
+                    data[i] = array->Get(Integer::New(i))->Uint32Value();
+            } else if (const BinaryBg* binary_ptr =
+                       BinaryBg::GetJSClass().Cast(args[0])) {
+                if (args.Length() == 1) {
+                    data.assign(binary_ptr->start_ptr_,
+                                binary_ptr->start_ptr_ + binary_ptr->size_);
+                } else if (const BinaryBg* second_binary_ptr =
+                           BinaryBg::GetJSClass().Cast(args[1])) {
+                    vector<const BinaryBg*> binary_ptrs(args.Length());
+                    binary_ptrs[0] = binary_ptr;
+                    binary_ptrs[1] = second_binary_ptr;
+                    size_t size = binary_ptr->size_ + second_binary_ptr->size_;
+                    for (int i = 2; i < args.Length(); ++i) {
+                        binary_ptr = BinaryBg::GetJSClass().Cast(args[i]);
+                        if (!binary_ptr)
+                            throw Error(Error::TYPE, "Another Binary expected");
+                        binary_ptrs[i] = binary_ptr;
+                        size += binary_ptr->size_;
+                    }
+                    data.resize(size);
+                    char* start_ptr = &data[0];
+                    BOOST_FOREACH(binary_ptr, binary_ptrs) {
+                        memcpy(start_ptr,
+                               binary_ptr->start_ptr_,
+                               binary_ptr->size_);
+                        start_ptr += binary_ptr->size_;
+                    }
+                } else {
+                    string to_charset(ReadLower(args[1]));
+                    string from_charset(args.Length() > 2 ?
+                                        ReadLower(args[2])
+                                        : "utf-8");
+                    transcode(binary_ptr->start_ptr_, binary_ptr->size_,
+                              from_charset, to_charset,
+                              data);
+                }
+            } else {
+                throw Error(Error::TYPE,
+                            "Binary, Array, string or integer required");
+            }
+        }
+        BinaryBg* new_binary_ptr = new BinaryBg(data_ptr);
+        BinaryBg::GetJSClass().Attach(args.This(), new_binary_ptr);
+        args.This()->SetIndexedPropertiesToExternalArrayData(
+            new_binary_ptr->start_ptr_,
+            kExternalByteArray,
+            new_binary_ptr->size_);
+        return Handle<v8::Value>();
+    } JS_CATCH(Handle<v8::Value>);
 }
 
 
-const Chars& DataBg::GetData() const
+BinaryBg::BinaryBg(auto_ptr<Chars> data_ptr)
 {
-    return *data_ptr_;
+    if (data_ptr->empty()) {
+        start_ptr_ = 0;
+        size_ = 0;
+    } else {
+        start_ptr_ = &data_ptr->front();
+        size_ = data_ptr->size();
+        holder_ptr_.reset(new Holder(data_ptr));
+    }
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DataBg, ToStringCb,
+BinaryBg::BinaryBg(const BinaryBg& parent, size_t start, size_t stop)
+{
+    stop = min(stop, parent.size_);
+    if (start >= stop) {
+        start_ptr_ = 0;
+        size_ = 0;
+    } else {
+        start_ptr_ = parent.start_ptr_ + start;
+        size_ = stop - start;
+        holder_ptr_ = parent.holder_ptr_;
+    }
+}
+
+
+BinaryBg::~BinaryBg()
+{
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, BinaryBg, GetLengthCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/) const
+{
+    return Integer::New(size_);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, ToStringCb,
                     const Arguments&, args) const
 {
-    // TODO NewExternal seems to be broken in new v8 (trunk rev. 2780)
-    // May be DataStringResource should be re-enabled for optimization reasons
+    string charset(args.Length() ? Stringify(args[0]) : "utf-8");
+    if (charset == "utf-8" || charset == "utf8")
+        return String::New(start_ptr_, size_);
+    Chars data;
+    transcode(start_ptr_, size_, charset, "utf-16le", data);
+    assert(data.size() % 2 == 0);
+    return String::New(reinterpret_cast<uint16_t*>(&data[0]), data.size() / 2);
+}
 
-    CheckArgsLength(args, 1);
-    string encoding(Stringify(args[0]));
-    iconv_t cd = iconv_open("UTF-16LE", encoding.c_str());
-    if (cd == reinterpret_cast<iconv_t>(-1))
-        throw (errno == EINVAL
-               ? Error(Error::USAGE,
-                       "Conversion from \"" + encoding + "\" is not supported")
-               : MakeErrnoError());
-    Chars buf(data_ptr_->size() * 2);
-    char* in_ptr = &data_ptr_->front();
-    size_t in_left = data_ptr_->size();
-    char* out_ptr = &buf[0];
-    size_t out_left = buf.size();
-    size_t ret = iconv(cd, &in_ptr, &in_left, &out_ptr, &out_left);
-    iconv_close(cd);
-    if (ret == MINUS_ONE)
-        throw MakeErrnoError();
-    size_t length = buf.size() - out_left;
-    KU_ASSERT(length % 2 == 0);
-    return String::New(reinterpret_cast<uint16_t*>(&buf[0]), length / 2);
+
+size_t BinaryBg::ReadIndex(Handle<v8::Value> value) const
+{
+    int32_t index = value->Int32Value();
+    if (index >= 0)
+        return index;
+    size_t abs_index = -index;
+    return size_ > abs_index ? size_ - abs_index : 0;
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, RangeCb,
+                    const Arguments&, args) const
+{
+    switch (args.Length()) {
+    case 0:
+        return JSNew<BinaryBg>(*this);
+    case 1:
+        return JSNew<BinaryBg>(*this, ReadIndex(args[0]));
+    default:
+        return JSNew<BinaryBg>(*this, ReadIndex(args[0]), ReadIndex(args[1]));
+    }
+}
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, FillCb,
+                    const Arguments&, args) const
+{
+    memset(start_ptr_, args.Length() ? args[0]->Uint32Value() : 0, size_);
+    return args.This();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,7 +469,7 @@ namespace
     }
 
 
-    unsigned long long GetFileSize(const string& path)
+    size_t GetFileSize(const string& path)
     {
         struct stat st;
         if (stat(path.c_str(), &st) == -1)
@@ -278,7 +490,7 @@ namespace
 DEFINE_JS_CLASS(FSBg, "FS", object_template, /*proto_template*/)
 {
     TempFileBg::GetJSClass();
-    DataBg::GetJSClass();
+    BinaryBg::GetJSClass();
     SetFunction(object_template, "read", ReadCb);
     SetFunction(object_template, "exists", ExistsCb);
     SetFunction(object_template, "isDir", IsDirCb);
@@ -343,7 +555,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ReadCb,
 {
     CheckArgsLength(args, 1);
     string path(ReadPath(args[0], false));
-    return JSNew<DataBg>(auto_ptr<Chars>(new Chars(ReadFileData(path))));
+    return JSNew<BinaryBg>(ReadFileData(path));
 }
 
 
@@ -423,30 +635,17 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, WriteCb,
 {
     CheckArgsLength(args, 2);
     string path(ReadPath(args[0], false));
-    unsigned long long old_size = GetFileSize(path);
-    
-    DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(args[1]);
-    auto_ptr<String::Utf8Value> utf8_value_ptr;
-    const char* data_ptr;
-    size_t size;
-    if (data_bg_ptr) {
-        data_ptr = &(data_bg_ptr->GetData()[0]);
-        size = data_bg_ptr->GetData().size();
-    } else {
-        utf8_value_ptr.reset(new String::Utf8Value(args[1]));
-        data_ptr = **utf8_value_ptr;
-        size = utf8_value_ptr->length();
-    }
+    size_t old_size = GetFileSize(path);
+    BinaryBg::Reader binary_reader(args[1]);
+    size_t size = binary_reader.GetSize();
     if (size > old_size)
         CheckTotalSize(size - old_size);
-
     int fd = creat(path.c_str(), 0644);
     if (fd == -1)
         throw MakeErrnoError();
-    ssize_t bytes_written = write(fd, data_ptr, size);
+    ssize_t bytes_written = write(fd, binary_reader.GetStartPtr(), size);
     KU_ASSERT_EQUAL(static_cast<size_t>(bytes_written), size);
     close(fd);
-
     total_size_ += GetFileSize(path);
     total_size_ -= old_size;
     return Undefined();
@@ -458,7 +657,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RemoveCb,
 {
     CheckArgsLength(args, 1);
     string path(ReadPath(args[0], false));
-    unsigned long long size = GetFileSize(path);
+    size_t size = GetFileSize(path);
     if (remove(path.c_str()) == -1)
         throw MakeErrnoError();
     total_size_ -= size;

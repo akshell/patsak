@@ -34,8 +34,6 @@
   defineErrorClass('DB', _core.CoreError);
   defineErrorClass('FS', _core.CoreError);
   defineErrorClass('AppRequest', _core.CoreError);
-  defineErrorClass('HostRequest', _core.CoreError);
-  defineErrorClass('Metadata', _core.CoreError);
 
 
   _core.errors = [
@@ -50,8 +48,11 @@
     _core.DBError,
     _core.FSError,
     _core.AppRequestError,
-    _core.HostRequestError,
-    _core.MetadataError,
+
+    defineErrorClass('HostRequest', _core.CoreError),
+    defineErrorClass('NoSuchApp', _core.CoreError),
+    defineErrorClass('NoSuchUser', _core.CoreError),
+    defineErrorClass('Conversion', _core.CoreError),
 
     defineErrorClass('DBQuota', _core.DBError),
     defineErrorClass('RelVarExists', _core.DBError),
@@ -69,13 +70,9 @@
     defineErrorClass('EntryIsNotDir', _core.FSError),
     defineErrorClass('DirIsNotEmpty', _core.FSError),
     defineErrorClass('TempFileRemoved', _core.FSError),
-    defineErrorClass('Conversion', _core.FSError),
 
     defineErrorClass('ProcessingFailed', _core.AppRequestError),
-    defineErrorClass('TimedOut', _core.AppRequestError),
-
-    defineErrorClass('NoSuchApp', _core.MetadataError),
-    defineErrorClass('NoSuchUser', _core.MetadataError)
+    defineErrorClass('TimedOut', _core.AppRequestError)
   ];
 
   //////////////////////////////////////////////////////////////////////////////

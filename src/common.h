@@ -30,8 +30,11 @@ namespace ku
             DB,
             FS,
             APP_REQUEST,
+            
             HOST_REQUEST,
-            METADATA,
+            NO_SUCH_APP,
+            NO_SUCH_USER,
+            CONVERSION,
 
             DB_QUOTA,
             REL_VAR_EXISTS,
@@ -49,13 +52,9 @@ namespace ku
             ENTRY_IS_NOT_DIR,
             DIR_IS_NOT_EMPTY,
             TEMP_FILE_REMOVED,
-            CONVERSION,
             
             PROCESSING_FAILED,
-            TIMED_OUT,
-
-            NO_SUCH_APP,
-            NO_SUCH_USER
+            TIMED_OUT
         };
         
         Error(Tag tag, const std::string& msg)

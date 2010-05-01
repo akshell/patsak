@@ -3,6 +3,8 @@
 
 Script = _core.Script;
 Proxy = _core.Proxy;
+Binary = _core.Binary;
+Binary.prototype.toString = Binary.prototype._toString;
 db = _core.db;
 fs = _core.fs;
 
@@ -48,14 +50,6 @@ function remove(path) {
   }
   fs.remove(path);
 };
-
-
-set(_core.Data.prototype,
-    'toString',
-    DONT_ENUM,
-    function (encoding) {
-      return this._toString(encoding || 'UTF-8');
-    });
 
 
 function query(query, queryParams, by, byParams, start, length) {
@@ -1011,10 +1005,7 @@ var fileTestSuite = {
 
   testRead: function () {
     assertEqual(fs.read('//dir1////subdir/hello'), 'hello world!');
-    var data = fs.read('/dir1/subdir/привет');
-    assertEqual(data, 'привет!');
-    assertThrow(ConversionError, function () { data.toString('UTF-32'); });
-    assertThrow(UsageError, function () { data.toString('NO-SUCH-ENC'); });
+    assertSame(fs.read('/dir1/subdir/привет')._toString(), 'привет!');
     assertThrow(NoSuchEntryError, "fs.read('does not exists')");
     assertThrow(EntryIsDirError, "fs.read('dir1')");
     assertThrow(PathError, "fs.read('//..//test-app/dir1/subdir/hello')");
@@ -1113,6 +1104,56 @@ var fileTestSuite = {
     assertThrow(FSQuotaError, function () { fs.write('file2', str); });
     remove('file1');
     assert(!fs.exists('file2'));
+  },
+
+  testBinary: function () {
+    assertSame(Binary(), undefined);
+    var text = 'some text in russian русский текст';
+    assertSame(new Binary(text)._toString(), text);
+    var binary = new Binary(text, 'koi8');
+    assert(!delete binary.length);
+    binary.length = 0;
+    assertSame(binary.length, text.length);
+    binary = new Binary(binary, 'utf8', 'koi8');
+    assertSame(binary.length, 46);
+    binary = new Binary(binary, 'cp1251');
+    assertSame(binary.length, text.length);
+    binary = new Binary(binary);
+    assertSame(binary._toString('CP1251'), text);
+    assertSame(new Binary()._toString(), '');
+    assertSame(new Binary()._toString('koi8'), '');
+    assertThrow(ConversionError, "new Binary('russian русский', 'ascii')");
+    assertThrow(ConversionError, "new Binary('', 'no-such-charset')");
+    binary = new Binary('ascii text', 'ascii');
+    binary = new Binary(binary, 'utf-32', 'ascii');
+    binary = new Binary(binary, 'ascii', 'utf-32');
+    assertSame(binary._toString(), 'ascii text');
+    assertSame(new Binary(3, 'x'.charCodeAt(0))._toString(), 'xxx');
+    var array = [];
+    var asciiText = 'hello world';
+    for (var i = 0; i < asciiText.length; ++i)
+      array.push(asciiText.charCodeAt(i));
+    assertSame(new Binary(array)._toString('ascii'), asciiText);
+    assertThrow(TypeError, "new Binary(new Binary(), new Binary(), 42)");
+    assertSame(new Binary(new Binary('binary '),
+                          new Binary('concatenation '),
+                          new Binary('works!'))._toString(),
+               'binary concatenation works!');
+    assertThrow(TypeError, "new Binary(1.5)");
+    assertThrow(RangeError, "new Binary(-1)");
+    assertSame(
+      new Binary(text, 'utf-32le')._range(21 * 4, -6 * 4)._toString('utf-32'),
+      'русский');
+    assertSame(
+      new Binary(text, 'utf-16le')._range(-1000, 4 * 2)._toString('utf-16'),
+      'some');
+    assertSame(
+      new Binary(text)._range()._range()._range(21)._toString(),
+      'русский текст');
+    assertSame(new Binary(text)._range(1000).length, 0);
+    binary = new Binary('Hello world    Filling works.');
+    binary._range(11, 14)._fill('!'.charCodeAt(0));
+    assertSame(binary._toString(), 'Hello world!!! Filling works.');
   }
 };
 

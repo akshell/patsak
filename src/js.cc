@@ -48,8 +48,8 @@ namespace
     class CodeReader {
     public:
         CodeReader(const string& code_path, const string& include_path);
-        Chars Read(const string& path) const;
-        Chars Read(const string& app_name, const string& path) const;
+        auto_ptr<Chars> Read(const string& path) const;
+        auto_ptr<Chars> Read(const string& app_name, const string& path) const;
         time_t GetModDate(const string& path) const;
         time_t GetModDate(const string& app_name, const string& path) const;
 
@@ -58,7 +58,10 @@ namespace
         string include_path_;
 
         void CheckPath(const string& path) const;
-        Chars DoRead(const string& base_path, const string& path) const;
+        
+        auto_ptr<Chars> DoRead(const string& base_path,
+                               const string& path) const;
+        
         time_t DoGetModDate(const string& base_path, const string& path) const;
     };
 }
@@ -70,13 +73,13 @@ CodeReader::CodeReader(const string& code_path, const string& include_path)
 }
 
 
-Chars CodeReader::Read(const string& path) const
+auto_ptr<Chars> CodeReader::Read(const string& path) const
 {
     return DoRead(code_path_, path);
 }
 
 
-Chars CodeReader::Read(const string& app_name, const string& path) const
+auto_ptr<Chars> CodeReader::Read(const string& app_name, const string& path) const
 {
     access_ptr->CheckAppExists(app_name);
     return DoRead(include_path_ + '/' + app_name, path);
@@ -103,7 +106,8 @@ void CodeReader::CheckPath(const string& path) const
 }
 
 
-Chars CodeReader::DoRead(const string& base_path, const string& path) const
+auto_ptr<Chars> CodeReader::DoRead(const string& base_path,
+                                   const string& path) const
 {
     CheckPath(path);
     return ReadFileData(base_path + '/' + path);
@@ -548,11 +552,11 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, ReadCodeCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    Chars data = (args.Length() == 1
-                  ? code_reader_.Read(Stringify(args[0]))
-                  : code_reader_.Read(Stringify(args[0]),
-                                      Stringify(args[1])));
-    return String::New(&data[0], data.size());
+    auto_ptr<Chars> data_ptr(args.Length() == 1
+                             ? code_reader_.Read(Stringify(args[0]))
+                             : code_reader_.Read(Stringify(args[0]),
+                                                 Stringify(args[1])));
+    return String::New(&data_ptr->front(), data_ptr->size());
 }
 
 
@@ -595,24 +599,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, ConstructCb,
 }
 
 
-namespace
-{
-    const Chars* ReadData(Handle<v8::Value> value, Chars& data)
-    {
-        if (value->IsNull() || value->IsUndefined())
-            return 0;
-        const DataBg* data_bg_ptr = DataBg::GetJSClass().Cast(value);
-        if (data_bg_ptr)
-            return &data_bg_ptr->GetData();
-        Handle<String> str(value->ToString());
-        int length = str->Utf8Length();
-        data.resize(length);
-        str->WriteUtf8(&data[0], length);
-        return &data;
-    }
-}
-
-
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestAppCb,
                     const Arguments&, args) const
 {
@@ -627,11 +613,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestAppCb,
         file_values.push_back(GetArrayLikeItem(args[2], i));
     FSBg::FileAccessor file_accessor(fs_bg_, file_values);
     
-    Chars data;
+    BinaryBg::Reader binary_reader(args[3]);
     Chars result(app_accessor_(app_name,
                                request,
                                file_accessor.GetFullPathes(),
-                               ReadData(args[3], data),
+                               binary_reader.GetStartPtr(),
+                               binary_reader.GetSize(),
                                *access_ptr));
     KU_ASSERT(result.size() >= 3);
     if (string(&result[0], 3) == "OK\n") {
@@ -662,18 +649,19 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestHostCb,
                 break;
         if (error_code)
             throw asio::system_error(error_code);
-        Chars data;
-        const Chars* data_ptr(ReadData(args[2], data));
-        if (data_ptr)
+        BinaryBg::Reader binary_reader(args[2]);
+        if (binary_reader.GetSize())
             asio::write(socket,
-                        asio::buffer(&data_ptr->front(), data_ptr->size()),
+                        asio::buffer(binary_reader.GetStartPtr(),
+                                     binary_reader.GetSize()),
                         asio::transfer_all());
-        asio::streambuf buf;
-        asio::read(socket, buf, asio::transfer_all(), error_code);
+        asio::streambuf streambuf;
+        asio::read(socket, streambuf, asio::transfer_all(), error_code);
         if (error_code != asio::error::eof)
             throw asio::system_error(error_code);
-        const char* ptr = asio::buffer_cast<const char*>(buf.data());
-        return JSNew<DataBg>(auto_ptr<Chars>(new Chars(ptr, ptr + buf.size())));
+        const char* data_ptr = asio::buffer_cast<const char*>(streambuf.data());
+        return JSNew<BinaryBg>(
+            auto_ptr<Chars>(new Chars(data_ptr, data_ptr + streambuf.size())));
     } catch (const asio::system_error& error) {
         throw Error(Error::HOST_REQUEST, error.what());
     }
@@ -1095,7 +1083,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     
     Handle<v8::Value> data_value;
     if (data_ptr.get())
-        data_value = JSNew<DataBg>(data_ptr);
+        data_value = JSNew<BinaryBg>(data_ptr);
     else
         data_value = Null();
     Set(core_, "data", data_value);

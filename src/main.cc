@@ -272,7 +272,8 @@ namespace
         virtual Chars operator()(const string& app_name,
                                  const string& request,
                                  const Strings& file_pathes,
-                                 const Chars* data_ptr,
+                                 const char* data_ptr,
+                                 size_t data_size,
                                  const Access& access);
         
     private:
@@ -308,7 +309,8 @@ AppAccessorImpl::AppAccessorImpl(const string& self_name,
 Chars AppAccessorImpl::operator()(const string& app_name,
                                   const string& request,
                                   const Strings& file_pathes,
-                                  const Chars* data_ptr,
+                                  const char* data_ptr,
+                                  size_t data_size,
                                   const Access& access)
 {
     if (app_name == self_name_)
@@ -335,10 +337,10 @@ Chars AppAccessorImpl::operator()(const string& app_name,
     buffers.push_back(asio::buffer(process_header));
 
     string data_header;
-    if (data_ptr && !data_ptr->empty()) {
-        data_header = "\nDATA " + lexical_cast<string>(data_ptr->size()) + '\n';
+    if (data_size) {
+        data_header = "\nDATA " + lexical_cast<string>(data_size) + '\n';
         buffers.push_back(asio::buffer(data_header));
-        buffers.push_back(asio::buffer(*data_ptr));
+        buffers.push_back(asio::buffer(data_ptr, data_size));
     }
 
     vector<string> file_descrs;

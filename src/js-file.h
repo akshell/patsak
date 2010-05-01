@@ -13,7 +13,7 @@
 
 namespace ku
 {
-    Chars ReadFileData(const std::string& path);
+    std::auto_ptr<Chars> ReadFileData(const std::string& path);
 
     std::auto_ptr<struct stat> GetStat(const std::string& path,
                                        bool ignore_error = false);
@@ -23,18 +23,52 @@ namespace ku
     int GetPathDepth(const std::string& path);
 
     
-    class DataBg {
+    class BinaryBg {
     public:
-        DECLARE_JS_CLASS(DataBg);
+        DECLARE_JS_CLASS(BinaryBg);
 
-        DataBg(std::auto_ptr<Chars> data_ptr);
-        ~DataBg();
-        const Chars& GetData() const;
+        class Reader {
+        public:
+            Reader(v8::Handle<v8::Value> value);
+            ~Reader();
+            const char* GetStartPtr() const;
+            size_t GetSize() const;
+
+        private:
+            const BinaryBg* binary_ptr_;
+            std::auto_ptr<v8::String::Utf8Value> utf8_value_ptr_;
+        };
+
+        BinaryBg(std::auto_ptr<Chars> data_ptr);
+        
+        BinaryBg(const BinaryBg& parent,
+                 size_t start = 0,
+                 size_t stop = MINUS_ONE);
+        
+        ~BinaryBg();
 
     private:
-        boost::shared_ptr<Chars> data_ptr_;
+        class Holder;
+        
+        boost::shared_ptr<Holder> holder_ptr_;
+        char* start_ptr_;
+        size_t size_;
+        
+        static v8::Handle<v8::Value> ConstructorCb(const v8::Arguments& args);
+
+        size_t ReadIndex(v8::Handle<v8::Value> value) const;
+        
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetLengthCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ToStringCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RangeCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, FillCb,
                              const v8::Arguments&) const;
     };
 
