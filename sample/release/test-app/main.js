@@ -338,9 +338,8 @@ var baseTestSuite = {
     fs.list('').forEach(remove);
     fs.write('file1', 'wuzzup');
     fs.write('file2', 'yo ho ho');
-    fs.write('hello', 'hello world!');
     assertSame(requestApp('another-app',
-                          fs.read('hello'),
+                          new Binary('hello world!', 'ascii'),
                           ['file1', 'file2'],
                           'yo!!!'),
                ('{"user":"' + _core.user + '",'+
@@ -348,7 +347,6 @@ var baseTestSuite = {
                 '"fileContents":["wuzzup","yo ho ho"],' +
                 '"issuer":"test-app"}'));
     assert(!fs.exists('file1') && !fs.exists('file2'));
-    fs.remove('hello');
     assertThrow(NoSuchAppError, requestApp, 'no-such-app', 'hi', [], null);
     assertThrow(TypeError, requestApp, 'another-app', '', 42, null);
     fs.write('file3', 'text');

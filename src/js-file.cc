@@ -115,14 +115,9 @@ int ku::GetPathDepth(const std::string& path)
 ////////////////////////////////////////////////////////////////////////////////
 
 BinaryBg::Reader::Reader(Handle<v8::Value> value)
+    : binary_ptr_(BinaryBg::GetJSClass().Cast(value))
+    , utf8_value_ptr_(binary_ptr_ ? 0 : new String::Utf8Value(value))
 {
-    if (value->IsNull() || value->IsUndefined()) {
-        binary_ptr_ = 0;
-    } else {
-        binary_ptr_ = BinaryBg::GetJSClass().Cast(value);
-        if (!binary_ptr_)
-            utf8_value_ptr_.reset(new String::Utf8Value(value));
-    }
 }
 
 
@@ -336,7 +331,7 @@ Handle<v8::Value> BinaryBg::ConstructorCb(const Arguments& args)
 
 BinaryBg::BinaryBg(auto_ptr<Chars> data_ptr)
 {
-    if (data_ptr->empty()) {
+    if (!data_ptr.get() || data_ptr->empty()) {
         start_ptr_ = 0;
         size_ = 0;
     } else {

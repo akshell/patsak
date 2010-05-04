@@ -702,17 +702,14 @@ namespace
         virtual const char* GetData() const;
 
     private:
-        // mutable is due to the fact that String::Utf8Value::length()
-        // isn't const for unknown reasons
-        mutable String::Utf8Value utf8_value_;
+        BinaryBg::Reader binary_reader_;
     };  
 }
 
 
 OkResponse::OkResponse(Handle<v8::Value> value)
-    : utf8_value_(value)
+    : binary_reader_(value)
 {
-    GetData();
 }
 
 
@@ -724,13 +721,13 @@ string OkResponse::GetStatus() const
 
 size_t OkResponse::GetSize() const
 {
-    return static_cast<size_t>(utf8_value_.length());
+    return binary_reader_.GetSize();
 }
 
 
 const char* OkResponse::GetData() const
 {
-    return *utf8_value_;
+    return binary_reader_.GetStartPtr();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1081,12 +1078,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         return auto_ptr<Response>(
             new ErrorResponse(func_name + " is not a function"));
     
-    Handle<v8::Value> data_value;
-    if (data_ptr.get())
-        data_value = JSNew<BinaryBg>(data_ptr);
-    else
-        data_value = Null();
-    Set(core_, "data", data_value);
+    Set(core_, "data", JSNew<BinaryBg>(data_ptr));
 
     Handle<Array> file_array(Array::New(file_pathes.size()));
     vector<Handle<Object> > files;

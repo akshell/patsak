@@ -164,11 +164,12 @@ class Test(unittest.TestCase):
         self.assertEqual(talk('PROCESS\nDATA 0\n\nREQUEST 3\n2+2'), 'OK\n4')
         self.assertEqual(talk('PROCESS\nUSER anton\nEXPR 6\nmain()'), 'OK\n0')
         self.assertEqual(talk('PROCESS\nREQUEST 3\n2+2'), 'OK\n4')
-        self.assertEqual(talk('PROCESS _core.data'), 'OK\nnull')
-        self.assertEqual(talk('PROCESS\nREQUEST 10\n_core.data'), 'OK\nnull')
+        self.assertEqual(talk('PROCESS _core.data.length'), 'OK\n0')
+        self.assertEqual(talk('PROCESS\nREQUEST 10\n_core.data'), 'OK\n')
         self.assertEqual(talk('PROCESS\nDATA 5\nhello\n'
-                              'REQUEST 13\n_core.data+""'),
+                              'REQUEST 10\n_core.data'),
                          'OK\nhello')
+        self.assertEqual(talk('PROCESS new _core.Binary(3)'), 'OK\n\0\0\0')
         wuzzup_path = os.path.join(TMP_DIR, 'wuzzup.txt')
         open(wuzzup_path, 'w').write('wuzzup!!1')
         self.assertEqual(talk('PROCESS\n\nFILE /does_not_exist\n'
@@ -246,8 +247,8 @@ class Test(unittest.TestCase):
             talk('PROCESS _core.owner + " " + _core.spot'),
             'OK\ntest user test-spot')
         self.assertEqual(
-            talk('PROCESS _core.requestApp("another-app", "hi", [], null)'),
-            'OK\n{"user":"","arg":"hi","data":null,' +
+            talk('PROCESS _core.requestApp("another-app", "hi", [], "")'),
+            'OK\n{"user":"","arg":"hi","data":"",' +
             '"fileContents":[],"issuer":"test-app"}')
         self.assertEqual(
             talk('PROCESS function f() { f(); } f()'),

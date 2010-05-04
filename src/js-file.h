@@ -39,7 +39,7 @@ namespace ku
             std::auto_ptr<v8::String::Utf8Value> utf8_value_ptr_;
         };
 
-        BinaryBg(std::auto_ptr<Chars> data_ptr);
+        BinaryBg(std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>());
         
         BinaryBg(const BinaryBg& parent,
                  size_t start = 0,
