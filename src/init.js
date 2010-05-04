@@ -20,7 +20,7 @@
       this.message = message + '';
       return undefined;
     };
-    result.__name__ = result.prototype.name = fullName;
+    result.prototype.name = fullName;
     result.prototype.__proto__ = parent.prototype;
     _core[fullName] = result;
     return result;

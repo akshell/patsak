@@ -38,7 +38,7 @@ DONT_DELETE = 1 << 2;
 
 _core.errors.slice(2).forEach(
   function (error) {
-    this[error.__name__] = error;
+    this[error.prototype.name] = error;
   });
 
 
@@ -317,7 +317,6 @@ var baseTestSuite = {
   testErrors: function () {
     assert(new BaseError() instanceof Error);
     assert(new CoreError() instanceof BaseError);
-    assertSame(CoreError.__name__, 'CoreError');
     assertSame(CoreError.prototype.name, 'CoreError');
     assert(new DBError() instanceof CoreError);
     assert(new FieldError() instanceof DBError);
