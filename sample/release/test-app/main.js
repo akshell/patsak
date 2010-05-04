@@ -1056,6 +1056,7 @@ var fileTestSuite = {
     assertEqual(fs.read('hello'), 'hello world!');
     remove('hello');
     assertThrow(EntryIsNotDirError, "fs.write('file/xxx', '')");
+    assertThrow(EntryIsDirError, "fs.write('dir1', '')");
     assertThrow(PathError,
                 function () {
                   var array = [];
