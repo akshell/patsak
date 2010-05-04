@@ -23,19 +23,16 @@ namespace ku
             TYPE,
             RANGE,
 
-            BASE,
-            CORE,
-            
+            VALUE,
             USAGE,
-            DB,
-            FS,
-            APP_REQUEST,
-            
+            NOT_IMPLEMENTED,
+
             HOST_REQUEST,
             NO_SUCH_APP,
             NO_SUCH_USER,
             CONVERSION,
 
+            DB,
             DB_QUOTA,
             REL_VAR_EXISTS,
             NO_SUCH_REL_VAR,
@@ -44,6 +41,7 @@ namespace ku
             FIELD,
             QUERY,
 
+            FS,
             FS_QUOTA,
             PATH,
             ENTRY_EXISTS,
@@ -53,6 +51,7 @@ namespace ku
             DIR_IS_NOT_EMPTY,
             TEMP_FILE_REMOVED,
             
+            APP_REQUEST,
             PROCESSING_FAILED,
             TIMED_OUT
         };

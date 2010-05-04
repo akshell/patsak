@@ -315,13 +315,10 @@ var baseTestSuite = {
   },
 
   testErrors: function () {
-    assert(new BaseError() instanceof Error);
-    assert(new CoreError() instanceof BaseError);
-    assertSame(CoreError.prototype.name, 'CoreError');
-    assert(new DBError() instanceof CoreError);
+    assertSame(ValueError.prototype.name, 'ValueError');
     assert(new FieldError() instanceof DBError);
     assert(UsageError() instanceof UsageError);
-    assertSame(BaseError(42).message, '42');
+    assertSame(NotImplementedError(42).message, '42');
   },
 
   testConstruct: function () {

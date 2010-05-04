@@ -10,7 +10,7 @@
   Error.stackTraceLimit = 1000;
 
 
-  function defineErrorClass(name, parent) {
+  function defineErrorClass(name, parent/* = Error */) {
     var fullName = name + 'Error';
     var result = function (message) {
       if (!(this instanceof arguments.callee))
@@ -21,40 +21,31 @@
       return undefined;
     };
     result.prototype.name = fullName;
-    result.prototype.__proto__ = parent.prototype;
+    result.prototype.__proto__ = (parent || Error).prototype;
     _core[fullName] = result;
     return result;
   }
 
 
-  defineErrorClass('Base', Error);
-
-  defineErrorClass('Core', _core.BaseError);
-  defineErrorClass('Usage', _core.BaseError);
-
-  defineErrorClass('DB', _core.CoreError);
-  defineErrorClass('FS', _core.CoreError);
-  defineErrorClass('AppRequest', _core.CoreError);
+  defineErrorClass('DB');
+  defineErrorClass('FS');
+  defineErrorClass('AppRequest');
 
 
   _core.errors = [
     TypeError,
     RangeError,
 
-    _core.BaseError,
+    defineErrorClass('Value'),
+    defineErrorClass('Usage'),
+    defineErrorClass('NotImplemented'),
 
-    _core.CoreError,
-    _core.UsageError,
+    defineErrorClass('HostRequest'),
+    defineErrorClass('NoSuchApp'),
+    defineErrorClass('NoSuchUser'),
+    defineErrorClass('Conversion'),
 
     _core.DBError,
-    _core.FSError,
-    _core.AppRequestError,
-
-    defineErrorClass('HostRequest', _core.CoreError),
-    defineErrorClass('NoSuchApp', _core.CoreError),
-    defineErrorClass('NoSuchUser', _core.CoreError),
-    defineErrorClass('Conversion', _core.CoreError),
-
     defineErrorClass('DBQuota', _core.DBError),
     defineErrorClass('RelVarExists', _core.DBError),
     defineErrorClass('NoSuchRelVar', _core.DBError),
@@ -63,6 +54,7 @@
     defineErrorClass('Field', _core.DBError),
     defineErrorClass('Query', _core.DBError),
 
+    _core.FSError,
     defineErrorClass('FSQuota', _core.FSError),
     defineErrorClass('Path', _core.FSError),
     defineErrorClass('EntryExists', _core.FSError),
@@ -72,6 +64,7 @@
     defineErrorClass('DirIsNotEmpty', _core.FSError),
     defineErrorClass('TempFileRemoved', _core.FSError),
 
+    _core.AppRequestError,
     defineErrorClass('ProcessingFailed', _core.AppRequestError),
     defineErrorClass('TimedOut', _core.AppRequestError)
   ];
