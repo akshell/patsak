@@ -140,8 +140,7 @@ namespace ku
     // Controls changes in file size after external operations.
     class FSBg::FileAccessor {
     public:
-        FileAccessor(FSBg& fs_bg,
-                     const std::vector<v8::Handle<v8::Value> >& values);
+        FileAccessor(FSBg& fs_bg, v8::Handle<v8::Array> files);
         ~FileAccessor();
         const Strings& GetFullPathes() const;
 

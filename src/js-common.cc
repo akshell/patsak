@@ -22,7 +22,8 @@ using boost::lexical_cast;
 Persistent<Object> ku::js_error_classes;
 
 
-void ku::ThrowError(const ku::Error& err) {
+void ku::ThrowError(const ku::Error& err)
+{
     Handle<v8::Value> message(String::New(err.what()));
     ThrowException(
         Function::Cast(*js_error_classes->Get(Integer::New(err.GetTag())))
@@ -37,7 +38,8 @@ string ku::Stringify(Handle<v8::Value> value)
 }
 
 
-void ku::CheckArgsLength(const Arguments& args, int length) {
+void ku::CheckArgsLength(const Arguments& args, int length)
+{
     if (args.Length() < length)
         throw Error(Error::USAGE,
                     ("At least " +
@@ -46,32 +48,11 @@ void ku::CheckArgsLength(const Arguments& args, int length) {
 }
 
 
-size_t ku::GetArrayLikeLength(Handle<v8::Value> value)
+Handle<Array> ku::GetArray(Handle<v8::Value> value)
 {
-    if (!value->IsObject())
-        throw Error(Error::TYPE, "Array-like required (non-object provided)");
-    Handle<Object> object(value->ToObject());
-    Handle<String> length_string(String::NewSymbol("length"));
-    if (!object->Has(length_string))
-        throw Error(Error::TYPE, "Array-like required (length not found)");
-    Handle<v8::Value> length_value(object->Get(length_string));
-    if (length_value.IsEmpty())
-        throw Propagate();
-    if (!length_value->IsInt32())
-        throw Error(Error::TYPE, "Array-like required (length is not integer)");
-    int32_t result = length_value->Int32Value();
-    if (result < 0)
-        throw Error(Error::TYPE, "Array-like required (length is negative)");
-    return result;
-}
-
-
-Handle<v8::Value> ku::GetArrayLikeItem(Handle<v8::Value> value, size_t index)
-{
-    Handle<v8::Value> result(value->ToObject()->Get(Integer::New(index)));
-    if (result.IsEmpty())
-        throw Propagate();
-    return result;
+    if (!value->IsArray())
+        throw Error(Error::TYPE, "Array required");
+    return Handle<Array>::Cast(value);
 }
 
 

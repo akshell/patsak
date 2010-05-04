@@ -590,12 +590,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, ConstructCb,
     if (!args[0]->IsFunction ())
         throw Error(Error::USAGE, "First argument must be function");
     Handle<Function> constructor(Handle<Function>::Cast(args[0]));
-    size_t length = GetArrayLikeLength(args[1]);
-    vector<Handle<v8::Value> > arguments;
-    arguments.reserve(length);
-    for (size_t i = 0; i < length; ++i)
-        arguments.push_back(GetArrayLikeItem(args[1], i));
-    return constructor->NewInstance(length, &arguments[0]);
+    Handle<Array> array(GetArray(args[1]));
+    vector<Handle<v8::Value> > values;
+    values.reserve(array->Length());
+    for (size_t i = 0; i < array->Length(); ++i)
+        values.push_back(array->Get(Integer::New(i)));
+    return constructor->NewInstance(array->Length(), &values[0]);
 }
 
 
@@ -605,14 +605,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestAppCb,
     CheckArgsLength(args, 4);
     string app_name(Stringify(args[0]));
     string request(Stringify(args[1]));
-    
-    size_t length = GetArrayLikeLength(args[2]);
-    vector<Handle<v8::Value> > file_values;
-    file_values.reserve(length);
-    for (size_t i = 0; i < length; ++i)
-        file_values.push_back(GetArrayLikeItem(args[2], i));
-    FSBg::FileAccessor file_accessor(fs_bg_, file_values);
-    
+    FSBg::FileAccessor file_accessor(fs_bg_, GetArray(args[2]));
     BinaryBg::Reader binary_reader(args[3]);
     Chars result(app_accessor_(app_name,
                                request,

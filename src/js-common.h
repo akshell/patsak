@@ -36,11 +36,7 @@ namespace ku
     void ThrowError(const ku::Error& err);
     std::string Stringify(v8::Handle<v8::Value> value);
     void CheckArgsLength(const v8::Arguments& args, int length);
-
-    size_t GetArrayLikeLength(v8::Handle<v8::Value> value);
-
-    v8::Handle<v8::Value> GetArrayLikeItem(v8::Handle<v8::Value> value,
-                                           size_t index);
+    v8::Handle<v8::Array> GetArray(v8::Handle<v8::Value> value);
 
     v8::Handle<v8::Value> Get(v8::Handle<v8::Object> object,
                               const std::string& name);

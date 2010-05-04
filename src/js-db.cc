@@ -57,13 +57,13 @@ namespace
     }
 
 
-    Values ReadParams(Handle<v8::Value> array)
+    Values ReadParams(Handle<v8::Value> value)
     {
-        size_t length = GetArrayLikeLength(array);
+        Handle<Array> array(GetArray(value));
         Values result;
-        result.reserve(length);
-        for (size_t i = 0; i < length; ++i)
-            result.push_back(ReadKuValue(GetArrayLikeItem(array, i)));
+        result.reserve(array->Length());
+        for (size_t i = 0; i < array->Length(); ++i)
+            result.push_back(ReadKuValue(array->Get(Integer::New(i))));
         return result;
     }
     
@@ -95,13 +95,13 @@ namespace
     }
 
     
-    StringSet ReadStringSet(v8::Handle<v8::Value> value)
+    StringSet ReadStringSet(Handle<v8::Value> value)
     {
-        size_t length = GetArrayLikeLength(value);
+        Handle<Array> array(GetArray(value));
         StringSet result;
-        result.reserve(length);
-        for (size_t i = 0; i < length; ++i) 
-            if (!result.add_unsure(Stringify(GetArrayLikeItem(value, i))))
+        result.reserve(array->Length());
+        for (size_t i = 0; i < array->Length(); ++i)
+            if (!result.add_unsure(Stringify(array->Get(Integer::New(i)))))
                 throw Error(Error::USAGE, "Duplicating names");
         return result;
     }
@@ -435,11 +435,11 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, QueryCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 6);
-    size_t by_length = GetArrayLikeLength(args[2]);
+    Handle<Array> by_values(GetArray(args[2]));
     Strings by_strs;
-    by_strs.reserve(by_length);
-    for (size_t i = 0; i < by_length; ++i)
-        by_strs.push_back(Stringify(GetArrayLikeItem(args[2], i)));
+    by_strs.reserve(by_values->Length());
+    for (size_t i = 0; i < by_values->Length(); ++i)
+        by_strs.push_back(Stringify(by_values->Get(Integer::New(i))));
     const QueryResult& query_result(
         access_ptr->Query(Stringify(args[0]),
                           ReadParams(args[1]),
@@ -494,24 +494,23 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateCb,
                                       type_bg.GetDefaultPtr()));
         type_bg.CollectConstrs(name, constrs);
     }
-    size_t unique_length = GetArrayLikeLength(args[2]);
-    for (size_t i = 0; i < unique_length; ++i)
-        constrs.push_back(
-            Unique(ReadStringSet(GetArrayLikeItem(args[2], i))));
-    size_t foreign_length = GetArrayLikeLength(args[3]);
-    for (size_t i = 0; i < foreign_length; ++i) {
-        Handle<v8::Value> item(GetArrayLikeItem(args[3], i));
-        if (GetArrayLikeLength(item) != 3)
+    Handle<Array> uniques(GetArray(args[2]));
+    for (size_t i = 0; i < uniques->Length(); ++i)
+        constrs.push_back(Unique(ReadStringSet(uniques->Get(Integer::New(i)))));
+    Handle<Array> foreigns(GetArray(args[3]));
+    for (size_t i = 0; i < foreigns->Length(); ++i) {
+        Handle<Array> foreign(GetArray(foreigns->Get(Integer::New(i))));
+        if (foreign->Length() != 3)
             throw Error(Error::USAGE,
                         "Foreign item must be an array of length 3");
         constrs.push_back(
-            ForeignKey(ReadStringSet(GetArrayLikeItem(item, 0)),
-                       Stringify(GetArrayLikeItem(item, 1)),
-                       ReadStringSet(GetArrayLikeItem(item, 2))));
+            ForeignKey(ReadStringSet(foreign->Get(Integer::New(0))),
+                       Stringify(foreign->Get(Integer::New(1))),
+                       ReadStringSet(foreign->Get(Integer::New(2)))));
     }
-    size_t check_length = GetArrayLikeLength(args[4]);
-    for (size_t i = 0; i < check_length; ++i)
-        constrs.push_back(Check(Stringify(GetArrayLikeItem(args[4], i))));
+    Handle<Array> checks(GetArray(args[4]));
+    for (size_t i = 0; i < checks->Length(); ++i)
+        constrs.push_back(Check(Stringify(checks->Get(Integer::New(i)))));
     access_ptr->CreateRelVar(Stringify(args[0]), rich_header, constrs);
     return Undefined();
     

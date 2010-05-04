@@ -677,14 +677,13 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RenameCb,
 // FSBg::FileAccessor definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-FSBg::FileAccessor::FileAccessor(FSBg& fs_bg,
-                                 const vector<Handle<v8::Value> >& values)
+FSBg::FileAccessor::FileAccessor(FSBg& fs_bg, Handle<Array> files)
     : fs_bg_(fs_bg)
     , initial_size_(0)
 {
-    full_pathes_.reserve(values.size());
-    BOOST_FOREACH(const Handle<v8::Value>& value, values) {
-        string full_path(fs_bg.ReadPath(value, false));
+    full_pathes_.reserve(files->Length());
+    for (size_t i = 0; i < files->Length(); ++i) {
+        string full_path(fs_bg.ReadPath(files->Get(Integer::New(i)), false));
         struct stat st;
         if (stat(full_path.c_str(), &st) == -1)
             throw Error(Error::NO_SUCH_ENTRY, "File does not exist");

@@ -14,7 +14,8 @@
     var fullName = name + 'Error';
     var result = function (message) {
       if (!(this instanceof arguments.callee))
-        return _core.construct(arguments.callee, arguments);
+        return _core.construct(arguments.callee,
+                               Array.prototype.slice.call(arguments));
       Error.captureStackTrace(this);
       this.message = message + '';
       return undefined;
