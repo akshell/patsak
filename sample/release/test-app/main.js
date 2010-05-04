@@ -209,13 +209,14 @@ var baseTestSuite = {
       function (version) {
         assert(require('lib', version).pass);
       });
-    var object = require('subdir/index').object;
-    assertSame(require('test-app', '', 'subdir/../subdir//index').object,
-               object);
-    assertSame(require('test-app', 'subdir/.././subdir', './//./index').object,
-               object);
-    assertSame(require('test-app', 'subdir').object, object);
-    assertEqual(items(module), [['id', 'main'], ['app', 'test-app']]);
+    var m = require('subdir/index');
+    assertSame(require('test-app', '', 'subdir/../subdir//index'), m);
+    assertSame(require('test-app', 'subdir/.././subdir', './//./index'), m);
+    assertSame(require('test-app', 'subdir'), m);
+    assertEqual(items(module),
+                [['id', 'main'], ['exports', exports], ['app', 'test-app']]);
+    assertSame(require.main, module);
+    assertSame(m.main, module);
     assertThrow(UsageError, require);
   },
 

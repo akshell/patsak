@@ -79,9 +79,6 @@
   // require
   //////////////////////////////////////////////////////////////////////////////
 
-  var cache = {};
-
-
   function parsePath(path, dir/* = [] */) {
     var parts = path.split('/');
     var result = dir && path[0] == '.' ? dir.slice() : [];
@@ -101,6 +98,10 @@
     }
     return result;
   }
+
+
+  var cache = {};
+  var main;
 
 
   function makeRequire(baseApp, baseVersion, baseDir) {
@@ -132,7 +133,7 @@
         (app && app + ':') + path, -1)._run();
       var require = makeRequire(app, version, loc.slice(0, loc.length - 1));
       var exports = cache[key] = {};
-      var module = {id: loc.join('/')};
+      var module = {id: loc.join('/'), exports: exports};
       if (version.length)
         module.version = version.join('/');
       if (app) {
@@ -144,6 +145,9 @@
           module.spot = _core.spot;
         }
       }
+      if (!main)
+        main = module;
+      _core.set(require, 'main', 5, main);
       func(require, exports, module);
       return exports;
     };

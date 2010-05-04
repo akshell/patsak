@@ -1,1 +1,1 @@
-exports.object = {};
+exports.main = require.main;
