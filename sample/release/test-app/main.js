@@ -1144,6 +1144,24 @@ var fileTestSuite = {
     binary = new Binary('Hello world    Filling works.');
     binary._range(11, 14)._fill('!'.charCodeAt(0));
     assertSame(binary._toString(), 'Hello world!!! Filling works.');
+    binary = new Binary('test test test');
+    assertSame(binary._indexOf(''), 0);
+    assertSame(binary._indexOf('', 5), 5);
+    assertSame(binary._indexOf('', 55), 14);
+    assertSame(binary._indexOf('est'), 1);
+    assertSame(binary._indexOf('est', 1), 1);
+    assertSame(binary._indexOf('est', 2), 6);
+    assertSame(binary._indexOf('est', -5), 11);
+    assertSame(binary._indexOf('no such', 2), -1);
+    assertSame(binary._indexOf('est', 55), -1);
+    assertSame(binary._indexOf('est', 12), -1);
+    assertSame(binary._lastIndexOf(''), 14);
+    assertSame(binary._lastIndexOf('', -5), 9);
+    assertSame(binary._lastIndexOf('', 55), 14);
+    assertSame(binary._lastIndexOf('est'), 11);
+    assertSame(binary._lastIndexOf('est', 11), 11);
+    assertSame(binary._lastIndexOf('est', 10), 6);
+    assertSame(binary._lastIndexOf('st', -13), -1);
   }
 };
 

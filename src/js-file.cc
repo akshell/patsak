@@ -191,6 +191,8 @@ void BinaryBg::AdjustTemplates(Handle<ObjectTemplate> object_template,
     SetFunction(proto_template, "_toString", ToStringCb);
     SetFunction(proto_template, "_range", RangeCb);
     SetFunction(proto_template, "_fill", FillCb);
+    SetFunction(proto_template, "_indexOf", IndexOfCb);
+    SetFunction(proto_template, "_lastIndexOf", LastIndexOfCb);
 }
 
 
@@ -405,11 +407,52 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, RangeCb,
     }
 }
 
+
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, FillCb,
                     const Arguments&, args) const
 {
     memset(start_ptr_, args.Length() ? args[0]->Uint32Value() : 0, size_);
     return args.This();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, IndexOfCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    Reader reader(args[0]);
+    size_t index = args.Length() > 1 ? ReadIndex(args[1]) : 0;
+    if (!reader.GetSize())
+        return Integer::New(min(index, size_));
+    if (index >= size_)
+        return Integer::New(-1);
+    const char* end_ptr = start_ptr_ + size_;
+    const char* found_ptr = search(const_cast<const char*>(start_ptr_ + index),
+                                   end_ptr,
+                                   reader.GetStartPtr(),
+                                   reader.GetStartPtr() + reader.GetSize());
+    return Integer::New(found_ptr == end_ptr
+                        ? -1
+                        : found_ptr - start_ptr_);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, LastIndexOfCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    Reader reader(args[0]);
+    size_t index = args.Length() > 1 ? ReadIndex(args[1]) : size_;
+    if (!reader.GetSize())
+        return Integer::New(min(index, size_));
+    const char* end_ptr = start_ptr_ + min(index + reader.GetSize(), size_);
+    const char* found_ptr = find_end(const_cast<const char*>(start_ptr_),
+                                     end_ptr,
+                                     reader.GetStartPtr(),
+                                     reader.GetStartPtr() + reader.GetSize());
+    return Integer::New(found_ptr == end_ptr
+                        ? -1
+                        : found_ptr - start_ptr_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
