@@ -538,6 +538,8 @@ var dbTestSuite = {
     assertThrow(TypeError, create, 'illegal', 'str');
     assertThrow(TypeError, "db.create('illegal', {}, 'str', [], [])");
     assertThrow(TypeError, create, 'illegal', {field: 15});
+    function E() {}
+    assertThrow(E, create, 'RV', {get x() { throw new E(); }});
     assertThrow(RelVarExistsError, create, 'User', {});
 
     assertThrow(UsageError,

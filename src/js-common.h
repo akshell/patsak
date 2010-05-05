@@ -77,7 +77,10 @@ namespace ku
         
         Prop GetProp(size_t index) const {
             v8::Handle<v8::Value> key(keys_->Get(v8::Integer::New(index)));
-            return Prop(key, object_->Get(key));
+            v8::Handle<v8::Value> value(object_->Get(key));
+            if (value.IsEmpty())
+                throw Propagate();
+            return Prop(key, value);
         }
 
     private:
