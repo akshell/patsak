@@ -330,6 +330,14 @@ var baseTestSuite = {
     assertThrow(TypeError, construct, function () {}, 42);
   },
 
+  testSetFunctionName: function () {
+    var f = function () {};
+    assertSame(f.name, '');
+    _core.setFunctionName(f, 'f');
+    assertSame(f.name, 'f');
+    assertThrow(TypeError, "_core.setFunctionName(42, '')");
+  },
+
   testRequestApp: function () {
     fs.list('').forEach(remove);
     fs.write('file1', 'wuzzup');
