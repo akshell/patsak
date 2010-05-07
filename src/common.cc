@@ -445,9 +445,12 @@ namespace
         if (type == Type::STRING) {
             return new StringValue(s);
         } else if (type == Type::NUMBER) {
-            return new NumberValue(s.substr(0, 5) == "'NaN'"
-                                   ? numeric_limits<double>::quiet_NaN()
-                                   : lexical_cast<double>(s));
+            return new NumberValue(
+                s.substr(0, 5) == "'NaN'"
+                ? numeric_limits<double>::quiet_NaN()
+                : s[0] == '('
+                ? lexical_cast<double>(s.substr(1, s.size() - 2))
+                : lexical_cast<double>(s));
         } else if (type == Type::BOOL) {
             KU_ASSERT(s == "true" || s == "false");
             return new BooleanValue(s == "true");
