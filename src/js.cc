@@ -470,9 +470,6 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ConstructCb,
                              const Arguments&) const;
         
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, SetFunctionNameCb,
-                             const Arguments&) const;
-        
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestAppCb,
                              const Arguments&) const;
         
@@ -492,7 +489,6 @@ DEFINE_JS_CLASS(CoreBg, "Core", object_template, /*proto_template*/)
     SetFunction(object_template, "getCodeModDate", GetCodeModDateCb);
     SetFunction(object_template, "hash", HashCb);
     SetFunction(object_template, "construct", ConstructCb);
-    SetFunction(object_template, "setFunctionName", SetFunctionNameCb);
     SetFunction(object_template, "requestApp", RequestAppCb);
     SetFunction(object_template, "requestHost", RequestHostCb);
     Set(object_template, "db", DBBg::GetJSClass().GetObjectTemplate());
@@ -600,17 +596,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, ConstructCb,
     for (size_t i = 0; i < array->Length(); ++i)
         values.push_back(array->Get(Integer::New(i)));
     return constructor->NewInstance(array->Length(), &values[0]);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, SetFunctionNameCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 2);
-    if (!args[0]->IsFunction())
-        throw Error(Error::TYPE, "Function required");
-    Handle<Function>::Cast(args[0])->SetName(args[1]->ToString());
-    return Undefined();
 }
 
 
