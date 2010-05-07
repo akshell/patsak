@@ -388,11 +388,11 @@ var baseTestSuite = {
     assertThrow(TypeError, "new Proxy(42)");
     assertThrow(TypeError, "(new Proxy({})).x");
     assertEqual(
-      keys(new Proxy({enumerate: function () { return 42; }})), []);
+      keys(new Proxy({list: function () { return 42; }})), []);
     assertEqual(
-      keys(new Proxy({enumerate: function () { return {length: 1.5}; }})), []);
+      keys(new Proxy({list: function () { return {length: 1.5}; }})), []);
     assertEqual(
-      keys(new Proxy({enumerate: function () { return {length: -15}; }})), []);
+      keys(new Proxy({list: function () { return {length: -15}; }})), []);
     var proxy = new Proxy(
       {
         object: {},
@@ -415,7 +415,7 @@ var baseTestSuite = {
           return delete this.object[name];
         },
 
-        enumerate: function () {
+        list: function () {
           return keys(this.object);
         }
       });
@@ -446,7 +446,7 @@ var baseTestSuite = {
         set: throwE,
         query: throwE,
         del: throwE,
-        enumerate: throwE
+        list: throwE
       });
     assertThrow(E, function () { throwProxy.x += 42; });
     assertThrow(E, function () { throwProxy.x = 42; });
@@ -459,7 +459,7 @@ var baseTestSuite = {
       keys(
         new Proxy(
           {
-            enumerate: function () {
+            list: function () {
               return {get length() { throw Error(); }};
             }
           })),
@@ -468,7 +468,7 @@ var baseTestSuite = {
       keys(
         new Proxy(
           {
-            enumerate: function () {
+            list: function () {
               var object = {length: 2, 0: 0};
               object.__defineGetter__(1, function () { throw Error(); });
               return object;

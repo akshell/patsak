@@ -371,7 +371,7 @@ DEFINE_JS_CALLBACK1(Handle<Array>, ProxyBg, EnumCb,
                     const AccessorInfo&, /*info*/) const
 {
     TryCatch try_catch;
-    Handle<v8::Value> ret(Call("enumerate", 0, 0));
+    Handle<v8::Value> ret(Call("list", 0, 0));
     if (ret.IsEmpty())
         return Handle<Array>();
     if (!ret->IsObject())
