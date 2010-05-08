@@ -607,18 +607,19 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestAppCb,
     string request(Stringify(args[1]));
     FSBg::FileAccessor file_accessor(fs_bg_, GetArray(args[2]));
     BinaryBg::Reader binary_reader(args[3]);
-    Chars result(app_accessor_(app_name,
-                               request,
-                               file_accessor.GetFullPathes(),
-                               binary_reader.GetStartPtr(),
-                               binary_reader.GetSize(),
-                               *access_ptr));
-    KU_ASSERT(result.size() >= 3);
-    if (string(&result[0], 3) == "OK\n") {
-        return String::New(&result[3], result.size() - 3);
+    auto_ptr<Chars> data_ptr(app_accessor_(app_name,
+                                           request,
+                                           file_accessor.GetFullPathes(),
+                                           binary_reader.GetStartPtr(),
+                                           binary_reader.GetSize(),
+                                           *access_ptr));
+    KU_ASSERT(data_ptr->size() >= 3);
+    if (string(&data_ptr->front(), 3) == "OK\n") {
+        data_ptr->erase(data_ptr->begin(), data_ptr->begin() + 3);
+        return JSNew<BinaryBg>(data_ptr);
     } else {
-        KU_ASSERT_MESSAGE(string(&result[0], 6) == "ERROR\n",
-                          string(&result[0], result.size()));
+        KU_ASSERT_MESSAGE(string(&data_ptr->front(), 6) == "ERROR\n",
+                          string(&data_ptr->front(), data_ptr->size()));
         throw Error(Error::PROCESSING_FAILED,
                     "Exception occured in \"" + app_name + "\" app");
     }

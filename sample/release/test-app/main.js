@@ -337,7 +337,7 @@ var baseTestSuite = {
     assertSame(requestApp('another-app',
                           new Binary('hello world!', 'ascii'),
                           ['file1', 'file2'],
-                          'yo!!!'),
+                          'yo!!!') + '',
                ('{"user":"' + _core.user + '",'+
                 '"arg":"hello world!","data":"yo!!!",' +
                 '"fileContents":["wuzzup","yo ho ho"],' +
@@ -346,7 +346,7 @@ var baseTestSuite = {
     assertThrow(NoSuchAppError, requestApp, 'no-such-app', 'hi', [], null);
     assertThrow(TypeError, requestApp, 'another-app', '', 42, null);
     fs.write('file3', 'text');
-    assertSame(requestApp('another-app', '', [], fs.read('file3')),
+    assertSame(requestApp('another-app', '', [], fs.read('file3')) + '',
                ('{"user":"' + _core.user + '",' +
                 '"arg":"",' +
                 '"data":"text",' +

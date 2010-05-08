@@ -191,20 +191,14 @@ namespace
     class Reader {
     public:
         Reader(stream_protocol::socket& socket);
-        Chars operator()();
+        auto_ptr<Chars> operator()();
 
     private:
-        enum State {
-            INITIAL,
-            OK,
-            TIMED_OUT
-        };
-        
         stream_protocol::socket& socket_;
         asio::streambuf buf_;
         asio::deadline_timer timer_;
-        State state_;
-        Chars result_;
+        bool processed_;
+        auto_ptr<Chars> data_ptr_;
 
         void HandleRead(const asio::error_code& error, size_t size);
         void HandleTimer(const asio::error_code& error);
@@ -219,38 +213,39 @@ Reader::Reader(stream_protocol::socket& socket)
 }
 
 
-Chars Reader::operator()()
+auto_ptr<Chars> Reader::operator()()
 {
-    state_ = INITIAL;
+    processed_ = false;
     async_read(socket_, buf_, bind(&Reader::HandleRead, this, _1, _2));
     timer_.expires_from_now(READ_TIMEOUT);
     timer_.async_wait(bind(&Reader::HandleTimer, this, _1));
     socket_.get_io_service().reset();
     socket_.get_io_service().run();
-    KU_ASSERT(state_ != INITIAL);
-    if (state_ == TIMED_OUT)
+    KU_ASSERT(processed_);
+    if (data_ptr_.get())
+        return data_ptr_;
+    else
         throw TimedOut();
-    return result_;
 }
 
 
 void Reader::HandleRead(const asio::error_code& /*error*/, size_t size)
 {
-    if (state_ == INITIAL) {
+    if (!processed_) {
         timer_.cancel();
-        result_.resize(size);
+        data_ptr_.reset(new Chars(size));
         buf_.commit(size);
-        istream(&buf_).read(&result_[0], size);
-        state_ = OK;
+        istream(&buf_).read(&data_ptr_->front(), size);
+        processed_ = true;
     }
 }
 
 
 void Reader::HandleTimer(const asio::error_code& /*error*/)
 {
-    if (state_ == INITIAL) {
+    if (!processed_) {
         socket_.cancel();
-        state_ = TIMED_OUT;
+        processed_ = true;
     }
 }
 
@@ -269,12 +264,12 @@ namespace
                         const Strings& args,
                         const string& user); // user is held by reference
         
-        virtual Chars operator()(const string& app_name,
-                                 const string& request,
-                                 const Strings& file_pathes,
-                                 const char* data_ptr,
-                                 size_t data_size,
-                                 const Access& access);
+        virtual auto_ptr<Chars> operator()(const string& app_name,
+                                           const string& request,
+                                           const Strings& file_pathes,
+                                           const char* data_ptr,
+                                           size_t data_size,
+                                           const Access& access);
         
     private:
         asio::io_service io_service_;
@@ -306,12 +301,12 @@ AppAccessorImpl::AppAccessorImpl(const string& self_name,
 }
 
 
-Chars AppAccessorImpl::operator()(const string& app_name,
-                                  const string& request,
-                                  const Strings& file_pathes,
-                                  const char* data_ptr,
-                                  size_t data_size,
-                                  const Access& access)
+auto_ptr<Chars> AppAccessorImpl::operator()(const string& app_name,
+                                            const string& request,
+                                            const Strings& file_pathes,
+                                            const char* data_ptr,
+                                            size_t data_size,
+                                            const Access& access)
 {
     if (app_name == self_name_)
         throw Error(Error::USAGE, "Self request is forbidden");

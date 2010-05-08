@@ -25,12 +25,12 @@ namespace ku
     // Other application accessor interface
     class AppAccessor {
     public:
-        virtual Chars operator()(const std::string& app_name,
-                                 const std::string& request,
-                                 const Strings& file_pathes,
-                                 const char* data_ptr,
-                                 size_t data_size,
-                                 const Access& access) = 0;
+        virtual std::auto_ptr<Chars> operator()(const std::string& app_name,
+                                                const std::string& request,
+                                                const Strings& file_pathes,
+                                                const char* data_ptr,
+                                                size_t data_size,
+                                                const Access& access) = 0;
     };
 
 
