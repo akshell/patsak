@@ -16,14 +16,12 @@ import shutil
 import psycopg2
 
 
-TEST_EXE_NAME = 'test-patsak'
-EXE_NAME      = 'patsak'
 TMP_DIR       = '/tmp/patsak'
 SOCKET_DIR    = os.path.join(TMP_DIR, 'sockets')
 LOG_FILE      = os.path.join(TMP_DIR, 'log')
 GUARD_DIR     = os.path.join(TMP_DIR, 'guards')
 MEDIA_DIR     = os.path.join(TMP_DIR, 'media')
-CONFIG_PATH   = os.path.join(TMP_DIR, 'config')
+CONFIG_FILE   = os.path.join(TMP_DIR, 'config')
 APP_NAME      = 'test-app'
 BAD_APP_NAME  = 'bad-app'
 WAIT_APP_NAME = 'lib'
@@ -35,8 +33,8 @@ DB_PASSWORD   = 'test'
 DB_PARAMS     = 'user=%s password=%s dbname=%%s' % (DB_USER, DB_PASSWORD)
 TEST_DIR      = os.path.dirname(__file__)
 RELEASE_DIR   = os.path.join(TEST_DIR, '../sample/release')
-INIT_DB_PATH  = os.path.join(TEST_DIR, 'init-db.sql')
-FUNCS_PATH    = os.path.join(TEST_DIR, '../src/funcs.sql')
+INIT_DB_FILE  = os.path.join(TEST_DIR, 'init-db.sql')
+FUNCS_FILE    = os.path.join(TEST_DIR, '../src/funcs.sql')
 
 
 class _Response:
@@ -54,13 +52,9 @@ def _popen(*args, **kwds):
                  
 
 class Test(unittest.TestCase):
-    def setUp(self):
-        self._exe_path = os.path.join(Test.DIR, EXE_NAME)
-        self._test_exe_path = os.path.join(Test.DIR, TEST_EXE_NAME)
-        
     def _check_launch(self, args, code=0, program=None):
-        process = _popen([program if program else self._exe_path,
-                          '--config-file', CONFIG_PATH] + args)
+        process = _popen([program if program else PATSAK_FILE,
+                          '--config-file', CONFIG_FILE] + args)
         self.assertEqual(process.wait(), code)
 
     def _check_test_launch(self, args, code=0, program=None):
@@ -69,7 +63,7 @@ class Test(unittest.TestCase):
                            program)
 
     def testTestPatsak(self):
-        self._check_launch([], 0, self._test_exe_path)
+        self._check_launch([], 0, TEST_PATSAK_FILE)
 
     def testMain(self):
         self._check_launch([], 1)
@@ -82,8 +76,8 @@ class Test(unittest.TestCase):
         self._check_test_launch([APP_NAME, USER_NAME], 1)
 
     def _eval(self, expr):
-        process = _popen([self._exe_path,
-                          '--config-file', CONFIG_PATH,
+        process = _popen([PATSAK_FILE,
+                          '--config-file', CONFIG_FILE,
                           '--test',
                           '--expr', expr,
                           APP_NAME])
@@ -103,8 +97,8 @@ class Test(unittest.TestCase):
         self._check_test_launch(['--expr', '2+2\n3+3', APP_NAME])
         self.assertEqual(self._eval('bug()').status, 'ERROR')
 
-        process = _popen([self._exe_path,
-                          '--config-file', CONFIG_PATH,
+        process = _popen([PATSAK_FILE,
+                          '--config-file', CONFIG_FILE,
                           '--test',
                           APP_NAME])
         process.stdin.write('2+2\n')
@@ -112,8 +106,8 @@ class Test(unittest.TestCase):
         self.assertEqual(process.stdout.read(), 'OK\n4\n')
         self.assertEqual(process.wait(), 0)
 
-        process = _popen([self._exe_path,
-                          '--config-file', CONFIG_PATH,
+        process = _popen([PATSAK_FILE,
+                          '--config-file', CONFIG_FILE,
                           '--test',
                           '--expr', '2+2',
                           BAD_APP_NAME])
@@ -138,12 +132,12 @@ class Test(unittest.TestCase):
         os.mkdir(MEDIA_DIR + '/release/test-app/dir')
         open(MEDIA_DIR + '/release/test-app/dir/file', 'w').write('hello')
         
-        _popen([self._exe_path,
-                '--config-file', CONFIG_PATH,
+        _popen([PATSAK_FILE,
+                '--config-file', CONFIG_FILE,
                 '--wait', '1',
                 WAIT_APP_NAME])
-        process = _popen([self._exe_path,
-                          '--config-file', CONFIG_PATH,
+        process = _popen([PATSAK_FILE,
+                          '--config-file', CONFIG_FILE,
                           APP_NAME])
         self.assertEqual(process.stdout.readline(), 'READY\n')
         self.assertEqual(process.wait(), 0)
@@ -228,8 +222,8 @@ class Test(unittest.TestCase):
                           os.path.join(SOCKET_DIR, 'release', WAIT_APP_NAME))
 
     def testSpotServer(self):
-        process = _popen([self._exe_path,
-                          '--config-file', CONFIG_PATH,
+        process = _popen([PATSAK_FILE,
+                          '--config-file', CONFIG_FILE,
                           '--pass-opts',
                           APP_NAME, USER_NAME, SPOT_NAME])
         self.assertEqual(process.stdout.readline(), 'READY\n')
@@ -273,8 +267,8 @@ def _create_db():
     conn.close()
     conn = psycopg2.connect(DB_PARAMS % DB_NAME)
     cursor = conn.cursor()
-    cursor.execute(open(INIT_DB_PATH).read())
-    cursor.execute(open(FUNCS_PATH).read())
+    cursor.execute(open(INIT_DB_FILE).read())
+    cursor.execute(open(FUNCS_FILE).read())
     for app_name in os.listdir(RELEASE_DIR):
         if (app_name[0] == '.' or
             not os.path.isdir(os.path.join(RELEASE_DIR, app_name))):
@@ -312,7 +306,7 @@ def _make_dirs():
 
     
 def _write_config():
-    with open(CONFIG_PATH, 'w') as f:
+    with open(CONFIG_FILE, 'w') as f:
         f.write('''
 db-name=%s
 db-user=%s
@@ -332,7 +326,9 @@ def main():
     if len(sys.argv) != 2:
         print 'Usage: ', sys.argv[0], ' dir'
         sys.exit(1)
-    Test.DIR = sys.argv[1]
+    global PATSAK_FILE, TEST_PATSAK_FILE
+    PATSAK_FILE = os.path.join(sys.argv[1], 'patsak')
+    TEST_PATSAK_FILE = os.path.join(sys.argv[1], 'test-patsak')
     suite = unittest.TestLoader().loadTestsFromTestCase(Test)
     _drop_db()
     _create_db()
