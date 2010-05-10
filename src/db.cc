@@ -1471,15 +1471,22 @@ namespace
 }
 
 
-void Access::CheckAppExists(const string& name) const
+string Access::GetAppPatsakVersion(const string& name) const
 {
-    static const format query("SELECT ku.app_exists(%1%);");
+    static const format query("SELECT ku.get_app_patsak_version(%1%);");
     pqxx::result pqxx_result(
         work_ptr_->exec((format(query) % work_ptr_->quote(name)).str()));
     KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
     KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
     if (pqxx_result[0][0].is_null())
         throw NoSuchApp(name);
+    return pqxx_result[0][0].as<string>();
+}
+
+
+void Access::CheckAppExists(const string& name) const
+{
+    GetAppPatsakVersion(name);
 }
 
 

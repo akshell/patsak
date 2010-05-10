@@ -163,8 +163,8 @@ CREATE FUNCTION ku.user_exists(name text) RETURNS bool AS $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE FUNCTION ku.app_exists(name text) RETURNS bool AS $$
-    SELECT true
+CREATE FUNCTION ku.get_app_patsak_version(name text) RETURNS text AS $$
+    SELECT patsak_version
     FROM public.main_app AS app
     WHERE app.name = $1;
 $$ LANGUAGE SQL STABLE;

@@ -18,7 +18,8 @@ CREATE TABLE "main_app" (
     "summary" varchar(75) NOT NULL,
     "description" text NOT NULL,
     "db_quota" integer CHECK ("db_quota" >= 0) NOT NULL,
-    "fs_quota" integer CHECK ("fs_quota" >= 0) NOT NULL
+    "fs_quota" integer CHECK ("fs_quota" >= 0) NOT NULL,
+    "patsak_version" text NOT NULL
 )
 ;
 CREATE TABLE "main_app_labels" (
@@ -42,13 +43,14 @@ INSERT INTO "auth_user" VALUES (2, 'Achilles');
 INSERT INTO "main_label" VALUES (0, '1', 2);
 INSERT INTO "main_label" VALUES (1, '2', 1);
 INSERT INTO "main_app" VALUES (0, 'test-app', 0, '',
-                               'test app', 'test app...', 1, 1);
+                               'test app', 'test app...', 1, 1, '0.2');
 INSERT INTO "main_app" VALUES (1, 'another-app', 1, '',
-                               'another app', 'another app...', 1, 1);
-INSERT INTO "main_app" VALUES (2, 'lib', 0, '', '', '', 1, 1);
-INSERT INTO "main_app" VALUES (3, 'bad-app', 0, '', '', '', 1, 1);
-INSERT INTO "main_app" VALUES (4, 'throwing-app', 0, '', '', '', 1, 1);
-INSERT INTO "main_app" VALUES (5, 'blocking-app', 0, '', '', '', 1, 1);
+                               'another app', 'another app...', 1, 1, '0.2');
+INSERT INTO "main_app" VALUES (2, 'lib', 0, '', '', '', 1, 1, '0.2');
+INSERT INTO "main_app" VALUES (3, 'bad-app', 0, '', '', '', 1, 1, '0.2');
+INSERT INTO "main_app" VALUES (4, 'throwing-app', 0, '', '', '', 1, 1, '0.2');
+INSERT INTO "main_app" VALUES (5, 'blocking-app', 0, '', '', '', 1, 1, '0.2');
+INSERT INTO "main_app" VALUES (6, 'app01', 1, '', '', '', 1, 1, '0.1');
 INSERT INTO "main_app_labels" VALUES (0, 0, 0);
 INSERT INTO "main_app_labels" VALUES (1, 0, 1);
 INSERT INTO "main_app_labels" VALUES (2, 1, 0);
