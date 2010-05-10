@@ -53,14 +53,9 @@ def _popen(*args, **kwds):
 
 class Test(unittest.TestCase):
     def _check_launch(self, args, code=0, program=None):
-        process = _popen([program if program else PATSAK_FILE,
+        process = _popen([program or PATSAK_FILE,
                           '--config-file', CONFIG_FILE] + args)
         self.assertEqual(process.wait(), code)
-
-    def _check_test_launch(self, args, code=0, program=None):
-        self._check_launch(['--test'] + args,
-                           code,
-                           program)
 
     def testTestPatsak(self):
         self._check_launch([], 0, TEST_PATSAK_FILE)
@@ -72,8 +67,8 @@ class Test(unittest.TestCase):
         self._check_launch(['--rev'])
         self._check_launch(['--code-dir', '', APP_NAME], 1)
         self._check_launch(['--expr', '2+2', APP_NAME], 1)
-        self._check_test_launch([], 1)
-        self._check_test_launch([APP_NAME, USER_NAME], 1)
+        self._check_launch(['--test'], 1)
+        self._check_launch(['--test', APP_NAME, USER_NAME], 1)
 
     def _eval(self, expr):
         process = _popen([PATSAK_FILE,
@@ -94,7 +89,7 @@ class Test(unittest.TestCase):
         self.assertEqual(self._eval('s="x"; while(1) s+=s').data,
                          '<Out of memory>')
         self._check_launch(['--test', '--expr', '2+2', 'no-such-app'], 1)
-        self._check_test_launch(['--expr', '2+2\n3+3', APP_NAME])
+        self._check_launch(['--test', '--expr', '2+2\n3+3', APP_NAME])
         self.assertEqual(self._eval('bug()').status, 'ERROR')
 
         process = _popen([PATSAK_FILE,
@@ -113,6 +108,14 @@ class Test(unittest.TestCase):
                           BAD_APP_NAME])
         self.assertEqual(process.stdout.read().split('\n')[0], 'ERROR')
         self.assertEqual(process.wait(), 0)
+        process = _popen([PATSAK_FILE,
+                          '--config-file', CONFIG_FILE,
+                          '--patsak-pattern', PATSAK_FILE,
+                          '--test',
+                          '--expr',
+                          'ak._requestApp("test-app", "2+2", [], null)',
+                          'another-app'])
+        self.assertEqual(process.stdout.read(), 'OK\n4\n')
         
     def _connect(self, path):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -248,6 +251,15 @@ class Test(unittest.TestCase):
         self.assertEqual(talk('PROCESS s="x"; while(1) s+=s'),
                          'ERROR\n<Out of memory>')
         self.assertRaises(socket.error, self._connect, socket_path)
+        
+    def testVersion02(self):
+        process = _popen([PATSAK_FILE,
+                          '--config-file', CONFIG_FILE,
+                          '--patsak-pattern', '../patsak%s/exe/release/patsak',
+                          '--test',
+                          '--expr', 'ak._requestApp("app02", "", [], null)',
+                          APP_NAME])
+        self.assertEqual(process.stdout.read(), 'OK\nHello from 0.2!\n')
 
         
 def _create_schema(cursor, schema_name):

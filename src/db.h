@@ -181,6 +181,7 @@ namespace ku
         Values Insert(const std::string& rel_var_name,
                       const ValueMap& value_map);
 
+        std::string GetAppPatsakVersion(const std::string& name) const;
         void CheckAppExists(const std::string& name) const;
         App DescribeApp(const std::string& name) const;
         void CheckUserExists(const std::string& name) const;

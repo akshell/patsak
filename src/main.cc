@@ -263,6 +263,7 @@ namespace
     class AppAccessorImpl : public AppAccessor {
     public:
         AppAccessorImpl(const string& self_name,
+                        const string& patsak_pattern,
                         const string& code_dir,
                         const string& socket_dir,
                         const string& guard_dir,
@@ -278,18 +279,20 @@ namespace
     private:
         asio::io_service io_service_;
         string self_name_;
+        string patsak_file_, patsak_prefix_, patsak_suffix_;
         string code_dir_;
         string socket_dir_;
         string guard_dir_;
         Strings args_;
         const string& user_;
 
-        void LaunchApp(const string& app_name);
+        void LaunchApp(const string& app_name, const string& patsak_version);
     };
 }
 
 
 AppAccessorImpl::AppAccessorImpl(const string& self_name,
+                                 const string& patsak_pattern,
                                  const string& code_dir,
                                  const string& socket_dir,
                                  const string& guard_dir,
@@ -302,6 +305,20 @@ AppAccessorImpl::AppAccessorImpl(const string& self_name,
     , args_(args)
     , user_(user)
 {
+    if (patsak_pattern.empty()) {
+        char buf[BUF_SIZE];
+        ssize_t size = readlink("/proc/self/exe", buf, BUF_SIZE);
+        KU_ASSERT(size != -1 && size < BUF_SIZE);
+        patsak_file_.assign(buf, size);
+    } else {
+        size_t index = patsak_pattern.find("%s");
+        if (index == string::npos) {
+            patsak_file_ = patsak_pattern;
+        } else {
+            patsak_prefix_ = patsak_pattern.substr(0, index);
+            patsak_suffix_ = patsak_pattern.substr(index + 2);
+        }
+    }
 }
 
 
@@ -313,7 +330,7 @@ Chars AppAccessorImpl::operator()(const string& app_name,
 {
     if (app_name == self_name_)
         throw Error(Error::USAGE, "Self request is forbidden");
-    access.CheckAppExists(app_name);
+    string patsak_version = access.GetAppPatsakVersion(app_name);
     
     stream_protocol::endpoint endpoint(socket_dir_ + "/release/" + app_name);
     stream_protocol::socket socket(io_service_);
@@ -322,7 +339,7 @@ Chars AppAccessorImpl::operator()(const string& app_name,
     if (!connector(endpoint)) {
         Lock(guard_dir_ + "/release/" + app_name);
         if (!connector(endpoint)) {
-            LaunchApp(app_name);
+            LaunchApp(app_name, patsak_version);
             bool connected = connector(endpoint);
             KU_ASSERT(connected);
         }
@@ -364,7 +381,8 @@ Chars AppAccessorImpl::operator()(const string& app_name,
 }
 
 
-void AppAccessorImpl::LaunchApp(const string& app_name)
+void AppAccessorImpl::LaunchApp(const string& app_name,
+                                const string& patsak_version)
 {
     int pipe_fds[2];
     int ret = pipe(pipe_fds);
@@ -387,11 +405,15 @@ void AppAccessorImpl::LaunchApp(const string& app_name)
         KU_ASSERT_EQUAL(fd, 1);
         if (pipe_fds[1] != 1)
             close(pipe_fds[1]);
-        vector<char*> argv(args_.size() + 2);
+        vector<char*> argv(args_.size() + 3);
+        const string& patsak_file(
+            patsak_file_.empty()
+            ? patsak_prefix_ + patsak_version + patsak_suffix_
+            : patsak_file_);
+        argv[0] = const_cast<char*>(patsak_file.c_str());
         for (size_t i = 0; i < args_.size(); ++i)
-            argv[i] = const_cast<char*>(args_[i].c_str());
-        argv[args_.size()] = const_cast<char*>(app_name.c_str());
-        argv.back() = 0;
+            argv[i + 1] = const_cast<char*>(args_[i].c_str());
+        argv[argv.size() - 2] = const_cast<char*>(app_name.c_str());
         execv(argv[0], &argv[0]);
         Fail(strerror(errno));
     }
@@ -687,6 +709,7 @@ namespace
         
     private:
         string expr_, user_;
+        string patsak_pattern_;
         string log_file_, code_dir_, media_dir_;
         string socket_dir_, guard_dir_;
         string db_user_, db_password_, db_name_;
@@ -769,6 +792,9 @@ void MainRunner::Parse(int argc, char** argv)
     
     po::options_description config_options("Config options");
     config_options.add_options()
+        ("patsak-pattern,p",
+         po::value<string>(&patsak_pattern_),
+         "patsak path pattern")
         ("log-file,l", po::value<string>(&log_file_), "log file")
         ("socket-dir,s", po::value<string>(&socket_dir_), "socket directory")
         ("guard-dir,g", po::value<string>(&guard_dir_), "guard directory")
@@ -920,10 +946,6 @@ auto_ptr<DB> MainRunner::InitDB() const
 auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
 {
     Strings args;
-    char buf[BUF_SIZE];
-    ssize_t size = readlink("/proc/self/exe", buf, BUF_SIZE);
-    KU_ASSERT(size != -1 && size < BUF_SIZE);
-    args += string(buf, buf + size);
     if (pass_opts_)
         args +=
             "--log-file", log_file_,
@@ -938,6 +960,7 @@ auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
     else if (config_file_ != DEFAULT_CONFIG_FILE)
         args += "-f", config_file_;
     return auto_ptr<AppAccessor>(new AppAccessorImpl(app_name_,
+                                                     patsak_pattern_,
                                                      code_dir_,
                                                      socket_dir_,
                                                      guard_dir_,
