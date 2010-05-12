@@ -27,7 +27,8 @@ namespace ku
             USAGE,
             NOT_IMPLEMENTED,
 
-            HOST_REQUEST,
+            REQUEST_APP,
+            REQUEST_HOST,
             NO_SUCH_APP,
             NO_SUCH_USER,
             CONVERSION,
@@ -48,11 +49,7 @@ namespace ku
             NO_SUCH_ENTRY,
             ENTRY_IS_DIR,
             ENTRY_IS_NOT_DIR,
-            DIR_IS_NOT_EMPTY,
-            
-            APP_REQUEST,
-            PROCESSING_FAILED,
-            TIMED_OUT
+            DIR_IS_NOT_EMPTY
         };
         
         Error(Tag tag, const std::string& msg)

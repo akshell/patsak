@@ -620,7 +620,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestAppCb,
     } else {
         KU_ASSERT_MESSAGE(string(&data_ptr->front(), 6) == "ERROR\n",
                           string(&data_ptr->front(), data_ptr->size()));
-        throw Error(Error::PROCESSING_FAILED,
+        throw Error(Error::REQUEST_APP,
                     "Exception occured in \"" + app_name + "\" app");
     }
 }
@@ -657,7 +657,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestHostCb,
         return JSNew<BinaryBg>(
             auto_ptr<Chars>(new Chars(data_ptr, data_ptr + streambuf.size())));
     } catch (const asio::system_error& error) {
-        throw Error(Error::HOST_REQUEST, error.what());
+        throw Error(Error::REQUEST_HOST, error.what());
     }
 }
 

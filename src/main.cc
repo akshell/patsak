@@ -116,7 +116,7 @@ namespace
 {
     Error TimedOut()
     {
-        return Error(Error::TIMED_OUT, "Request timed out");
+        return Error(Error::REQUEST_APP, "Request timed out");
     }
 
     

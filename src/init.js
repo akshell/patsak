@@ -29,7 +29,6 @@
 
   defineErrorClass('DB');
   defineErrorClass('FS');
-  defineErrorClass('AppRequest');
 
 
   _core.errors = [
@@ -40,7 +39,8 @@
     defineErrorClass('Usage'),
     defineErrorClass('NotImplemented'),
 
-    defineErrorClass('HostRequest'),
+    defineErrorClass('RequestApp'),
+    defineErrorClass('RequestHost'),
     defineErrorClass('NoSuchApp'),
     defineErrorClass('NoSuchUser'),
     defineErrorClass('Conversion'),
@@ -61,11 +61,7 @@
     defineErrorClass('NoSuchEntry', _core.FSError),
     defineErrorClass('EntryIsDir', _core.FSError),
     defineErrorClass('EntryIsNotDir', _core.FSError),
-    defineErrorClass('DirIsNotEmpty', _core.FSError),
-
-    _core.AppRequestError,
-    defineErrorClass('ProcessingFailed', _core.AppRequestError),
-    defineErrorClass('TimedOut', _core.AppRequestError)
+    defineErrorClass('DirIsNotEmpty', _core.FSError)
   ];
 
   //////////////////////////////////////////////////////////////////////////////

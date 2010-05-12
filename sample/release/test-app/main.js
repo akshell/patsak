@@ -355,9 +355,8 @@ var baseTestSuite = {
     fs.remove('file3');
     assertThrow(NoSuchAppError, requestApp, 'invalid/app/name', '', [], null);
     assertThrow(UsageError, requestApp, 'test-app', '2+2', [], null);
-    assertThrow(ProcessingFailedError,
-                requestApp, 'throwing-app', '', [], null);
-    assertThrow(TimedOutError, requestApp, 'blocking-app', '', [], null);
+    assertThrow(RequestAppError, requestApp, 'throwing-app', '', [], null);
+    assertThrow(RequestAppError, requestApp, 'blocking-app', '', [], null);
     assertThrow(PathError, requestApp, 'another-app', '', ['..'], null);
     assertThrow(NoSuchEntryError,
                 requestApp, 'another-app', '', ['no-such-file'], null);
@@ -371,7 +370,7 @@ var baseTestSuite = {
                                'GET / HTTP/1.0\r\n\r\n') + '';
     assertSame(response.substr(0, response.indexOf('\r')), 'HTTP/1.1 200 OK');
     assert(response.indexOf('2606') != -1);
-    assertThrow(HostRequestError, requestHost, 'bad host name', 80, '');
+    assertThrow(RequestHostError, requestHost, 'bad host name', 80, '');
   },
 
   testProxy: function () {
