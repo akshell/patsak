@@ -456,32 +456,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, LastIndexOfCb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// TempFileBg definitions
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_JS_CLASS(TempFileBg, "TempFile", /*object_template*/, /*proto_template*/)
-{
-}
-
-
-TempFileBg::TempFileBg(const string& path)
-    : path_(path)
-{
-}
-
-
-string TempFileBg::GetPath() const
-{
-    return path_;
-}
-
-
-void TempFileBg::ClearPath()
-{
-    path_.clear();
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // FSBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -514,20 +488,11 @@ namespace
             return 0;
         return st.st_blocks * 512;
     }
-    
-    
-    void MarkTempFileRemoved(Handle<v8::Value> value)
-    {
-        TempFileBg* tmp_file_bg_ptr = TempFileBg::GetJSClass().Cast(value);
-        if (tmp_file_bg_ptr)
-            tmp_file_bg_ptr->ClearPath();
-    }
 }
 
 
 DEFINE_JS_CLASS(FSBg, "FS", object_template, /*proto_template*/)
 {
-    TempFileBg::GetJSClass();
     BinaryBg::GetJSClass();
     SetFunction(object_template, "read", ReadCb);
     SetFunction(object_template, "exists", ExistsCb);
@@ -557,14 +522,6 @@ FSBg::~FSBg()
 
 string FSBg::ReadPath(Handle<v8::Value> value, bool can_be_root) const
 {
-    TempFileBg* temp_file_bg_ptr = TempFileBg::GetJSClass().Cast(value);
-    if (temp_file_bg_ptr) {
-        string result(temp_file_bg_ptr->GetPath());
-        if (result.empty())
-            throw Error(Error::TEMP_FILE_REMOVED,
-                        "Temp file is already removed");
-        return result;
-    }
     string rel_path(Stringify(value));
     int depth = GetPathDepth(rel_path);
     if (depth < 0)
@@ -699,7 +656,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RemoveCb,
     if (remove(path.c_str()) == -1)
         throw MakeErrnoError();
     total_size_ -= size;
-    MarkTempFileRemoved(args[0]);
     return Undefined();
 }
 
@@ -712,7 +668,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RenameCb,
     string to_path(ReadPath(args[1], false));
     if (rename(from_path.c_str(), to_path.c_str()) == -1)
         throw MakeErrnoError();
-    MarkTempFileRemoved(args[0]);
     return Undefined();
 }
 

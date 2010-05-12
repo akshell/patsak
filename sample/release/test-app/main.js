@@ -342,7 +342,7 @@ var baseTestSuite = {
                 '"arg":"hello world!","data":"yo!!!",' +
                 '"fileContents":["wuzzup","yo ho ho"],' +
                 '"issuer":"test-app"}'));
-    assert(!fs.exists('file1') && !fs.exists('file2'));
+    assert(fs.exists('file1') && fs.exists('file2'));
     assertThrow(NoSuchAppError, requestApp, 'no-such-app', 'hi', [], null);
     assertThrow(TypeError, requestApp, 'another-app', '', 42, null);
     fs.write('file3', 'text');

@@ -49,7 +49,6 @@ namespace ku
             ENTRY_IS_DIR,
             ENTRY_IS_NOT_DIR,
             DIR_IS_NOT_EMPTY,
-            TEMP_FILE_REMOVED,
             
             APP_REQUEST,
             PROCESSING_FAILED,

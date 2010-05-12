@@ -79,19 +79,6 @@ namespace ku
     };
 
 
-    class TempFileBg {
-    public:
-        DECLARE_JS_CLASS(TempFileBg);
-
-        TempFileBg(const std::string& path);
-        std::string GetPath() const;
-        void ClearPath();
-
-    private:
-        std::string path_;
-    };
-
-
     class FSBg {
     public:
         class FileAccessor;

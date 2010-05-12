@@ -1072,29 +1072,18 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         return auto_ptr<Response>(
             new ErrorResponse(func_name + " is not a function"));
     
+    Handle<Array> files(Array::New(file_pathes.size()));
+    for (size_t i = 0; i < file_pathes.size(); ++i)
+        files->Set(Integer::New(i),
+                   JSNew<BinaryBg>(ReadFileData(file_pathes[i])));
+    Set(core_, "files", files);
     Set(core_, "data", JSNew<BinaryBg>(data_ptr));
-
-    Handle<Array> file_array(Array::New(file_pathes.size()));
-    vector<Handle<Object> > files;
-    files.reserve(file_pathes.size());
-    for (size_t i = 0; i < file_pathes.size(); ++i) {
-        Handle<Object> file(JSNew<TempFileBg>(file_pathes[i]));
-        files.push_back(file);
-        file_array->Set(Integer::New(i), file);
-    }
-    Set(core_, "files", file_array);
-
     Set(core_, "user", String::New(user.c_str()));
     Set(core_, "issuer", String::New(issuer.c_str()));
 
-    auto_ptr<Response> result(Run(Handle<Function>::Cast(func_value),
-                                  object,
-                                  String::New(&input[0], input.size())));
-    
-    BOOST_FOREACH(Handle<Object> file, files)
-        TempFileBg::GetJSClass().Cast(file)->ClearPath();
-    
-    return result;    
+    return Run(Handle<Function>::Cast(func_value),
+               object,
+               String::New(&input[0], input.size()));
 }
                                        
 

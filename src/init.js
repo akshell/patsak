@@ -62,7 +62,6 @@
     defineErrorClass('EntryIsDir', _core.FSError),
     defineErrorClass('EntryIsNotDir', _core.FSError),
     defineErrorClass('DirIsNotEmpty', _core.FSError),
-    defineErrorClass('TempFileRemoved', _core.FSError),
 
     _core.AppRequestError,
     defineErrorClass('ProcessingFailed', _core.AppRequestError),

@@ -167,19 +167,6 @@ class Test(unittest.TestCase):
                               'REQUEST 10\n_core.data'),
                          'OK\nhello')
         self.assertEqual(talk('PROCESS new _core.Binary(3)'), 'OK\n\0\0\0')
-        wuzzup_path = os.path.join(TMP_DIR, 'wuzzup.txt')
-        open(wuzzup_path, 'w').write('wuzzup!!1')
-        self.assertEqual(talk('PROCESS\n\nFILE /does_not_exist\n'
-                              'FILE ' + wuzzup_path + '\n'
-                              'REQUEST 30\n_core.fs.read(_core.files[1])'),
-                         'OK\nwuzzup!!1')
-        self.assert_(os.path.exists(wuzzup_path))
-        self.assert_('Temp file is already removed' in
-                     talk('PROCESS\nFILE ' + wuzzup_path + '\n' +
-                          'REQUEST 61\n'
-                          '_core.fs.remove(_core.files[0]);'
-                          '_core.fs.read(_core.files[0])'))
-        self.assert_(not os.path.exists(wuzzup_path))
 
         self.assertEqual(
             talk('PROCESS _core.db.create("xxx", {}, [], [], []); throw 1'),
