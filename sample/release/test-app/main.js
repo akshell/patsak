@@ -214,7 +214,12 @@ var baseTestSuite = {
     assertSame(require('test-app', 'subdir/.././subdir', './//./index'), m);
     assertSame(require('test-app', 'subdir'), m);
     assertEqual(items(module),
-                [['id', 'main'], ['exports', exports], ['app', 'test-app']]);
+                [
+                  ['exports', exports],
+                  ['id', 'main'],
+                  ['version', ''],
+                  ['app', 'test-app']
+                ]);
     assertSame(require.main, module);
     assertSame(m.main, module);
     assertThrow(UsageError, require);

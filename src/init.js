@@ -122,9 +122,11 @@
         (app && app + ':') + path, -1)._run();
       var require = makeRequire(app, version, loc.slice(0, loc.length - 1));
       var exports = cache[key] = {};
-      var module = {id: loc.join('/'), exports: exports};
-      if (version.length)
-        module.version = version.join('/');
+      var module = {
+        exports: exports,
+        id: loc.join('/'),
+        version: version.join('/')
+      };
       if (app) {
         module.app = app;
       } else {
