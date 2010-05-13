@@ -717,8 +717,6 @@ var dbTestSuite = {
     assertEqual(field('i', 'Count', [], ['i'], [], 10), []);
     assertEqual(field('i', 'Count where i != 5', [], ['i'], [], 1, 6),
                 [1, 2, 3, 4, 6, 7]);
-    assertThrow(TypeError, query, 'Count', [], ['i'], [], 1.5);
-    assertThrow(RangeError, query, 'Count', [], ['i'], [], -1);
   },
 
   testCount: function () {

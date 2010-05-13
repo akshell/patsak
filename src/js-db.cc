@@ -105,17 +105,6 @@ namespace
                 throw Error(Error::USAGE, "Duplicating names");
         return result;
     }
-
-
-    size_t ReadUnsigned(const Handle<v8::Value> value)
-    {
-        if (!value->IsInt32())
-            throw Error(Error::TYPE, "Ingeger required");
-        int32_t result = value->Int32Value();
-        if (result < 0)
-            throw Error(Error::RANGE, "Unsigned required");
-        return result;
-    }
 }    
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -445,10 +434,10 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, QueryCb,
                           ReadParams(args[1]),
                           by_strs,
                           ReadParams(args[3]),
-                          ReadUnsigned(args[4]),
+                          args[4]->Uint32Value(),
                           (args[5]->IsUndefined() || args[5]->IsNull()
                            ? MINUS_ONE
-                           : ReadUnsigned(args[5]))));
+                           : args[5]->Uint32Value())));
     size_t result_length = query_result.tuples.size();
     const Header& header(query_result.header);
     Handle<Array> result(Array::New(result_length));
