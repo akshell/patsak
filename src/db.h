@@ -68,8 +68,8 @@ namespace ku
            const std::string& schema_name,
            const std::string& app_name);
         ~DB();
-        unsigned long long GetDBQuota() const;
-        unsigned long long GetFSQuota() const;
+        uint64_t GetDBQuota() const;
+        uint64_t GetFSQuota() const;
         
     private:
         class Impl;

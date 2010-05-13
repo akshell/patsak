@@ -31,7 +31,7 @@ namespace
     const size_t MAX_ATTR_NUMBER = 500;
     const size_t MAX_REL_VAR_NUMBER = 500;
     const size_t MAX_STRING_SIZE = 1024 * 1024;
-    const unsigned long long QUOTA_MULTIPLICATOR = 1024 * 1024;
+    const uint64_t QUOTA_MULTIPLICATOR = 1024 * 1024;
     
 #ifdef TEST
     const size_t ADDED_SIZE_MULTIPLICATOR = 16;
@@ -983,32 +983,31 @@ Error DBViewerImpl::MakeKeyError(const RelVarFields& key,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// QuotaController
+// QuotaChecker
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    // Database space quota controller. Full of heuristics.
-    class QuotaController {
+    // Database space quota checker. Full of heuristics.
+    class QuotaChecker {
     public:
-        QuotaController(const string& schema_name, unsigned long long quota);
-        void DataWereAdded(unsigned long rows_count, unsigned long long size);
+        QuotaChecker(const string& schema_name, uint64_t quota);
+        void DataWereAdded(size_t rows_count, uint64_t size);
         void Check(pqxx::work& work);
 
     private:
         const string schema_name_;
-        unsigned long long quota_;
-        unsigned long long total_size_;
-        unsigned long long added_size_;
-        unsigned long changed_rows_count_;
+        uint64_t quota_;
+        uint64_t total_size_;
+        uint64_t added_size_;
+        size_t changed_rows_count_;
 
-        unsigned long long CalculateTotalSize(pqxx::work& work) const;
+        uint64_t CalculateTotalSize(pqxx::work& work) const;
     };
 }
 
 
-QuotaController::QuotaController(const string& schema_name,
-                                 unsigned long long quota)
+QuotaChecker::QuotaChecker(const string& schema_name, uint64_t quota)
     : schema_name_(schema_name)
     , quota_(quota)
     , total_size_(quota)
@@ -1018,15 +1017,14 @@ QuotaController::QuotaController(const string& schema_name,
 }
 
 
-void QuotaController::DataWereAdded(unsigned long rows_count,
-                                    unsigned long long size)
+void QuotaChecker::DataWereAdded(size_t rows_count, uint64_t size)
 {
     changed_rows_count_ += rows_count;
     added_size_ += size;
 }
 
 
-void QuotaController::Check(pqxx::work& work)
+void QuotaChecker::Check(pqxx::work& work)
 {
     if (changed_rows_count_ > CHANGED_ROWS_COUNT_LIMIT ||
         (total_size_ + ADDED_SIZE_MULTIPLICATOR * added_size_ >= quota_)) {
@@ -1041,14 +1039,14 @@ void QuotaController::Check(pqxx::work& work)
 }
 
 
-unsigned long long QuotaController::CalculateTotalSize(pqxx::work& work) const
+uint64_t QuotaChecker::CalculateTotalSize(pqxx::work& work) const
 {
     static const format query("SELECT ku.get_schema_size('%1%');");
     pqxx::result pqxx_result(work.exec((format(query) % schema_name_).str()));
     KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
     KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
     KU_ASSERT(!pqxx_result[0][0].is_null());
-    return lexical_cast<unsigned long long>(pqxx_result[0][0].c_str());
+    return lexical_cast<uint64_t>(pqxx_result[0][0].c_str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1062,23 +1060,23 @@ public:
          const string& app_name,
          int try_count = 3);
 
-    unsigned long long GetDBQuota() const;
-    unsigned long long GetFSQuota() const;
+    uint64_t GetDBQuota() const;
+    uint64_t GetFSQuota() const;
 
     pqxx::connection& GetConnection();
     Manager& GetManager();
     const Translator& GetTranslator() const;
-    QuotaController& GetQuotaController();
+    QuotaChecker& GetQuotaChecker();
 
 private:
     pqxx::connection conn_;
     int try_count_;
-    unsigned long long db_quota_;
-    unsigned long long fs_quota_;
+    uint64_t db_quota_;
+    uint64_t fs_quota_;
     Manager manager_;
     DBViewerImpl db_viewer_;
     Translator translator_;
-    scoped_ptr<QuotaController> quota_controller_ptr_;
+    scoped_ptr<QuotaChecker> quota_checker_ptr_;
 };
 
 
@@ -1113,17 +1111,17 @@ DB::Impl::Impl(const string& opt,
         fs_quota_ = QUOTA_MULTIPLICATOR * tuple[1].as<size_t>();
         work.commit(); // don't remove it, stupid idiot! is sets search_path!
     }
-    quota_controller_ptr_.reset(new QuotaController(schema_name, db_quota_));
+    quota_checker_ptr_.reset(new QuotaChecker(schema_name, db_quota_));
 }
 
 
-unsigned long long DB::Impl::GetDBQuota() const
+uint64_t DB::Impl::GetDBQuota() const
 {
     return db_quota_;
 }
 
 
-unsigned long long DB::Impl::GetFSQuota() const
+uint64_t DB::Impl::GetFSQuota() const
 {
     return fs_quota_;
 }
@@ -1147,9 +1145,9 @@ const Translator& DB::Impl::GetTranslator() const
 }
 
 
-QuotaController& DB::Impl::GetQuotaController()
+QuotaChecker& DB::Impl::GetQuotaChecker()
 {
-    return *quota_controller_ptr_;
+    return *quota_checker_ptr_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1167,13 +1165,13 @@ DB::~DB()
 }
 
 
-unsigned long long DB::GetDBQuota() const
+uint64_t DB::GetDBQuota() const
 {
     return pimpl_->GetDBQuota();
 }
 
 
-unsigned long long DB::GetFSQuota() const
+uint64_t DB::GetFSQuota() const
 {
     return pimpl_->GetFSQuota();
 }
@@ -1322,10 +1320,10 @@ size_t Access::Update(const string& rel_var_name,
                       const StringMap& field_expr_map,
                       const Values& expr_params)
 {
-    db_impl_.GetQuotaController().Check(*work_ptr_);
+    db_impl_.GetQuotaChecker().Check(*work_ptr_);
     
     const RichHeader& rich_header(GetRelVarRichHeader(rel_var_name));
-    unsigned long long size = 0;
+    uint64_t size = 0;
     BOOST_FOREACH(const StringMap::value_type& field_expr, field_expr_map) {
         rich_header.find(field_expr.first);
         // FIXME it's wrong estimation for expressions
@@ -1346,7 +1344,7 @@ size_t Access::Update(const string& rel_var_name,
     } catch (const pqxx::sql_error& err) {
         throw Error(Error::DB, err.what());
     }
-    db_impl_.GetQuotaController().DataWereAdded(result, size);
+    db_impl_.GetQuotaChecker().DataWereAdded(result, size);
     return result;
 }
 
@@ -1376,13 +1374,13 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
     static const format default_cmd(
         "INSERT INTO \"%1%\" DEFAULT VALUES RETURNING *;");
 
-    db_impl_.GetQuotaController().Check(*work_ptr_);
+    db_impl_.GetQuotaChecker().Check(*work_ptr_);
 
     const RelVar& rel_var(
         db_impl_.GetManager().GetMeta().GetRelVar(rel_var_name));
     const RichHeader& rich_header(rel_var.GetRichHeader());
     string sql_str;
-    unsigned long long size = 0;
+    uint64_t size = 0;
     if (rich_header.empty()) {
         if (!value_map.empty())
             throw Error(Error::FIELD,
@@ -1442,7 +1440,7 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
     } catch (const pqxx::sql_error& err) {
         throw Error(Error::DB, err.what());
     }
-    db_impl_.GetQuotaController().DataWereAdded(1, size);
+    db_impl_.GetQuotaChecker().DataWereAdded(1, size);
     if (rich_header.empty())
         return Values();
     KU_ASSERT_EQUAL(pqxx_result.size(), 1U);

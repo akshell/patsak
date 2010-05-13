@@ -659,7 +659,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DelCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 3);
-    unsigned long rows_number = access_ptr->Delete(
+    size_t rows_number = access_ptr->Delete(
         Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]));
     return Number::New(static_cast<double>(rows_number));
 }
@@ -678,7 +678,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, UpdateCb,
         field_expr_map.insert(StringMap::value_type(Stringify(prop.key),
                                                     Stringify(prop.value)));
     }
-    unsigned long rows_number = access_ptr->Update(
+    size_t rows_number = access_ptr->Update(
         Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]),
         field_expr_map, ReadParams(args[4]));
     return Number::New(static_cast<double>(rows_number));
