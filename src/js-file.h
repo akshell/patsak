@@ -76,6 +76,9 @@ namespace ku
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, LastIndexOfCb,
                              const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CompareCb,
+                             const v8::Arguments&) const;
     };
 
 

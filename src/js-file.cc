@@ -192,6 +192,7 @@ void BinaryBg::AdjustTemplates(Handle<ObjectTemplate> object_template,
     SetFunction(proto_template, "_fill", FillCb);
     SetFunction(proto_template, "_indexOf", IndexOfCb);
     SetFunction(proto_template, "_lastIndexOf", LastIndexOfCb);
+    SetFunction(proto_template, "_compare", CompareCb);
 }
 
 
@@ -452,6 +453,24 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, LastIndexOfCb,
     return Integer::New(found_ptr == end_ptr
                         ? -1
                         : found_ptr - start_ptr_);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, CompareCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    const BinaryBg* other_ptr = BinaryBg::GetJSClass().Cast(args[0]);
+    if (!other_ptr)
+        throw Error(Error::TYPE, "Binary expected");
+    int cmp = memcmp(start_ptr_,
+                     other_ptr->start_ptr_,
+                     min(size_, other_ptr->size_));
+    return Integer::New(cmp == 0
+                        ? (size_ == other_ptr->size_
+                           ? 0
+                           : (size_ > other_ptr->size_ ? 1 : -1))
+                        : (cmp > 0 ? 1 : -1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1168,6 +1168,13 @@ var fileTestSuite = {
     assertSame(binary._lastIndexOf('est', 11), 11);
     assertSame(binary._lastIndexOf('est', 10), 6);
     assertSame(binary._lastIndexOf('st', -13), -1);
+    assertSame(new Binary('abc')._compare(new Binary('de')), -1);
+    assertSame(new Binary('abc')._compare(new Binary('')), 1);
+    assertSame(new Binary('abc')._compare(new Binary('abc')), 0);
+    assertSame(new Binary('abcd')._compare(new Binary('abc')), 1);
+    assertSame(new Binary('abcd')._compare(new Binary('abcdef')), -1);
+    assertSame(new Binary()._compare(new Binary('')), 0);
+    assertThrow(TypeError, "new Binary()._compare(42)");
   }
 };
 
