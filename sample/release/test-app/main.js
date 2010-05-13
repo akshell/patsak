@@ -267,6 +267,7 @@ var baseTestSuite = {
     assertThrow(PathError, readCode, 'test-app', '');
     assertThrow(PathError,
                 readCode, 'test-app', 'subdir/../../another-app/main.js');
+    assertThrow(EntryIsDirError, readCode, 'subdir');
     assertThrow(UsageError, readCode);
   },
 
@@ -337,27 +338,28 @@ var baseTestSuite = {
 
   testRequestApp: function () {
     fs.list('').forEach(remove);
-    fs.write('file1', 'wuzzup');
-    fs.write('file2', 'yo ho ho');
-    assertSame(requestApp('another-app',
-                          new Binary('hello world!', 'ascii'),
-                          ['file1', 'file2'],
-                          'yo!!!') + '',
-               ('{"user":"' + _core.user + '",'+
-                '"arg":"hello world!","data":"yo!!!",' +
-                '"fileContents":["wuzzup","yo ho ho"],' +
-                '"issuer":"test-app"}'));
+    fs.open('file1')._write('wuzzup');
+    fs.open('file2')._write('yo ho ho');
+    assertEqual(
+      requestApp(
+        'another-app',
+        ('[_core.files[0]._read()._toString(),' +
+         ' _core.files[1]._read()._toString(),' +
+         ' _core.data._toString()]'),
+        ['file1', fs.open('file2')],
+        'yo!!!'),
+      'wuzzup,yo ho ho,yo!!!');
     assert(fs.exists('file1') && fs.exists('file2'));
     assertThrow(NoSuchAppError, requestApp, 'no-such-app', 'hi', [], null);
     assertThrow(TypeError, requestApp, 'another-app', '', 42, null);
-    fs.write('file3', 'text');
-    assertSame(requestApp('another-app', '', [], fs.read('file3')) + '',
-               ('{"user":"' + _core.user + '",' +
-                '"arg":"",' +
-                '"data":"text",' +
-                '"fileContents":[],' +
-                '"issuer":"test-app"}'));
-    fs.remove('file3');
+    assertEqual(requestApp('another-app', new Binary('_core.issuer'), [], ''),
+                'test-app');
+    assertEqual(requestApp('another-app', '_core.user', [], ''), _core.user);
+    assertEqual(
+      requestApp('another-app', '_core.files[0].writable', ['file1'], ''),
+      'false');
+    assertThrow(RequestAppError, requestApp,
+                'another-app', '_core.files[0]._write("")', ['file1'], '');
     assertThrow(NoSuchAppError, requestApp, 'invalid/app/name', '', [], null);
     assertThrow(UsageError, requestApp, 'test-app', '2+2', [], null);
     assertThrow(RequestAppError, requestApp, 'throwing-app', '', [], null);
@@ -987,30 +989,50 @@ var fileTestSuite = {
     fs.createDir('dir1');
     fs.createDir('dir2');
     fs.createDir('dir1/subdir');
-    fs.write('file', 'some text');
-    fs.write('dir1/subdir/hello', 'hello world!');
-    fs.write('dir1/subdir/привет', 'привет!');
+    fs.open('file')._write('some text');
+    fs.open('dir1/subdir/hello')._write('hello world!');
+    fs.open('dir1/subdir/привет')._write('привет!');
   },
 
   tearDown: function () {
     fs.list('').forEach(remove);
   },
 
-  testRead: function () {
-    assertEqual(fs.read('//dir1////subdir/hello'), 'hello world!');
-    assertSame(fs.read('/dir1/subdir/привет')._toString(), 'привет!');
-    assertThrow(NoSuchEntryError, "fs.read('does not exists')");
-    assertThrow(EntryIsDirError, "fs.read('dir1')");
-    assertThrow(PathError, "fs.read('//..//test-app/dir1/subdir/hello')");
-    assertThrow(PathError, "fs.read('/dir1/../../file')");
-    assertThrow(PathError, "fs.read('////')");
+  testOpen: function () {
+    assertEqual(fs.open('//dir1////subdir/hello')._read(), 'hello world!');
+    assertSame(fs.open('/dir1/subdir/привет')._read()._toString(), 'привет!');
+    assertThrow(EntryIsDirError, "fs.open('dir1')");
+    assertThrow(PathError, "fs.open('//..//test-app/dir1/subdir/hello')");
+    assertThrow(PathError, "fs.open('/dir1/../../file')");
+    var file = fs.open('test');
+    var text = 'russian text русский текст';
+    var binary = new Binary(text);
+    file._write(binary);
+    file.position = 0;
+    assertEqual(file._read(), text);
+    assertSame(file.length, binary.length);
+    assertSame(file.position, binary.length);
+    file.length += 3;
+    assertEqual(file._read(), '\0\0\0');
+    file.position = 8;
+    assertEqual(file._read(4), 'text');
+    file.length = 27;
+    file.position += 1;
+    assertEqual(file._read(), 'русский');
+    assert(file.writable);
+    file._flush();
+    file._close();
+    assertThrow(ValueError, function () { file._read(); });
+    remove('test');
+    assertThrow(EntryIsNotDirError, "fs.open('file/xxx')");
+    assertThrow(EntryIsDirError, "fs.open('dir1')");
     assertThrow(
       PathError,
       function () {
-        var path = '';
-        for (var i = 0; i < 40; ++i)
-          path += '/dir';
-        fs.read(path);
+        var array = [];
+        for (var i = 0; i < 1000; ++i)
+          array.push('x');
+        fs.open(array.join(''));
       });
   },
 
@@ -1040,7 +1062,7 @@ var fileTestSuite = {
   },
 
   testGetModDate: function () {
-    fs.write('hello', '');
+    fs.open('hello')._write('');
     assert(Math.abs(new Date() - fs.getModDate('hello')) < 2000);
     assertThrow(NoSuchEntryError, "fs.getModDate('no-such-file')");
     remove('hello');
@@ -1054,50 +1076,32 @@ var fileTestSuite = {
     assertThrow(EntryExistsError, "fs.createDir('file')");
   },
 
-  testWrite: function () {
-    fs.write('wuzzup', 'yo wuzzup!');
-    assertEqual(fs.read('wuzzup'), 'yo wuzzup!');
-    remove('wuzzup');
-    fs.write('hello', fs.read('dir1/subdir/hello'));
-    assertEqual(fs.read('hello'), 'hello world!');
-    remove('hello');
-    assertThrow(EntryIsNotDirError, "fs.write('file/xxx', '')");
-    assertThrow(EntryIsDirError, "fs.write('dir1', '')");
-    assertThrow(PathError,
-                function () {
-                  var array = [];
-                  for (var i = 0; i < 1000; ++i)
-                    array.push('x');
-                  fs.write(array.join(''), '');
-                });
-  },
-
   testRemove: function () {
-    fs.write('new-file', 'data');
+    fs.open('new-file')._write('data');
     remove('new-file');
     fs.createDir('dir2/new-dir');
     remove('dir2/new-dir');
     assertEqual(fs.list('').sort(), ['dir1', 'dir2', 'file']);
     assertEqual(fs.list('dir2'), []);
     assertThrow(DirIsNotEmptyError, "fs.remove('dir1')");
+    assertThrow(PathError, "fs.remove('dir1/..//')");
   },
 
   testRename: function () {
     fs.rename('dir1', 'dir2/dir3');
-    assertEqual(fs.read('dir2/dir3/subdir/hello'), 'hello world!');
+    assertEqual(fs.open('dir2/dir3/subdir/hello')._read(), 'hello world!');
     fs.rename('dir2/dir3', 'dir1');
     assertThrow(NoSuchEntryError, "fs.rename('no such file', 'xxx')");
   },
 
   testQuota: function () {
-    var array = [];
-    for (var i = 0; i < _core.fsQuota / 2; ++i)
-      array.push('x');
-    var str = array.join('');
-    fs.write('file1', str);
-    assertThrow(FSQuotaError, function () { fs.write('file2', str); });
+    var data = new Binary(_core.fsQuota / 2, 'x'.charCodeAt(0));
+    fs.open('file1')._write(data);
+    fs.open('file2')._write(data);
+    assertThrow(FSQuotaError, function () { fs.open('file3')._write(data); });
     remove('file1');
-    assert(!fs.exists('file2'));
+    remove('file2');
+    remove('file3');
   },
 
   testBinary: function () {

@@ -61,7 +61,8 @@
     defineErrorClass('NoSuchEntry', _core.FSError),
     defineErrorClass('EntryIsDir', _core.FSError),
     defineErrorClass('EntryIsNotDir', _core.FSError),
-    defineErrorClass('DirIsNotEmpty', _core.FSError)
+    defineErrorClass('DirIsNotEmpty', _core.FSError),
+    defineErrorClass('FileIsReadOnly', _core.FSError)
   ];
 
   //////////////////////////////////////////////////////////////////////////////

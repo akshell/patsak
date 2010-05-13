@@ -25,7 +25,6 @@ using boost::shared_ptr;
 
 namespace
 {
-    const int MAX_DIR_DEPTH = 30;
     const unsigned DIRECTORY_SIZE = 4 * 1024;
 }
 
@@ -56,7 +55,7 @@ namespace
 // Interface functions
 ////////////////////////////////////////////////////////////////////////////////
 
-auto_ptr<Chars> ku::ReadFileData(const std::string& path)
+auto_ptr<Chars> ku::ReadFile(const std::string& path)
 {
     int fd = open(path.c_str(), O_RDONLY);
     if (fd == -1)
@@ -456,17 +455,262 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, LastIndexOfCb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// FSQuotaChecker definitions
+////////////////////////////////////////////////////////////////////////////////
+
+class ku::FSQuotaChecker {
+public:
+    FSQuotaChecker(uint64_t quota, uint64_t size);
+    void Check() const;
+    void Change(int64_t diff);
+    
+private:
+    uint64_t quota_;
+    uint64_t size_;
+};
+
+
+FSQuotaChecker::FSQuotaChecker(uint64_t quota, uint64_t size)
+    : quota_(quota)
+    , size_(size)
+{
+}
+
+
+void FSQuotaChecker::Check() const
+{
+    if (size_ > quota_)
+        throw Error(Error::FS_QUOTA, "File storage quota exceeded");
+}
+
+
+void FSQuotaChecker::Change(int64_t diff)
+{
+    size_ = max(0LL, static_cast<int64_t>(size_) + diff);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FileBg::ChangeScope
+////////////////////////////////////////////////////////////////////////////////
+
+class FileBg::ChangeScope {
+public:
+    ChangeScope(const FileBg& file);
+    ~ChangeScope();
+
+private:
+    const FileBg& file_;
+    int64_t initial_size_;
+
+    int64_t GetAllocatedSize() const;
+};
+
+
+FileBg::ChangeScope::ChangeScope(const FileBg& file)
+    : file_(file)
+{
+    file.CheckOpen();
+    if (!file.quota_checker_ptr_)
+        throw Error(Error::FILE_IS_READ_ONLY, "File is read only");
+    file.quota_checker_ptr_->Check();
+    initial_size_ = GetAllocatedSize();
+}
+
+
+FileBg::ChangeScope::~ChangeScope()
+{
+    file_.quota_checker_ptr_->Change(GetAllocatedSize() - initial_size_);
+}
+
+
+int64_t FileBg::ChangeScope::GetAllocatedSize() const
+{
+    struct stat st;
+    int ret = fstat(file_.fd_, &st);
+    KU_ASSERT_EQUAL(ret, 0);
+    return st.st_blocks * 512;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FileBg definitions
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_JS_CLASS(FileBg, "File", object_template, proto_template)
+{
+    object_template->SetAccessor(String::NewSymbol("length"),
+                                 GetLengthCb, SetLengthCb,
+                                 Handle<v8::Value>(), DEFAULT,
+                                 DontDelete);
+    object_template->SetAccessor(String::NewSymbol("position"),
+                                 GetPositionCb, SetPositionCb,
+                                 Handle<v8::Value>(), DEFAULT,
+                                 DontDelete);
+    object_template->SetAccessor(String::NewSymbol("writable"),
+                                 GetWritableCb, 0,
+                                 Handle<v8::Value>(), DEFAULT,
+                                 ReadOnly | DontDelete);
+    SetFunction(proto_template, "_close", CloseCb);
+    SetFunction(proto_template, "_flush", FlushCb);
+    SetFunction(proto_template, "_read", ReadCb);
+    SetFunction(proto_template, "_write", WriteCb);
+}
+
+
+FileBg::FileBg(const std::string& path, FSQuotaChecker* quota_checker_ptr)
+    : path_(path)
+    , fd_(quota_checker_ptr
+          ? open(path.c_str(), O_CLOEXEC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)
+          : open(path.c_str(), O_CLOEXEC | O_RDONLY))
+    , quota_checker_ptr_(quota_checker_ptr)
+{
+    if (fd_ == -1)
+        throw MakeErrnoError();
+}
+
+
+FileBg::~FileBg()
+{
+    Close();
+}
+
+
+string FileBg::GetPath() const
+{
+    return path_;
+}
+
+
+void FileBg::Close()
+{
+    if (fd_ != -1) {
+        int ret = close(fd_);
+        KU_ASSERT_EQUAL(ret, 0);
+        fd_ = -1;
+    }    
+}
+
+
+void FileBg::CheckOpen() const
+{
+    if (fd_ == -1)
+        throw Error(Error::VALUE, "File is already closed");
+}
+
+
+size_t FileBg::GetSize() const
+{
+    struct stat st;
+    int ret = fstat(fd_, &st);
+    KU_ASSERT_EQUAL(ret, 0);
+    return st.st_size;
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetLengthCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/) const
+{
+    CheckOpen();
+    return Integer::New(GetSize());
+}
+
+
+DEFINE_JS_CALLBACK3(void, FileBg, SetLengthCb,
+                    Local<String>, /*property*/,
+                    Local<v8::Value>, value,
+                    const AccessorInfo&, /*info*/) const
+{
+    ChangeScope change_scope(*this);
+    int ret = ftruncate(fd_, value->Uint32Value());
+    KU_ASSERT_EQUAL(ret, 0);
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetPositionCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/) const
+{
+    CheckOpen();
+    off_t position = lseek(fd_, 0, SEEK_CUR);
+    KU_ASSERT(position != -1);
+    return Integer::New(position);
+}
+
+
+DEFINE_JS_CALLBACK3(void, FileBg, SetPositionCb,
+                    Local<String>, /*property*/,
+                    Local<v8::Value>, value,
+                    const AccessorInfo&, /*info*/) const
+{
+    CheckOpen();
+    off_t position = lseek(fd_, value->Uint32Value(), SEEK_SET);
+    KU_ASSERT(position != -1);
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetWritableCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/) const
+{
+    return Boolean::New(quota_checker_ptr_);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, CloseCb,
+                    const Arguments&, /*args*/)
+{
+    Close();
+    return Undefined();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, FlushCb,
+                    const Arguments&, args) const
+{
+    CheckOpen();
+    int ret = fsync(fd_);
+    KU_ASSERT_EQUAL(ret, 0);
+    return args.This();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, ReadCb,
+                    const Arguments&, args) const
+{
+    CheckOpen();
+    auto_ptr<Chars> data_ptr(
+        new Chars(args.Length() ? args[0]->Uint32Value() : GetSize()));
+    ssize_t count = read(fd_, &data_ptr->front(), data_ptr->size());
+    KU_ASSERT(count != -1);
+    data_ptr->resize(count);
+    return JSNew<BinaryBg>(data_ptr);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, WriteCb,
+                    const Arguments&, args) const
+{
+    ChangeScope change_scope(*this);
+    CheckArgsLength(args, 1);
+    BinaryBg::Reader binary_reader(args[0]);
+    ssize_t count = write(
+        fd_, binary_reader.GetStartPtr(), binary_reader.GetSize());
+    KU_ASSERT_EQUAL(count, static_cast<ssize_t>(binary_reader.GetSize()));
+    return args.This();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // FSBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    unsigned long long CalcTotalSize(const string& path)
+    uint64_t CalcTotalSize(const string& path)
     {
         struct stat st;
         if (stat(path.c_str(), &st) == -1)
             return 0;
-        unsigned long long result = st.st_blocks * 512;
+        uint64_t result = st.st_blocks * 512;
         if (S_ISDIR(st.st_mode)) {
             DIR* dir_ptr = opendir(path.c_str());
             KU_ASSERT(dir_ptr);
@@ -479,38 +723,28 @@ namespace
         }
         return result;
     }
-
-
-    size_t GetFileSize(const string& path)
-    {
-        struct stat st;
-        if (stat(path.c_str(), &st) == -1)
-            return 0;
-        return st.st_blocks * 512;
-    }
 }
 
 
 DEFINE_JS_CLASS(FSBg, "FS", object_template, /*proto_template*/)
 {
     BinaryBg::GetJSClass();
-    SetFunction(object_template, "read", ReadCb);
+    FileBg::GetJSClass();
+    SetFunction(object_template, "open", OpenCb);
     SetFunction(object_template, "exists", ExistsCb);
     SetFunction(object_template, "isDir", IsDirCb);
     SetFunction(object_template, "isFile", IsFileCb);
     SetFunction(object_template, "getModDate", GetModDateCb);
     SetFunction(object_template, "list", ListCb);
     SetFunction(object_template, "createDir", CreateDirCb);
-    SetFunction(object_template, "write", WriteCb);
     SetFunction(object_template, "remove", RemoveCb);
     SetFunction(object_template, "rename", RenameCb);
 }
 
 
-FSBg::FSBg(const string& root_path, unsigned long long quota)
+FSBg::FSBg(const string& root_path, uint64_t quota)
     : root_path_(root_path)
-    , quota_(quota)
-    , total_size_(CalcTotalSize(root_path))
+    , quota_checker_ptr_(new FSQuotaChecker(quota, CalcTotalSize(root_path)))
 {
 }
 
@@ -530,27 +764,15 @@ string FSBg::ReadPath(Handle<v8::Value> value, bool can_be_root) const
                      "\" leads beyond the root directory"));
     if (!can_be_root && !depth)
         throw Error(Error::PATH, "Path \"" + rel_path + "\" is empty");
-    if (depth > MAX_DIR_DEPTH)
-        throw Error(Error::PATH,
-                    ("Maximum directory depth is " +
-                     lexical_cast<string>(MAX_DIR_DEPTH)));
     return root_path_ + '/' + rel_path;
 }
 
 
-void FSBg::CheckTotalSize(unsigned long long addition) const
-{
-    if (total_size_ + addition > quota_)
-        throw Error(Error::FS_QUOTA, "File storage quota exceeded");
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ReadCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, OpenCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    string path(ReadPath(args[0], false));
-    return JSNew<BinaryBg>(ReadFileData(path));
+    return JSNew<FileBg>(ReadPath(args[0]), quota_checker_ptr_.get());
 }
 
 
@@ -558,8 +780,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ExistsCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    string path(ReadPath(args[0], true));
-    return Boolean::New(GetStat(path, true).get());
+    return Boolean::New(GetStat(ReadPath(args[0]), true).get());
 }
 
 
@@ -567,8 +788,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsDirCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    string path(ReadPath(args[0], true));
-    auto_ptr<struct stat> stat_ptr(GetStat(path, true));
+    auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args[0]), true));
     return Boolean::New(stat_ptr.get() && S_ISDIR(stat_ptr->st_mode));
 }
 
@@ -577,8 +797,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsFileCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    string path(ReadPath(args[0], true));
-    auto_ptr<struct stat> stat_ptr(GetStat(path, true));
+    auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args[0]), true));
     return Boolean::New(stat_ptr.get() && S_ISREG(stat_ptr->st_mode));
 }
 
@@ -587,8 +806,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, GetModDateCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    string path(ReadPath(args[0], true));
-    return Date::New(static_cast<double>(GetStat(path)->st_mtime) * 1000);
+    return Date::New(
+        static_cast<double>(GetStat(ReadPath(args[0]))->st_mtime) * 1000);
 }
 
 
@@ -596,8 +815,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ListCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    string path(ReadPath(args[0], true));
-    DIR* dir_ptr = opendir(path.c_str());
+    DIR* dir_ptr = opendir(ReadPath(args[0]).c_str());
     if (!dir_ptr)
         throw MakeErrnoError();
     Handle<Array> result(Array::New());
@@ -616,33 +834,10 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, CreateDirCb,
                     const Arguments&, args)
 {
     CheckArgsLength(args, 1);
-    CheckTotalSize(DIRECTORY_SIZE);
-    string path(ReadPath(args[0], false));
-    if (mkdir(path.c_str(), 0755) == -1)
+    quota_checker_ptr_->Check();
+    if (mkdir(ReadPath(args[0]).c_str(), 0755) == -1)
         throw MakeErrnoError();
-    total_size_ += DIRECTORY_SIZE;
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, WriteCb,
-                    const Arguments&, args)
-{
-    CheckArgsLength(args, 2);
-    string path(ReadPath(args[0], false));
-    size_t old_size = GetFileSize(path);
-    BinaryBg::Reader binary_reader(args[1]);
-    size_t size = binary_reader.GetSize();
-    if (size > old_size)
-        CheckTotalSize(size - old_size);
-    int fd = creat(path.c_str(), 0644);
-    if (fd == -1)
-        throw MakeErrnoError();
-    ssize_t bytes_written = write(fd, binary_reader.GetStartPtr(), size);
-    KU_ASSERT_EQUAL(static_cast<size_t>(bytes_written), size);
-    close(fd);
-    total_size_ += GetFileSize(path);
-    total_size_ -= old_size;
+    quota_checker_ptr_->Change(DIRECTORY_SIZE);
     return Undefined();
 }
 
@@ -652,10 +847,10 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RemoveCb,
 {
     CheckArgsLength(args, 1);
     string path(ReadPath(args[0], false));
-    size_t size = GetFileSize(path);
+    int64_t size = GetStat(path)->st_blocks * 512;
     if (remove(path.c_str()) == -1)
         throw MakeErrnoError();
-    total_size_ -= size;
+    quota_checker_ptr_->Change(-size);
     return Undefined();
 }
 
@@ -669,41 +864,4 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RenameCb,
     if (rename(from_path.c_str(), to_path.c_str()) == -1)
         throw MakeErrnoError();
     return Undefined();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// FSBg::FileAccessor definitions
-////////////////////////////////////////////////////////////////////////////////
-
-FSBg::FileAccessor::FileAccessor(FSBg& fs_bg, Handle<Array> files)
-    : fs_bg_(fs_bg)
-    , initial_size_(0)
-{
-    full_pathes_.reserve(files->Length());
-    for (size_t i = 0; i < files->Length(); ++i) {
-        string full_path(fs_bg.ReadPath(files->Get(Integer::New(i)), false));
-        struct stat st;
-        if (stat(full_path.c_str(), &st) == -1)
-            throw Error(Error::NO_SUCH_ENTRY, "File does not exist");
-        if (!S_ISREG(st.st_mode))
-            throw Error(Error::ENTRY_IS_DIR, "Directory could not be passed");
-        initial_size_ += st.st_blocks * 512;
-        full_pathes_.push_back(full_path);
-    }
-}
-
-
-FSBg::FileAccessor::~FileAccessor()
-{
-    unsigned long long size = 0;
-    BOOST_FOREACH(const string& full_path, full_pathes_)
-        size += GetFileSize(full_path);
-    fs_bg_.total_size_ += size;
-    fs_bg_.total_size_ -= initial_size_;
-}
-
-
-const Strings& FSBg::FileAccessor::GetFullPathes() const
-{
-    return full_pathes_;
 }

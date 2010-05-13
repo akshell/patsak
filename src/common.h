@@ -49,7 +49,8 @@ namespace ku
             NO_SUCH_ENTRY,
             ENTRY_IS_DIR,
             ENTRY_IS_NOT_DIR,
-            DIR_IS_NOT_EMPTY
+            DIR_IS_NOT_EMPTY,
+            FILE_IS_READ_ONLY
         };
         
         Error(Tag tag, const std::string& msg)

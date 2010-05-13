@@ -113,8 +113,8 @@ class Test(unittest.TestCase):
                           '--patsak-pattern', PATSAK_FILE,
                           '--test',
                           '--expr',
-                          '_core.requestApp("test-app", "2+2", [], "")',
-                          'another-app'])
+                          '_core.requestApp("another-app", "2+2", [], "")',
+                          APP_NAME])
         self.assertEqual(process.stdout.read(), 'OK\n4\n')
         
     def _connect(self, path):
@@ -167,6 +167,19 @@ class Test(unittest.TestCase):
                               'REQUEST 10\n_core.data'),
                          'OK\nhello')
         self.assertEqual(talk('PROCESS new _core.Binary(3)'), 'OK\n\0\0\0')
+
+        self.assert_(
+            'File is read only' in
+            talk('PROCESS\nFILE %s\nREQUEST 25\n_core.files[0]._write("")'
+                 % CONFIG_FILE))
+        request = '''
+_core.requestApp(
+  'another-app', '_core.files[0]._read()._toString()', _core.files, '')
+'''
+        self.assertEqual(
+            talk('PROCESS\nFILE %s\nREQUEST %d\n%s'
+                 % (CONFIG_FILE, len(request), request)),
+            'OK\n' + open(CONFIG_FILE).read())
 
         self.assertEqual(
             talk('PROCESS _core.db.create("xxx", {}, [], [], []); throw 1'),
@@ -231,9 +244,9 @@ class Test(unittest.TestCase):
             talk('PROCESS _core.owner + " " + _core.spot'),
             'OK\ntest user test-spot')
         self.assertEqual(
-            talk('PROCESS _core.requestApp("another-app", "hi", [], "")'),
-            'OK\n{"user":"","arg":"hi","data":"",' +
-            '"fileContents":[],"issuer":"test-app"}')
+            talk('PROCESS '
+                 '_core.requestApp("another-app", "_core.issuer", [], "")'),
+            'OK\n' + APP_NAME)
         self.assertEqual(
             talk('PROCESS function f() { f(); } f()'),
             'ERROR\nRangeError: Maximum call stack size exceeded')

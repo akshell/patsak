@@ -13,7 +13,7 @@
 
 namespace ku
 {
-    std::auto_ptr<Chars> ReadFileData(const std::string& path);
+    std::auto_ptr<Chars> ReadFile(const std::string& path);
 
     std::auto_ptr<struct stat> GetStat(const std::string& path,
                                        bool ignore_error = false);
@@ -79,25 +79,79 @@ namespace ku
     };
 
 
+    class FSQuotaChecker;
+
+
+    class FileBg {
+    public:
+        DECLARE_JS_CLASS(FileBg);
+
+        FileBg(const std::string& path, FSQuotaChecker* quota_checker_ptr = 0);
+        std::string GetPath() const;
+        ~FileBg();
+
+    private:
+        class ChangeScope;
+        
+        std::string path_;
+        int fd_;
+        FSQuotaChecker* quota_checker_ptr_;
+
+        void Close();
+        void CheckOpen() const;
+        size_t GetSize() const;
+        
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetLengthCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+        
+        DECLARE_JS_CALLBACK3(void, SetLengthCb,
+                             v8::Local<v8::String>,
+                             v8::Local<v8::Value>,
+                             const v8::AccessorInfo&) const;
+        
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetPositionCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+        
+        DECLARE_JS_CALLBACK3(void, SetPositionCb,
+                             v8::Local<v8::String>,
+                             v8::Local<v8::Value>,
+                             const v8::AccessorInfo&) const;
+        
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetWritableCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CloseCb,
+                             const v8::Arguments&);
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, FlushCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ReadCb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, WriteCb,
+                             const v8::Arguments&) const;
+    };
+
+
     class FSBg {
     public:
-        class FileAccessor;
-        
         DECLARE_JS_CLASS(FSBg);
 
-        FSBg(const std::string& root_path, unsigned long long quota);
+        FSBg(const std::string& root_path, uint64_t quota);
         ~FSBg();
+        
+        std::string ReadPath(v8::Handle<v8::Value> value,
+                             bool can_be_root = true) const;
         
     private:
         const std::string root_path_;
-        const unsigned long long quota_;
-        unsigned long long total_size_;
+        boost::scoped_ptr<FSQuotaChecker> quota_checker_ptr_;
 
-        std::string ReadPath(v8::Handle<v8::Value> value,
-                             bool can_be_root) const;
-        void CheckTotalSize(unsigned long long addition) const;
-        
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ReadCb,
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, OpenCb,
                              const v8::Arguments&) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ExistsCb,
@@ -118,29 +172,11 @@ namespace ku
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CreateDirCb,
                              const v8::Arguments&);
         
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, WriteCb,
-                             const v8::Arguments&);
-        
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RemoveCb,
                              const v8::Arguments&);
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RenameCb,
                              const v8::Arguments&) const;
-    };
-
-
-    // Interface for access to full media file pathes.
-    // Controls changes in file size after external operations.
-    class FSBg::FileAccessor {
-    public:
-        FileAccessor(FSBg& fs_bg, v8::Handle<v8::Array> files);
-        ~FileAccessor();
-        const Strings& GetFullPathes() const;
-
-    private:
-        FSBg& fs_bg_;
-        unsigned long long initial_size_;
-        Strings full_pathes_;
     };
 }
 

@@ -110,7 +110,7 @@ auto_ptr<Chars> CodeReader::DoRead(const string& base_path,
                                    const string& path) const
 {
     CheckPath(path);
-    return ReadFileData(base_path + '/' + path);
+    return ReadFile(base_path + '/' + path);
 }
 
 
@@ -605,11 +605,23 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestAppCb,
     CheckArgsLength(args, 4);
     string app_name(Stringify(args[0]));
     string request(Stringify(args[1]));
-    FSBg::FileAccessor file_accessor(fs_bg_, GetArray(args[2]));
     BinaryBg::Reader binary_reader(args[3]);
+
+    Handle<Array> files(GetArray(args[2]));
+    Strings file_pathes;
+    file_pathes.reserve(files->Length());
+    for (size_t i = 0; i < files->Length(); ++i) {
+        Handle<v8::Value> item(files->Get(Integer::New(i)));
+        const FileBg* file_ptr = FileBg::GetJSClass().Cast(item);
+        string path(file_ptr ? file_ptr->GetPath() : fs_bg_.ReadPath(item));
+        if (!S_ISREG(GetStat(path)->st_mode))
+            throw Error(Error::ENTRY_IS_DIR, "Directory cannot be passed");
+        file_pathes.push_back(path);
+    }
+
     auto_ptr<Chars> data_ptr(app_accessor_(app_name,
                                            request,
-                                           file_accessor.GetFullPathes(),
+                                           file_pathes,
                                            binary_reader.GetStartPtr(),
                                            binary_reader.GetSize(),
                                            *access_ptr));
@@ -1074,8 +1086,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     
     Handle<Array> files(Array::New(file_pathes.size()));
     for (size_t i = 0; i < file_pathes.size(); ++i)
-        files->Set(Integer::New(i),
-                   JSNew<BinaryBg>(ReadFileData(file_pathes[i])));
+        files->Set(Integer::New(i), JSNew<FileBg>(file_pathes[i]));
     Set(core_, "files", files);
     Set(core_, "data", JSNew<BinaryBg>(data_ptr));
     Set(core_, "user", String::New(user.c_str()));
