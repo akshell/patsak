@@ -126,6 +126,10 @@ namespace ku
                              v8::Local<v8::String>,
                              const v8::AccessorInfo&) const;
         
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetClosedCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+        
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CloseCb,
                              const v8::Arguments&);
         

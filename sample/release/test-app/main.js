@@ -1016,8 +1016,10 @@ var fileTestSuite = {
     file.position += 1;
     assertEqual(file._read(), 'русский');
     assert(file.writable);
+    assert(!file.closed);
     file._flush();
     file._close();
+    assert(file.closed);
     assertThrow(ValueError, function () { file._read(); });
     remove('test');
     assertThrow(EntryIsNotDirError, "fs.open('file/xxx')");

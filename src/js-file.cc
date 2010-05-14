@@ -567,6 +567,10 @@ DEFINE_JS_CLASS(FileBg, "File", object_template, proto_template)
                                  GetWritableCb, 0,
                                  Handle<v8::Value>(), DEFAULT,
                                  ReadOnly | DontDelete);
+    object_template->SetAccessor(String::NewSymbol("closed"),
+                                 GetClosedCb, 0,
+                                 Handle<v8::Value>(), DEFAULT,
+                                 ReadOnly | DontDelete);
     SetFunction(proto_template, "_close", CloseCb);
     SetFunction(proto_template, "_flush", FlushCb);
     SetFunction(proto_template, "_read", ReadCb);
@@ -670,7 +674,16 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetWritableCb,
                     Local<String>, /*property*/,
                     const AccessorInfo&, /*info*/) const
 {
+    CheckOpen();
     return Boolean::New(quota_checker_ptr_);
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetClosedCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/) const
+{
+    return Boolean::New(fd_ == -1);
 }
 
 
