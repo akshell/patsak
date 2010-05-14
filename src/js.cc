@@ -1085,16 +1085,23 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
             new ErrorResponse(func_name + " is not a function"));
     
     Handle<Array> files(Array::New(file_pathes.size()));
-    for (size_t i = 0; i < file_pathes.size(); ++i)
-        files->Set(Integer::New(i), JSNew<FileBg>(file_pathes[i]));
+    vector<FileBg*> file_ptrs(file_pathes.size());
+    for (size_t i = 0; i < file_pathes.size(); ++i) {
+        FileBg* file_ptr = new FileBg(file_pathes[i]);
+        files->Set(Integer::New(i), FileBg::GetJSClass().Instantiate(file_ptr));
+        file_ptrs[i] = file_ptr;
+    }
     Set(core_, "files", files);
     Set(core_, "data", JSNew<BinaryBg>(data_ptr));
     Set(core_, "user", String::New(user.c_str()));
     Set(core_, "issuer", String::New(issuer.c_str()));
 
-    return Run(Handle<Function>::Cast(func_value),
-               object,
-               String::New(&input[0], input.size()));
+    auto_ptr<Response> result(Run(Handle<Function>::Cast(func_value),
+                                  object,
+                                  String::New(&input[0], input.size())));
+    BOOST_FOREACH(FileBg* file_ptr, file_ptrs)
+        file_ptr->Close();
+    return result;
 }
                                        
 

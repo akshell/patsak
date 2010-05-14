@@ -90,8 +90,9 @@ namespace ku
         DECLARE_JS_CLASS(FileBg);
 
         FileBg(const std::string& path, FSQuotaChecker* quota_checker_ptr = 0);
-        std::string GetPath() const;
         ~FileBg();
+        std::string GetPath() const;
+        void Close();
 
     private:
         class ChangeScope;
@@ -100,7 +101,6 @@ namespace ku
         int fd_;
         FSQuotaChecker* quota_checker_ptr_;
 
-        void Close();
         void CheckOpen() const;
         size_t GetSize() const;
         
