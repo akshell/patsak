@@ -34,13 +34,14 @@ namespace ku
             CONVERSION,
 
             DB,
-            DB_QUOTA,
             REL_VAR_EXISTS,
             NO_SUCH_REL_VAR,
-            REL_VAR_DEPENDENCY,
             CONSTRAINT,
-            FIELD,
             QUERY,
+            NO_SUCH_ATTR,
+            ATTR_VALUE_REQUIRED,
+            REL_VAR_DEPENDENCY,
+            DB_QUOTA,
 
             FS,
             FS_QUOTA,
@@ -233,7 +234,8 @@ namespace ku
         }
 
         void not_found(const std::string& name) const {
-            throw Error(Error::FIELD, "Field \"" + name + "\" does not exist");
+            throw Error(Error::NO_SUCH_ATTR,
+                        "Attribute \"" + name + "\" does not exist");
         }
     };
 

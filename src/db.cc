@@ -1383,8 +1383,7 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
     uint64_t size = 0;
     if (rich_header.empty()) {
         if (!value_map.empty())
-            throw Error(Error::FIELD,
-                        "Non empty insert into zero-column RelVar");
+            rich_header.find(value_map.begin()->first); // throws
         sql_str = (format(empty_cmd) % rel_var_name).str();
     } else {
         if (!value_map.empty()) {
@@ -1400,8 +1399,8 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
                 if (itr == value_map.end()) {
                     if (rich_attr.GetTrait() != Type::SERIAL &&
                         !rich_attr.GetDefaultPtr())
-                        throw Error(Error::FIELD,
-                                    ("Value of field \"" +
+                        throw Error(Error::ATTR_VALUE_REQUIRED,
+                                    ("Value of attribute \"" +
                                      rich_attr.GetName() +
                                      "\" must be supplied"));
                 } else {

@@ -322,7 +322,7 @@ var baseTestSuite = {
 
   testErrors: function () {
     assertSame(ValueError.prototype.name, 'ValueError');
-    assert(new FieldError() instanceof DBError);
+    assert(new NoSuchAttrError() instanceof DBError);
     assert(UsageError() instanceof UsageError);
     assertSame(NotImplementedError(42).message, '42');
   },
@@ -629,7 +629,7 @@ var dbTestSuite = {
     assertEqual(
       query('Post.author->name where id == $', [0]).map(items),
       [[['name', 'anton']]]);
-    assertThrow(FieldError, query, 'User.asdf');
+    assertThrow(NoSuchAttrError, query, 'User.asdf');
     assertEqual(
       query('User[id, name] where id == $1 && name == $2',
             [0, 'anton']).map(items),
@@ -648,13 +648,11 @@ var dbTestSuite = {
   testInsert: function () {
     assertThrow(UsageError, "db.insert('User')");
     assertThrow(TypeError, "db.insert('User', 15)");
-    assertThrow(FieldError, "db.insert('User', {'@': 'abc'})");
+    assertThrow(NoSuchAttrError, "db.insert('User', {'@': 'abc'})");
     assertThrow(ConstraintError,
                "db.insert('Comment', {id: 2, text: 'yo', author: 5, post: 0})");
-    assertThrow(FieldError,
-               "db.insert('User', {id: 2})");
-    assertThrow(FieldError,
-               "db.insert('Empty', {x: 5})");
+    assertThrow(AttrValueRequiredError, "db.insert('User', {id: 2})");
+    assertThrow(NoSuchAttrError, "db.insert('Empty', {x: 5})");
     assertEqual(
       items(db.insert('User', {name: 'xxx', age: false})),
       [['id', 3], ['name', 'xxx'], ['age', 0], ['flooder', true]]);

@@ -46,13 +46,14 @@
     defineErrorClass('Conversion'),
 
     _core.DBError,
-    defineErrorClass('DBQuota', _core.DBError),
     defineErrorClass('RelVarExists', _core.DBError),
     defineErrorClass('NoSuchRelVar', _core.DBError),
-    defineErrorClass('RelVarDependency', _core.DBError),
     defineErrorClass('Constraint', _core.DBError),
-    defineErrorClass('Field', _core.DBError),
     defineErrorClass('Query', _core.DBError),
+    defineErrorClass('NoSuchAttr', _core.DBError),
+    defineErrorClass('AttrValueRequired', _core.DBError),
+    defineErrorClass('RelVarDependency', _core.DBError),
+    defineErrorClass('DBQuota', _core.DBError),
 
     _core.FSError,
     defineErrorClass('FSQuota', _core.FSError),
