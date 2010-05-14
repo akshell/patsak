@@ -1079,7 +1079,7 @@ var fileTestSuite = {
     remove('dir2/new-dir');
     assertEqual(fs.list('').sort(), ['dir1', 'dir2', 'file']);
     assertEqual(fs.list('dir2'), []);
-    assertThrow(DirIsNotEmptyError, "fs.remove('dir1')");
+    assertThrow(FSError, "fs.remove('dir1')");
     assertThrow(PathError, "fs.remove('dir1/..//')");
   },
 

@@ -43,7 +43,6 @@ namespace
         case EISDIR:       tag = Error::ENTRY_IS_DIR;     break;
         case ENOTDIR:      tag = Error::ENTRY_IS_NOT_DIR; break;
         case ENAMETOOLONG: tag = Error::PATH;             break;
-        case ENOTEMPTY:    tag = Error::DIR_IS_NOT_EMPTY; break;
         case EILSEQ:
         case EINVAL:       tag = Error::CONVERSION;       break;
         }
