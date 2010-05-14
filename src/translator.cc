@@ -1006,7 +1006,7 @@ string Translator::TranslateUpdate(const string& rel_var_name,
                                    const Values& update_params) const
 {
     if (field_expr_map.empty())
-        throw Error(Error::USAGE, "Empty update field set");
+        throw Error(Error::VALUE, "Empty update field set");
     ostringstream oss;
     oss << "UPDATE " << Quoted(rel_var_name) << " SET ";
     const Header& header(db_viewer_.GetRelVarHeader(rel_var_name));

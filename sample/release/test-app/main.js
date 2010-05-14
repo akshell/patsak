@@ -248,7 +248,7 @@ var baseTestSuite = {
     set(obj, 'dontEnum', DONT_ENUM, 2);
     set(obj, 'dontDelete', DONT_DELETE, 3);
     assertThrow(TypeError, set, obj, 'field', {}, 42);
-    assertThrow(UsageError, set, obj, 'field', 8, 42);
+    assertThrow(ValueError, set, obj, 'field', 8, 42);
     obj.readOnly = 5;
     assertSame(obj.readOnly, 1);
     assertEqual(keys(obj), ['readOnly', 'dontDelete']);
@@ -332,7 +332,7 @@ var baseTestSuite = {
     function C(a, b) { this.sum = a + b; }
     assertSame(construct(C, [1, 2]).sum, 3);
     assertThrow(UsageError, construct);
-    assertThrow(UsageError, construct, 42, []);
+    assertThrow(TypeError, construct, 42, []);
     assertThrow(TypeError, construct, function () {}, 42);
   },
 
@@ -538,9 +538,9 @@ var dbTestSuite = {
 
   testCreate: function () {
     assertThrow(UsageError, "db.create('illegal', {})");
-    assertThrow(UsageError, create, '', {});
-    assertThrow(UsageError, create, '123bad', {});
-    assertThrow(UsageError, create, 'illegal', {'_@': number});
+    assertThrow(ValueError, create, '', {});
+    assertThrow(ValueError, create, '123bad', {});
+    assertThrow(ValueError, create, 'illegal', {'_@': number});
     assertThrow(TypeError, create, 'illegal', 'str');
     assertThrow(TypeError, "db.create('illegal', {}, 'str', [], [])");
     assertThrow(TypeError, create, 'illegal', {field: 15});
@@ -548,9 +548,9 @@ var dbTestSuite = {
     assertThrow(E, create, 'RV', {get x() { throw new E(); }});
     assertThrow(RelVarExistsError, create, 'User', {});
 
-    assertThrow(UsageError,
+    assertThrow(ValueError,
                 create, 'illegal', {x: number}, {unique: [[]]});
-    assertThrow(UsageError,
+    assertThrow(ValueError,
                 create, 'illegal',
                         {x: number, y: number},
                         {foreign: [['x', 'y'], 'User', ['id']]});
@@ -585,13 +585,13 @@ var dbTestSuite = {
     db.drop(['legal']);
     assertThrow(TypeError, create, 'illegal', {x: date._default('illegal')});
 
-    assertThrow(UsageError,
+    assertThrow(ValueError,
                 create, 'illegal', {}, {foreign: [['a', 'b']]});
-    assertThrow(UsageError,
+    assertThrow(ValueError,
                 create, 'illegal',
                         {a: number},
                         {unique: [['a', 'a']]});
-    assertThrow(UsageError,
+    assertThrow(ValueError,
                 create, 'illegal',
                         {x: number},
                         {foreign: [[[], 'User', []]]});
@@ -599,7 +599,7 @@ var dbTestSuite = {
                 create, 'illegal',
                         {x: number},
                         {foreign: [[['x'], 'User', ['age']]]});
-    assertThrow(UsageError,
+    assertThrow(ValueError,
                 create, 'illegal',
                         {x: number},
                         {foreign: [[['x'], 'User', ['id', 'age']]]});
@@ -611,7 +611,7 @@ var dbTestSuite = {
     assertSame(db.list().indexOf('NewRelVar'), -1);
     assertThrow(RelVarDependencyError, "db.drop(['User'])");
     assertThrow(RelVarDependencyError, "db.drop(['User', 'Post'])");
-    assertThrow(UsageError, "db.drop(['Comment', 'Comment'])");
+    assertThrow(ValueError, "db.drop(['Comment', 'Comment'])");
     create('rv1', {x: number._unique()});
     create('rv2', {x: number._foreign('rv1', 'x')});
     assertThrow(RelVarDependencyError, "db.drop(['rv1'])");
@@ -735,7 +735,7 @@ var dbTestSuite = {
 
   testUpdate: function () {
     var initial = query('User');
-    assertThrow(UsageError, "db.update('User', 'id == 0', [], {}, [])");
+    assertThrow(ValueError, "db.update('User', 'id == 0', [], {}, [])");
     assertThrow(UsageError, "db.update('User', 'id == 0', [], {})");
     assertThrow(TypeError, "db.update('User', 'id == 0', [], 1, [])");
     assertThrow(ConstraintError,

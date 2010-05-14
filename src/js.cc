@@ -540,7 +540,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, SetCb,
         throw Error(Error::TYPE, "Property attribute must be integer");
     int32_t attributes = args[2]->Int32Value();
     if (attributes < 0 || attributes >= 8)
-        throw Error(Error::USAGE,
+        throw Error(Error::VALUE,
                     ("Property attribute must be a "
                      "unsigned integer less than 8"));
     object->Set(args[1], args[3], static_cast<PropertyAttribute>(attributes));
@@ -588,7 +588,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, ConstructCb,
 {
     CheckArgsLength(args, 2);
     if (!args[0]->IsFunction ())
-        throw Error(Error::USAGE, "First argument must be function");
+        throw Error(Error::TYPE, "First argument must be function");
     Handle<Function> constructor(Handle<Function>::Cast(args[0]));
     Handle<Array> array(GetArray(args[1]));
     vector<Handle<v8::Value> > values;

@@ -446,7 +446,7 @@ size_t DBMeta::GetRelVarIdx(const string& rel_var_name) const
 void DBMeta::CheckName(const string& name)
 {
     if (name.empty())
-        throw Error(Error::USAGE, "Identifier can't be empty");
+        throw Error(Error::VALUE, "Identifier can't be empty");
     if (name.size() > MAX_NAME_SIZE) {
         static const string message(
             (format("RelVar and attribute name length must be "
@@ -456,12 +456,12 @@ void DBMeta::CheckName(const string& name)
     }
     const locale& loc(locale::classic());
     if (name[0] != '_' && !isalpha(name[0], loc))
-        throw Error(Error::USAGE,
+        throw Error(Error::VALUE,
                     ("First identifier character must be "
                      "a letter or underscore"));
     for (size_t i = 1; i < name.size(); ++i)
         if (name[i] != '_' && !isalnum(name[i], loc))
-            throw Error(Error::USAGE,
+            throw Error(Error::VALUE,
                         ("Identifier must consist only of "
                          "letters, digits or underscores"));
 }
@@ -584,18 +584,18 @@ namespace
 
         void operator()(const Unique& unique) const {
             if (unique.field_names.empty())
-                throw Error(Error::USAGE, "Empty unique field set");
+                throw Error(Error::VALUE, "Empty unique field set");
             BOOST_FOREACH(const string& field_name, unique.field_names)
                 rel_var_.GetRichHeader().find(field_name);
         }
 
         void operator()(const ForeignKey& foreign_key) const {
-            if (foreign_key.key_field_names.empty())
-                throw Error(Error::USAGE,
-                            "Foreign key with empty key field set");
             if (foreign_key.key_field_names.size() !=
                 foreign_key.ref_field_names.size())
-                throw Error(Error::USAGE, "Ref-key fields size mismatch");
+                throw Error(Error::VALUE, "Ref-key fields size mismatch");
+            if (foreign_key.key_field_names.empty())
+                throw Error(Error::VALUE,
+                            "Foreign key with empty key field set");
 
             const RichHeader& key_rich_header(rel_var_.GetRichHeader());
             const RelVar&

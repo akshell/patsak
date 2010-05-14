@@ -102,7 +102,7 @@ namespace
         result.reserve(array->Length());
         for (size_t i = 0; i < array->Length(); ++i)
             if (!result.add_unsure(Stringify(array->Get(Integer::New(i)))))
-                throw Error(Error::USAGE, "Duplicating names");
+                throw Error(Error::VALUE, "Duplicating names");
         return result;
     }
 }    
@@ -490,7 +490,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateCb,
     for (size_t i = 0; i < foreigns->Length(); ++i) {
         Handle<Array> foreign(GetArray(foreigns->Get(Integer::New(i))));
         if (foreign->Length() != 3)
-            throw Error(Error::USAGE,
+            throw Error(Error::VALUE,
                         "Foreign item must be an array of length 3");
         constrs.push_back(
             ForeignKey(ReadStringSet(foreign->Get(Integer::New(0))),
