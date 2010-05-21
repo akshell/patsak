@@ -184,6 +184,7 @@ namespace ku
         std::string GetAppPatsakVersion(const std::string& name) const;
         void CheckAppExists(const std::string& name) const;
         App DescribeApp(const std::string& name) const;
+        std::string GetUserEmail(const std::string& user_name) const;
         void CheckUserExists(const std::string& name) const;
         Strings GetAdminedApps(const std::string& user_name) const;
         Strings GetDevelopedApps(const std::string& user_name) const;

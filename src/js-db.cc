@@ -386,11 +386,13 @@ DEFINE_JS_CLASS(DBBg, "DB", object_template, /*proto_template*/)
     SetFunction(object_template, "getAdminedApps", GetAdminedAppsCb);
     SetFunction(object_template, "getDevelopedApps", GetDevelopedAppsCb);
     SetFunction(object_template, "getAppsByLabel", GetAppsByLabelCb);
+    SetFunction(object_template, "getUserEmail", GetUserEmailCb);
 }
 
 
-DBBg::DBBg()
-    : rolled_back_(false)
+DBBg::DBBg(bool priviliged)
+    : priviliged_(priviliged)
+    , rolled_back_(false)
 {
 }
 
@@ -686,6 +688,16 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetAppDescriptionCb,
     Set(result, "description", String::New(app.description.c_str()));
     Set(result, "labels", MakeV8Array(app.labels));
     return result;
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetUserEmailCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    if (!priviliged_)
+        throw Error(Error::USAGE, "Application in not priviliged");
+    return String::New(access_ptr->GetUserEmail(Stringify(args[0])).c_str());
 }
 
 

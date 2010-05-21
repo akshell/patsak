@@ -1,7 +1,8 @@
 
 CREATE TABLE "auth_user" (
     "id" serial NOT NULL PRIMARY KEY,
-    "username" varchar(30) NOT NULL UNIQUE
+    "username" varchar(30) NOT NULL UNIQUE,
+    "email" varchar(75) NOT NULL
 )
 ;
 CREATE TABLE "main_label" (
@@ -37,9 +38,9 @@ CREATE TABLE "main_app_devs" (
 )
 ;
 
-INSERT INTO "auth_user" VALUES (0, 'test user');
-INSERT INTO "auth_user" VALUES (1, 'Odysseus');
-INSERT INTO "auth_user" VALUES (2, 'Achilles');
+INSERT INTO "auth_user" VALUES (0, 'test user', 'test-user@akshell.com');
+INSERT INTO "auth_user" VALUES (1, 'Odysseus', 'odysseus@ithaca.gr');
+INSERT INTO "auth_user" VALUES (2, 'Achilles', 'achilles@phthia.gr');
 INSERT INTO "main_label" VALUES (0, '1', 2);
 INSERT INTO "main_label" VALUES (1, '2', 1);
 INSERT INTO "main_app" VALUES (0, 'test-app', 0, '',

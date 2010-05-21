@@ -1511,15 +1511,22 @@ App Access::DescribeApp(const string& name) const
 }
 
 
-void Access::CheckUserExists(const string& name) const
+string Access::GetUserEmail(const string& user_name) const
 {
-    static const format query("SELECT ku.user_exists(%1%);");
-    pqxx::result pqxx_result(
-        work_ptr_->exec((format(query) % work_ptr_->quote(name)).str()));
+    static const format query("SELECT ku.get_user_email(%1%);");
+    pqxx::result pqxx_result =
+        work_ptr_->exec((format(query) % work_ptr_->quote(user_name)).str());
     KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
     KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
     if (pqxx_result[0][0].is_null())
-        throw Error(Error::NO_SUCH_USER, "No such user: \"" + name + '"');
+        throw Error(Error::NO_SUCH_USER, "No such user: \"" + user_name + '"');
+    return pqxx_result[0][0].as<string>();
+}
+
+
+void Access::CheckUserExists(const string& user_name) const
+{
+    GetUserEmail(user_name);
 }
 
 

@@ -950,6 +950,10 @@ var dbTestSuite = {
     assertThrow(UsageError, "db.getAppDescription()");
   },
 
+  testGetUserEmail: function () {
+    assertThrow(UsageError, "db.getUserEmail('Achilles')");
+  },
+
   testGetAdminedApps: function () {
     assertEqual(db.getAdminedApps('test user').sort(),
                 ['bad-app', 'blocking-app',

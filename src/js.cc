@@ -949,6 +949,7 @@ Program::Impl::Impl(const Place& place,
     : initialized_(false)
     , db_(db)
     , code_reader_(code_dir, include_dir)
+    , db_bg_(place.app_name == "profile")
     , fs_bg_(media_dir, db.GetFSQuota())
     , core_bg_(place, code_reader_, app_accessor, fs_bg_)
 {

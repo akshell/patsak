@@ -156,13 +156,6 @@ $$
 $$ LANGUAGE SQL STABLE;
 
 
-CREATE FUNCTION ku.user_exists(name text) RETURNS bool AS $$
-    SELECT true
-    FROM public.auth_user AS usr
-    WHERE usr.username = $1;
-$$ LANGUAGE SQL STABLE;
-
-
 CREATE FUNCTION ku.get_app_patsak_version(name text) RETURNS text AS $$
     SELECT patsak_version
     FROM public.main_app AS app
@@ -209,6 +202,14 @@ $$
     FROM public.main_label AS label, public.main_app_labels AS app_labels
     WHERE label.id = app_labels.label_id
     AND app_labels.app_id = $1;
+$$ LANGUAGE SQL STABLE;
+
+
+CREATE FUNCTION ku.get_user_email(user_name text) RETURNS text AS
+$$
+    SELECT usr.email
+    FROM public.auth_user AS usr
+    WHERE usr.username = $1;
 $$ LANGUAGE SQL STABLE;
 
 
