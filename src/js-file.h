@@ -39,12 +39,9 @@ namespace ku
             std::auto_ptr<v8::String::Utf8Value> utf8_value_ptr_;
         };
 
-        BinaryBg(std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>());
-        
-        BinaryBg(const BinaryBg& parent,
-                 size_t start = 0,
-                 size_t stop = MINUS_ONE);
-        
+        static v8::Handle<v8::Object>
+        Create(std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>());
+
         ~BinaryBg();
 
     private:
@@ -55,7 +52,15 @@ namespace ku
         size_t size_;
         
         static v8::Handle<v8::Value> ConstructorCb(const v8::Arguments& args);
-
+        
+        BinaryBg(std::auto_ptr<Chars> data_ptr);
+        
+        BinaryBg(const BinaryBg& parent,
+                 size_t start = 0,
+                 size_t stop = MINUS_ONE);
+        
+        void SetIndexedProperties(v8::Handle<v8::Object> object) const;
+        v8::Handle<v8::Object> DoCreate();
         size_t ReadIndex(v8::Handle<v8::Value> value) const;
         
         DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetLengthCb,

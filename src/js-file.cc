@@ -321,10 +321,7 @@ Handle<v8::Value> BinaryBg::ConstructorCb(const Arguments& args)
         }
         BinaryBg* new_binary_ptr = new BinaryBg(data_ptr);
         BinaryBg::GetJSClass().Attach(args.This(), new_binary_ptr);
-        args.This()->SetIndexedPropertiesToExternalArrayData(
-            new_binary_ptr->start_ptr_,
-            kExternalByteArray,
-            new_binary_ptr->size_);
+        new_binary_ptr->SetIndexedProperties(args.This());
         return Handle<v8::Value>();
     } JS_CATCH(Handle<v8::Value>);
 }
@@ -362,6 +359,27 @@ BinaryBg::~BinaryBg()
 }
 
 
+void BinaryBg::SetIndexedProperties(Handle<Object> object) const
+{
+    object->SetIndexedPropertiesToExternalArrayData(
+        start_ptr_, kExternalByteArray, size_);
+}
+
+
+Handle<Object> BinaryBg::DoCreate()
+{
+    Handle<Object> result(GetJSClass().Instantiate(this));
+    SetIndexedProperties(result);
+    return result;
+}
+
+
+Handle<Object> BinaryBg::Create(auto_ptr<Chars> data_ptr)
+{
+    return (new BinaryBg(data_ptr))->DoCreate();
+}
+
+
 DEFINE_JS_CALLBACK2(Handle<v8::Value>, BinaryBg, GetLengthCb,
                     Local<String>, /*property*/,
                     const AccessorInfo&, /*info*/) const
@@ -396,14 +414,13 @@ size_t BinaryBg::ReadIndex(Handle<v8::Value> value) const
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, RangeCb,
                     const Arguments&, args) const
 {
-    switch (args.Length()) {
-    case 0:
-        return JSNew<BinaryBg>(*this);
-    case 1:
-        return JSNew<BinaryBg>(*this, ReadIndex(args[0]));
-    default:
-        return JSNew<BinaryBg>(*this, ReadIndex(args[0]), ReadIndex(args[1]));
-    }
+    BinaryBg* binary_ptr =
+        args.Length() == 0
+        ? new BinaryBg(*this)
+        : args.Length() == 1
+        ? new BinaryBg(*this, ReadIndex(args[0]))
+        : new BinaryBg(*this, ReadIndex(args[0]), ReadIndex(args[1]));
+    return binary_ptr->DoCreate();
 }
 
 
@@ -714,7 +731,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, ReadCb,
     ssize_t count = read(fd_, &data_ptr->front(), data_ptr->size());
     KU_ASSERT(count != -1);
     data_ptr->resize(count);
-    return JSNew<BinaryBg>(data_ptr);
+    return BinaryBg::Create(data_ptr);
 }
 
 

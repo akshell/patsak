@@ -628,7 +628,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestAppCb,
     KU_ASSERT(data_ptr->size() >= 3);
     if (string(&data_ptr->front(), 3) == "OK\n") {
         data_ptr->erase(data_ptr->begin(), data_ptr->begin() + 3);
-        return JSNew<BinaryBg>(data_ptr);
+        return BinaryBg::Create(data_ptr);
     } else {
         KU_ASSERT_MESSAGE(string(&data_ptr->front(), 6) == "ERROR\n",
                           string(&data_ptr->front(), data_ptr->size()));
@@ -666,7 +666,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestHostCb,
         if (error_code != asio::error::eof)
             throw asio::system_error(error_code);
         const char* data_ptr = asio::buffer_cast<const char*>(streambuf.data());
-        return JSNew<BinaryBg>(
+        return BinaryBg::Create(
             auto_ptr<Chars>(new Chars(data_ptr, data_ptr + streambuf.size())));
     } catch (const asio::system_error& error) {
         throw Error(Error::REQUEST_HOST, error.what());
@@ -1092,7 +1092,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         file_ptrs[i] = file_ptr;
     }
     Set(core_, "files", files);
-    Set(core_, "data", JSNew<BinaryBg>(data_ptr));
+    Set(core_, "data", BinaryBg::Create(data_ptr));
     Set(core_, "user", String::New(user.c_str()));
     Set(core_, "issuer", String::New(issuer.c_str()));
 

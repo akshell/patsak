@@ -358,6 +358,9 @@ var baseTestSuite = {
     assertEqual(
       requestApp('another-app', '_core.files[0].writable', ['file1'], ''),
       'false');
+    assertEqual(
+      requestApp('another-app', '_core.files[0]._read()[0]', ['file1'], ''),
+      'w'.charCodeAt(0));
     assertThrow(RequestAppError, requestApp,
                 'another-app', '_core.files[0]._write("")', ['file1'], '');
     assertThrow(NoSuchAppError, requestApp, 'invalid/app/name', '', [], null);
@@ -996,6 +999,7 @@ var fileTestSuite = {
 
   testOpen: function () {
     assertEqual(fs.open('//dir1////subdir/hello')._read(), 'hello world!');
+    assertSame(fs.open('file')._read()[5], 't'.charCodeAt(0));
     assertSame(fs.open('/dir1/subdir/привет')._read()._toString(), 'привет!');
     assertThrow(EntryIsDirError, "fs.open('dir1')");
     assertThrow(PathError, "fs.open('//..//test-app/dir1/subdir/hello')");
