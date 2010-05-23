@@ -137,10 +137,16 @@
           module.spot = _core.spot;
         }
       }
-      if (!main)
-        main = module;
+      var oldMain = main;
+      main = main || module;
       _core.set(require, 'main', 5, main);
-      func(require, exports, module);
+      try {
+        func(require, exports, module);
+      } catch (error) {
+        delete cache[key];
+        main = oldMain;
+        throw error;
+      }
       return exports;
     };
   }

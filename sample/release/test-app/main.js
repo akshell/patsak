@@ -204,6 +204,7 @@ var baseTestSuite = {
       'nested',
       'relative',
       'transitive',
+      'error',
       'module/./../module//a'
     ].forEach(
       function (version) {
