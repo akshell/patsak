@@ -1146,6 +1146,7 @@ var fileTestSuite = {
                'binary concatenation works!');
     assertThrow(TypeError, "new Binary(1.5)");
     assertThrow(RangeError, "new Binary(-1)");
+
     assertSame(
       new Binary(text, 'utf-32le')._range(21 * 4, -6 * 4)._toString('utf-32'),
       'русский');
@@ -1156,9 +1157,11 @@ var fileTestSuite = {
       new Binary(text)._range()._range()._range(21)._toString(),
       'русский текст');
     assertSame(new Binary(text)._range(1000).length, 0);
+
     binary = new Binary('Hello world    Filling works.');
     binary._range(11, 14)._fill('!'.charCodeAt(0));
     assertSame(binary._toString(), 'Hello world!!! Filling works.');
+
     binary = new Binary('test test test');
     assertSame(binary._indexOf(''), 0);
     assertSame(binary._indexOf('', 5), 5);
@@ -1184,6 +1187,23 @@ var fileTestSuite = {
     assertSame(new Binary('abcd')._compare(new Binary('abcdef')), -1);
     assertSame(new Binary()._compare(new Binary('')), 0);
     assertThrow(TypeError, "new Binary()._compare(42)");
+
+    binary = new Binary(text);
+    function hex(binary) {
+      return Array.prototype.map.call(
+        binary,
+        function (code) {
+          var string = code.toString(16);
+          while (string.length < 2)
+            string = '0' + string;
+          return string;
+        }).join('');
+    }
+    assertSame(hex(binary._md5()), '2dc09086c2543df2ebb03147a589ae85');
+    assertSame(hex(binary._sha1()), '1c673153e2f3555eb5fd8d7670114f318fc5d5d2');
+    binary = new Binary();
+    assertSame(hex(binary._md5()), 'd41d8cd98f00b204e9800998ecf8427e');
+    assertSame(hex(binary._sha1()), 'da39a3ee5e6b4b0d3255bfef95601890afd80709');
   }
 };
 

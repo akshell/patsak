@@ -84,6 +84,12 @@ namespace ku
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CompareCb,
                              const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, Md5Cb,
+                             const v8::Arguments&) const;
+        
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, Sha1Cb,
+                             const v8::Arguments&) const;
     };
 
 

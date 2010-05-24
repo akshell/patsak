@@ -5,6 +5,8 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/foreach.hpp>
+#include <openssl/md5.h>
+#include <openssl/sha.h>
 
 #include <fcntl.h>
 #include <errno.h>
@@ -192,6 +194,8 @@ void BinaryBg::AdjustTemplates(Handle<ObjectTemplate> object_template,
     SetFunction(proto_template, "_indexOf", IndexOfCb);
     SetFunction(proto_template, "_lastIndexOf", LastIndexOfCb);
     SetFunction(proto_template, "_compare", CompareCb);
+    SetFunction(proto_template, "_md5", Md5Cb);
+    SetFunction(proto_template, "_sha1", Sha1Cb);
 }
 
 
@@ -362,7 +366,7 @@ BinaryBg::~BinaryBg()
 void BinaryBg::SetIndexedProperties(Handle<Object> object) const
 {
     object->SetIndexedPropertiesToExternalArrayData(
-        start_ptr_, kExternalByteArray, size_);
+        start_ptr_, kExternalUnsignedByteArray, size_);
 }
 
 
@@ -487,6 +491,28 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, CompareCb,
                            ? 0
                            : (size_ > other_ptr->size_ ? 1 : -1))
                         : (cmp > 0 ? 1 : -1));
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, Md5Cb,
+                    const Arguments&, /*args*/) const
+{
+    auto_ptr<Chars> data_ptr(new Chars(16));
+    MD5(reinterpret_cast<unsigned char*>(start_ptr_),
+        size_,
+        reinterpret_cast<unsigned char*>(&data_ptr->front()));
+    return BinaryBg::Create(data_ptr);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, Sha1Cb,
+                    const Arguments&, /*args*/) const
+{
+    auto_ptr<Chars> data_ptr(new Chars(20));
+    SHA1(reinterpret_cast<unsigned char*>(start_ptr_),
+         size_,
+         reinterpret_cast<unsigned char*>(&data_ptr->front()));
+    return BinaryBg::Create(data_ptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
