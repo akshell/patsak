@@ -1052,6 +1052,7 @@ var fileTestSuite = {
         fs.open(array.join(''));
       });
     assertThrow(NoSuchAppError, "fs.open('no-such-app', 'file')");
+    assertThrow(NoSuchEntryError, "fs.open('another-app', 'no such file')");
   },
 
   testExists: function () {
