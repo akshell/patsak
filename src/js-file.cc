@@ -2,6 +2,7 @@
 // (c) 2009-2010 by Anton Korenyushkin
 
 #include "js-file.h"
+#include "db.h"
 
 #include <boost/lexical_cast.hpp>
 #include <boost/foreach.hpp>
@@ -797,6 +798,22 @@ namespace
         }
         return result;
     }
+    
+
+    string DoReadPath(const string& root_path,
+                      Handle<v8::Value> value,
+                      bool can_be_root = true)
+    {
+        string rel_path(Stringify(value));
+        int depth = GetPathDepth(rel_path);
+        if (depth < 0)
+            throw Error(Error::PATH,
+                        ("Path \"" + rel_path +
+                         "\" leads beyond the root directory"));
+        if (!can_be_root && !depth)
+            throw Error(Error::PATH, "Path \"" + rel_path + "\" is empty");
+        return root_path + '/' + rel_path;
+    }
 }
 
 
@@ -816,9 +833,12 @@ DEFINE_JS_CLASS(FSBg, "FS", object_template, /*proto_template*/)
 }
 
 
-FSBg::FSBg(const string& root_path, uint64_t quota)
-    : root_path_(root_path)
-    , quota_checker_ptr_(new FSQuotaChecker(quota, CalcTotalSize(root_path)))
+FSBg::FSBg(const string& app_path,
+           const string& release_path,
+           uint64_t quota)
+    : app_path_(app_path)
+    , release_path_(release_path)
+    , quota_checker_ptr_(new FSQuotaChecker(quota, CalcTotalSize(app_path)))
 {
 }
 
@@ -830,39 +850,40 @@ FSBg::~FSBg()
 
 string FSBg::ReadPath(Handle<v8::Value> value, bool can_be_root) const
 {
-    string rel_path(Stringify(value));
-    int depth = GetPathDepth(rel_path);
-    if (depth < 0)
-        throw Error(Error::PATH,
-                    ("Path \"" + rel_path +
-                     "\" leads beyond the root directory"));
-    if (!can_be_root && !depth)
-        throw Error(Error::PATH, "Path \"" + rel_path + "\" is empty");
-    return root_path_ + '/' + rel_path;
+    return DoReadPath(app_path_, value, can_be_root);
+}
+
+
+string FSBg::ReadPath(const Arguments& args) const
+{
+    CheckArgsLength(args, 1);
+    if (args.Length() == 1)
+        return ReadPath(args[0]);
+    string app_name(Stringify(args[0]));
+    access_ptr->CheckAppExists(app_name);
+    return DoReadPath(release_path_ + '/' + app_name, args[1]);
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, OpenCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 1);
-    return JSNew<FileBg>(ReadPath(args[0]), quota_checker_ptr_.get());
+    return JSNew<FileBg>(ReadPath(args),
+                         args.Length() == 1 ? quota_checker_ptr_.get() : 0);
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ExistsCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 1);
-    return Boolean::New(GetStat(ReadPath(args[0]), true).get());
+    return Boolean::New(GetStat(ReadPath(args), true).get());
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsDirCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 1);
-    auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args[0]), true));
+    auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args), true));
     return Boolean::New(stat_ptr.get() && S_ISDIR(stat_ptr->st_mode));
 }
 
@@ -870,8 +891,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsDirCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsFileCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 1);
-    auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args[0]), true));
+    auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args), true));
     return Boolean::New(stat_ptr.get() && S_ISREG(stat_ptr->st_mode));
 }
 
@@ -879,17 +899,15 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsFileCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, GetModDateCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 1);
     return Date::New(
-        static_cast<double>(GetStat(ReadPath(args[0]))->st_mtime) * 1000);
+        static_cast<double>(GetStat(ReadPath(args))->st_mtime) * 1000);
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ListCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 1);
-    DIR* dir_ptr = opendir(ReadPath(args[0]).c_str());
+    DIR* dir_ptr = opendir(ReadPath(args).c_str());
     if (!dir_ptr)
         throw MakeErrnoError();
     Handle<Array> result(Array::New());

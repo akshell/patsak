@@ -363,7 +363,7 @@ var baseTestSuite = {
       requestApp('another-app', '_core.files[0]._read()[0]', ['file1'], ''),
       'w'.charCodeAt(0));
     assertThrow(RequestAppError, requestApp,
-                'another-app', '_core.files[0]._write("")', ['file1'], '');
+                'another-app', "_core.files[0]._write('')", ['file1'], '');
     assertThrow(NoSuchAppError, requestApp, 'invalid/app/name', '', [], null);
     assertThrow(UsageError, requestApp, 'test-app', '2+2', [], null);
     assertThrow(RequestAppError, requestApp, 'throwing-app', '', [], null);
@@ -990,6 +990,9 @@ var fileTestSuite = {
   setUp: function ()
   {
     fs.list('').forEach(remove);
+    requestApp('another-app',
+               "_core.fs.list('').forEach(_core.fs.remove, _core.fs)",
+               [], '');
     fs.createDir('dir1');
     fs.createDir('dir2');
     fs.createDir('dir1/subdir');
@@ -1031,6 +1034,13 @@ var fileTestSuite = {
     assert(file.closed);
     assertThrow(ValueError, function () { file._read(); });
     remove('test');
+
+    requestApp('another-app', "_core.fs.open('file')._write('text')", [], '');
+    file = fs.open('another-app', 'file');
+    assertEqual(file._read(), 'text');
+    assert(!file.writable);
+    assertThrow(FileIsReadOnlyError, function () { file._write(''); });
+
     assertThrow(EntryIsNotDirError, "fs.open('file/xxx')");
     assertThrow(EntryIsDirError, "fs.open('dir1')");
     assertThrow(
@@ -1041,6 +1051,7 @@ var fileTestSuite = {
           array.push('x');
         fs.open(array.join(''));
       });
+    assertThrow(NoSuchAppError, "fs.open('no-such-app', 'file')");
   },
 
   testExists: function () {
@@ -1066,6 +1077,8 @@ var fileTestSuite = {
   testList: function () {
     assertEqual(fs.list('').sort(), ['dir1', 'dir2', 'file']);
     assertThrow(NoSuchEntryError, "fs.list('no such dir')");
+    requestApp('another-app', "_core.fs.createDir('dir')", [], '');
+    assertEqual(fs.list('another-app', 'dir'), []);
   },
 
   testGetModDate: function () {
@@ -1075,7 +1088,7 @@ var fileTestSuite = {
     remove('hello');
   },
 
-  testMakeDir: function () {
+  testCreateDir: function () {
     fs.createDir('dir2/ddd');
     assertEqual(fs.list('dir2'), ['ddd']);
     assertEqual(fs.list('dir2/ddd'), []);

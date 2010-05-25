@@ -979,6 +979,7 @@ auto_ptr<Program> MainRunner::InitProgram(DB& db,
                                          code_dir_ + path_suffix_,
                                          code_dir_ + "/release/",
                                          media_dir_ + path_suffix_,
+                                         media_dir_ + "/release/",
                                          db,
                                          app_accessor));
 }

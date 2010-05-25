@@ -317,6 +317,7 @@ def _make_dirs():
     _make_dir_tree(GUARD_DIR)
     _make_dir_tree(MEDIA_DIR)
     os.mkdir(os.path.join(MEDIA_DIR, 'release', APP_NAME))
+    os.mkdir(os.path.join(MEDIA_DIR, 'release', 'another-app'))
 
     
 def _write_config():

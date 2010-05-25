@@ -47,15 +47,15 @@ namespace
     // Class for read access to code files of current and other applications
     class CodeReader {
     public:
-        CodeReader(const string& code_path, const string& include_path);
+        CodeReader(const string& app_path, const string& release_path);
         auto_ptr<Chars> Read(const string& path) const;
         auto_ptr<Chars> Read(const string& app_name, const string& path) const;
         time_t GetModDate(const string& path) const;
         time_t GetModDate(const string& app_name, const string& path) const;
 
     private:
-        string code_path_;
-        string include_path_;
+        string app_path_;
+        string release_path_;
 
         void CheckPath(const string& path) const;
         
@@ -67,35 +67,36 @@ namespace
 }
 
 
-CodeReader::CodeReader(const string& code_path, const string& include_path)
-    : code_path_(code_path), include_path_(include_path)
+CodeReader::CodeReader(const string& app_path, const string& release_path)
+    : app_path_(app_path), release_path_(release_path)
 {
 }
 
 
 auto_ptr<Chars> CodeReader::Read(const string& path) const
 {
-    return DoRead(code_path_, path);
+    return DoRead(app_path_, path);
 }
 
 
-auto_ptr<Chars> CodeReader::Read(const string& app_name, const string& path) const
+auto_ptr<Chars> CodeReader::Read(const string& app_name,
+                                 const string& path) const
 {
     access_ptr->CheckAppExists(app_name);
-    return DoRead(include_path_ + '/' + app_name, path);
+    return DoRead(release_path_ + '/' + app_name, path);
 }
 
 
 time_t CodeReader::GetModDate(const string& path) const
 {
-    return DoGetModDate(code_path_, path);
+    return DoGetModDate(app_path_, path);
 }
 
 
 time_t CodeReader::GetModDate(const string& app_name, const string& path) const
 {
     access_ptr->CheckAppExists(app_name);
-    return DoGetModDate(include_path_ + '/' + app_name, path);
+    return DoGetModDate(release_path_ + '/' + app_name, path);
 }
 
 
@@ -894,9 +895,10 @@ namespace
 class Program::Impl {
 public:
     Impl(const Place& place,
-         const string& code_dir,
-         const string& include_dir,
-         const string& media_dir,
+         const string& app_code_path,
+         const string& release_code_path,
+         const string& app_media_path,
+         const string& release_media_path,
          DB& db,
          AppAccessor& app_accessor);
     
@@ -941,16 +943,17 @@ private:
 
 
 Program::Impl::Impl(const Place& place,
-                    const string& code_dir,
-                    const string& include_dir,
-                    const string& media_dir,
+                    const string& app_code_path,
+                    const string& release_code_path,
+                    const string& app_media_path,
+                    const string& release_media_path,
                     DB& db,
                     AppAccessor& app_accessor)
     : initialized_(false)
     , db_(db)
-    , code_reader_(code_dir, include_dir)
+    , code_reader_(app_code_path, release_code_path)
     , db_bg_(place.app_name == "profile")
-    , fs_bg_(media_dir, db.GetFSQuota())
+    , fs_bg_(app_media_path, release_media_path, db.GetFSQuota())
     , core_bg_(place, code_reader_, app_accessor, fs_bg_)
 {
     V8::SetFatalErrorHandler(HandleFatalError);
@@ -1118,15 +1121,17 @@ void Program::Impl::SetInternal(Handle<Object> object,
 ////////////////////////////////////////////////////////////////////////////////
 
 Program::Program(const Place& place,
-                 const string& code_dir,
-                 const string& include_dir,
-                 const string& media_dir,
+                 const string& app_code_path,
+                 const string& release_code_path,
+                 const string& app_media_path,
+                 const string& release_media_path,
                  DB& db,
                  AppAccessor& app_accessor)
     : pimpl_(new Impl(place,
-                      code_dir,
-                      include_dir,
-                      media_dir,
+                      app_code_path,
+                      release_code_path,
+                      app_media_path,
+                      release_media_path,
                       db,
                       app_accessor))
 {

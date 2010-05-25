@@ -19,6 +19,7 @@ using boost::lexical_cast;
 // Stuff
 ////////////////////////////////////////////////////////////////////////////////
 
+Access* ku::access_ptr;
 Persistent<Object> ku::js_error_classes;
 
 

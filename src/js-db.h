@@ -9,10 +9,6 @@
 
 namespace ku
 {
-    class Access;
-    extern Access* access_ptr;
-
-
     class DBBg {
     public:
         DECLARE_JS_CLASS(DBBg);

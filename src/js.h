@@ -54,9 +54,10 @@ namespace ku
     class Program {
     public:
         Program(const Place& place,
-                const std::string& code_dir,
-                const std::string& include_dir,
-                const std::string& media_dir,
+                const std::string& app_code_path,
+                const std::string& release_code_path,
+                const std::string& app_media_path,
+                const std::string& release_media_path,
                 DB& db,
                 AppAccessor& app_accessor);
         

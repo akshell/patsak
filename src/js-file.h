@@ -159,15 +159,21 @@ namespace ku
     public:
         DECLARE_JS_CLASS(FSBg);
 
-        FSBg(const std::string& root_path, uint64_t quota);
+        FSBg(const std::string& app_path,
+             const std::string& release_path,
+             uint64_t quota);
+        
         ~FSBg();
         
         std::string ReadPath(v8::Handle<v8::Value> value,
                              bool can_be_root = true) const;
         
     private:
-        const std::string root_path_;
+        const std::string app_path_;
+        const std::string release_path_;
         boost::scoped_ptr<FSQuotaChecker> quota_checker_ptr_;
+        
+        std::string ReadPath(const v8::Arguments& args) const;
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, OpenCb,
                              const v8::Arguments&) const;
