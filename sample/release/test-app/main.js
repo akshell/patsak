@@ -979,6 +979,40 @@ var dbTestSuite = {
     create('rv', {s: string});
     assertThrow(DBError, "db.insert('rv', {s: readCode('main.js')})");
     db.drop(['rv']);
+  },
+
+  testAddAttrs: function () {
+    assertThrow(TypeError, "db.addAttrs('rv', 42)");
+    assertThrow(ValueError, "db.addAttrs('rv', {x: []})");
+    assertThrow(TypeError, "db.addAttrs('rv', {x: [1, 2]})");
+    assertThrow(NotImplementedError,
+                "db.addAttrs('rv', {id: [number._serial(), 0]})");
+    create('rv', {id: number._serial()});
+    db.insert('rv', {});
+    db.insert('rv', {});
+    var d = new Date();
+    db.addAttrs(
+      'rv',
+      {
+        n: [number, 4.2],
+        i: [number._integer(), 0.1],
+        s: [string, 'yo'],
+        d: [date, d]
+      });
+    assertEqual(
+      query('rv', [], ['id']).map(items),
+      [
+        [['id', 0], ['n', 4.2], ['i', 0], ['s', 'yo'], ['d', d]],
+        [['id', 1], ['n', 4.2], ['i', 0], ['s', 'yo'], ['d', d]]
+      ]);
+    assertThrow(AttrExistsError, "db.addAttrs('rv', {s: [string, '']})");
+    for (var i = 0; i < 495; ++i) {
+      var descr = {};
+      descr['a' + i] = [number, i];
+      db.addAttrs('rv', descr);
+    }
+    assertThrow(DBQuotaError, "db.addAttrs('rv', {another: [string, '']})");
+    db.drop(['rv']);
   }
 };
 

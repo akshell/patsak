@@ -38,6 +38,7 @@ namespace ku
             NO_SUCH_REL_VAR,
             CONSTRAINT,
             QUERY,
+            ATTR_EXISTS,
             NO_SUCH_ATTR,
             ATTR_VALUE_REQUIRED,
             REL_VAR_DEPENDENCY,

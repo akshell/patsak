@@ -148,6 +148,47 @@ const Value* RichAttr::GetDefaultPtr() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// CheckName and CheckAttrNumber
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    void CheckName(const string& name)
+    {
+        if (name.empty())
+            throw Error(Error::VALUE, "Identifier can't be empty");
+        if (name.size() > MAX_NAME_SIZE) {
+            static const string message(
+                (format("RelVar and attribute name length must be "
+                        "no more than %1% characters") %
+                 MAX_NAME_SIZE).str());
+            throw Error(Error::DB_QUOTA, message);
+        }
+        const locale& loc(locale::classic());
+        if (name[0] != '_' && !isalpha(name[0], loc))
+            throw Error(Error::VALUE,
+                        ("First identifier character must be "
+                         "a letter or underscore"));
+        for (size_t i = 1; i < name.size(); ++i)
+            if (name[i] != '_' && !isalnum(name[i], loc))
+                throw Error(Error::VALUE,
+                            ("Identifier must consist only of "
+                             "letters, digits or underscores"));
+    }
+
+
+    void CheckAttrNumber(size_t number)
+    {
+        if (number > MAX_ATTR_NUMBER) {
+            static const string message(
+                (format("Maximum attribute number is %1%") %
+                 MAX_ATTR_NUMBER).str());
+            throw Error(Error::DB_QUOTA, message);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // RelVar
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -156,14 +197,17 @@ namespace
     class RelVar {
     public:
         RelVar(pqxx::work& work, const string& name);
+
         RelVar(const string& name,
                const RichHeader& rich_header,
                const Constrs& constrs);
+
         string GetName() const;
         const RichHeader& GetRichHeader() const;
         const Header& GetHeader() const;
         const Constrs& GetConstrs() const;
         Constrs& GetConstrs();
+        void AddAttrs(pqxx::work& work, const RichHeader& attrs);
 
     private:
         string name_;
@@ -260,6 +304,47 @@ void RelVar::InitHeader()
         header_.add_sure(rich_attr.GetAttr());
 }
 
+
+void RelVar::AddAttrs(pqxx::work& work, const RichHeader& new_rich_attrs)
+{
+    CheckAttrNumber(rich_header_.size() + new_rich_attrs.size());
+    ostringstream oss;
+    oss << "ALTER TABLE " << Quoted(name_) << ' ';
+    OmitInvoker print_sep((SepPrinter(oss)));
+    BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_attrs) {
+        string new_attr_name(new_rich_attr.GetName());
+        CheckName(new_attr_name);
+        BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
+            if (rich_attr.GetName() == new_attr_name)
+                throw Error(
+                    Error::ATTR_EXISTS,
+                    "Attribute \"" + new_attr_name + "\" already exists");
+        print_sep();
+        oss << "ADD " << Quoted(new_attr_name) << ' '
+            << new_rich_attr.GetType().GetPgStr(new_rich_attr.GetTrait());
+    }
+    oss << "; UPDATE " << Quoted(name_) << " SET ";
+    print_sep = OmitInvoker(SepPrinter(oss));
+    BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_attrs) {
+        print_sep();
+        oss << Quoted(new_rich_attr.GetName()) << " = "
+            << Quoter(work)(new_rich_attr.GetDefaultPtr()->GetPgLiter());
+    }
+    oss << "; ALTER TABLE " << Quoted(name_) << ' ';
+    print_sep = OmitInvoker(SepPrinter(oss));
+    BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_attrs) {
+        print_sep();
+        oss << "ALTER " << Quoted(new_rich_attr.GetName()) << " SET NOT NULL";
+    }
+    work.exec(oss.str());
+    BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_attrs) {
+        rich_header_.add_sure(RichAttr(new_rich_attr.GetName(),
+                                       new_rich_attr.GetType(),
+                                       new_rich_attr.GetTrait()));
+        header_.add_sure(new_rich_attr.GetAttr());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // DBMeta and its functors declarations
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,6 +355,7 @@ namespace
     public:
         DBMeta(pqxx::work& work, const string& schema_name);
         const RelVar& GetRelVar(const string& rel_var_name) const;
+        RelVar& GetRelVar(const string& rel_var_name);
         const RelVars& GetRelVars() const;
         
         void CreateRelVar(pqxx::work& work,
@@ -284,7 +370,7 @@ namespace
         RelVars rel_vars_;
 
         size_t GetRelVarIdx(const string& rel_var_name) const; // never throws
-        static void CheckName(const string& name);
+        size_t GetRelVarIdxChecked(const string& rel_var_name) const;
     };
 
     
@@ -374,11 +460,13 @@ const RelVars& DBMeta::GetRelVars() const
 
 const RelVar& DBMeta::GetRelVar(const string& rel_var_name) const
 {
-    size_t idx = GetRelVarIdx(rel_var_name);
-    if (idx == MINUS_ONE)
-        throw Error(Error::NO_SUCH_REL_VAR,
-                    "No such RelVar: \"" + rel_var_name + '"');
-    return rel_vars_[idx];
+    return rel_vars_[GetRelVarIdxChecked(rel_var_name)];
+}
+
+
+RelVar& DBMeta::GetRelVar(const string& rel_var_name)
+{
+    return rel_vars_[GetRelVarIdxChecked(rel_var_name)];
 }
 
 
@@ -395,12 +483,7 @@ void DBMeta::CreateRelVar(pqxx::work& work,
         throw Error(Error::DB_QUOTA, message);
     }
     CheckName(rel_var_name);
-    if (rich_header.size() > MAX_ATTR_NUMBER) {
-        static const string message(
-            (format("Maximum attribute number is %1%") %
-             MAX_ATTR_NUMBER).str());
-        throw Error(Error::DB_QUOTA, message);
-    }
+    CheckAttrNumber(rich_header.size());
     if (GetRelVarIdx(rel_var_name) != MINUS_ONE)
         throw Error(Error::REL_VAR_EXISTS,
                     "RelVar \"" + rel_var_name + "\" already exists");
@@ -443,27 +526,13 @@ size_t DBMeta::GetRelVarIdx(const string& rel_var_name) const
 }
 
 
-void DBMeta::CheckName(const string& name)
+size_t DBMeta::GetRelVarIdxChecked(const string& rel_var_name) const
 {
-    if (name.empty())
-        throw Error(Error::VALUE, "Identifier can't be empty");
-    if (name.size() > MAX_NAME_SIZE) {
-        static const string message(
-            (format("RelVar and attribute name length must be "
-                    "no more than %1% characters") %
-             MAX_NAME_SIZE).str());
-        throw Error(Error::DB_QUOTA, message);
-    }
-    const locale& loc(locale::classic());
-    if (name[0] != '_' && !isalpha(name[0], loc))
-        throw Error(Error::VALUE,
-                    ("First identifier character must be "
-                     "a letter or underscore"));
-    for (size_t i = 1; i < name.size(); ++i)
-        if (name[i] != '_' && !isalnum(name[i], loc))
-            throw Error(Error::VALUE,
-                        ("Identifier must consist only of "
-                         "letters, digits or underscores"));
+    size_t idx = GetRelVarIdx(rel_var_name);
+    if (idx == MINUS_ONE)
+        throw Error(Error::NO_SUCH_REL_VAR,
+                    "No such RelVar: \"" + rel_var_name + '"');
+    return idx;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1444,6 +1513,13 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
         return Values();
     KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
     return GetTupleValues(pqxx_result[0], rel_var.GetHeader());
+}
+
+
+void Access::AddAttrs(const string& rel_var_name, const RichHeader& rich_attrs)
+{
+    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().GetRelVar(rel_var_name));
+    rel_var.AddAttrs(*work_ptr_, rich_attrs);
 }
 
 

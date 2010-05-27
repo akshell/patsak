@@ -376,6 +376,7 @@ DEFINE_JS_CLASS(DBBg, "DB", object_template, /*proto_template*/)
     SetFunction(object_template, "insert", InsertCb);
     SetFunction(object_template, "del", DelCb);
     SetFunction(object_template, "update", UpdateCb);
+    SetFunction(object_template, "addAttrs", AddAttrsCb);
     SetFunction(object_template, "getAppDescription", GetAppDescriptionCb);
     SetFunction(object_template, "getAdminedApps", GetAdminedAppsCb);
     SetFunction(object_template, "getDevelopedApps", GetDevelopedAppsCb);
@@ -667,6 +668,40 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, UpdateCb,
         Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]),
         field_expr_map, ReadParams(args[4]));
     return Number::New(static_cast<double>(rows_number));
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, AddAttrsCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 2);
+    if (!args[1]->IsObject())
+        throw Error(Error::TYPE, "Attributes must be described by an object");
+    PropEnumerator prop_enumerator(args[1]->ToObject());
+    RichHeader rich_attrs;
+    rich_attrs.reserve(prop_enumerator.GetSize());
+    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
+        Prop prop(prop_enumerator.GetProp(i));
+        Handle<Array> descr(GetArray(prop.value));
+        if (descr->Length() != 2)
+            throw Error(Error::VALUE,
+                        "Each attribute must be described by a 2-item array");
+        const TypeBg* type_ptr =
+            TypeBg::GetJSClass().Cast(descr->Get(Integer::New(0)));
+        if (!type_ptr)
+            throw Error(Error::TYPE,
+                        "First description item must be a db.Type object");
+        if (type_ptr->GetTrait() == Type::SERIAL)
+            throw Error(Error::NOT_IMPLEMENTED,
+                        "Adding of serial attributes is not implemented");
+        const ku::Value& value(ReadKuValue(descr->Get(Integer::New(1))));
+        rich_attrs.add_sure(RichAttr(Stringify(prop.key),
+                                     type_ptr->GetType(),
+                                     type_ptr->GetTrait(),
+                                     &value));
+    }
+    access_ptr->AddAttrs(Stringify(args[0]), rich_attrs);
+    return Undefined();
 }
 
 
