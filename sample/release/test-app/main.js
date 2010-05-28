@@ -1052,6 +1052,22 @@ var dbTestSuite = {
     assertSame(query('X').length, 0);
     assertEqual(db.getUnique('X'), []);
     db.drop(['X', 'Y']);
+  },
+
+  testSetDefault: function () {
+    create('X', {n: number, s: string, b: bool});
+    assertThrow(NoSuchAttrError, "db.setDefault('X', {s: '', x: 42})");
+    db.setDefault('X', {});
+    assertEqual(items(db.getDefault('X')), []);
+    db.setDefault('X', {n: 42, b: true});
+    assertEqual(items(db.insert('X', {s: 'the answer'})),
+                [['n', 42], ['s', 'the answer'], ['b', true]]);
+    db.setDefault('X', {s: 'yo', b: false});
+    assertEqual(items(db.insert('X', {})),
+                [['n', 42], ['s', 'yo'], ['b', false]]);
+    assertEqual(items(db.getDefault('X')),
+                [['n', 42], ['s', 'yo'], ['b', false]]);
+    db.drop(['X']);
   }
 };
 

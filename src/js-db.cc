@@ -99,6 +99,21 @@ namespace
                 throw Error(Error::VALUE, "Duplicating names");
         return result;
     }
+
+
+    ValueMap ReadValueMap(Handle<v8::Value> value)
+    {
+        if (!value->IsObject())
+            throw Error(Error::TYPE, "Object required");
+        PropEnumerator prop_enumerator(value->ToObject());
+        ValueMap result;
+        for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
+            Prop prop(prop_enumerator.GetProp(i));
+            result.insert(ValueMap::value_type(Stringify(prop.key),
+                                               ReadKuValue(prop.value)));
+        }
+        return result;
+    }
 }    
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -378,6 +393,7 @@ DEFINE_JS_CLASS(DBBg, "DB", object_template, /*proto_template*/)
     SetFunction(object_template, "update", UpdateCb);
     SetFunction(object_template, "addAttrs", AddAttrsCb);
     SetFunction(object_template, "dropAttrs", DropAttrsCb);
+    SetFunction(object_template, "setDefault", SetDefaultCb);
     SetFunction(object_template, "getAppDescription", GetAppDescriptionCb);
     SetFunction(object_template, "getAdminedApps", GetAdminedAppsCb);
     SetFunction(object_template, "getDevelopedApps", GetDevelopedAppsCb);
@@ -622,18 +638,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, InsertCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 2);
-    if (!args[1]->IsObject())
-        throw Error(Error::TYPE, "Insert argument must be an object");
-    PropEnumerator prop_enumerator(args[1]->ToObject());
-    ValueMap value_map;
-    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
-        Prop prop(prop_enumerator.GetProp(i));
-        string name(Stringify(prop.key));
-        value_map.insert(ValueMap::value_type(name, ReadKuValue(prop.value)));
-    }
     string name(Stringify(args[0]));
+    Values values(access_ptr->Insert(name, ReadValueMap(args[1])));
     const RichHeader& rich_header(access_ptr->GetRelVarRichHeader(name));
-    Values values(access_ptr->Insert(name, value_map));
     KU_ASSERT_EQUAL(values.size(), rich_header.size());
     Handle<Object> result(Object::New());
     for (size_t i = 0; i < values.size(); ++i)
@@ -711,6 +718,15 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropAttrsCb,
 {
     CheckArgsLength(args, 2);
     access_ptr->DropAttrs(Stringify(args[0]), ReadStringSet(args[1]));
+    return Undefined();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, SetDefaultCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 2);
+    access_ptr->SetDefault(Stringify(args[0]), ReadValueMap(args[1]));
     return Undefined();
 }
 

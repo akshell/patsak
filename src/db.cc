@@ -147,6 +147,12 @@ const Value* RichAttr::GetDefaultPtr() const
     return default_ptr_.get();
 }
 
+
+void RichAttr::SetDefault(const Value& value)
+{
+    default_ptr_.reset(new Value(value));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // CheckName and CheckAttrNumber
 ////////////////////////////////////////////////////////////////////////////////
@@ -209,6 +215,7 @@ namespace
         Constrs& GetConstrs();
         void AddAttrs(pqxx::work& work, const RichHeader& attrs);
         void DropAttrs(pqxx::work& work, const StringSet& attr_names);
+        void SetDefault(pqxx::work& work, const ValueMap& value_map);
 
     private:
         string name_;
@@ -446,6 +453,28 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
     rich_header_ = new_rich_header;
     header_.clear();
     InitHeader();
+}
+
+void RelVar::SetDefault(pqxx::work& work, const ValueMap& value_map)
+{
+    if (value_map.empty())
+        return;
+    vector<size_t> indexes;
+    indexes.reserve(value_map.size());
+    ostringstream oss;
+    oss << "ALTER TABLE " << Quoted(name_) << ' ';
+    OmitInvoker print_sep((SepPrinter(oss)));
+    BOOST_FOREACH(const ValueMap::value_type& name_value, value_map) {
+        indexes.push_back(
+            &rich_header_.find(name_value.first) - &rich_header_[0]);
+        print_sep();
+        oss << "ALTER " << Quoted(name_value.first)
+            << " SET DEFAULT " <<  Quoter(work)(name_value.second.GetPgLiter());
+    }
+    work.exec(oss.str());
+    size_t i = 0;
+    BOOST_FOREACH(const ValueMap::value_type& name_value, value_map)
+        rich_header_[indexes[i++]].SetDefault(name_value.second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1631,6 +1660,14 @@ void Access::DropAttrs(const std::string& rel_var_name,
 {
     RelVar& rel_var(db_impl_.GetManager().ChangeMeta().GetRelVar(rel_var_name));
     rel_var.DropAttrs(*work_ptr_, attr_names);
+}
+
+
+void Access::SetDefault(const std::string& rel_var_name,
+                        const ValueMap& value_map)
+{
+    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().GetRelVar(rel_var_name));
+    rel_var.SetDefault(*work_ptr_, value_map);
 }
 
 
