@@ -187,7 +187,7 @@ namespace ku
         void DropAttrs(const std::string& rel_var_name,
                        const StringSet& attr_names);
 
-        void SetDefault(const std::string& rel_var_name,
+        void AddDefault(const std::string& rel_var_name,
                         const ValueMap& value_map);
 
         void DropDefault(const std::string& rel_var_name,

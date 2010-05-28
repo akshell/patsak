@@ -71,7 +71,7 @@ namespace ku
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DropAttrsCb,
                              const v8::Arguments&) const;
         
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, SetDefaultCb,
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, AddDefaultCb,
                              const v8::Arguments&) const;
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DropDefaultCb,

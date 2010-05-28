@@ -217,7 +217,7 @@ namespace
         Constrs& GetConstrs();
         void AddAttrs(pqxx::work& work, const RichHeader& attrs);
         void DropAttrs(pqxx::work& work, const StringSet& attr_names);
-        void SetDefault(pqxx::work& work, const ValueMap& value_map);
+        void AddDefault(pqxx::work& work, const ValueMap& value_map);
         void DropDefault(pqxx::work& work, const StringSet& attr_names);
 
     private:
@@ -458,7 +458,7 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
     InitHeader();
 }
 
-void RelVar::SetDefault(pqxx::work& work, const ValueMap& value_map)
+void RelVar::AddDefault(pqxx::work& work, const ValueMap& value_map)
 {
     if (value_map.empty())
         return;
@@ -1688,11 +1688,11 @@ void Access::DropAttrs(const std::string& rel_var_name,
 }
 
 
-void Access::SetDefault(const std::string& rel_var_name,
+void Access::AddDefault(const std::string& rel_var_name,
                         const ValueMap& value_map)
 {
     RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
-    rel_var.SetDefault(*work_ptr_, value_map);
+    rel_var.AddDefault(*work_ptr_, value_map);
 }
 
 

@@ -1054,15 +1054,15 @@ var dbTestSuite = {
     db.drop(['X', 'Y']);
   },
 
-  testSetDefault: function () {
+  testAddDefault: function () {
     create('X', {n: number, s: string, b: bool});
-    assertThrow(NoSuchAttrError, "db.setDefault('X', {s: '', x: 42})");
-    db.setDefault('X', {});
+    assertThrow(NoSuchAttrError, "db.addDefault('X', {s: '', x: 42})");
+    db.addDefault('X', {});
     assertEqual(items(db.getDefault('X')), []);
-    db.setDefault('X', {n: 42, b: true});
+    db.addDefault('X', {n: 42, b: true});
     assertEqual(items(db.insert('X', {s: 'the answer'})),
                 [['n', 42], ['s', 'the answer'], ['b', true]]);
-    db.setDefault('X', {s: 'yo', b: false});
+    db.addDefault('X', {s: 'yo', b: false});
     assertEqual(items(db.insert('X', {})),
                 [['n', 42], ['s', 'yo'], ['b', false]]);
     assertEqual(items(db.getDefault('X')),
