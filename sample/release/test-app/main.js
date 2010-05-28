@@ -1068,6 +1068,25 @@ var dbTestSuite = {
     assertEqual(items(db.getDefault('X')),
                 [['n', 42], ['s', 'yo'], ['b', false]]);
     db.drop(['X']);
+  },
+
+  testDropDefault: function () {
+    create(
+      'X',
+      {
+        n: number._default(42),
+        s: string._default(""),
+        b: bool._default(false)
+      });
+    assertThrow(NoSuchAttrError, "db.dropDefault('X', ['a', 's'])");
+    db.dropDefault('X', []);
+    db.dropDefault('X', ['s', 'b']);
+    assertEqual(items(db.getDefault('X')), [['n', 42]]);
+    db.insert('X', {s: "", b: false});
+    assertThrow(DBError, "db.dropDefault('X', ['n', 's'])");
+    db.dropDefault('X', ['n']);
+    assertEqual(items(db.getDefault('X')), []);
+    db.drop(['X']);
   }
 };
 

@@ -111,10 +111,10 @@ RichAttr::RichAttr(const string& name,
                    const Value* default_ptr)
     : attr_(name, type)
     , trait_(trait)
-    , default_ptr_(default_ptr ? new Value(default_ptr->Cast(GetType())) : 0)
 {
     KU_ASSERT(GetType().IsApplicable(trait_));
     KU_ASSERT(!(trait_ == Type::SERIAL && default_ptr));
+    SetDefaultPtr(default_ptr);
 }
 
 
@@ -148,9 +148,11 @@ const Value* RichAttr::GetDefaultPtr() const
 }
 
 
-void RichAttr::SetDefault(const Value& value)
+void RichAttr::SetDefaultPtr(const Value* default_ptr)
 {
-    default_ptr_.reset(new Value(value));
+    default_ptr_.reset(default_ptr
+                       ? new Value(default_ptr->Cast(GetType()))
+                       : 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,6 +218,7 @@ namespace
         void AddAttrs(pqxx::work& work, const RichHeader& attrs);
         void DropAttrs(pqxx::work& work, const StringSet& attr_names);
         void SetDefault(pqxx::work& work, const ValueMap& value_map);
+        void DropDefault(pqxx::work& work, const StringSet& attr_names);
 
     private:
         string name_;
@@ -474,7 +477,31 @@ void RelVar::SetDefault(pqxx::work& work, const ValueMap& value_map)
     work.exec(oss.str());
     size_t i = 0;
     BOOST_FOREACH(const ValueMap::value_type& name_value, value_map)
-        rich_header_[indexes[i++]].SetDefault(name_value.second);
+        rich_header_[indexes[i++]].SetDefaultPtr(&name_value.second);
+}
+
+
+void RelVar::DropDefault(pqxx::work& work, const StringSet& attr_names)
+{
+    if (attr_names.empty())
+        return;
+    vector<RichAttr*> rich_attr_ptrs;
+    rich_attr_ptrs.reserve(attr_names.size());
+    ostringstream oss;
+    oss << "ALTER TABLE " << Quoted(name_) << ' ';
+    OmitInvoker print_sep((SepPrinter(oss)));
+    BOOST_FOREACH(const string& attr_name, attr_names) {
+        RichAttr& rich_attr(rich_header_.find(attr_name));
+        if (!rich_attr.GetDefaultPtr())
+            throw Error(Error::DB,
+                        "Attribute \"" + attr_name + "\" has no default value");
+        rich_attr_ptrs.push_back(&rich_attr);
+        print_sep();
+        oss << "ALTER " << Quoted(attr_name) << " DROP DEFAULT";
+    }
+    work.exec(oss.str());
+    BOOST_FOREACH(RichAttr* rich_attr_ptr, rich_attr_ptrs)
+        rich_attr_ptr->SetDefaultPtr(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1666,6 +1693,14 @@ void Access::SetDefault(const std::string& rel_var_name,
 {
     RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
     rel_var.SetDefault(*work_ptr_, value_map);
+}
+
+
+void Access::DropDefault(const std::string& rel_var_name,
+                         const StringSet& attr_names)
+{
+    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
+    rel_var.DropDefault(*work_ptr_, attr_names);
 }
 
 

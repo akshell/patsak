@@ -94,7 +94,7 @@ namespace ku
         Type GetType() const;
         Type::Trait GetTrait() const;
         const Value* GetDefaultPtr() const;
-        void SetDefault(const Value& value);
+        void SetDefaultPtr(const Value* default_ptr);
 
     private:
         Attr attr_;
@@ -189,6 +189,9 @@ namespace ku
 
         void SetDefault(const std::string& rel_var_name,
                         const ValueMap& value_map);
+
+        void DropDefault(const std::string& rel_var_name,
+                         const StringSet& attr_names);
         
         std::string GetAppPatsakVersion(const std::string& name) const;
         void CheckAppExists(const std::string& name) const;
