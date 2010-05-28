@@ -306,57 +306,56 @@ void RelVar::InitHeader()
 }
 
 
-void RelVar::AddAttrs(pqxx::work& work, const RichHeader& new_rich_attrs)
+void RelVar::AddAttrs(pqxx::work& work, const RichHeader& rich_attrs)
 {
-    if (new_rich_attrs.empty())
+    if (rich_attrs.empty())
         return;
-    CheckAttrNumber(rich_header_.size() + new_rich_attrs.size());
+    CheckAttrNumber(rich_header_.size() + rich_attrs.size());
     ostringstream oss;
     oss << "ALTER TABLE " << Quoted(name_) << ' ';
     OmitInvoker print_sep((SepPrinter(oss)));
-    BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_attrs) {
-        string new_attr_name(new_rich_attr.GetName());
-        CheckName(new_attr_name);
-        BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-            if (rich_attr.GetName() == new_attr_name)
-                throw Error(
-                    Error::ATTR_EXISTS,
-                    "Attribute \"" + new_attr_name + "\" already exists");
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
+        string attr_name(rich_attr.GetName());
+        CheckName(attr_name);
+        BOOST_FOREACH(const RichAttr& old_rich_attr, rich_header_)
+            if (old_rich_attr.GetName() == attr_name)
+                throw Error(Error::ATTR_EXISTS,
+                            "Attribute \"" + attr_name + "\" already exists");
         print_sep();
-        oss << "ADD " << Quoted(new_attr_name) << ' '
-            << new_rich_attr.GetType().GetPgStr(new_rich_attr.GetTrait());
+        oss << "ADD " << Quoted(attr_name) << ' '
+            << rich_attr.GetType().GetPgStr(rich_attr.GetTrait());
     }
     oss << "; UPDATE " << Quoted(name_) << " SET ";
     print_sep = OmitInvoker(SepPrinter(oss));
-    BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_attrs) {
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
         print_sep();
-        oss << Quoted(new_rich_attr.GetName()) << " = "
-            << Quoter(work)(new_rich_attr.GetDefaultPtr()->GetPgLiter());
+        oss << Quoted(rich_attr.GetName()) << " = "
+            << Quoter(work)(rich_attr.GetDefaultPtr()->GetPgLiter());
     }
     oss << "; ALTER TABLE " << Quoted(name_) << ' ';
     print_sep = OmitInvoker(SepPrinter(oss));
-    BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_attrs) {
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
         print_sep();
-        oss << "ALTER " << Quoted(new_rich_attr.GetName()) << " SET NOT NULL";
+        oss << "ALTER " << Quoted(rich_attr.GetName()) << " SET NOT NULL";
     }
     StringSet unique_attr_names;
     if (rich_header_.empty()) {
         oss << ", ADD UNIQUE (";
         OmitInvoker print_sep((SepPrinter(oss)));
-        BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_attrs) {
-            string new_attr_name(new_rich_attr.GetName());
-            unique_attr_names.add_sure(new_attr_name);
+        BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
+            string attr_name(rich_attr.GetName());
+            unique_attr_names.add_sure(attr_name);
             print_sep();
-            oss << Quoted(new_attr_name);
+            oss << Quoted(attr_name);
         }
         oss << ")";
     }
     work.exec(oss.str());
-    BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_attrs) {
-        rich_header_.add_sure(RichAttr(new_rich_attr.GetName(),
-                                       new_rich_attr.GetType(),
-                                       new_rich_attr.GetTrait()));
-        header_.add_sure(new_rich_attr.GetAttr());
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
+        rich_header_.add_sure(RichAttr(rich_attr.GetName(),
+                                       rich_attr.GetType(),
+                                       rich_attr.GetTrait()));
+        header_.add_sure(rich_attr.GetAttr());
     }
     if (!unique_attr_names.empty())
         constrs_.push_back(Unique(unique_attr_names));
