@@ -982,17 +982,18 @@ var dbTestSuite = {
   },
 
   testAddAttrs: function () {
-    assertThrow(TypeError, "db.addAttrs('rv', 42)");
-    assertThrow(ValueError, "db.addAttrs('rv', {x: []})");
-    assertThrow(TypeError, "db.addAttrs('rv', {x: [1, 2]})");
+    assertThrow(TypeError, "db.addAttrs('X', 42)");
+    assertThrow(ValueError, "db.addAttrs('X', {x: []})");
+    assertThrow(TypeError, "db.addAttrs('X', {x: [1, 2]})");
     assertThrow(NotImplementedError,
-                "db.addAttrs('rv', {id: [number._serial(), 0]})");
-    create('rv', {id: number._serial()});
-    db.insert('rv', {});
-    db.insert('rv', {});
+                "db.addAttrs('X', {id: [number._serial(), 0]})");
+    create('X', {id: number._serial()});
+    db.insert('X', {});
+    db.insert('X', {});
     var d = new Date();
+    db.addAttrs('X', {});
     db.addAttrs(
-      'rv',
+      'X',
       {
         n: [number, 4.2],
         i: [number._integer(), 0.1],
@@ -1000,19 +1001,24 @@ var dbTestSuite = {
         d: [date, d]
       });
     assertEqual(
-      query('rv', [], ['id']).map(items),
+      query('X', [], ['id']).map(items),
       [
         [['id', 0], ['n', 4.2], ['i', 0], ['s', 'yo'], ['d', d]],
         [['id', 1], ['n', 4.2], ['i', 0], ['s', 'yo'], ['d', d]]
       ]);
-    assertThrow(AttrExistsError, "db.addAttrs('rv', {s: [string, '']})");
+    assertThrow(AttrExistsError, "db.addAttrs('X', {s: [string, '']})");
     for (var i = 0; i < 495; ++i) {
       var descr = {};
       descr['a' + i] = [number, i];
-      db.addAttrs('rv', descr);
+      db.addAttrs('X', descr);
     }
-    assertThrow(DBQuotaError, "db.addAttrs('rv', {another: [string, '']})");
-    db.drop(['rv']);
+    assertThrow(DBQuotaError, "db.addAttrs('X', {another: [string, '']})");
+    create('Y', {});
+    db.insert('Y', {});
+    db.addAttrs('Y', {n: [number, 0], s: [string, '']});
+    assertEqual(db.getUnique('Y'), [['n', 's']]);
+    assertThrow(ConstraintError, "db.insert('Y', {n: 0, s: ''})");
+    db.drop(['X', 'Y']);
   },
 
   testDropAttrs: function () {
@@ -1044,6 +1050,7 @@ var dbTestSuite = {
     db.del('X', 'true', []);
     db.dropAttrs('X', ['n', 's', 'b']);
     assertSame(query('X').length, 0);
+    assertEqual(db.getUnique('X'), []);
     db.drop(['X', 'Y']);
   }
 };

@@ -308,6 +308,8 @@ void RelVar::InitHeader()
 
 void RelVar::AddAttrs(pqxx::work& work, const RichHeader& new_rich_attrs)
 {
+    if (new_rich_attrs.empty())
+        return;
     CheckAttrNumber(rich_header_.size() + new_rich_attrs.size());
     ostringstream oss;
     oss << "ALTER TABLE " << Quoted(name_) << ' ';
@@ -337,6 +339,18 @@ void RelVar::AddAttrs(pqxx::work& work, const RichHeader& new_rich_attrs)
         print_sep();
         oss << "ALTER " << Quoted(new_rich_attr.GetName()) << " SET NOT NULL";
     }
+    StringSet unique_attr_names;
+    if (rich_header_.empty()) {
+        oss << ", ADD UNIQUE (";
+        OmitInvoker print_sep((SepPrinter(oss)));
+        BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_attrs) {
+            string new_attr_name(new_rich_attr.GetName());
+            unique_attr_names.add_sure(new_attr_name);
+            print_sep();
+            oss << Quoted(new_attr_name);
+        }
+        oss << ")";
+    }
     work.exec(oss.str());
     BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_attrs) {
         rich_header_.add_sure(RichAttr(new_rich_attr.GetName(),
@@ -344,6 +358,8 @@ void RelVar::AddAttrs(pqxx::work& work, const RichHeader& new_rich_attrs)
                                        new_rich_attr.GetTrait()));
         header_.add_sure(new_rich_attr.GetAttr());
     }
+    if (!unique_attr_names.empty())
+        constrs_.push_back(Unique(unique_attr_names));
 }
 
 
