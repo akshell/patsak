@@ -16,20 +16,20 @@ using boost::shared_ptr;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// GetRelVarRichHeader and GetRelVarConstrs
+// GetRichHeader and GetConstrs
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    const RichHeader& GetRelVarRichHeader(Handle<v8::Value> name)
+    const RichHeader& GetRichHeader(Handle<v8::Value> name)
     {
-        return access_ptr->GetRelVarRichHeader(Stringify(name));
+        return access_ptr->GetRichHeader(Stringify(name));
     }
     
 
-    const Constrs& GetRelVarConstrs(Handle<v8::Value> name)
+    const Constrs& GetConstrs(Handle<v8::Value> name)
     {
-        return access_ptr->GetRelVarConstrs(Stringify(name));
+        return access_ptr->GetConstrs(Stringify(name));
     }
 }
 
@@ -514,7 +514,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateCb,
     Handle<Array> checks(GetArray(args[4]));
     for (size_t i = 0; i < checks->Length(); ++i)
         constrs.push_back(Check(Stringify(checks->Get(Integer::New(i)))));
-    access_ptr->CreateRelVar(Stringify(args[0]), rich_header, constrs);
+    access_ptr->Create(Stringify(args[0]), rich_header, constrs);
     return Undefined();
     
 }
@@ -524,7 +524,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    access_ptr->DropRelVars(ReadStringSet(args[0]));
+    access_ptr->Drop(ReadStringSet(args[0]));
     return Undefined();
 }
 
@@ -532,7 +532,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, ListCb,
                     const Arguments&, /*args*/) const
 {
-    StringSet rel_var_name_set(access_ptr->GetRelVarNames());
+    StringSet rel_var_name_set(access_ptr->GetNames());
     Handle<Array> result(Array::New(rel_var_name_set.size()));
     for (size_t i = 0; i < rel_var_name_set.size(); ++i)
         result->Set(Integer::New(i), String::New(rel_var_name_set[i].c_str()));
@@ -545,7 +545,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetHeaderCb,
 {
     CheckArgsLength(args, 1);
     Handle<Object> result(Object::New());
-    BOOST_FOREACH(const RichAttr& rich_attr, GetRelVarRichHeader(args[0]))
+    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
         Set(result, rich_attr.GetName(),
             String::New(
                 rich_attr.GetType().GetKuStr(rich_attr.GetTrait()).c_str()));
@@ -559,7 +559,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetIntegerCb,
     CheckArgsLength(args, 1);
     Handle<Array> result(Array::New());
     int32_t i = 0;
-    BOOST_FOREACH(const RichAttr& rich_attr, GetRelVarRichHeader(args[0]))
+    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
         if (rich_attr.GetTrait() == Type::INTEGER ||
             rich_attr.GetTrait() == Type::SERIAL)
             result->Set(Integer::New(i++),
@@ -574,7 +574,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetSerialCb,
     CheckArgsLength(args, 1);
     Handle<Array> result(Array::New());
     int32_t i = 0;
-    BOOST_FOREACH(const RichAttr& rich_attr, GetRelVarRichHeader(args[0]))
+    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
         if (rich_attr.GetTrait() == Type::SERIAL)
             result->Set(Integer::New(i++),
                         String::New(rich_attr.GetName().c_str()));
@@ -587,7 +587,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetDefaultCb,
 {
     CheckArgsLength(args, 1);
     Handle<Object> result(Object::New());
-    BOOST_FOREACH(const RichAttr& rich_attr, GetRelVarRichHeader(args[0]))
+    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
         if (rich_attr.GetDefaultPtr())
             Set(result, rich_attr.GetName(),
                 MakeV8Value(*rich_attr.GetDefaultPtr()));
@@ -601,7 +601,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetUniqueCb,
     CheckArgsLength(args, 1);
     Handle<Array> result(Array::New());
     int32_t i = 0;
-    BOOST_FOREACH(const Constr& constr, GetRelVarConstrs(args[0])) {
+    BOOST_FOREACH(const Constr& constr, GetConstrs(args[0])) {
         const Unique* unique_ptr = boost::get<Unique>(&constr);
         if (unique_ptr)
             result->Set(Integer::New(i++),
@@ -617,7 +617,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetForeignCb,
     CheckArgsLength(args, 1);
     Handle<Array> result(Array::New());
     int32_t i = 0;
-    BOOST_FOREACH(const Constr& constr, GetRelVarConstrs(args[0])) {
+    BOOST_FOREACH(const Constr& constr, GetConstrs(args[0])) {
         const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
         if (foreign_key_ptr) {
             Handle<Array> item(Array::New(3));
@@ -640,7 +640,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, InsertCb,
     CheckArgsLength(args, 2);
     string name(Stringify(args[0]));
     Values values(access_ptr->Insert(name, ReadValueMap(args[1])));
-    const RichHeader& rich_header(access_ptr->GetRelVarRichHeader(name));
+    const RichHeader& rich_header(access_ptr->GetRichHeader(name));
     KU_ASSERT_EQUAL(values.size(), rich_header.size());
     Handle<Object> result(Object::New());
     for (size_t i = 0; i < values.size(); ++i)

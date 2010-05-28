@@ -144,20 +144,19 @@ namespace ku
         
         void Commit();
 
-        StringSet GetRelVarNames() const;
+        StringSet GetNames() const;
 
-        const RichHeader&
-        GetRelVarRichHeader(const std::string& rel_var_name) const;
+        const RichHeader& GetRichHeader(const std::string& rel_var_name) const;
 
         // Relation constraints do not save their order after
         // store/load from DB. Check constraints are not restored at all.
-        const Constrs& GetRelVarConstrs(const std::string& rel_var_name) const;
+        const Constrs& GetConstrs(const std::string& rel_var_name) const;
         
-        void CreateRelVar(const std::string& name,
-                          const RichHeader& rich_header,
-                          const Constrs& constrs);
+        void Create(const std::string& name,
+                    const RichHeader& rich_header,
+                    const Constrs& constrs);
         
-        void DropRelVars(const StringSet& rel_var_names);
+        void Drop(const StringSet& rel_var_names);
         
         QueryResult Query(const std::string& query,
                           const Values& query_params = Values(),

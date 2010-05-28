@@ -679,8 +679,8 @@ Table DBFixture::DumpRelVar(const string& rel_var_name)
 {
     Table result(Query(rel_var_name));
     Access access(db);
-    result.SetRichHeader(access.GetRelVarRichHeader(rel_var_name));
-    result.SetConstrs(access.GetRelVarConstrs(rel_var_name));
+    result.SetRichHeader(access.GetRichHeader(rel_var_name));
+    result.SetConstrs(access.GetConstrs(rel_var_name));
     return result;
 }
 
@@ -688,7 +688,7 @@ Table DBFixture::DumpRelVar(const string& rel_var_name)
 void DBFixture::InsertValues(const string& rel_var_name, const Values& values)
 {
     Access access(db);
-    const RichHeader& rich_header(access.GetRelVarRichHeader(rel_var_name));
+    const RichHeader& rich_header(access.GetRichHeader(rel_var_name));
     assert(values.size() == rich_header.size());
     ValueMap value_map;
     for (size_t i = 0; i < rich_header.size(); ++i)
@@ -703,7 +703,7 @@ void DBFixture::CreateRelVar(const string& rel_var_name, const Table& table)
 {
     Access access(db);
     const RichHeader& rich_header(table.GetRichHeader());
-    access.CreateRelVar(rel_var_name, rich_header, table.GetConstrs());
+    access.Create(rel_var_name, rich_header, table.GetConstrs());
     BOOST_FOREACH(const Values& values, table.GetValuesSet()) {
         assert(values.size() == rich_header.size());
         ValueMap value_map;
@@ -721,21 +721,21 @@ void DBFixture::CreateRelVar(const string& rel_var_name, const Table& table)
 StringSet DBFixture::GetRelVarNames()
 {
     Access access(db);
-    return access.GetRelVarNames();
+    return access.GetNames();
 }
 
 
 const RichHeader& DBFixture::GetRelVarRichHeader(const string& rel_var_name)
 {
     Access access(db);
-    return access.GetRelVarRichHeader(rel_var_name);
+    return access.GetRichHeader(rel_var_name);
 }
 
 
 void DBFixture::DeleteRelVars(const StringSet& rel_var_names)
 {
     Access access(db);
-    access.DropRelVars(rel_var_names);
+    access.Drop(rel_var_names);
     access.Commit();
 }
 
@@ -743,7 +743,7 @@ void DBFixture::DeleteRelVars(const StringSet& rel_var_names)
 const Constrs& DBFixture::GetRelVarConstrs(const string& rel_var_name)
 {
     Access access(db);
-    return access.GetRelVarConstrs(rel_var_name);
+    return access.GetConstrs(rel_var_name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -786,8 +786,7 @@ namespace
             : db_fixture_(db_fixture)
             , conn_("dbname=test_patsak user=test password=test") {}
 
-        virtual const Header&
-        GetRelVarHeader(const string& rel_var_name) const {
+        virtual const Header& GetHeader(const string& rel_var_name) const {
             headers_.push_back(Header());
             Header& header(headers_.back());
             const RichHeader&

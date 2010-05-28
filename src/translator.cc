@@ -119,7 +119,7 @@ namespace
                                   Type needed_type);
         Type GetParamType(size_t pos) const;
         void PrintParam(size_t pos);
-        const Header& GetRelVarHeader(const string& rel_var_name) const;
+        const Header& GetHeader(const string& rel_var_name) const;
 
         DBViewer::RelVarFields
         GetReference(const DBViewer::RelVarFields& key) const;
@@ -241,9 +241,9 @@ void Control::PrintParam(size_t pos)
 }
 
 
-const Header& Control::GetRelVarHeader(const string& rel_var_name) const
+const Header& Control::GetHeader(const string& rel_var_name) const
 {
-    return db_viewer_.GetRelVarHeader(rel_var_name);
+    return db_viewer_.GetHeader(rel_var_name);
 }
 
 
@@ -705,8 +705,7 @@ Type FieldTranslator::TranslateForeignField()
              << " FROM " << from_oss_.str()
              << " WHERE " << where_oss_.str()
              << ')';
-    return GetAttrType(control_.GetRelVarHeader(curr_rel_var_name),
-                       GetFieldName());
+    return GetAttrType(control_.GetHeader(curr_rel_var_name), GetFieldName());
 }
 
 
@@ -854,7 +853,7 @@ Type ExprTranslator::operator()(const Cond& cond) const
 Header RelTranslator::operator()(const Base& base) const
 {
     control_ << Quoted(base.name);
-    return control_.GetRelVarHeader(base.name);
+    return control_.GetHeader(base.name);
 }
 
 
@@ -1009,7 +1008,7 @@ string Translator::TranslateUpdate(const string& rel_var_name,
         throw Error(Error::VALUE, "Empty update field set");
     ostringstream oss;
     oss << "UPDATE " << Quoted(rel_var_name) << " SET ";
-    const Header& header(db_viewer_.GetRelVarHeader(rel_var_name));
+    const Header& header(db_viewer_.GetHeader(rel_var_name));
     OmitInvoker print_sep((SepPrinter(oss)));
     BOOST_FOREACH(const StringMap::value_type& field_expr, field_expr_map) {
         print_sep();
@@ -1040,7 +1039,7 @@ string Translator::TranslateDelete(const string& rel_var_name,
             " WHERE " +
             DoTranslateExpr(db_viewer_,
                             rel_var_name,
-                            db_viewer_.GetRelVarHeader(rel_var_name),
+                            db_viewer_.GetHeader(rel_var_name),
                             where,
                             params,
                             Type::BOOL));

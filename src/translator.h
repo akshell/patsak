@@ -24,8 +24,8 @@ namespace ku
         
         virtual ~DBViewer() {}
 
-        virtual const Header&
-        GetRelVarHeader(const std::string& rel_var_name) const = 0;
+        virtual
+        const Header& GetHeader(const std::string& rel_var_name) const = 0;
         
         virtual
         std::string Quote(const PgLiter& pg_liter) const = 0;

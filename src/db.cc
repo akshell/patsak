@@ -486,23 +486,23 @@ namespace
     class DBMeta {
     public:
         DBMeta(pqxx::work& work, const string& schema_name);
-        const RelVar& GetRelVar(const string& rel_var_name) const;
-        RelVar& GetRelVar(const string& rel_var_name);
-        const RelVars& GetRelVars() const;
+        const RelVar& Get(const string& rel_var_name) const;
+        RelVar& Get(const string& rel_var_name);
+        const RelVars& GetAll() const;
         
-        void CreateRelVar(pqxx::work& work,
-                          const Translator& translator,
-                          const string& rel_var_name,
-                          const RichHeader& rich_header,
-                          const Constrs& constrs);
+        void Create(pqxx::work& work,
+                    const Translator& translator,
+                    const string& rel_var_name,
+                    const RichHeader& rich_header,
+                    const Constrs& constrs);
         
-        void DropRelVars(pqxx::work& work, const orset<string>& rel_var_names);
+        void Drop(pqxx::work& work, const orset<string>& rel_var_names);
 
     private:
         RelVars rel_vars_;
 
-        size_t GetRelVarIdx(const string& rel_var_name) const; // never throws
-        size_t GetRelVarIdxChecked(const string& rel_var_name) const;
+        size_t GetIdx(const string& rel_var_name) const; // never throws
+        size_t GetIdxChecked(const string& rel_var_name) const;
     };
 
     
@@ -584,29 +584,29 @@ DBMeta::DBMeta(pqxx::work& work, const string& schema_name)
     constrs_loader(work);
 }
 
-const RelVars& DBMeta::GetRelVars() const
+const RelVars& DBMeta::GetAll() const
 {
     return rel_vars_;
 }
 
 
-const RelVar& DBMeta::GetRelVar(const string& rel_var_name) const
+const RelVar& DBMeta::Get(const string& rel_var_name) const
 {
-    return rel_vars_[GetRelVarIdxChecked(rel_var_name)];
+    return rel_vars_[GetIdxChecked(rel_var_name)];
 }
 
 
-RelVar& DBMeta::GetRelVar(const string& rel_var_name)
+RelVar& DBMeta::Get(const string& rel_var_name)
 {
-    return rel_vars_[GetRelVarIdxChecked(rel_var_name)];
+    return rel_vars_[GetIdxChecked(rel_var_name)];
 }
 
 
-void DBMeta::CreateRelVar(pqxx::work& work,
-                          const Translator& translator,
-                          const string& rel_var_name,
-                          const RichHeader& rich_header,
-                          const Constrs& constrs)
+void DBMeta::Create(pqxx::work& work,
+                    const Translator& translator,
+                    const string& rel_var_name,
+                    const RichHeader& rich_header,
+                    const Constrs& constrs)
 {
     if (rel_vars_.size() >= MAX_REL_VAR_NUMBER) {
         static const string message(
@@ -616,7 +616,7 @@ void DBMeta::CreateRelVar(pqxx::work& work,
     }
     CheckName(rel_var_name);
     CheckAttrNumber(rich_header.size());
-    if (GetRelVarIdx(rel_var_name) != MINUS_ONE)
+    if (GetIdx(rel_var_name) != MINUS_ONE)
         throw Error(Error::REL_VAR_EXISTS,
                     "RelVar \"" + rel_var_name + "\" already exists");
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
@@ -643,13 +643,13 @@ void DBMeta::CreateRelVar(pqxx::work& work,
 }
 
 
-void DBMeta::DropRelVars(pqxx::work& work, const orset<string>& rel_var_names)
+void DBMeta::Drop(pqxx::work& work, const orset<string>& rel_var_names)
 {
     RelVarsDropper(rel_vars_, rel_var_names)(work);
 }
 
 
-size_t DBMeta::GetRelVarIdx(const string& rel_var_name) const
+size_t DBMeta::GetIdx(const string& rel_var_name) const
 {
     for (size_t i = 0; i < rel_vars_.size(); ++i)
         if (rel_vars_[i].GetName() == rel_var_name)
@@ -658,9 +658,9 @@ size_t DBMeta::GetRelVarIdx(const string& rel_var_name) const
 }
 
 
-size_t DBMeta::GetRelVarIdxChecked(const string& rel_var_name) const
+size_t DBMeta::GetIdxChecked(const string& rel_var_name) const
 {
-    size_t idx = GetRelVarIdx(rel_var_name);
+    size_t idx = GetIdx(rel_var_name);
     if (idx == MINUS_ONE)
         throw Error(Error::NO_SUCH_REL_VAR,
                     "No such RelVar: \"" + rel_var_name + '"');
@@ -802,7 +802,7 @@ namespace
             const RelVar&
                 ref_rel_var(foreign_key.ref_rel_var_name == rel_var_.GetName()
                             ? rel_var_
-                            : db_meta_.GetRelVar(foreign_key.ref_rel_var_name));
+                            : db_meta_.Get(foreign_key.ref_rel_var_name));
             const RichHeader& ref_rich_header(ref_rel_var.GetRichHeader());
             
             for (size_t i = 0; i < foreign_key.key_field_names.size(); ++i) {
@@ -1115,7 +1115,7 @@ namespace
     class DBViewerImpl : public DBViewer {
     public:
         DBViewerImpl(const Manager& manager, const Quoter& quoter);
-        virtual const Header& GetRelVarHeader(const string& rel_var_name) const;
+        virtual const Header& GetHeader(const string& rel_var_name) const;
         virtual string Quote(const PgLiter& pg_liter) const;
         virtual RelVarFields GetReference(const RelVarFields& key) const;
         
@@ -1135,9 +1135,9 @@ DBViewerImpl::DBViewerImpl(const Manager& manager, const Quoter& quoter)
 }
 
 
-const Header& DBViewerImpl::GetRelVarHeader(const string& rel_var_name) const
+const Header& DBViewerImpl::GetHeader(const string& rel_var_name) const
 {
-    return manager_.GetMeta().GetRelVar(rel_var_name).GetHeader();
+    return manager_.GetMeta().Get(rel_var_name).GetHeader();
 }
 
 
@@ -1149,7 +1149,7 @@ string DBViewerImpl::Quote(const PgLiter& pg_liter) const
 
 DBViewer::RelVarFields DBViewerImpl::GetReference(const RelVarFields& key) const
 {
-    const RelVar& rel_var(manager_.GetMeta().GetRelVar(key.rel_var_name));
+    const RelVar& rel_var(manager_.GetMeta().Get(key.rel_var_name));
     const ForeignKey* found_foreign_key_ptr = 0;
     BOOST_FOREACH(const Constr& constr, rel_var.GetConstrs()) {
         const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
@@ -1437,9 +1437,9 @@ void Access::Commit()
 }
 
 
-StringSet Access::GetRelVarNames() const
+StringSet Access::GetNames() const
 {
-    const RelVars& rel_vars(db_impl_.GetManager().GetMeta().GetRelVars());
+    const RelVars& rel_vars(db_impl_.GetManager().GetMeta().GetAll());
     StringSet result;
     result.reserve(rel_vars.size());
     BOOST_FOREACH(const RelVar& rel_var, rel_vars)
@@ -1448,31 +1448,30 @@ StringSet Access::GetRelVarNames() const
 }
 
 
-const RichHeader& Access::GetRelVarRichHeader(const string& rel_var_name) const
+const RichHeader& Access::GetRichHeader(const string& rel_var_name) const
 {
-    return
-        db_impl_.GetManager().GetMeta().GetRelVar(rel_var_name).GetRichHeader();
+    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetRichHeader();
 }
 
 
-const Constrs& Access::GetRelVarConstrs(const string& rel_var_name) const
+const Constrs& Access::GetConstrs(const string& rel_var_name) const
 {
-    return db_impl_.GetManager().GetMeta().GetRelVar(rel_var_name).GetConstrs();
+    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetConstrs();
 }
 
 
-void Access::CreateRelVar(const string& name,
-                          const RichHeader& rich_header,
-                          const Constrs& constrs)
+void Access::Create(const string& name,
+                    const RichHeader& rich_header,
+                    const Constrs& constrs)
 {
-    db_impl_.GetManager().ChangeMeta().CreateRelVar(
+    db_impl_.GetManager().ChangeMeta().Create(
         *work_ptr_, db_impl_.GetTranslator(), name, rich_header, constrs);
 }
 
 
-void Access::DropRelVars(const StringSet& rel_var_names)
+void Access::Drop(const StringSet& rel_var_names)
 {
-    db_impl_.GetManager().ChangeMeta().DropRelVars(*work_ptr_, rel_var_names);
+    db_impl_.GetManager().ChangeMeta().Drop(*work_ptr_, rel_var_names);
 }
 
 
@@ -1523,7 +1522,7 @@ size_t Access::Update(const string& rel_var_name,
 {
     db_impl_.GetQuotaChecker().Check(*work_ptr_);
     
-    const RichHeader& rich_header(GetRelVarRichHeader(rel_var_name));
+    const RichHeader& rich_header(GetRichHeader(rel_var_name));
     uint64_t size = 0;
     BOOST_FOREACH(const StringMap::value_type& field_expr, field_expr_map) {
         rich_header.find(field_expr.first);
@@ -1577,8 +1576,7 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
 
     db_impl_.GetQuotaChecker().Check(*work_ptr_);
 
-    const RelVar& rel_var(
-        db_impl_.GetManager().GetMeta().GetRelVar(rel_var_name));
+    const RelVar& rel_var(db_impl_.GetManager().GetMeta().Get(rel_var_name));
     const RichHeader& rich_header(rel_var.GetRichHeader());
     string sql_str;
     uint64_t size = 0;
@@ -1650,7 +1648,7 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
 
 void Access::AddAttrs(const string& rel_var_name, const RichHeader& rich_attrs)
 {
-    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().GetRelVar(rel_var_name));
+    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
     rel_var.AddAttrs(*work_ptr_, rich_attrs);
 }
 
@@ -1658,7 +1656,7 @@ void Access::AddAttrs(const string& rel_var_name, const RichHeader& rich_attrs)
 void Access::DropAttrs(const std::string& rel_var_name,
                        const StringSet& attr_names)
 {
-    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().GetRelVar(rel_var_name));
+    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
     rel_var.DropAttrs(*work_ptr_, attr_names);
 }
 
@@ -1666,7 +1664,7 @@ void Access::DropAttrs(const std::string& rel_var_name,
 void Access::SetDefault(const std::string& rel_var_name,
                         const ValueMap& value_map)
 {
-    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().GetRelVar(rel_var_name));
+    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
     rel_var.SetDefault(*work_ptr_, value_map);
 }
 
