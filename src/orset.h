@@ -54,6 +54,7 @@ namespace ku
         using base::empty;
         using base::front;
         using base::reserve;
+        using base::erase;
 
         orset() {}
 

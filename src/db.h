@@ -184,6 +184,9 @@ namespace ku
         void AddAttrs(const std::string& rel_var_name,
                       const RichHeader& rich_attrs);
         
+        void DropAttrs(const std::string& rel_var_name,
+                       const StringSet& attr_names);
+        
         std::string GetAppPatsakVersion(const std::string& name) const;
         void CheckAppExists(const std::string& name) const;
         App DescribeApp(const std::string& name) const;

@@ -208,6 +208,7 @@ namespace
         const Constrs& GetConstrs() const;
         Constrs& GetConstrs();
         void AddAttrs(pqxx::work& work, const RichHeader& attrs);
+        void DropAttrs(pqxx::work& work, const StringSet& attr_names);
 
     private:
         string name_;
@@ -343,6 +344,93 @@ void RelVar::AddAttrs(pqxx::work& work, const RichHeader& new_rich_attrs)
                                        new_rich_attr.GetTrait()));
         header_.add_sure(new_rich_attr.GetAttr());
     }
+}
+
+
+void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
+{
+    if (attr_names.empty())
+        return;
+    Constrs new_constrs;
+    BOOST_FOREACH(const Constr& constr, constrs_) {
+        const StringSet* constr_attr_names_ptr = 0;
+        if (const Unique* unique_ptr = boost::get<Unique>(&constr))
+            constr_attr_names_ptr = &unique_ptr->field_names;
+        else if (const ForeignKey* fk_ptr = boost::get<ForeignKey>(&constr))
+            constr_attr_names_ptr = &fk_ptr->key_field_names;
+        bool found = false;
+        if (constr_attr_names_ptr) {
+            BOOST_FOREACH(const string& constr_attr_name,
+                          *constr_attr_names_ptr) {
+                if (attr_names.contains(constr_attr_name)) {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found)
+            new_constrs.push_back(constr);
+    }
+    StringSet remaining_attr_names(attr_names);
+    RichHeader new_rich_header;
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_header_) {
+        bool found = false;
+        for (size_t i = 0; i < remaining_attr_names.size(); ++i) {
+            if (remaining_attr_names[i] == rich_attr.GetName()) {
+                remaining_attr_names.erase(remaining_attr_names.begin() + i);
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            new_rich_header.add_sure(rich_attr);
+    }
+    if (!remaining_attr_names.empty())
+        throw Error(
+            Error::NO_SUCH_ATTR,
+            "Attribute \"" + remaining_attr_names[0] + "\" does not exist");
+    ostringstream oss;
+    oss << "ALTER TABLE " << Quoted(name_) << ' ';
+    OmitInvoker print_sep((SepPrinter(oss)));
+    BOOST_FOREACH(const string& attr_name, attr_names) {
+        print_sep();
+        oss << "DROP " << Quoted(attr_name);
+    }
+    bool found = false;
+    BOOST_FOREACH(const Constr& new_constr, new_constrs) {
+        if (boost::get<Unique>(&new_constr)) {
+            found = true;
+            break;
+        }
+    }
+    if (!found && !new_rich_header.empty()) {
+        oss << ", ADD UNIQUE (";
+        StringSet all_attr_names;
+        OmitInvoker print_sep((SepPrinter(oss)));
+        BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_header) {
+            string new_attr_name(new_rich_attr.GetName());
+            all_attr_names.add_sure(new_attr_name);
+            print_sep();
+            oss << Quoted(new_attr_name);
+        }
+        new_constrs.push_back(Unique(all_attr_names));
+        oss << ')';
+    }
+    try {
+        pqxx::subtransaction(work).exec(oss.str());
+    } catch (const pqxx::unique_violation& err) {
+        throw Error(Error::CONSTRAINT,
+                    ("Cannot drop attributes because "
+                     "remaining tuples have duplicates"));
+    } catch (const pqxx::sql_error& err) {
+        throw Error(Error::REL_VAR_DEPENDENCY,
+                    ("Cannot drop attribute because "
+                     "it is referenced from other relation variable"));
+    }
+    constrs_ = new_constrs;
+    rich_header_ = new_rich_header;
+    header_.clear();
+    InitHeader();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1520,6 +1608,14 @@ void Access::AddAttrs(const string& rel_var_name, const RichHeader& rich_attrs)
 {
     RelVar& rel_var(db_impl_.GetManager().ChangeMeta().GetRelVar(rel_var_name));
     rel_var.AddAttrs(*work_ptr_, rich_attrs);
+}
+
+
+void Access::DropAttrs(const std::string& rel_var_name,
+                       const StringSet& attr_names)
+{
+    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().GetRelVar(rel_var_name));
+    rel_var.DropAttrs(*work_ptr_, attr_names);
 }
 
 
