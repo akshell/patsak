@@ -1023,18 +1023,18 @@ var dbTestSuite = {
 
   testDropAttrs: function () {
     create('X',
-           {n: number, s: string, b: bool, d: date},
+           {n: number._unique(), s: string, b: bool, d: date},
            {unique: [['s', 'b']]});
     create('Y',
-           {n: number, s: string, b: bool, d: date},
+           {n: number._foreign('X', 'n'), s: string, b: bool, d: date},
            {foreign: [[['s', 'b'], 'X', ['s', 'b']]]});
     assertThrow(NoSuchAttrError, "db.dropAttrs('X', ['n', 'x'])");
     assertThrow(RelVarDependencyError, "db.dropAttrs('X', ['b', 'd'])");
     db.dropAttrs('X', ['d']);
-    assertEqual(db.getUnique('X'), [['s', 'b']]);
+    assertEqual(db.getUnique('X'), [['n'], ['s', 'b']]);
     db.dropAttrs('Y', []);
     db.insert('X', {n: 0, s: '', b: false});
-    db.insert('X', {n: 0, s: '', b: true});
+    db.insert('X', {n: 1, s: '', b: true});
     db.insert('Y', {n: 0, s: '', b: true, d: new Date()});
     db.insert('Y', {n: 0, s: '', b: false, d: new Date()});
     assertThrow(ConstraintError, "db.dropAttrs('Y', ['b', 'd'])");
@@ -1042,7 +1042,7 @@ var dbTestSuite = {
     db.dropAttrs('Y', ['b', 'd']);
     assertEqual(items(db.getHeader('Y')).sort(),
                 [["n", "number"], ["s", "string"]]);
-    assertEqual(db.getForeign('Y'), []);
+    assertEqual(db.getForeign('Y'), [[['n'], 'X', ['n']]]);
     assertEqual(db.getUnique('Y'), [['n', 's']]);
     db.insert('Y', {n: 1, s: ''});
     db.dropAttrs('Y', ['n', 's']);

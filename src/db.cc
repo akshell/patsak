@@ -156,65 +156,33 @@ void RichAttr::SetDefaultPtr(const Value* default_ptr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// CheckName and CheckAttrNumber
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    void CheckName(const string& name)
-    {
-        if (name.empty())
-            throw Error(Error::VALUE, "Identifier can't be empty");
-        if (name.size() > MAX_NAME_SIZE) {
-            static const string message(
-                (format("RelVar and attribute name length must be "
-                        "no more than %1% characters") %
-                 MAX_NAME_SIZE).str());
-            throw Error(Error::DB_QUOTA, message);
-        }
-        const locale& loc(locale::classic());
-        if (name[0] != '_' && !isalpha(name[0], loc))
-            throw Error(Error::VALUE,
-                        ("First identifier character must be "
-                         "a letter or underscore"));
-        for (size_t i = 1; i < name.size(); ++i)
-            if (name[i] != '_' && !isalnum(name[i], loc))
-                throw Error(Error::VALUE,
-                            ("Identifier must consist only of "
-                             "letters, digits or underscores"));
-    }
-
-
-    void CheckAttrNumber(size_t number)
-    {
-        if (number > MAX_ATTR_NUMBER) {
-            static const string message(
-                (format("Maximum attribute number is %1%") %
-                 MAX_ATTR_NUMBER).str());
-            throw Error(Error::DB_QUOTA, message);
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// RelVar
+// RelVar and DBMeta declarations
 ///////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
+    class DBMeta;
+
+    
     class RelVar {
     public:
         RelVar(pqxx::work& work, const string& name);
 
-        RelVar(const string& name,
+        RelVar(pqxx::work& work,
+               const Translator& translator,
+               const DBMeta& meta,
+               const string& name,
                const RichHeader& rich_header,
-               const Constrs& constrs);
+               const StringSets& unique_keys,
+               const ForeignKeys& foreign_keys,
+               const Strings& checks);
 
+        void LoadConstrs(pqxx::work& work, const DBMeta& meta);
         string GetName() const;
         const RichHeader& GetRichHeader() const;
         const Header& GetHeader() const;
-        const Constrs& GetConstrs() const;
-        Constrs& GetConstrs();
+        const StringSets& GetUniqueKeys() const;
+        const ForeignKeys& GetForeignKeys() const;
         void AddAttrs(pqxx::work& work, const RichHeader& attrs);
         void DropAttrs(pqxx::work& work, const StringSet& attr_names);
         void AddDefault(pqxx::work& work, const ValueMap& value_map);
@@ -224,15 +192,49 @@ namespace
         string name_;
         RichHeader rich_header_;
         Header header_;
-        Constrs constrs_;
+        StringSets unique_keys_;
+        ForeignKeys foreign_keys_;
 
+        static bool Intersect(const StringSet& lhs, const StringSet& rhs);
+        static void CheckName(const string& name);
+        static void CheckAttrNumber(size_t number);
+        static void PrintAttrNames(ostream& os, const StringSet& names);
+        StringSet ReadAttrNames(const string& pg_array) const;
         void InitHeader();
     };
     
     
     typedef vector<RelVar> RelVars;
+
+
+    class DBMeta {
+    public:
+        DBMeta(pqxx::work& work, const string& schema_name);
+        const RelVar& Get(const string& rel_var_name) const;
+        RelVar& Get(const string& rel_var_name);
+        const RelVars& GetAll() const;
+        
+        void Create(pqxx::work& work,
+                    const Translator& translator,
+                    const string& rel_var_name,
+                    const RichHeader& rich_header,
+                    const StringSets& unique_keys,
+                    const ForeignKeys& foreign_keys,
+                    const Strings& checks);
+        
+        void Drop(pqxx::work& work, const StringSet& rel_var_names);
+
+    private:
+        RelVars rel_vars_;
+
+        size_t GetIdx(const string& rel_var_name) const; // never throws
+        size_t GetIdxChecked(const string& rel_var_name) const;
+    };
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// RelVar definitions
+////////////////////////////////////////////////////////////////////////////////
 
 RelVar::RelVar(pqxx::work& work, const string& name)
     : name_(name)
@@ -267,14 +269,236 @@ RelVar::RelVar(pqxx::work& work, const string& name)
 }
 
 
-RelVar::RelVar(const string& name,
+RelVar::RelVar(pqxx::work& work,
+               const Translator& translator,
+               const DBMeta& meta,
+               const string& name,
                const RichHeader& rich_header,
-               const Constrs& constrs)
+               const StringSets& unique_keys,
+               const ForeignKeys& foreign_keys,
+               const Strings& checks)
     : name_(name)
     , rich_header_(rich_header)
-    , constrs_(constrs)
+    , unique_keys_(unique_keys)
+    , foreign_keys_(foreign_keys)
 {
+    CheckName(name);
+    CheckAttrNumber(rich_header.size());
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
+        CheckName(rich_attr.GetName());
     InitHeader();
+    if (unique_keys.empty() && !rich_header.empty()) {
+        StringSet unique_key;
+        unique_key.reserve(rich_header.size());
+        BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
+            unique_key.add_sure(rich_attr.GetName());
+        unique_keys_.push_back(unique_key);
+    }
+
+    ostringstream oss;
+
+    static const format create_sequence_cmd(
+        "CREATE SEQUENCE \"%1%@%2%\" MINVALUE 0 START 0;");
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
+        if (rich_attr.GetTrait() == Type::SERIAL)
+            oss << (format(create_sequence_cmd) % name % rich_attr.GetName());
+
+    oss << "CREATE TABLE \"" << name << "\" (";
+    OmitInvoker print_sep((SepPrinter(oss)));
+
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
+        print_sep();
+        oss << Quoted(rich_attr.GetName()) << ' '
+            << rich_attr.GetType().GetPgStr(rich_attr.GetTrait())
+            << " NOT NULL";
+        const Value* default_ptr(rich_attr.GetDefaultPtr());
+        if (default_ptr)
+            oss << " DEFAULT " << Quoter(work)(default_ptr->GetPgLiter());
+        else if (rich_attr.GetTrait() == Type::SERIAL)
+            oss << " DEFAULT nextval('\""
+                << name << '@' << rich_attr.GetName()
+                << "\"')";
+        if (rich_attr.GetType() == Type::STRING)
+            oss << " CHECK (bit_length("
+                << Quoted(rich_attr.GetName())
+                << ") <= " << 8 * MAX_STRING_SIZE
+                << ')';
+    }
+
+    BOOST_FOREACH(const StringSet& unique_key, unique_keys_) {
+        if (unique_key.empty())
+            throw Error(Error::VALUE, "Empty unique attribute set");
+        BOOST_FOREACH(const string& attr_name, unique_key)
+            rich_header.find(attr_name);
+        print_sep();
+        oss << "UNIQUE ";
+        PrintAttrNames(oss, unique_key);
+    }
+
+    BOOST_FOREACH(const ForeignKey& foreign_key, foreign_keys) {
+        if (foreign_key.key_attr_names.size() !=
+            foreign_key.ref_attr_names.size())
+            throw Error(Error::VALUE, "Ref-key attribute set size mismatch");
+        if (foreign_key.key_attr_names.empty())
+            throw Error(Error::VALUE,
+                        "Foreign key with empty attribute set");
+        const RelVar& ref_rel_var(foreign_key.ref_rel_var_name == name
+                                  ? *this
+                                  : meta.Get(foreign_key.ref_rel_var_name));
+        const RichHeader& ref_rich_header(ref_rel_var.GetRichHeader());
+        for (size_t i = 0; i < foreign_key.key_attr_names.size(); ++i) {
+            string key_attr_name = foreign_key.key_attr_names[i];
+            string ref_attr_name = foreign_key.ref_attr_names[i];
+            RichAttr key_rich_attr(rich_header.find(key_attr_name));
+            RichAttr ref_rich_attr(ref_rich_header.find(ref_attr_name));
+            Type key_attr_type(key_rich_attr.GetType());
+            Type ref_attr_type(ref_rich_attr.GetType());
+            Type::Trait key_attr_trait(key_rich_attr.GetTrait());
+            Type::Trait ref_attr_trait(ref_rich_attr.GetTrait());
+            if (key_attr_type != ref_attr_type ||
+                !Type::TraitsAreCompatible(key_attr_trait, ref_attr_trait))
+                throw Error(Error::USAGE,
+                            ("Foreign key attribite type mismatch: \"" +
+                             name + '.' +
+                             key_attr_name + "\" is " +
+                             key_attr_type.GetKuStr(key_attr_trait) +
+                             ", \"" +
+                             foreign_key.ref_rel_var_name + '.' +
+                             ref_attr_name + "\" is " +
+                             ref_attr_type.GetKuStr(ref_attr_trait)));
+        }
+        bool unique_found = false;
+        BOOST_FOREACH(const StringSet& unique_key,
+                      ref_rel_var.GetUniqueKeys()) {
+            if (unique_key == foreign_key.ref_attr_names) {
+                unique_found = true;
+                break;
+            }
+        }
+        if (!unique_found)
+            throw Error(Error::USAGE,
+                        "Foreign key ref attributes must be unique");
+        print_sep();
+        oss << "FOREIGN KEY ";
+        PrintAttrNames(oss, foreign_key.key_attr_names);
+        oss << " REFERENCES " << Quoted(foreign_key.ref_rel_var_name);
+        PrintAttrNames(oss, foreign_key.ref_attr_names);
+    }
+
+    BOOST_FOREACH(const string& check, checks) {
+        print_sep();
+        oss << "CHECK ("
+            << translator.TranslateExpr(check, name, header_)
+            << ')';
+    }
+
+    oss << ");";
+
+    static const format alter_sequence_cmd(
+        "ALTER SEQUENCE \"%1%@%2%\" OWNED BY \"%1%\".\"%2%\";");
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
+        if (rich_attr.GetTrait() == Type::SERIAL)
+            oss << (format(alter_sequence_cmd) % name % rich_attr.GetName());
+    
+    work.exec(oss.str());
+}
+
+
+void RelVar::LoadConstrs(pqxx::work& work, const DBMeta& meta) {
+    static const format query("SELECT * FROM ku.describe_constrs('\"%1%\"')");
+    pqxx::result pqxx_result = work.exec((format(query) % name_).str());
+    BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
+        KU_ASSERT_EQUAL(tuple.size(), 4U);
+        KU_ASSERT(!tuple[0].is_null() && !tuple[1].is_null());
+        KU_ASSERT_EQUAL(string(tuple[0].c_str()).size(), 1U);
+        StringSet attr_names(ReadAttrNames(tuple[1].c_str()));
+        char constr_code = tuple[0].c_str()[0];
+        if (constr_code == 'p' || constr_code == 'u') {
+            unique_keys_.push_back(attr_names);
+        } else if (constr_code == 'f') {
+            KU_ASSERT(!tuple[2].is_null() && !tuple[3].is_null());
+            string ref_rel_var_name(tuple[2].c_str());
+            StringSet ref_attr_names(
+                meta.Get(ref_rel_var_name).ReadAttrNames(tuple[3].c_str()));
+            foreign_keys_.push_back(ForeignKey(attr_names,
+                                               ref_rel_var_name,
+                                               ref_attr_names));
+        };
+    }
+}
+
+
+bool RelVar::Intersect(const StringSet& lhs, const StringSet& rhs)
+{
+    BOOST_FOREACH(const string& str, lhs)
+        if (rhs.contains(str))
+            return true;
+    return false;
+}
+
+
+void RelVar::CheckName(const string& name)
+{
+    if (name.empty())
+        throw Error(Error::VALUE, "Identifier can't be empty");
+    if (name.size() > MAX_NAME_SIZE) {
+        static const string message(
+            (format("RelVar and attribute name length must be "
+                    "no more than %1% characters") %
+             MAX_NAME_SIZE).str());
+        throw Error(Error::DB_QUOTA, message);
+    }
+    const locale& loc(locale::classic());
+    if (name[0] != '_' && !isalpha(name[0], loc))
+        throw Error(Error::VALUE,
+                    ("First identifier character must be "
+                     "a letter or underscore"));
+    for (size_t i = 1; i < name.size(); ++i)
+        if (name[i] != '_' && !isalnum(name[i], loc))
+            throw Error(Error::VALUE,
+                        ("Identifier must consist only of "
+                         "letters, digits or underscores"));
+}
+
+
+void RelVar::CheckAttrNumber(size_t number)
+{
+    if (number > MAX_ATTR_NUMBER) {
+        static const string message(
+            (format("Maximum attribute number is %1%") %
+             MAX_ATTR_NUMBER).str());
+        throw Error(Error::DB_QUOTA, message);
+    }
+}
+
+
+void RelVar::PrintAttrNames(ostream& os, const StringSet& names) {
+    OmitInvoker print_sep((SepPrinter(os)));
+    os << '(';
+    BOOST_FOREACH(const string& name, names) {
+        print_sep();
+        os << Quoted(name);
+    }
+    os << ')';
+}
+
+
+StringSet RelVar::ReadAttrNames(const string& pg_array) const
+{
+    KU_ASSERT(pg_array.size() >= 2);
+    istringstream iss(pg_array.substr(1, pg_array.size() - 2));
+    StringSet result;
+    for (;;) {
+        size_t index;
+        iss >> index;
+        KU_ASSERT(!iss.fail());
+        result.add_sure(rich_header_[index - 1].GetName());
+        if (iss.eof())
+            return result;
+        char comma;
+        iss.get(comma);
+        KU_ASSERT_EQUAL(comma, ',');
+    }
 }
 
 
@@ -296,15 +520,15 @@ const Header& RelVar::GetHeader() const
 }
 
 
-const Constrs& RelVar::GetConstrs() const
+const StringSets& RelVar::GetUniqueKeys() const
 {
-    return constrs_;
+    return unique_keys_;
 }
 
 
-Constrs& RelVar::GetConstrs()
+const ForeignKeys& RelVar::GetForeignKeys() const
 {
-    return constrs_;
+    return foreign_keys_;
 }
 
 
@@ -348,13 +572,13 @@ void RelVar::AddAttrs(pqxx::work& work, const RichHeader& rich_attrs)
         print_sep();
         oss << "ALTER " << Quoted(rich_attr.GetName()) << " SET NOT NULL";
     }
-    StringSet unique_attr_names;
+    StringSet unique_key;
     if (rich_header_.empty()) {
         oss << ", ADD UNIQUE (";
         OmitInvoker print_sep((SepPrinter(oss)));
         BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
             string attr_name(rich_attr.GetName());
-            unique_attr_names.add_sure(attr_name);
+            unique_key.add_sure(attr_name);
             print_sep();
             oss << Quoted(attr_name);
         }
@@ -367,8 +591,8 @@ void RelVar::AddAttrs(pqxx::work& work, const RichHeader& rich_attrs)
                                        rich_attr.GetTrait()));
         header_.add_sure(rich_attr.GetAttr());
     }
-    if (!unique_attr_names.empty())
-        constrs_.push_back(Unique(unique_attr_names));
+    if (!unique_key.empty())
+        unique_keys_.push_back(unique_key);
 }
 
 
@@ -376,26 +600,14 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
 {
     if (attr_names.empty())
         return;
-    Constrs new_constrs;
-    BOOST_FOREACH(const Constr& constr, constrs_) {
-        const StringSet* constr_attr_names_ptr = 0;
-        if (const Unique* unique_ptr = boost::get<Unique>(&constr))
-            constr_attr_names_ptr = &unique_ptr->field_names;
-        else if (const ForeignKey* fk_ptr = boost::get<ForeignKey>(&constr))
-            constr_attr_names_ptr = &fk_ptr->key_field_names;
-        bool found = false;
-        if (constr_attr_names_ptr) {
-            BOOST_FOREACH(const string& constr_attr_name,
-                          *constr_attr_names_ptr) {
-                if (attr_names.contains(constr_attr_name)) {
-                    found = true;
-                    break;
-                }
-            }
-        }
-        if (!found)
-            new_constrs.push_back(constr);
-    }
+    StringSets new_unique_keys;
+    BOOST_FOREACH(const StringSet& unique_key, unique_keys_)
+        if (!Intersect(unique_key, attr_names))
+            new_unique_keys.push_back(unique_key);
+    ForeignKeys new_foreign_keys;
+    BOOST_FOREACH(const ForeignKey& foreign_key, foreign_keys_)
+        if (!Intersect(foreign_key.key_attr_names, attr_names))
+            new_foreign_keys.push_back(foreign_key);
     StringSet remaining_attr_names(attr_names);
     RichHeader new_rich_header;
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header_) {
@@ -421,24 +633,17 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
         print_sep();
         oss << "DROP " << Quoted(attr_name);
     }
-    bool found = false;
-    BOOST_FOREACH(const Constr& new_constr, new_constrs) {
-        if (boost::get<Unique>(&new_constr)) {
-            found = true;
-            break;
-        }
-    }
-    if (!found && !new_rich_header.empty()) {
+    if (new_unique_keys.empty() && !new_rich_header.empty()) {
         oss << ", ADD UNIQUE (";
-        StringSet all_attr_names;
+        StringSet unique_key;
         OmitInvoker print_sep((SepPrinter(oss)));
         BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_header) {
             string new_attr_name(new_rich_attr.GetName());
-            all_attr_names.add_sure(new_attr_name);
+            unique_key.add_sure(new_attr_name);
             print_sep();
             oss << Quoted(new_attr_name);
         }
-        new_constrs.push_back(Unique(all_attr_names));
+        new_unique_keys.push_back(unique_key);
         oss << ')';
     }
     try {
@@ -452,11 +657,13 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
                     ("Cannot drop attribute because "
                      "it is referenced from other relation variable"));
     }
-    constrs_ = new_constrs;
+    unique_keys_ = new_unique_keys;
+    foreign_keys_ = new_foreign_keys;
     rich_header_ = new_rich_header;
     header_.clear();
     InitHeader();
 }
+
 
 void RelVar::AddDefault(pqxx::work& work, const ValueMap& value_map)
 {
@@ -505,95 +712,6 @@ void RelVar::DropDefault(pqxx::work& work, const StringSet& attr_names)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DBMeta and its functors declarations
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class DBMeta {
-    public:
-        DBMeta(pqxx::work& work, const string& schema_name);
-        const RelVar& Get(const string& rel_var_name) const;
-        RelVar& Get(const string& rel_var_name);
-        const RelVars& GetAll() const;
-        
-        void Create(pqxx::work& work,
-                    const Translator& translator,
-                    const string& rel_var_name,
-                    const RichHeader& rich_header,
-                    const Constrs& constrs);
-        
-        void Drop(pqxx::work& work, const orset<string>& rel_var_names);
-
-    private:
-        RelVars rel_vars_;
-
-        size_t GetIdx(const string& rel_var_name) const; // never throws
-        size_t GetIdxChecked(const string& rel_var_name) const;
-    };
-
-    
-    class ConstrsLoader {
-    public:
-        ConstrsLoader(RelVars& rel_vars);
-        void operator()(pqxx::work& work) const;
-
-    private:
-        RelVars& rel_vars_;
-
-        void LoadConstrs(pqxx::work& work, RelVar& rel_var) const;
-        
-        void SetConstrByPgTuple(RelVar& rel_var,
-                                const pqxx::result::tuple& tuple) const;
-        
-        static StringSet GetFieldsByPgArray(const RichHeader& rich_header,
-                                            const string& pg_array);
-        
-        static vector<size_t> ReadPgArray(const string& pg_array);
-        const RelVar& GetRelVarByName(const string& rel_var_name) const;
-    };
-    
-
-    class RelVarCreator {
-    public:
-        RelVarCreator(const DBMeta& db_meta, const RelVar& rel_var);
-
-        void operator()(pqxx::work& work, const Translator& translator) const;
-
-    private:
-        const RelVar& rel_var_;
-
-        void PrintHeader(ostream& os,
-                         OmitInvoker& print_sep,
-                         const Quoter& quoter) const;
-
-        void PrintConstrs(const Translator& translator,
-                          ostream& os,
-                          OmitInvoker& print_sep) const;
-
-        void PrintCreateSequences(ostream& os) const;
-        void PrintAlterSequences(ostream& os) const;
-    };
-    
-
-    // RelVar drop functor. Works on a group. Requires it not to have
-    // foreign key reference relations with dependents outside the group.
-    class RelVarsDropper {
-    public:
-        RelVarsDropper(RelVars& rel_vars,
-                       const orset<string>& del_names);
-        void operator()(pqxx::work& work) const;
-
-    private:
-        RelVars& rel_vars_;
-        orset<string> del_names_;
-
-        vector<size_t> Prepare() const;
-        size_t GetDelNameIdx(const string& rel_var_name) const;
-    };    
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // DBMeta definitions
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -607,9 +725,10 @@ DBMeta::DBMeta(pqxx::work& work, const string& schema_name)
         KU_ASSERT(!tuple[0].is_null());
         rel_vars_.push_back(RelVar(work, tuple[0].c_str()));
     }
-    ConstrsLoader constrs_loader(rel_vars_);
-    constrs_loader(work);
+    BOOST_FOREACH(RelVar& rel_var, rel_vars_)
+        rel_var.LoadConstrs(work, *this);
 }
+
 
 const RelVars& DBMeta::GetAll() const
 {
@@ -633,7 +752,9 @@ void DBMeta::Create(pqxx::work& work,
                     const Translator& translator,
                     const string& rel_var_name,
                     const RichHeader& rich_header,
-                    const Constrs& constrs)
+                    const StringSets& unique_keys,
+                    const ForeignKeys& foreign_keys,
+                    const Strings& checks)
 {
     if (rel_vars_.size() >= MAX_REL_VAR_NUMBER) {
         static const string message(
@@ -641,38 +762,61 @@ void DBMeta::Create(pqxx::work& work,
              MAX_REL_VAR_NUMBER).str());
         throw Error(Error::DB_QUOTA, message);
     }
-    CheckName(rel_var_name);
-    CheckAttrNumber(rich_header.size());
     if (GetIdx(rel_var_name) != MINUS_ONE)
         throw Error(Error::REL_VAR_EXISTS,
                     "RelVar \"" + rel_var_name + "\" already exists");
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-        CheckName(rich_attr.GetName());
-    RelVar rel_var(rel_var_name, rich_header, constrs);
-    if (!rich_header.empty()) {
-        bool has_unique = false;
-        BOOST_FOREACH(const Constr& constr, constrs) {
-            if (boost::get<Unique>(&constr)) {
-                has_unique = true;
-                break;
-            }
-        }
-        if (!has_unique) {
-            StringSet all_field_names;
-            all_field_names.reserve(rich_header.size());
-            BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-                all_field_names.add_sure(rich_attr.GetName());
-            rel_var.GetConstrs().push_back(Unique(all_field_names));
-        }
-    }
-    RelVarCreator(*this, rel_var)(work, translator);
-    rel_vars_.push_back(rel_var);
+    rel_vars_.push_back(RelVar(work,
+                               translator,
+                               *this,
+                               rel_var_name,
+                               rich_header,
+                               unique_keys,
+                               foreign_keys,
+                               checks));
 }
 
 
-void DBMeta::Drop(pqxx::work& work, const orset<string>& rel_var_names)
+void DBMeta::Drop(pqxx::work& work, const StringSet& rel_var_names)
 {
-    RelVarsDropper(rel_vars_, rel_var_names)(work);
+    if (rel_var_names.empty())
+        return;
+    vector<size_t> indexes(rel_var_names.size(), -1);
+    for (size_t i = 0; i < rel_vars_.size(); ++i) {
+        const RelVar& rel_var(rel_vars_[i]);
+        StringSet::const_iterator name_itr = find(
+            rel_var_names.begin(), rel_var_names.end(), rel_var.GetName());
+        if (name_itr != rel_var_names.end())
+            indexes[name_itr - rel_var_names.begin()] = i;
+        else
+            BOOST_FOREACH(const ForeignKey& foreign_key,
+                          rel_var.GetForeignKeys())
+                if (rel_var_names.contains(foreign_key.ref_rel_var_name))
+                    throw Error(Error::REL_VAR_DEPENDENCY,
+                                ("Attempt to delete a group of RelVars "
+                                 "with a RelVar \"" +
+                                 foreign_key.ref_rel_var_name +
+                                 "\" but without a RelVar \"" +
+                                 rel_var.GetName() +
+                                 "\" it is dependent on"));
+    }
+    vector<size_t>::const_iterator index_itr(
+        find(indexes.begin(), indexes.end(), -1));
+    if (index_itr != indexes.end())
+        throw Error(Error::NO_SUCH_REL_VAR,
+                    ("No such RelVar: \"" +
+                     rel_var_names[index_itr - indexes.begin()] + '"'));
+    ostringstream oss;
+    oss << "DROP TABLE ";
+    OmitInvoker print_sep((SepPrinter(oss)));
+    BOOST_FOREACH(const string& rel_var_name, rel_var_names) {
+        print_sep();
+        oss << Quoted(rel_var_name);
+    }
+    oss << " CASCADE";
+    work.exec(oss.str());
+    sort(indexes.begin(), indexes.end());
+    BOOST_REVERSE_FOREACH(size_t index, indexes)
+        rel_vars_.erase(rel_vars_.begin() + index);
 }
 
 
@@ -692,389 +836,6 @@ size_t DBMeta::GetIdxChecked(const string& rel_var_name) const
         throw Error(Error::NO_SUCH_REL_VAR,
                     "No such RelVar: \"" + rel_var_name + '"');
     return idx;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// ConstrsLoader definitions
-////////////////////////////////////////////////////////////////////////////////
-
-ConstrsLoader::ConstrsLoader(RelVars& rel_vars)
-    : rel_vars_(rel_vars) {}
-
-
-void ConstrsLoader::operator()(pqxx::work& work) const
-{
-    BOOST_FOREACH(RelVar& rel_var, rel_vars_)
-        LoadConstrs(work, rel_var);
-}
-
-
-void ConstrsLoader::LoadConstrs(pqxx::work& work, RelVar& rel_var) const
-{
-    static const format query("SELECT * FROM ku.describe_constrs('\"%1%\"')");
-    pqxx::result pqxx_result =
-        work.exec((format(query) % rel_var.GetName()).str());
-    rel_var.GetConstrs().reserve(pqxx_result.size());
-    BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result)
-        SetConstrByPgTuple(rel_var, tuple);
-}
-
-
-void ConstrsLoader::SetConstrByPgTuple(RelVar& rel_var,
-                                       const pqxx::result::tuple& tuple) const
-{
-    KU_ASSERT_EQUAL(tuple.size(), 4U);
-    KU_ASSERT(!tuple[0].is_null() && !tuple[1].is_null());
-    KU_ASSERT_EQUAL(string(tuple[0].c_str()).size(), 1U);
-    
-    Constrs& constrs(rel_var.GetConstrs());
-    const RichHeader& rich_header(rel_var.GetRichHeader());
-    StringSet field_names(GetFieldsByPgArray(rich_header, tuple[1].c_str()));
-    char constr_code = tuple[0].c_str()[0];
-    switch (constr_code) {
-    case 'p':
-    case 'u':
-        constrs.push_back(Unique(field_names));
-        break;
-    case 'f': {
-        KU_ASSERT(!tuple[2].is_null() && !tuple[3].is_null());
-        const RichHeader&
-            ref_rich_header(GetRelVarByName(tuple[2].c_str()).GetRichHeader());
-        StringSet
-            ref_field_names(GetFieldsByPgArray(ref_rich_header,
-                                               tuple[3].c_str()));
-        constrs.push_back(ForeignKey(field_names,
-                                     tuple[2].c_str(),
-                                     ref_field_names));
-        break;
-    }
-    default:
-        KU_ASSERT_EQUAL(constr_code, 'c');
-        // TODO implement check constrs loading or at least loading of
-        // their names
-    };
-}
-
-
-StringSet ConstrsLoader::GetFieldsByPgArray(const RichHeader& rich_header,
-                                            const string& pg_array)
-{
-    vector<size_t> indexes(ReadPgArray(pg_array));
-    StringSet result;
-    result.reserve(indexes.size());
-    BOOST_FOREACH(size_t index, indexes) {
-        KU_ASSERT(index > 0 && index <= rich_header.size());
-        result.add_sure(rich_header[index - 1].GetName());
-    }
-    return result;
-}
-
-
-vector<size_t> ConstrsLoader::ReadPgArray(const string& pg_array)
-{
-    KU_ASSERT(pg_array.size() >= 2);
-    istringstream iss(pg_array.substr(1, pg_array.size() - 2));
-    vector<size_t> result;
-    for (;;) {
-        size_t item;
-        iss >> item;
-        KU_ASSERT(!iss.fail());
-        result.push_back(item);
-        if (iss.eof())
-            break;
-        char comma;
-        iss.get(comma);
-        KU_ASSERT_EQUAL(comma, ',');
-    }
-    return result;
-}
-
-
-const RelVar& ConstrsLoader::GetRelVarByName(const string& rel_var_name) const
-{
-    BOOST_FOREACH(const RelVar& rel_var, rel_vars_)
-        if (rel_var.GetName() == rel_var_name)
-            return rel_var;
-    Fail("Constraint to unavaliable RelVar \"" + rel_var_name + '"');
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// RelVarCreator definitions
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class ConstrChecker : public static_visitor<void> {
-    public:
-        ConstrChecker(const DBMeta& db_meta,
-                      const RelVar& rel_var)
-            : db_meta_(db_meta), rel_var_(rel_var) {}
-
-        void operator()(const Unique& unique) const {
-            if (unique.field_names.empty())
-                throw Error(Error::VALUE, "Empty unique field set");
-            BOOST_FOREACH(const string& field_name, unique.field_names)
-                rel_var_.GetRichHeader().find(field_name);
-        }
-
-        void operator()(const ForeignKey& foreign_key) const {
-            if (foreign_key.key_field_names.size() !=
-                foreign_key.ref_field_names.size())
-                throw Error(Error::VALUE, "Ref-key fields size mismatch");
-            if (foreign_key.key_field_names.empty())
-                throw Error(Error::VALUE,
-                            "Foreign key with empty key field set");
-
-            const RichHeader& key_rich_header(rel_var_.GetRichHeader());
-            const RelVar&
-                ref_rel_var(foreign_key.ref_rel_var_name == rel_var_.GetName()
-                            ? rel_var_
-                            : db_meta_.Get(foreign_key.ref_rel_var_name));
-            const RichHeader& ref_rich_header(ref_rel_var.GetRichHeader());
-            
-            for (size_t i = 0; i < foreign_key.key_field_names.size(); ++i) {
-                string key_field_name = foreign_key.key_field_names[i];
-                string ref_field_name = foreign_key.ref_field_names[i];
-                RichAttr key_rich_attr(key_rich_header.find(key_field_name));
-                RichAttr ref_rich_attr(ref_rich_header.find(ref_field_name));
-                Type key_field_type(key_rich_attr.GetType());
-                Type ref_field_type(ref_rich_attr.GetType());
-                Type::Trait key_field_trait(key_rich_attr.GetTrait());
-                Type::Trait ref_field_trait(ref_rich_attr.GetTrait());
-                if (key_field_type != ref_field_type ||
-                    !Type::TraitsAreCompatible(key_field_trait,
-                                               ref_field_trait))
-                    throw Error(Error::USAGE,
-                                ("Foreign key field types mismatch: \"" +
-                                 rel_var_.GetName() + '.' +
-                                 key_field_name + "\" is " +
-                                 key_field_type.GetKuStr(key_field_trait) +
-                                 ", \"" +
-                                 foreign_key.ref_rel_var_name + '.' +
-                                 ref_field_name + "\" is " +
-                                 ref_field_type.GetKuStr(ref_field_trait)));
-            }
-            
-            BOOST_FOREACH(const Constr& constr, ref_rel_var.GetConstrs()) {
-                const Unique* unique_ptr = boost::get<Unique>(&constr);
-                if (unique_ptr &&
-                    unique_ptr->field_names == foreign_key.ref_field_names)
-                    return;
-            }
-            throw Error(Error::USAGE, "Foreign key ref fields must be unique");
-        }
-
-        void operator()(const Check& /*check*/) const {}
-
-    private:
-        const DBMeta& db_meta_;
-        const RelVar& rel_var_;
-    };
-}
-
-
-RelVarCreator::RelVarCreator(const DBMeta& db_meta, const RelVar& rel_var)
-    : rel_var_(rel_var)
-{
-    BOOST_FOREACH(const Constr& constr, rel_var_.GetConstrs())
-        apply_visitor(ConstrChecker(db_meta, rel_var_), constr);
-}
-
-
-void RelVarCreator::operator()(pqxx::work& work,
-                               const Translator& translator) const
-{
-    ostringstream oss;
-    PrintCreateSequences(oss);
-    oss << "CREATE TABLE \"" << rel_var_.GetName() << "\" (";
-    OmitInvoker print_sep((SepPrinter(oss)));
-    PrintHeader(oss, print_sep, Quoter(work));
-    PrintConstrs(translator, oss, print_sep);
-    oss << ");";
-    PrintAlterSequences(oss);
-    work.exec(oss.str());
-}
-
-
-void RelVarCreator::PrintHeader(ostream& os,
-                                OmitInvoker& print_sep,
-                                const Quoter& quoter) const
-{
-    BOOST_FOREACH(const RichAttr& rich_attr, rel_var_.GetRichHeader()) {
-        print_sep();
-        os << Quoted(rich_attr.GetName()) << ' '
-           << rich_attr.GetType().GetPgStr(rich_attr.GetTrait())
-           << " NOT NULL";
-        const Value* default_ptr(rich_attr.GetDefaultPtr());
-        if (default_ptr)
-            os << " DEFAULT " << quoter(default_ptr->GetPgLiter());
-        else if (rich_attr.GetTrait() == Type::SERIAL)
-            os << " DEFAULT nextval('\""
-               << rel_var_.GetName() << '@' << rich_attr.GetName()
-               << "\"')";
-        if (rich_attr.GetType() == Type::STRING)
-            os << " CHECK (bit_length("
-               << Quoted(rich_attr.GetName())
-               << ") <= " << 8 * MAX_STRING_SIZE
-               << ')';
-    }
-}
-
-
-namespace
-{
-    class ConstrPrinter : public static_visitor<void> {
-    public:
-        ConstrPrinter(const Translator& translator,
-                      const RelVar& rel_var,
-                      ostream& os,
-                      OmitInvoker& print_sep)
-            : translator_(translator)
-            , rel_var_(rel_var)
-            , os_(os)
-            , print_sep_(print_sep) {}
-
-        void operator()(const Unique& unique) {
-            print_sep_();
-            os_ << "UNIQUE ";
-            PrintNameSet(unique.field_names);
-        }
-        
-        void operator()(const ForeignKey& foreign_key) {
-            print_sep_();
-            os_ << "FOREIGN KEY ";
-            PrintNameSet(foreign_key.key_field_names);
-            os_ << " REFERENCES " << Quoted(foreign_key.ref_rel_var_name);
-            PrintNameSet(foreign_key.ref_field_names);
-        }
-        
-        void operator()(const Check& check) {
-            print_sep_();
-            os_ << "CHECK ("
-                << translator_.TranslateExpr(check.expr_str,
-                                             rel_var_.GetName(),
-                                             rel_var_.GetHeader())
-                << ')';
-        }
-
-    private:
-        const Translator& translator_;
-        const RelVar& rel_var_;
-        ostream& os_;
-        OmitInvoker& print_sep_;
-
-        void PrintNameSet(const StringSet& name_set) {
-            OmitInvoker print_local_sep((SepPrinter(os_)));
-            os_ << '(';
-            BOOST_FOREACH(const string& name, name_set) {
-                print_local_sep();
-                os_ << Quoted(name);
-            }
-            os_ << ')';
-        }
-    };
-}
-
-
-void RelVarCreator::PrintConstrs(const Translator& translator,
-                                 ostream& os,
-                                 OmitInvoker& print_sep) const
-{
-    ConstrPrinter constr_printer(translator, rel_var_, os, print_sep);
-    BOOST_FOREACH(const Constr& constr, rel_var_.GetConstrs())
-        apply_visitor(constr_printer, constr);
-}
-
-
-void RelVarCreator::PrintCreateSequences(ostream& os) const
-{
-    static const format cmd("CREATE SEQUENCE \"%1%@%2%\" MINVALUE 0 START 0;");
-    BOOST_FOREACH(const RichAttr& rich_attr, rel_var_.GetRichHeader())
-        if (rich_attr.GetTrait() == Type::SERIAL)
-            os << (format(cmd) % rel_var_.GetName() % rich_attr.GetName());
-}
-
-
-void RelVarCreator::PrintAlterSequences(ostream& os) const
-{
-    static const format cmd(
-        "ALTER SEQUENCE \"%1%@%2%\" OWNED BY \"%1%\".\"%2%\";");
-    BOOST_FOREACH(const RichAttr& rich_attr, rel_var_.GetRichHeader())
-        if (rich_attr.GetTrait() == Type::SERIAL)
-            os << (format(cmd) % rel_var_.GetName() % rich_attr.GetName());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// RelVarsDropper definitions
-////////////////////////////////////////////////////////////////////////////////
-
-RelVarsDropper::RelVarsDropper(RelVars& rel_vars,
-                               const orset<string>& del_names)
-    : rel_vars_(rel_vars)
-    , del_names_(del_names)
-{
-}
-
-
-void RelVarsDropper::operator()(pqxx::work& work) const
-{
-    if (del_names_.empty())
-        return;
-    vector<size_t> del_indexes(Prepare());
-    ostringstream oss;
-    OmitInvoker print_sep((SepPrinter(oss)));
-    BOOST_FOREACH(const string& del_name, del_names_) {
-        print_sep();
-        oss << Quoted(del_name);
-    }
-    work.exec("DROP TABLE " + oss.str() + " CASCADE;");
-    sort(del_indexes.begin(), del_indexes.end(), greater<size_t>());
-    BOOST_FOREACH(size_t index, del_indexes)
-        rel_vars_.erase(rel_vars_.begin() + index);
-}
-
-
-vector<size_t> RelVarsDropper::Prepare() const
-{
-    vector<size_t> result(del_names_.size(), -1);
-    for (size_t i = 0; i < rel_vars_.size(); ++i) {
-        const RelVar& rel_var(rel_vars_[i]);
-        size_t idx = GetDelNameIdx(rel_var.GetName());
-        if (idx != MINUS_ONE) {
-            result[idx] = i;
-            continue;
-        }
-        BOOST_FOREACH(const Constr& constr, rel_var.GetConstrs()) {
-            const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
-            const string& ref_rel_var_name(foreign_key_ptr->ref_rel_var_name);
-            if (foreign_key_ptr &&
-                GetDelNameIdx(ref_rel_var_name) != MINUS_ONE)
-                throw Error(Error::REL_VAR_DEPENDENCY,
-                            ("Attempt to delete a group of RelVars "
-                             "with a RelVar \"" +
-                             ref_rel_var_name +
-                             "\" but without a RelVar \"" +
-                             rel_var.GetName() +
-                             "\" it is dependent on"));
-        }
-    }
-    vector<size_t>::const_iterator itr(find(result.begin(), result.end(), -1));
-    if (itr != result.end())
-        throw Error(Error::NO_SUCH_REL_VAR,
-                    ("No such RelVar: \"" +
-                     del_names_[itr - result.begin()] + '"'));
-    return result;
-}
-
-
-size_t RelVarsDropper::GetDelNameIdx(const string& rel_var_name) const
-{
-    orset<string>::const_iterator itr(find(del_names_.begin(),
-                                           del_names_.end(),
-                                           rel_var_name));
-    return (itr == del_names_.end()
-            ? MINUS_ONE
-            : itr - del_names_.begin());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1144,14 +905,13 @@ namespace
         DBViewerImpl(const Manager& manager, const Quoter& quoter);
         virtual const Header& GetHeader(const string& rel_var_name) const;
         virtual string Quote(const PgLiter& pg_liter) const;
-        virtual RelVarFields GetReference(const RelVarFields& key) const;
+        virtual RelVarAttrs GetReference(const RelVarAttrs& key) const;
         
     private:
         const Manager& manager_;
         Quoter quoter_;
 
-        Error MakeKeyError(const RelVarFields& key,
-                           const string& message) const;
+        Error MakeKeyError(const RelVarAttrs& key, const string& message) const;
     };
 }
 
@@ -1174,38 +934,35 @@ string DBViewerImpl::Quote(const PgLiter& pg_liter) const
 }
 
 
-DBViewer::RelVarFields DBViewerImpl::GetReference(const RelVarFields& key) const
+DBViewer::RelVarAttrs DBViewerImpl::GetReference(const RelVarAttrs& key) const
 {
     const RelVar& rel_var(manager_.GetMeta().Get(key.rel_var_name));
-    const ForeignKey* found_foreign_key_ptr = 0;
-    BOOST_FOREACH(const Constr& constr, rel_var.GetConstrs()) {
-        const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
-        if (foreign_key_ptr &&
-            foreign_key_ptr->key_field_names == key.field_names) {
-            if (found_foreign_key_ptr)
-                throw MakeKeyError(key, "has multiple keys on fields");
+    const ForeignKey* foreign_key_ptr = 0;
+    BOOST_FOREACH(const ForeignKey& foreign_key, rel_var.GetForeignKeys()) {
+        if (foreign_key.key_attr_names == key.attr_names) {
+            if (foreign_key_ptr)
+                throw MakeKeyError(key, "has multiple keys on attributes");
             else
-                found_foreign_key_ptr = foreign_key_ptr;
+                foreign_key_ptr = &foreign_key;
         }
     }
-
-    if (found_foreign_key_ptr)
-        return RelVarFields(found_foreign_key_ptr->ref_rel_var_name,
-                            found_foreign_key_ptr->ref_field_names);
+    if (foreign_key_ptr)
+        return RelVarAttrs(foreign_key_ptr->ref_rel_var_name,
+                           foreign_key_ptr->ref_attr_names);
     else
-        throw MakeKeyError(key, "doesn't have a key with fields");
+        throw MakeKeyError(key, "doesn't have a key with attributes");
 }
 
 
-Error DBViewerImpl::MakeKeyError(const RelVarFields& key,
+Error DBViewerImpl::MakeKeyError(const RelVarAttrs& key,
                                  const string& message) const
 {
     ostringstream oss;
     oss << "RelVar \"" << key.rel_var_name << "\" " << message << ' ';
     OmitInvoker print_sep((SepPrinter(oss)));
-    BOOST_FOREACH(const string& field, key.field_names) {
+    BOOST_FOREACH(const string& attr_name, key.attr_names) {
         print_sep();
-        oss << field;
+        oss << attr_name;
     }
     return Error(Error::QUERY, oss.str());
 }
@@ -1481,18 +1238,31 @@ const RichHeader& Access::GetRichHeader(const string& rel_var_name) const
 }
 
 
-const Constrs& Access::GetConstrs(const string& rel_var_name) const
+const StringSets& Access::GetUniqueKeys(const string& rel_var_name) const
 {
-    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetConstrs();
+    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetUniqueKeys();
+}
+
+
+const ForeignKeys& Access::GetForeignKeys(const string& rel_var_name) const
+{
+    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetForeignKeys();
 }
 
 
 void Access::Create(const string& name,
                     const RichHeader& rich_header,
-                    const Constrs& constrs)
+                    const StringSets& unique_keys,
+                    const ForeignKeys& foreign_keys,
+                    const Strings& checks)
 {
-    db_impl_.GetManager().ChangeMeta().Create(
-        *work_ptr_, db_impl_.GetTranslator(), name, rich_header, constrs);
+    db_impl_.GetManager().ChangeMeta().Create(*work_ptr_,
+                                              db_impl_.GetTranslator(),
+                                              name,
+                                              rich_header,
+                                              unique_keys,
+                                              foreign_keys,
+                                              checks);
 }
 
 
@@ -1544,22 +1314,22 @@ size_t Access::Count(const string& query, const Values& params) const
 size_t Access::Update(const string& rel_var_name,
                       const string& where,
                       const Values& where_params,
-                      const StringMap& field_expr_map,
+                      const StringMap& attr_expr_map,
                       const Values& expr_params)
 {
     db_impl_.GetQuotaChecker().Check(*work_ptr_);
     
     const RichHeader& rich_header(GetRichHeader(rel_var_name));
     uint64_t size = 0;
-    BOOST_FOREACH(const StringMap::value_type& field_expr, field_expr_map) {
-        rich_header.find(field_expr.first);
+    BOOST_FOREACH(const StringMap::value_type& attr_expr, attr_expr_map) {
+        rich_header.find(attr_expr.first);
         // FIXME it's wrong estimation for expressions
-        size += field_expr.second.size();
+        size += attr_expr.second.size();
     }
     string sql(db_impl_.GetTranslator().TranslateUpdate(rel_var_name,
                                                         where,
                                                         where_params,
-                                                        field_expr_map,
+                                                        attr_expr_map,
                                                         expr_params));
     size_t result;
     try {

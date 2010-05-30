@@ -13,47 +13,24 @@
 namespace ku
 {
     ////////////////////////////////////////////////////////////////////////////
-    // Constrs
+    // ForeignKey
     ////////////////////////////////////////////////////////////////////////////
 
-    struct Unique {
-        StringSet field_names;
-
-        explicit Unique(const StringSet& field_names)
-            : field_names(field_names) {}
-    };
-    
-
     struct ForeignKey {
-        StringSet key_field_names;
+        StringSet key_attr_names;
         std::string ref_rel_var_name;
-        StringSet ref_field_names;
+        StringSet ref_attr_names;
 
-        ForeignKey(const StringSet& key_field_names,
+        ForeignKey(const StringSet& key_attr_names,
                    const std::string& ref_rel_var_name,
-                   const StringSet& ref_field_names)
-            : key_field_names(key_field_names)
+                   const StringSet& ref_attr_names)
+            : key_attr_names(key_attr_names)
             , ref_rel_var_name(ref_rel_var_name)
-            , ref_field_names(ref_field_names) {}
+            , ref_attr_names(ref_attr_names) {}
     };
-
-
-    struct Check {
-        std::string expr_str;
-
-        explicit Check(const std::string& expr_str)
-            : expr_str(expr_str) {}
-    };
-
-
-    typedef boost::variant<
-        Unique,
-        ForeignKey,
-        Check>
-    Constr;
 
     
-    typedef std::vector<Constr> Constrs;
+    typedef std::vector<ForeignKey> ForeignKeys;
         
     ////////////////////////////////////////////////////////////////////////////
     // DB
@@ -148,13 +125,16 @@ namespace ku
 
         const RichHeader& GetRichHeader(const std::string& rel_var_name) const;
 
-        // Relation constraints do not save their order after
-        // store/load from DB. Check constraints are not restored at all.
-        const Constrs& GetConstrs(const std::string& rel_var_name) const;
+        const StringSets& GetUniqueKeys(const std::string& rel_var_name) const;
+
+        const ForeignKeys&
+        GetForeignKeys(const std::string& rel_var_name) const;
         
         void Create(const std::string& name,
                     const RichHeader& rich_header,
-                    const Constrs& constrs);
+                    const StringSets& unique_keys,
+                    const ForeignKeys& foreign_keys,
+                    const Strings& checks);
         
         void Drop(const StringSet& rel_var_names);
         

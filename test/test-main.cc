@@ -244,47 +244,13 @@ BOOST_AUTO_TEST_CASE(parser_test)
 // Comparison stuff
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    class ConstrCompareVisitor : public static_visitor<bool> {
-    public:
-        template <typename T, typename U>
-        bool operator()(const T& /*lhs*/, const U& /*rhs*/) const {
-            return false;
-        }
-        
-        bool operator()(const Unique& lhs, const Unique& rhs) const {
-            return lhs.field_names == rhs.field_names;
-        }
-
-        bool operator()(const ForeignKey& lhs, const ForeignKey& rhs) const {
-            return (lhs.key_field_names  == rhs.key_field_names &&
-                    lhs.ref_rel_var_name == rhs.ref_rel_var_name &&
-                    lhs.ref_field_names  == rhs.ref_field_names);
-        }
-    
-        bool operator()(const Check& lhs, const Check& rhs) const {
-            return lhs.expr_str == rhs.expr_str;
-        }
-    };
-
-    
-    class ConstrComparator : public binary_function<Constr, Constr, bool> {
-    public:
-        bool operator()(const Constr& lhs, const Constr& rhs) const {
-            return apply_visitor(ConstrCompareVisitor(), lhs, rhs);
-        }
-    };
-}
-
-
 namespace ku
 {
-    bool operator==(const Constrs& lhs, const Constrs& rhs)
+    bool operator==(const ForeignKey& lhs, const ForeignKey& rhs)
     {
-        return (
-            orset<Constr, ConstrComparator>(lhs.begin(), lhs.end(), false) ==
-            orset<Constr, ConstrComparator>(rhs.begin(), rhs.end(), false));
+        return (lhs.key_attr_names  == rhs.key_attr_names &&
+                lhs.ref_rel_var_name == rhs.ref_rel_var_name &&
+                lhs.ref_attr_names  == rhs.ref_attr_names);
     }
     
     
@@ -322,7 +288,8 @@ namespace
     class Table {
     public:
         Table(const RichHeader& rich_header,
-              const Constrs& constrs = Constrs());
+              const StringSets& unique_keys = StringSets(),
+              const ForeignKeys& foreign_keys = ForeignKeys());
         Table(const Header& header);
         
         Table(istream& is);
@@ -331,15 +298,21 @@ namespace
         friend ostream& operator<<(ostream& os, const Table& table);
         const ValuesSet& GetValuesSet() const;
         const RichHeader& GetRichHeader() const;
-        const Constrs& GetConstrs() const;
+        const StringSets& GetUniqueKeys() const;
+        const ForeignKeys& GetForeignKeys() const;
+        const Strings& GetChecks() const;
 
         void SetRichHeader(const RichHeader& rich_header);
-        void SetConstrs(const Constrs& constrs);
+        void SetUniqueKeys(const StringSets& unique_keys);
+        void SetChecks(const Strings& checks);
+        void SetForeignKeys(const ForeignKeys& foreign_keys);
         void AddRow(const Values& values);
         
     private:
         RichHeader rich_header_;
-        Constrs constrs_;
+        StringSets unique_keys_;
+        ForeignKeys foreign_keys_;
+        Strings checks_;
         ValuesSet values_set_;
 
         void ReadHeader(istream& is);
@@ -348,7 +321,7 @@ namespace
         void ReadValuesSet(istream& is);
         void PrintHeader(ostream& os) const;
         void PrintValuesSet(ostream& os) const;
-        void AddAllUniqueConstr();
+        void AddAllUniqueKey();
     };
 
 
@@ -376,11 +349,14 @@ namespace
 }
 
 
-Table::Table(const RichHeader& rich_header, const Constrs& constrs)
+Table::Table(const RichHeader& rich_header,
+             const StringSets& unique_keys,
+             const ForeignKeys& foreign_keys)
     : rich_header_(rich_header)
-    , constrs_(constrs)
+    , unique_keys_(unique_keys)
+    , foreign_keys_(foreign_keys)
 {
-    AddAllUniqueConstr();
+    AddAllUniqueKey();
 }
 
 
@@ -389,7 +365,7 @@ Table::Table(const Header& header)
     rich_header_.reserve(header.size());
     BOOST_FOREACH(const Attr& attr, header)
         rich_header_.add_sure(RichAttr(attr.GetName(), attr.GetType()));
-    AddAllUniqueConstr();
+    AddAllUniqueKey();
 }       
 
 
@@ -397,7 +373,7 @@ Table::Table(istream& is)
 {
     ReadHeader(is);
     ReadMetaData(is);
-    AddAllUniqueConstr();
+    AddAllUniqueKey();
     ReadValuesSet(is);
 }
 
@@ -405,7 +381,8 @@ Table::Table(istream& is)
 bool Table::operator==(const Table& other) const
 {
     return (rich_header_ == other.rich_header_ &&
-            constrs_ == other.constrs_ &&
+            unique_keys_ == other.unique_keys_ &&
+            foreign_keys_ == other.foreign_keys_ &&
             values_set_ == other.values_set_);
 }
 
@@ -422,9 +399,21 @@ const RichHeader& Table::GetRichHeader() const
 }
 
 
-const Constrs& Table::GetConstrs() const
+const StringSets& Table::GetUniqueKeys() const
 {
-    return constrs_;
+    return unique_keys_;
+}
+
+
+const ForeignKeys& Table::GetForeignKeys() const
+{
+    return foreign_keys_;
+}
+
+
+const Strings& Table::GetChecks() const
+{
+    return checks_;
 }
 
 
@@ -434,9 +423,21 @@ void Table::SetRichHeader(const RichHeader& rich_header)
 }
 
 
-void Table::SetConstrs(const Constrs& constrs)
+void Table::SetUniqueKeys(const StringSets& unique_keys)
 {
-    constrs_ = constrs;
+    unique_keys_ = unique_keys;
+}
+
+
+void Table::SetForeignKeys(const ForeignKeys& foreign_keys)
+{
+    foreign_keys_ = foreign_keys;
+}
+
+
+void Table::SetChecks(const Strings& checks)
+{
+    checks_ = checks;
 }
 
 
@@ -503,43 +504,43 @@ void Table::ReadMetaData(istream& is)
         string constr_name;
         line_iss >> constr_name;
         if (constr_name == "check") {
-            constrs_.push_back(Check(line.substr(string("check").size() + 1)));
+            checks_.push_back(line.substr(string("check").size() + 1));
         } else if (constr_name == "fk") {
-            StringSet key_field_names;
+            StringSet key_attr_names;
             for (;;) {
                 string name;
                 line_iss >> name;
                 BOOST_REQUIRE(!line_iss.eof());
                 if (name == "-")
                     break;
-                key_field_names.add_sure(name);
+                key_attr_names.add_sure(name);
             }
             string ref_rel_var_name;
             line_iss >> ref_rel_var_name;
             string delimiter;
             line_iss >> delimiter;
             BOOST_REQUIRE(delimiter == "-");
-            StringSet ref_field_names;
+            StringSet ref_attr_names;
             for (;;) {
                 string name;
                 line_iss >> name;
                 if (name.empty())
                     break;
-                ref_field_names.add_sure(name);
+                ref_attr_names.add_sure(name);
             }
-            constrs_.push_back(ForeignKey(key_field_names,
-                                          ref_rel_var_name,
-                                          ref_field_names));
+            foreign_keys_.push_back(ForeignKey(key_attr_names,
+                                               ref_rel_var_name,
+                                               ref_attr_names));
         } else if (constr_name == "unique") {
-            StringSet field_names;
+            StringSet unique_key;
             for (;;) {
                 string name;
                 line_iss >> name;
                 if (name.empty())
                     break;
-                field_names.add_sure(name);
+                unique_key.add_sure(name);
             }
-            constrs_.push_back(Unique(field_names));
+            unique_keys_.push_back(unique_key);
         } else if (constr_name == "default") {
             string field_name;
             line_iss >> field_name;
@@ -605,15 +606,15 @@ void Table::PrintValuesSet(ostream& os) const
 }
 
 
-void Table::AddAllUniqueConstr()
+void Table::AddAllUniqueKey()
 {
     if (rich_header_.empty())
         return;
-    StringSet all_field_names;
-    all_field_names.reserve(rich_header_.size());
+    StringSet all_unique_key;
+    all_unique_key.reserve(rich_header_.size());
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-        all_field_names.add_sure(rich_attr.GetName());
-    constrs_.push_back(Unique(all_field_names));
+        all_unique_key.add_sure(rich_attr.GetName());
+    unique_keys_.push_back(all_unique_key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -637,7 +638,7 @@ namespace
         StringSet GetRelVarNames();
         const RichHeader& GetRelVarRichHeader(const string& rel_var_name);
         void DeleteRelVars(const StringSet& rel_var_names);
-        const Constrs& GetRelVarConstrs(const string& rel_var_name);
+        const ForeignKeys& GetForeignKeys(const string& rel_var_name);
     };
 }
 
@@ -680,7 +681,8 @@ Table DBFixture::DumpRelVar(const string& rel_var_name)
     Table result(Query(rel_var_name));
     Access access(db);
     result.SetRichHeader(access.GetRichHeader(rel_var_name));
-    result.SetConstrs(access.GetConstrs(rel_var_name));
+    result.SetUniqueKeys(access.GetUniqueKeys(rel_var_name));
+    result.SetForeignKeys(access.GetForeignKeys(rel_var_name));
     return result;
 }
 
@@ -703,7 +705,11 @@ void DBFixture::CreateRelVar(const string& rel_var_name, const Table& table)
 {
     Access access(db);
     const RichHeader& rich_header(table.GetRichHeader());
-    access.Create(rel_var_name, rich_header, table.GetConstrs());
+    access.Create(rel_var_name,
+                  rich_header,
+                  table.GetUniqueKeys(),
+                  table.GetForeignKeys(),
+                  table.GetChecks());
     BOOST_FOREACH(const Values& values, table.GetValuesSet()) {
         assert(values.size() == rich_header.size());
         ValueMap value_map;
@@ -740,10 +746,10 @@ void DBFixture::DeleteRelVars(const StringSet& rel_var_names)
 }
 
 
-const Constrs& DBFixture::GetRelVarConstrs(const string& rel_var_name)
+const ForeignKeys& DBFixture::GetForeignKeys(const string& rel_var_name)
 {
     Access access(db);
-    return access.GetConstrs(rel_var_name);
+    return access.GetForeignKeys(rel_var_name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -803,15 +809,12 @@ namespace
                     : pg_liter.str);
         }
 
-        virtual RelVarFields GetReference(const RelVarFields& key) const {
-            BOOST_FOREACH(const Constr& constr,
-                          db_fixture_.GetRelVarConstrs(key.rel_var_name)) {
-                const ForeignKey*
-                    foreign_key_ptr = boost::get<ForeignKey>(&constr);
-                if (foreign_key_ptr &&
-                    foreign_key_ptr->key_field_names == key.field_names)
-                    return RelVarFields(foreign_key_ptr->ref_rel_var_name,
-                                        foreign_key_ptr->ref_field_names);
+        virtual RelVarAttrs GetReference(const RelVarAttrs& key) const {
+            BOOST_FOREACH(const ForeignKey& foreign_key,
+                          db_fixture_.GetForeignKeys(key.rel_var_name)) {
+                if (foreign_key.key_attr_names == key.attr_names)
+                    return RelVarAttrs(foreign_key.ref_rel_var_name,
+                                       foreign_key.ref_attr_names);
             }
             BOOST_FAIL("Reference was not found");
             throw 1; // NEVER REACHED

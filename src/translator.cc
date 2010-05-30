@@ -121,8 +121,8 @@ namespace
         void PrintParam(size_t pos);
         const Header& GetHeader(const string& rel_var_name) const;
 
-        DBViewer::RelVarFields
-        GetReference(const DBViewer::RelVarFields& key) const;
+        DBViewer::RelVarAttrs
+        GetReference(const DBViewer::RelVarAttrs& key) const;
 
         template <typename T>
         Control& operator<<(const T& t);
@@ -247,12 +247,13 @@ const Header& Control::GetHeader(const string& rel_var_name) const
 }
 
 
-DBViewer::RelVarFields
-Control::GetReference(const DBViewer::RelVarFields& key) const
+DBViewer::RelVarAttrs
+Control::GetReference(const DBViewer::RelVarAttrs& key) const
 {
     if (key.rel_var_name == THIS_NAME)
-       throw Error(Error::QUERY,
-                   "Operator -> can not be used on fields of an order expr");
+       throw Error(
+           Error::QUERY,
+           "Operator -> can not be used on fields of an order expr");
     return db_viewer_.GetReference(key);
 }
 
@@ -719,20 +720,20 @@ Type FieldTranslator::TranslateSelfField() const
 
 
 string FieldTranslator::FollowReference(const string& rel_var_name,
-                                        const StringSet& field_names)
+                                        const StringSet& attr_names)
 {
-    DBViewer::RelVarFields key(rel_var_name, field_names);
-    DBViewer::RelVarFields ref(control_.GetReference(key));
-    KU_ASSERT_EQUAL(ref.field_names.size(), field_names.size());
+    DBViewer::RelVarAttrs key(rel_var_name, attr_names);
+    DBViewer::RelVarAttrs ref(control_.GetReference(key));
+    KU_ASSERT_EQUAL(ref.attr_names.size(), attr_names.size());
 
     print_from_sep_();
     from_oss_ << Quoted(ref.rel_var_name);
-    for (size_t i = 0; i < field_names.size(); ++i) {
+    for (size_t i = 0; i < attr_names.size(); ++i) {
         print_where_sep_();
-        where_oss_ << Quoted(rel_var_name) << '.' << Quoted(field_names[i])
+        where_oss_ << Quoted(rel_var_name) << '.' << Quoted(attr_names[i])
                    << " = "
                    << Quoted(ref.rel_var_name)
-                   << '.' << Quoted(ref.field_names[i]);
+                   << '.' << Quoted(ref.attr_names[i]);
     }
     
     return ref.rel_var_name;

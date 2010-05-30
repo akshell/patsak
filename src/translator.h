@@ -13,13 +13,13 @@ namespace ku
     // of subclass of this type.
     class DBViewer {
     public:
-        struct RelVarFields {
+        struct RelVarAttrs {
             std::string rel_var_name;
-            StringSet field_names;
+            StringSet attr_names;
 
-            RelVarFields(const std::string& rel_var_name,
-                         const StringSet& field_names)
-                : rel_var_name(rel_var_name), field_names(field_names) {}
+            RelVarAttrs(const std::string& rel_var_name,
+                         const StringSet& attr_names)
+                : rel_var_name(rel_var_name), attr_names(attr_names) {}
         };
         
         virtual ~DBViewer() {}
@@ -31,7 +31,7 @@ namespace ku
         std::string Quote(const PgLiter& pg_liter) const = 0;
 
         virtual
-        RelVarFields GetReference(const RelVarFields& key) const = 0;
+        RelVarAttrs GetReference(const RelVarAttrs& key) const = 0;
     };
 
 
@@ -53,7 +53,7 @@ namespace ku
         std::string TranslateUpdate(const std::string& rel_var_name,
                                     const std::string& where,
                                     const Values& where_params,
-                                    const StringMap& field_expr_map,
+                                    const StringMap& attr_expr_map,
                                     const Values& expr_params) const;
 
         std::string TranslateDelete(const std::string& rel_var_name,

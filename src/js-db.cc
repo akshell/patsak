@@ -16,7 +16,7 @@ using boost::shared_ptr;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// GetRichHeader and GetConstrs
+// GetRichHeader
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
@@ -24,12 +24,6 @@ namespace
     const RichHeader& GetRichHeader(Handle<v8::Value> name)
     {
         return access_ptr->GetRichHeader(Stringify(name));
-    }
-    
-
-    const Constrs& GetConstrs(Handle<v8::Value> name)
-    {
-        return access_ptr->GetConstrs(Stringify(name));
     }
 }
 
@@ -124,17 +118,24 @@ namespace
 {
     class AddedConstr {
     public:
-        virtual Constr GetConstr(const string& field_name) const = 0;
+        virtual void Retrieve(const string& attr_name,
+                              StringSets& unique_keys,
+                              ForeignKeys& foreign_keys,
+                              Strings& checks) const = 0;
+
         virtual ~AddedConstr() {}
     };
 
 
     class AddedUnique : public AddedConstr {
     public:
-        virtual Constr GetConstr(const string& field_name) const {
-            StringSet field_names;
-            field_names.add_sure(field_name);
-            return Unique(field_names);
+        virtual void Retrieve(const string& attr_name,
+                              StringSets& unique_keys,
+                              ForeignKeys& /*foreign_keys*/,
+                              Strings& /*checks*/) const {
+            StringSet unique_key;
+            unique_key.add_sure(attr_name);
+            unique_keys.push_back(unique_key);
         }
     };
 
@@ -142,22 +143,25 @@ namespace
     class AddedForeignKey : public AddedConstr {
     public:
         AddedForeignKey(const string& ref_rel_var_name,
-                        const string& ref_field_name)
+                        const string& ref_attr_name)
             : ref_rel_var_name_(ref_rel_var_name)
-            , ref_field_name_(ref_field_name) {}
+            , ref_attr_name_(ref_attr_name) {}
         
-        virtual Constr GetConstr(const string& field_name) const {
-            StringSet key_field_names, ref_field_names;
-            key_field_names.add_sure(field_name);
-            ref_field_names.add_sure(ref_field_name_);
-            return ForeignKey(key_field_names,
-                              ref_rel_var_name_,
-                              ref_field_names);
+        virtual void Retrieve(const string& attr_name,
+                              StringSets& /*unique_keys*/,
+                              ForeignKeys& foreign_keys,
+                              Strings& /*checks*/) const {
+            StringSet key_attr_names, ref_attr_names;
+            key_attr_names.add_sure(attr_name);
+            ref_attr_names.add_sure(ref_attr_name_);
+            foreign_keys.push_back(ForeignKey(key_attr_names,
+                                              ref_rel_var_name_,
+                                              ref_attr_names));
         }
 
     private:
         string ref_rel_var_name_;
-        string ref_field_name_;
+        string ref_attr_name_;
     };
 
 
@@ -166,12 +170,15 @@ namespace
         AddedCheck(const string& expr_str)
             : check_(expr_str) {}
 
-        virtual Constr GetConstr(const string& /*field_name*/) const {
-            return check_;
+        virtual void Retrieve(const string& /*attr_name*/,
+                              StringSets& /*unique_keys*/,
+                              ForeignKeys& /*foreign_keys*/,
+                              Strings& checks) const {
+            checks.push_back(check_);
         }
-
+        
     private:
-        Check check_;
+        string check_;
     };
 }
 
@@ -190,7 +197,10 @@ namespace
         Type GetType() const;
         Type::Trait GetTrait() const;
         const ku::Value* GetDefaultPtr() const;
-        void CollectConstrs(const string& field_name, Constrs& constrs) const;
+        void RetrieveConstrs(const string& attr_name,
+                             StringSets& unique_keys,
+                             ForeignKeys& foreign_keys,
+                             Strings& checks) const;
 
     private:
         typedef shared_ptr<AddedConstr> AddedConstrPtr;
@@ -285,12 +295,14 @@ const ku::Value* TypeBg::GetDefaultPtr() const
 }
 
 
-void TypeBg::CollectConstrs(const string& field_name, Constrs& constrs) const
+void TypeBg::RetrieveConstrs(const string& attr_name,
+                             StringSets& unique_keys,
+                             ForeignKeys& foreign_keys,
+                             Strings& checks) const
 {
-    constrs.reserve(constrs.size() + ac_ptrs_.size());
     BOOST_FOREACH(const AddedConstrPtr& ac_ptr, ac_ptrs_) {
         KU_ASSERT(ac_ptr);
-        constrs.push_back(ac_ptr->GetConstr(field_name));
+        ac_ptr->Retrieve(attr_name, unique_keys, foreign_keys, checks);
     }
 }
 
@@ -486,7 +498,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateCb,
     if (!args[1]->IsObject())
         throw Error(Error::TYPE, "Header must be an object");
     RichHeader rich_header;
-    Constrs constrs;
+    StringSets unique_keys;
+    ForeignKeys foreign_keys;
+    Strings checks;
     PropEnumerator prop_enumerator(args[1]->ToObject());
     for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
         Prop prop(prop_enumerator.GetProp(i));
@@ -496,26 +510,28 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateCb,
                                       type_bg.GetType(),
                                       type_bg.GetTrait(),
                                       type_bg.GetDefaultPtr()));
-        type_bg.CollectConstrs(name, constrs);
+        type_bg.RetrieveConstrs(name, unique_keys, foreign_keys, checks);
     }
-    Handle<Array> uniques(GetArray(args[2]));
-    for (size_t i = 0; i < uniques->Length(); ++i)
-        constrs.push_back(Unique(ReadStringSet(uniques->Get(Integer::New(i)))));
-    Handle<Array> foreigns(GetArray(args[3]));
-    for (size_t i = 0; i < foreigns->Length(); ++i) {
-        Handle<Array> foreign(GetArray(foreigns->Get(Integer::New(i))));
+    Handle<Array> unique_array(GetArray(args[2]));
+    for (size_t i = 0; i < unique_array->Length(); ++i)
+        unique_keys.push_back(
+            ReadStringSet(unique_array->Get(Integer::New(i))));
+    Handle<Array> foreign_array(GetArray(args[3]));
+    for (size_t i = 0; i < foreign_array->Length(); ++i) {
+        Handle<Array> foreign(GetArray(foreign_array->Get(Integer::New(i))));
         if (foreign->Length() != 3)
             throw Error(Error::VALUE,
                         "Foreign item must be an array of length 3");
-        constrs.push_back(
+        foreign_keys.push_back(
             ForeignKey(ReadStringSet(foreign->Get(Integer::New(0))),
                        Stringify(foreign->Get(Integer::New(1))),
                        ReadStringSet(foreign->Get(Integer::New(2)))));
     }
-    Handle<Array> checks(GetArray(args[4]));
-    for (size_t i = 0; i < checks->Length(); ++i)
-        constrs.push_back(Check(Stringify(checks->Get(Integer::New(i)))));
-    access_ptr->Create(Stringify(args[0]), rich_header, constrs);
+    Handle<Array> check_array(GetArray(args[4]));
+    for (size_t i = 0; i < check_array->Length(); ++i)
+        checks.push_back(Stringify(check_array->Get(Integer::New(i))));
+    access_ptr->Create(
+        Stringify(args[0]), rich_header, unique_keys, foreign_keys, checks);
     return Undefined();
     
 }
@@ -600,14 +616,11 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetUniqueCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    Handle<Array> result(Array::New());
-    int32_t i = 0;
-    BOOST_FOREACH(const Constr& constr, GetConstrs(args[0])) {
-        const Unique* unique_ptr = boost::get<Unique>(&constr);
-        if (unique_ptr)
-            result->Set(Integer::New(i++),
-                        MakeV8Array(unique_ptr->field_names));
-    }
+    const StringSets& unique_keys(
+        access_ptr->GetUniqueKeys(Stringify(args[0])));
+    Handle<Array> result(Array::New(unique_keys.size()));
+    for (size_t i = 0; i < unique_keys.size(); ++i)
+        result->Set(Integer::New(i), MakeV8Array(unique_keys[i]));
     return result;
 }
 
@@ -616,20 +629,17 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetForeignCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    Handle<Array> result(Array::New());
-    int32_t i = 0;
-    BOOST_FOREACH(const Constr& constr, GetConstrs(args[0])) {
-        const ForeignKey* foreign_key_ptr = boost::get<ForeignKey>(&constr);
-        if (foreign_key_ptr) {
-            Handle<Array> item(Array::New(3));
-            item->Set(Integer::New(0),
-                      MakeV8Array(foreign_key_ptr->key_field_names));
-            item->Set(Integer::New(1),
-                      String::New(foreign_key_ptr->ref_rel_var_name.c_str()));
-            item->Set(Integer::New(2),
-                      MakeV8Array(foreign_key_ptr->ref_field_names));
-            result->Set(Integer::New(i++), item);
-        }
+    const ForeignKeys& foreign_keys(
+        access_ptr->GetForeignKeys(Stringify(args[0])));
+    Handle<Array> result(Array::New(foreign_keys.size()));
+    for (size_t i = 0; i < foreign_keys.size(); ++i) {
+        const ForeignKey& foreign_key(foreign_keys[i]);
+        Handle<Array> item(Array::New(3));
+        item->Set(Integer::New(0), MakeV8Array(foreign_key.key_attr_names));
+        item->Set(Integer::New(1),
+                  String::New(foreign_key.ref_rel_var_name.c_str()));
+        item->Set(Integer::New(2), MakeV8Array(foreign_key.ref_attr_names));
+        result->Set(Integer::New(i), item);
     }
     return result;
 }
