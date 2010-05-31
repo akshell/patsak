@@ -1087,6 +1087,31 @@ var dbTestSuite = {
     db.dropDefault('X', ['n']);
     assertEqual(items(db.getDefault('X')), []);
     db.drop(['X']);
+  },
+
+  testAddConstrs: function () {
+    create('X', {n: number._unique(), s: string._unique()}, {unique: [['n']]});
+    assertEqual(db.getUnique('X'), [['n'], ['s']]);
+    create('Y', {n: number, s: string, b: bool});
+    db.addConstrs('Y', [], [], []);
+    db.addConstrs('Y', [['n']], [[['s'], 'X', ['s']]], ['b']);
+    assertEqual(db.getUnique('Y'), [['n', 's', 'b'], ['n']]);
+    assertEqual(db.getForeign('Y'), [[['s'], 'X', ['s']]]);
+    db.insert('X', {n: 0, s: ''});
+    db.insert('X', {n: 1, s: 'yo'});
+    db.insert('Y', {n: 0, s: '', b: true});
+    assertThrow(ConstraintError, "db.insert('Y', {n: 0, s: 'yo', b: true})");
+    assertThrow(ConstraintError, "db.insert('Y', {n: 1, s: 'hi', b: true})");
+    assertThrow(ConstraintError, "db.insert('Y', {n: 1, s: '', b: false})");
+    db.addConstrs('Y', [['n']], [], ['n != 42', 'b']);
+    assertEqual(db.getUnique('Y'), [['n', 's', 'b'], ['n']]);
+    assertThrow(ConstraintError, "db.insert('Y', {n: 42, s: '', b: true})");
+    db.insert('Y', {n: 2, s: '', b: true});
+    assertThrow(ConstraintError, "db.addConstrs('Y', [['s']], [], [])");
+    assertThrow(ConstraintError,
+                "db.addConstrs('Y', [], [[['n'], 'X', ['n']]], [])");
+    assertThrow(ConstraintError, "db.addConstrs('Y', [], [], ['!b'])");
+    db.drop(['X', 'Y']);
   }
 };
 

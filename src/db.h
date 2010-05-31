@@ -13,7 +13,7 @@
 namespace ku
 {
     ////////////////////////////////////////////////////////////////////////////
-    // ForeignKey
+    // ForeignKey, ForeignKeySet, and UniqueKeySet
     ////////////////////////////////////////////////////////////////////////////
 
     struct ForeignKey {
@@ -27,10 +27,17 @@ namespace ku
             : key_attr_names(key_attr_names)
             , ref_rel_var_name(ref_rel_var_name)
             , ref_attr_names(ref_attr_names) {}
+
+        bool operator==(const ForeignKey& other) const {
+            return (ref_rel_var_name == other.ref_rel_var_name &&
+                    key_attr_names == other.key_attr_names &&
+                    ref_attr_names == other.ref_attr_names);
+        }
     };
 
     
-    typedef std::vector<ForeignKey> ForeignKeys;
+    typedef orset<ForeignKey> ForeignKeySet;
+    typedef orset<StringSet> UniqueKeySet;
         
     ////////////////////////////////////////////////////////////////////////////
     // DB
@@ -125,15 +132,16 @@ namespace ku
 
         const RichHeader& GetRichHeader(const std::string& rel_var_name) const;
 
-        const StringSets& GetUniqueKeys(const std::string& rel_var_name) const;
+        const UniqueKeySet&
+        GetUniqueKeySet(const std::string& rel_var_name) const;
 
-        const ForeignKeys&
-        GetForeignKeys(const std::string& rel_var_name) const;
+        const ForeignKeySet&
+        GetForeignKeySet(const std::string& rel_var_name) const;
         
         void Create(const std::string& name,
                     const RichHeader& rich_header,
-                    const StringSets& unique_keys,
-                    const ForeignKeys& foreign_keys,
+                    const UniqueKeySet& unique_key_set,
+                    const ForeignKeySet& foreign_keys,
                     const Strings& checks);
         
         void Drop(const StringSet& rel_var_names);
@@ -172,6 +180,11 @@ namespace ku
 
         void DropDefault(const std::string& rel_var_name,
                          const StringSet& attr_names);
+
+        void AddConstrs(const std::string& rel_var_name,
+                        const UniqueKeySet& unique_key_set,
+                        const ForeignKeySet& foreign_key_set,
+                        const Strings& checks);
         
         std::string GetAppPatsakVersion(const std::string& name) const;
         void CheckAppExists(const std::string& name) const;

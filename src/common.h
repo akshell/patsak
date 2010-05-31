@@ -259,7 +259,6 @@ namespace ku
     // Useful typedefs
     typedef orset<std::string> StringSet;
     typedef std::vector<std::string> Strings;
-    typedef std::vector<StringSet> StringSets;
     typedef std::vector<Value> Values;
     typedef std::vector<Type> Types;
     typedef std::map<std::string, std::string> StringMap;

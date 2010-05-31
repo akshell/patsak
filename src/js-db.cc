@@ -28,7 +28,7 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Readers
+// Utilities
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
@@ -108,6 +108,40 @@ namespace
         }
         return result;
     }
+
+
+    void ReadUniqueKeys(Handle<v8::Value> value, UniqueKeySet& unique_key_set)
+    {
+        Handle<Array> array(GetArray(value));
+        for (size_t i = 0; i < array->Length(); ++i)
+            unique_key_set.add_unsure(
+                ReadStringSet(array->Get(Integer::New(i))));
+    }
+
+
+    void ReadForeignKeySet(Handle<v8::Value> value,
+                           ForeignKeySet& foreign_key_set)
+    {
+        Handle<Array> array(GetArray(value));
+        for (size_t i = 0; i < array->Length(); ++i) {
+            Handle<Array> foreign(GetArray(array->Get(Integer::New(i))));
+            if (foreign->Length() != 3)
+                throw Error(Error::VALUE,
+                            "Foreign item must be an array of length 3");
+            foreign_key_set.add_unsure(
+                ForeignKey(ReadStringSet(foreign->Get(Integer::New(0))),
+                           Stringify(foreign->Get(Integer::New(1))),
+                           ReadStringSet(foreign->Get(Integer::New(2)))));
+        }
+    }
+    
+
+    void ReadChecks(Handle<v8::Value> value, Strings& checks)
+    {
+        Handle<Array> array(GetArray(value));
+        for (size_t i = 0; i < array->Length(); ++i)
+            checks.push_back(Stringify(array->Get(Integer::New(i))));
+    }
 }    
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,8 +153,8 @@ namespace
     class AddedConstr {
     public:
         virtual void Retrieve(const string& attr_name,
-                              StringSets& unique_keys,
-                              ForeignKeys& foreign_keys,
+                              UniqueKeySet& unique_key_set,
+                              ForeignKeySet& foreign_key_set,
                               Strings& checks) const = 0;
 
         virtual ~AddedConstr() {}
@@ -130,12 +164,12 @@ namespace
     class AddedUnique : public AddedConstr {
     public:
         virtual void Retrieve(const string& attr_name,
-                              StringSets& unique_keys,
-                              ForeignKeys& /*foreign_keys*/,
+                              UniqueKeySet& unique_key_set,
+                              ForeignKeySet& /*foreign_key_set*/,
                               Strings& /*checks*/) const {
             StringSet unique_key;
             unique_key.add_sure(attr_name);
-            unique_keys.push_back(unique_key);
+            unique_key_set.add_unsure(unique_key);
         }
     };
 
@@ -148,15 +182,15 @@ namespace
             , ref_attr_name_(ref_attr_name) {}
         
         virtual void Retrieve(const string& attr_name,
-                              StringSets& /*unique_keys*/,
-                              ForeignKeys& foreign_keys,
+                              UniqueKeySet& /*unique_key_set*/,
+                              ForeignKeySet& foreign_key_set,
                               Strings& /*checks*/) const {
             StringSet key_attr_names, ref_attr_names;
             key_attr_names.add_sure(attr_name);
             ref_attr_names.add_sure(ref_attr_name_);
-            foreign_keys.push_back(ForeignKey(key_attr_names,
-                                              ref_rel_var_name_,
-                                              ref_attr_names));
+            foreign_key_set.add_unsure(ForeignKey(key_attr_names,
+                                                  ref_rel_var_name_,
+                                                  ref_attr_names));
         }
 
     private:
@@ -171,8 +205,8 @@ namespace
             : check_(expr_str) {}
 
         virtual void Retrieve(const string& /*attr_name*/,
-                              StringSets& /*unique_keys*/,
-                              ForeignKeys& /*foreign_keys*/,
+                              UniqueKeySet& /*unique_key_set*/,
+                              ForeignKeySet& /*foreign_key_set*/,
                               Strings& checks) const {
             checks.push_back(check_);
         }
@@ -198,8 +232,8 @@ namespace
         Type::Trait GetTrait() const;
         const ku::Value* GetDefaultPtr() const;
         void RetrieveConstrs(const string& attr_name,
-                             StringSets& unique_keys,
-                             ForeignKeys& foreign_keys,
+                             UniqueKeySet& unique_key_set,
+                             ForeignKeySet& foreign_key_set,
                              Strings& checks) const;
 
     private:
@@ -296,13 +330,13 @@ const ku::Value* TypeBg::GetDefaultPtr() const
 
 
 void TypeBg::RetrieveConstrs(const string& attr_name,
-                             StringSets& unique_keys,
-                             ForeignKeys& foreign_keys,
+                             UniqueKeySet& unique_key_set,
+                             ForeignKeySet& foreign_key_set,
                              Strings& checks) const
 {
     BOOST_FOREACH(const AddedConstrPtr& ac_ptr, ac_ptrs_) {
         KU_ASSERT(ac_ptr);
-        ac_ptr->Retrieve(attr_name, unique_keys, foreign_keys, checks);
+        ac_ptr->Retrieve(attr_name, unique_key_set, foreign_key_set, checks);
     }
 }
 
@@ -407,6 +441,7 @@ DEFINE_JS_CLASS(DBBg, "DB", object_template, /*proto_template*/)
     SetFunction(object_template, "dropAttrs", DropAttrsCb);
     SetFunction(object_template, "addDefault", AddDefaultCb);
     SetFunction(object_template, "dropDefault", DropDefaultCb);
+    SetFunction(object_template, "addConstrs", AddConstrsCb);
     SetFunction(object_template, "getAppDescription", GetAppDescriptionCb);
     SetFunction(object_template, "getAdminedApps", GetAdminedAppsCb);
     SetFunction(object_template, "getDevelopedApps", GetDevelopedAppsCb);
@@ -498,8 +533,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateCb,
     if (!args[1]->IsObject())
         throw Error(Error::TYPE, "Header must be an object");
     RichHeader rich_header;
-    StringSets unique_keys;
-    ForeignKeys foreign_keys;
+    UniqueKeySet unique_key_set;
+    ForeignKeySet foreign_key_set;
     Strings checks;
     PropEnumerator prop_enumerator(args[1]->ToObject());
     for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
@@ -510,28 +545,16 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateCb,
                                       type_bg.GetType(),
                                       type_bg.GetTrait(),
                                       type_bg.GetDefaultPtr()));
-        type_bg.RetrieveConstrs(name, unique_keys, foreign_keys, checks);
+        type_bg.RetrieveConstrs(name, unique_key_set, foreign_key_set, checks);
     }
-    Handle<Array> unique_array(GetArray(args[2]));
-    for (size_t i = 0; i < unique_array->Length(); ++i)
-        unique_keys.push_back(
-            ReadStringSet(unique_array->Get(Integer::New(i))));
-    Handle<Array> foreign_array(GetArray(args[3]));
-    for (size_t i = 0; i < foreign_array->Length(); ++i) {
-        Handle<Array> foreign(GetArray(foreign_array->Get(Integer::New(i))));
-        if (foreign->Length() != 3)
-            throw Error(Error::VALUE,
-                        "Foreign item must be an array of length 3");
-        foreign_keys.push_back(
-            ForeignKey(ReadStringSet(foreign->Get(Integer::New(0))),
-                       Stringify(foreign->Get(Integer::New(1))),
-                       ReadStringSet(foreign->Get(Integer::New(2)))));
-    }
-    Handle<Array> check_array(GetArray(args[4]));
-    for (size_t i = 0; i < check_array->Length(); ++i)
-        checks.push_back(Stringify(check_array->Get(Integer::New(i))));
-    access_ptr->Create(
-        Stringify(args[0]), rich_header, unique_keys, foreign_keys, checks);
+    ReadUniqueKeys(args[2], unique_key_set);
+    ReadForeignKeySet(args[3], foreign_key_set);
+    ReadChecks(args[4], checks);
+    access_ptr->Create(Stringify(args[0]),
+                       rich_header,
+                       unique_key_set,
+                       foreign_key_set,
+                       checks);
     return Undefined();
     
 }
@@ -616,11 +639,11 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetUniqueCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    const StringSets& unique_keys(
-        access_ptr->GetUniqueKeys(Stringify(args[0])));
-    Handle<Array> result(Array::New(unique_keys.size()));
-    for (size_t i = 0; i < unique_keys.size(); ++i)
-        result->Set(Integer::New(i), MakeV8Array(unique_keys[i]));
+    const UniqueKeySet& unique_key_set(
+        access_ptr->GetUniqueKeySet(Stringify(args[0])));
+    Handle<Array> result(Array::New(unique_key_set.size()));
+    for (size_t i = 0; i < unique_key_set.size(); ++i)
+        result->Set(Integer::New(i), MakeV8Array(unique_key_set[i]));
     return result;
 }
 
@@ -629,11 +652,11 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetForeignCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    const ForeignKeys& foreign_keys(
-        access_ptr->GetForeignKeys(Stringify(args[0])));
-    Handle<Array> result(Array::New(foreign_keys.size()));
-    for (size_t i = 0; i < foreign_keys.size(); ++i) {
-        const ForeignKey& foreign_key(foreign_keys[i]);
+    const ForeignKeySet& foreign_key_set(
+        access_ptr->GetForeignKeySet(Stringify(args[0])));
+    Handle<Array> result(Array::New(foreign_key_set.size()));
+    for (size_t i = 0; i < foreign_key_set.size(); ++i) {
+        const ForeignKey& foreign_key(foreign_key_set[i]);
         Handle<Array> item(Array::New(3));
         item->Set(Integer::New(0), MakeV8Array(foreign_key.key_attr_names));
         item->Set(Integer::New(1),
@@ -751,6 +774,24 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropDefaultCb,
 }
 
 
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, AddConstrsCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 4);
+    UniqueKeySet unique_key_set;
+    ForeignKeySet foreign_key_set;
+    Strings checks;
+    ReadUniqueKeys(args[1], unique_key_set);
+    ReadForeignKeySet(args[2], foreign_key_set);
+    ReadChecks(args[3], checks);
+    access_ptr->AddConstrs(Stringify(args[0]),
+                           unique_key_set,
+                           foreign_key_set,
+                           checks);
+    return Undefined();
+}
+
+
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetAppDescriptionCb,
                     const Arguments&, args) const
 {
@@ -777,7 +818,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetUserEmailCb,
 
 
 #define DEFINE_JS_CALLBACK_APPS(name)                               \
-    DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, name##Cb,  \
+    DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, name##Cb,          \
                         const Arguments&, args) const {             \
         CheckArgsLength(args, 1);                                   \
         return MakeV8Array(access_ptr->name(Stringify(args[0])));   \

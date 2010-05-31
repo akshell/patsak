@@ -77,6 +77,9 @@ namespace ku
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DropDefaultCb,
                              const v8::Arguments&) const;
         
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, AddConstrsCb,
+                             const v8::Arguments&) const;
+        
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetAppDescriptionCb,
                              const v8::Arguments&) const;
         

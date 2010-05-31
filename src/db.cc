@@ -78,11 +78,11 @@ namespace
         explicit Quoter(const pqxx::transaction_base& work)
             : conn_(work.conn()) {}
 
-        std::string operator()(const PgLiter& pg_liter) const {
+        string operator()(const PgLiter& pg_liter) const {
             return pg_liter.quote_me ? conn_.quote(pg_liter.str) : pg_liter.str;
         }
 
-        std::string operator()(const Value& value) const {
+        string operator()(const Value& value) const {
             return (*this)(value.GetPgLiter());
         }
 
@@ -173,33 +173,51 @@ namespace
                const DBMeta& meta,
                const string& name,
                const RichHeader& rich_header,
-               const StringSets& unique_keys,
-               const ForeignKeys& foreign_keys,
+               const UniqueKeySet& unique_key_set,
+               const ForeignKeySet& foreign_key_set,
                const Strings& checks);
 
         void LoadConstrs(pqxx::work& work, const DBMeta& meta);
         string GetName() const;
         const RichHeader& GetRichHeader() const;
         const Header& GetHeader() const;
-        const StringSets& GetUniqueKeys() const;
-        const ForeignKeys& GetForeignKeys() const;
+        const UniqueKeySet& GetUniqueKeySet() const;
+        const ForeignKeySet& GetForeignKeySet() const;
         void AddAttrs(pqxx::work& work, const RichHeader& attrs);
         void DropAttrs(pqxx::work& work, const StringSet& attr_names);
         void AddDefault(pqxx::work& work, const ValueMap& value_map);
         void DropDefault(pqxx::work& work, const StringSet& attr_names);
 
+        void AddConstrs(pqxx::work& work,
+                        const Translator& translator,
+                        const DBMeta& meta,
+                        const UniqueKeySet& unique_key_set,
+                        const ForeignKeySet& foreign_key_set,
+                        const Strings& checks);
+
     private:
         string name_;
         RichHeader rich_header_;
         Header header_;
-        StringSets unique_keys_;
-        ForeignKeys foreign_keys_;
+        UniqueKeySet unique_key_set_;
+        ForeignKeySet foreign_key_set_;
 
         static bool Intersect(const StringSet& lhs, const StringSet& rhs);
         static void CheckName(const string& name);
         static void CheckAttrNumber(size_t number);
         static void PrintAttrNames(ostream& os, const StringSet& names);
         StringSet ReadAttrNames(const string& pg_array) const;
+
+        void PrintUniqueKey(ostream& os, const StringSet& unique_key) const;
+        
+        void PrintForeignKey(ostream& os,
+                             const DBMeta& meta,
+                             const ForeignKey& foreign_key) const;
+
+        void PrintCheck(ostream& os,
+                        const Translator& translator,
+                        const string& check) const;
+        
         void InitHeader();
     };
     
@@ -218,8 +236,8 @@ namespace
                     const Translator& translator,
                     const string& rel_var_name,
                     const RichHeader& rich_header,
-                    const StringSets& unique_keys,
-                    const ForeignKeys& foreign_keys,
+                    const UniqueKeySet& unique_key_set,
+                    const ForeignKeySet& foreign_key_set,
                     const Strings& checks);
         
         void Drop(pqxx::work& work, const StringSet& rel_var_names);
@@ -274,25 +292,25 @@ RelVar::RelVar(pqxx::work& work,
                const DBMeta& meta,
                const string& name,
                const RichHeader& rich_header,
-               const StringSets& unique_keys,
-               const ForeignKeys& foreign_keys,
+               const UniqueKeySet& unique_key_set,
+               const ForeignKeySet& foreign_key_set,
                const Strings& checks)
     : name_(name)
     , rich_header_(rich_header)
-    , unique_keys_(unique_keys)
-    , foreign_keys_(foreign_keys)
+    , unique_key_set_(unique_key_set)
+    , foreign_key_set_(foreign_key_set)
 {
     CheckName(name);
     CheckAttrNumber(rich_header.size());
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
         CheckName(rich_attr.GetName());
     InitHeader();
-    if (unique_keys.empty() && !rich_header.empty()) {
+    if (unique_key_set.empty() && !rich_header.empty()) {
         StringSet unique_key;
         unique_key.reserve(rich_header.size());
         BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
             unique_key.add_sure(rich_attr.GetName());
-        unique_keys_.push_back(unique_key);
+        unique_key_set_.add_sure(unique_key);
     }
 
     ostringstream oss;
@@ -325,71 +343,19 @@ RelVar::RelVar(pqxx::work& work,
                 << ')';
     }
 
-    BOOST_FOREACH(const StringSet& unique_key, unique_keys_) {
-        if (unique_key.empty())
-            throw Error(Error::VALUE, "Empty unique attribute set");
-        BOOST_FOREACH(const string& attr_name, unique_key)
-            rich_header.find(attr_name);
+    BOOST_FOREACH(const StringSet& unique_key, unique_key_set_) {
         print_sep();
-        oss << "UNIQUE ";
-        PrintAttrNames(oss, unique_key);
+        PrintUniqueKey(oss, unique_key);
     }
 
-    BOOST_FOREACH(const ForeignKey& foreign_key, foreign_keys) {
-        if (foreign_key.key_attr_names.size() !=
-            foreign_key.ref_attr_names.size())
-            throw Error(Error::VALUE, "Ref-key attribute set size mismatch");
-        if (foreign_key.key_attr_names.empty())
-            throw Error(Error::VALUE,
-                        "Foreign key with empty attribute set");
-        const RelVar& ref_rel_var(foreign_key.ref_rel_var_name == name
-                                  ? *this
-                                  : meta.Get(foreign_key.ref_rel_var_name));
-        const RichHeader& ref_rich_header(ref_rel_var.GetRichHeader());
-        for (size_t i = 0; i < foreign_key.key_attr_names.size(); ++i) {
-            string key_attr_name = foreign_key.key_attr_names[i];
-            string ref_attr_name = foreign_key.ref_attr_names[i];
-            RichAttr key_rich_attr(rich_header.find(key_attr_name));
-            RichAttr ref_rich_attr(ref_rich_header.find(ref_attr_name));
-            Type key_attr_type(key_rich_attr.GetType());
-            Type ref_attr_type(ref_rich_attr.GetType());
-            Type::Trait key_attr_trait(key_rich_attr.GetTrait());
-            Type::Trait ref_attr_trait(ref_rich_attr.GetTrait());
-            if (key_attr_type != ref_attr_type ||
-                !Type::TraitsAreCompatible(key_attr_trait, ref_attr_trait))
-                throw Error(Error::USAGE,
-                            ("Foreign key attribite type mismatch: \"" +
-                             name + '.' +
-                             key_attr_name + "\" is " +
-                             key_attr_type.GetKuStr(key_attr_trait) +
-                             ", \"" +
-                             foreign_key.ref_rel_var_name + '.' +
-                             ref_attr_name + "\" is " +
-                             ref_attr_type.GetKuStr(ref_attr_trait)));
-        }
-        bool unique_found = false;
-        BOOST_FOREACH(const StringSet& unique_key,
-                      ref_rel_var.GetUniqueKeys()) {
-            if (unique_key == foreign_key.ref_attr_names) {
-                unique_found = true;
-                break;
-            }
-        }
-        if (!unique_found)
-            throw Error(Error::USAGE,
-                        "Foreign key ref attributes must be unique");
+    BOOST_FOREACH(const ForeignKey& foreign_key, foreign_key_set) {
         print_sep();
-        oss << "FOREIGN KEY ";
-        PrintAttrNames(oss, foreign_key.key_attr_names);
-        oss << " REFERENCES " << Quoted(foreign_key.ref_rel_var_name);
-        PrintAttrNames(oss, foreign_key.ref_attr_names);
+        PrintForeignKey(oss, meta, foreign_key);
     }
 
     BOOST_FOREACH(const string& check, checks) {
         print_sep();
-        oss << "CHECK ("
-            << translator.TranslateExpr(check, name, header_)
-            << ')';
+        PrintCheck(oss, translator, check);
     }
 
     oss << ");";
@@ -414,15 +380,15 @@ void RelVar::LoadConstrs(pqxx::work& work, const DBMeta& meta) {
         StringSet attr_names(ReadAttrNames(tuple[1].c_str()));
         char constr_code = tuple[0].c_str()[0];
         if (constr_code == 'p' || constr_code == 'u') {
-            unique_keys_.push_back(attr_names);
+            unique_key_set_.add_sure(attr_names);
         } else if (constr_code == 'f') {
             KU_ASSERT(!tuple[2].is_null() && !tuple[3].is_null());
             string ref_rel_var_name(tuple[2].c_str());
             StringSet ref_attr_names(
                 meta.Get(ref_rel_var_name).ReadAttrNames(tuple[3].c_str()));
-            foreign_keys_.push_back(ForeignKey(attr_names,
-                                               ref_rel_var_name,
-                                               ref_attr_names));
+            foreign_key_set_.add_sure(ForeignKey(attr_names,
+                                                 ref_rel_var_name,
+                                                 ref_attr_names));
         };
     }
 }
@@ -502,6 +468,78 @@ StringSet RelVar::ReadAttrNames(const string& pg_array) const
 }
 
 
+void RelVar::PrintUniqueKey(ostream& os, const StringSet& unique_key) const
+{
+    if (unique_key.empty())
+        throw Error(Error::VALUE, "Empty unique attribute set");
+    BOOST_FOREACH(const string& attr_name, unique_key)
+        rich_header_.find(attr_name);
+    os << "UNIQUE ";
+    PrintAttrNames(os, unique_key);
+}
+
+
+void RelVar::PrintForeignKey(ostream& os,
+                             const DBMeta& meta,
+                             const ForeignKey& foreign_key) const
+{
+    if (foreign_key.key_attr_names.size() !=
+        foreign_key.ref_attr_names.size())
+        throw Error(Error::VALUE, "Ref-key attribute set size mismatch");
+    if (foreign_key.key_attr_names.empty())
+        throw Error(Error::VALUE,
+                    "Foreign key with empty attribute set");
+    const RelVar& ref_rel_var(foreign_key.ref_rel_var_name == name_
+                              ? *this
+                              : meta.Get(foreign_key.ref_rel_var_name));
+    const RichHeader& ref_rich_header(ref_rel_var.GetRichHeader());
+    for (size_t i = 0; i < foreign_key.key_attr_names.size(); ++i) {
+        string key_attr_name = foreign_key.key_attr_names[i];
+        string ref_attr_name = foreign_key.ref_attr_names[i];
+        RichAttr key_rich_attr(rich_header_.find(key_attr_name));
+        RichAttr ref_rich_attr(ref_rich_header.find(ref_attr_name));
+        Type key_attr_type(key_rich_attr.GetType());
+        Type ref_attr_type(ref_rich_attr.GetType());
+        Type::Trait key_attr_trait(key_rich_attr.GetTrait());
+        Type::Trait ref_attr_trait(ref_rich_attr.GetTrait());
+        if (key_attr_type != ref_attr_type ||
+            !Type::TraitsAreCompatible(key_attr_trait, ref_attr_trait))
+            throw Error(Error::USAGE,
+                        ("Foreign key attribite type mismatch: \"" +
+                         name_ + '.' +
+                         key_attr_name + "\" is " +
+                         key_attr_type.GetKuStr(key_attr_trait) +
+                         ", \"" +
+                         foreign_key.ref_rel_var_name + '.' +
+                         ref_attr_name + "\" is " +
+                         ref_attr_type.GetKuStr(ref_attr_trait)));
+    }
+    bool unique_found = false;
+    BOOST_FOREACH(const StringSet& unique_key,
+                  ref_rel_var.GetUniqueKeySet()) {
+        if (unique_key == foreign_key.ref_attr_names) {
+            unique_found = true;
+            break;
+        }
+    }
+    if (!unique_found)
+        throw Error(Error::USAGE,
+                    "Foreign key ref attributes must be unique");
+    os << "FOREIGN KEY ";
+    PrintAttrNames(os, foreign_key.key_attr_names);
+    os << " REFERENCES " << Quoted(foreign_key.ref_rel_var_name);
+    PrintAttrNames(os, foreign_key.ref_attr_names);
+}
+
+
+void RelVar::PrintCheck(ostream& os,
+                        const Translator& translator,
+                        const string& check) const
+{
+    os << "CHECK (" << translator.TranslateExpr(check, name_, header_) << ')';
+}
+
+
 string RelVar::GetName() const
 {
     return name_;
@@ -520,15 +558,15 @@ const Header& RelVar::GetHeader() const
 }
 
 
-const StringSets& RelVar::GetUniqueKeys() const
+const UniqueKeySet& RelVar::GetUniqueKeySet() const
 {
-    return unique_keys_;
+    return unique_key_set_;
 }
 
 
-const ForeignKeys& RelVar::GetForeignKeys() const
+const ForeignKeySet& RelVar::GetForeignKeySet() const
 {
-    return foreign_keys_;
+    return foreign_key_set_;
 }
 
 
@@ -592,7 +630,7 @@ void RelVar::AddAttrs(pqxx::work& work, const RichHeader& rich_attrs)
         header_.add_sure(rich_attr.GetAttr());
     }
     if (!unique_key.empty())
-        unique_keys_.push_back(unique_key);
+        unique_key_set_.add_sure(unique_key);
 }
 
 
@@ -600,14 +638,14 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
 {
     if (attr_names.empty())
         return;
-    StringSets new_unique_keys;
-    BOOST_FOREACH(const StringSet& unique_key, unique_keys_)
+    UniqueKeySet new_unique_key_set;
+    BOOST_FOREACH(const StringSet& unique_key, unique_key_set_)
         if (!Intersect(unique_key, attr_names))
-            new_unique_keys.push_back(unique_key);
-    ForeignKeys new_foreign_keys;
-    BOOST_FOREACH(const ForeignKey& foreign_key, foreign_keys_)
+            new_unique_key_set.add_sure(unique_key);
+    ForeignKeySet new_foreign_key_set;
+    BOOST_FOREACH(const ForeignKey& foreign_key, foreign_key_set_)
         if (!Intersect(foreign_key.key_attr_names, attr_names))
-            new_foreign_keys.push_back(foreign_key);
+            new_foreign_key_set.add_sure(foreign_key);
     StringSet remaining_attr_names(attr_names);
     RichHeader new_rich_header;
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header_) {
@@ -633,7 +671,7 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
         print_sep();
         oss << "DROP " << Quoted(attr_name);
     }
-    if (new_unique_keys.empty() && !new_rich_header.empty()) {
+    if (new_unique_key_set.empty() && !new_rich_header.empty()) {
         oss << ", ADD UNIQUE (";
         StringSet unique_key;
         OmitInvoker print_sep((SepPrinter(oss)));
@@ -643,7 +681,7 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
             print_sep();
             oss << Quoted(new_attr_name);
         }
-        new_unique_keys.push_back(unique_key);
+        new_unique_key_set.add_sure(unique_key);
         oss << ')';
     }
     try {
@@ -657,8 +695,8 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
                     ("Cannot drop attribute because "
                      "it is referenced from other relation variable"));
     }
-    unique_keys_ = new_unique_keys;
-    foreign_keys_ = new_foreign_keys;
+    unique_key_set_ = new_unique_key_set;
+    foreign_key_set_ = new_foreign_key_set;
     rich_header_ = new_rich_header;
     header_.clear();
     InitHeader();
@@ -711,6 +749,52 @@ void RelVar::DropDefault(pqxx::work& work, const StringSet& attr_names)
         rich_attr_ptr->SetDefaultPtr(0);
 }
 
+
+void RelVar::AddConstrs(pqxx::work& work,
+                        const Translator& translator,
+                        const DBMeta& meta,
+                        const UniqueKeySet& unique_key_set,
+                        const ForeignKeySet& foreign_key_set,
+                        const Strings& checks)
+{
+    if (unique_key_set.empty() && foreign_key_set.empty() && checks.empty())
+        return;
+    ostringstream oss;
+    oss << "ALTER TABLE " << Quoted(name_) << ' ';
+    OmitInvoker print_sep((SepPrinter(oss)));
+    BOOST_FOREACH(const StringSet& unique_key, unique_key_set) {
+        print_sep();
+        oss << "ADD ";
+        PrintUniqueKey(oss, unique_key);
+    }
+    BOOST_FOREACH(const ForeignKey& foreign_key, foreign_key_set) {
+        print_sep();
+        oss << "ADD ";
+        PrintForeignKey(oss, meta, foreign_key);
+    }
+    BOOST_FOREACH(const string& check, checks) {
+        print_sep();
+        oss << "ADD ";
+        PrintCheck(oss, translator, check);
+    }
+    try {
+        pqxx::subtransaction(work).exec(oss.str());
+    } catch (const pqxx::unique_violation& err) {
+        throw Error(Error::CONSTRAINT,
+                    "Unique constraint cannot be added");
+    } catch (const pqxx::foreign_key_violation& err) {
+        throw Error(Error::CONSTRAINT,
+                    "Foreign key constraint cannot be added");
+    } catch (const pqxx::check_violation& err) {
+        throw Error(Error::CONSTRAINT,
+                    "Check constraint cannot be added");
+    }
+    BOOST_FOREACH(const StringSet& unique_key, unique_key_set)
+        unique_key_set_.add_unsure(unique_key);
+    BOOST_FOREACH(const ForeignKey& foreign_key, foreign_key_set)
+        foreign_key_set_.add_unsure(foreign_key);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // DBMeta definitions
 ////////////////////////////////////////////////////////////////////////////////
@@ -752,8 +836,8 @@ void DBMeta::Create(pqxx::work& work,
                     const Translator& translator,
                     const string& rel_var_name,
                     const RichHeader& rich_header,
-                    const StringSets& unique_keys,
-                    const ForeignKeys& foreign_keys,
+                    const UniqueKeySet& unique_key_set,
+                    const ForeignKeySet& foreign_key_set,
                     const Strings& checks)
 {
     if (rel_vars_.size() >= MAX_REL_VAR_NUMBER) {
@@ -770,8 +854,8 @@ void DBMeta::Create(pqxx::work& work,
                                *this,
                                rel_var_name,
                                rich_header,
-                               unique_keys,
-                               foreign_keys,
+                               unique_key_set,
+                               foreign_key_set,
                                checks));
 }
 
@@ -789,7 +873,7 @@ void DBMeta::Drop(pqxx::work& work, const StringSet& rel_var_names)
             indexes[name_itr - rel_var_names.begin()] = i;
         else
             BOOST_FOREACH(const ForeignKey& foreign_key,
-                          rel_var.GetForeignKeys())
+                          rel_var.GetForeignKeySet())
                 if (rel_var_names.contains(foreign_key.ref_rel_var_name))
                     throw Error(Error::REL_VAR_DEPENDENCY,
                                 ("Attempt to delete a group of RelVars "
@@ -938,7 +1022,7 @@ DBViewer::RelVarAttrs DBViewerImpl::GetReference(const RelVarAttrs& key) const
 {
     const RelVar& rel_var(manager_.GetMeta().Get(key.rel_var_name));
     const ForeignKey* foreign_key_ptr = 0;
-    BOOST_FOREACH(const ForeignKey& foreign_key, rel_var.GetForeignKeys()) {
+    BOOST_FOREACH(const ForeignKey& foreign_key, rel_var.GetForeignKeySet()) {
         if (foreign_key.key_attr_names == key.attr_names) {
             if (foreign_key_ptr)
                 throw MakeKeyError(key, "has multiple keys on attributes");
@@ -1238,30 +1322,30 @@ const RichHeader& Access::GetRichHeader(const string& rel_var_name) const
 }
 
 
-const StringSets& Access::GetUniqueKeys(const string& rel_var_name) const
+const UniqueKeySet& Access::GetUniqueKeySet(const string& rel_var_name) const
 {
-    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetUniqueKeys();
+    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetUniqueKeySet();
 }
 
 
-const ForeignKeys& Access::GetForeignKeys(const string& rel_var_name) const
+const ForeignKeySet& Access::GetForeignKeySet(const string& rel_var_name) const
 {
-    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetForeignKeys();
+    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetForeignKeySet();
 }
 
 
 void Access::Create(const string& name,
                     const RichHeader& rich_header,
-                    const StringSets& unique_keys,
-                    const ForeignKeys& foreign_keys,
+                    const UniqueKeySet& unique_key_set,
+                    const ForeignKeySet& foreign_key_set,
                     const Strings& checks)
 {
     db_impl_.GetManager().ChangeMeta().Create(*work_ptr_,
                                               db_impl_.GetTranslator(),
                                               name,
                                               rich_header,
-                                              unique_keys,
-                                              foreign_keys,
+                                              unique_key_set,
+                                              foreign_key_set,
                                               checks);
 }
 
@@ -1450,7 +1534,7 @@ void Access::AddAttrs(const string& rel_var_name, const RichHeader& rich_attrs)
 }
 
 
-void Access::DropAttrs(const std::string& rel_var_name,
+void Access::DropAttrs(const string& rel_var_name,
                        const StringSet& attr_names)
 {
     RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
@@ -1458,7 +1542,7 @@ void Access::DropAttrs(const std::string& rel_var_name,
 }
 
 
-void Access::AddDefault(const std::string& rel_var_name,
+void Access::AddDefault(const string& rel_var_name,
                         const ValueMap& value_map)
 {
     RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
@@ -1466,11 +1550,27 @@ void Access::AddDefault(const std::string& rel_var_name,
 }
 
 
-void Access::DropDefault(const std::string& rel_var_name,
+void Access::DropDefault(const string& rel_var_name,
                          const StringSet& attr_names)
 {
     RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
     rel_var.DropDefault(*work_ptr_, attr_names);
+}
+
+
+void Access::AddConstrs(const string& rel_var_name,
+                        const UniqueKeySet& unique_key_set,
+                        const ForeignKeySet& foreign_key_set,
+                        const Strings& checks)
+{
+    DBMeta& meta(db_impl_.GetManager().ChangeMeta());
+    RelVar& rel_var(meta.Get(rel_var_name));
+    rel_var.AddConstrs(*work_ptr_,
+                       db_impl_.GetTranslator(),
+                       meta,
+                       unique_key_set,
+                       foreign_key_set,
+                       checks);
 }
 
 
