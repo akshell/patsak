@@ -156,6 +156,27 @@ $$
 $$ LANGUAGE SQL STABLE;
 
 
+CREATE FUNCTION ku.drop_all_constrs(table_name text) RETURNS void AS $$
+DECLARE
+    cmd text;
+    sep text;
+    constr_name text;
+BEGIN
+    cmd := 'ALTER TABLE ' || quote_ident(table_name);
+    sep := '';
+    FOR constr_name IN
+        SELECT conname
+        FROM pg_catalog.pg_constraint
+        WHERE conrelid = ('"' || table_name || '"')::regclass
+    LOOP
+        cmd := cmd || sep || ' DROP CONSTRAINT ' || quote_ident(constr_name);
+        sep := ',';
+    END LOOP;
+    EXECUTE cmd;
+END;
+$$ LANGUAGE plpgsql VOLATILE;
+
+
 CREATE FUNCTION ku.get_app_patsak_version(name text) RETURNS text AS $$
     SELECT patsak_version
     FROM public.main_app AS app

@@ -442,6 +442,7 @@ DEFINE_JS_CLASS(DBBg, "DB", object_template, /*proto_template*/)
     SetFunction(object_template, "addDefault", AddDefaultCb);
     SetFunction(object_template, "dropDefault", DropDefaultCb);
     SetFunction(object_template, "addConstrs", AddConstrsCb);
+    SetFunction(object_template, "dropAllConstrs", DropAllConstrsCb);
     SetFunction(object_template, "getAppDescription", GetAppDescriptionCb);
     SetFunction(object_template, "getAdminedApps", GetAdminedAppsCb);
     SetFunction(object_template, "getDevelopedApps", GetDevelopedAppsCb);
@@ -788,6 +789,15 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, AddConstrsCb,
                            unique_key_set,
                            foreign_key_set,
                            checks);
+    return Undefined();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropAllConstrsCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    access_ptr->DropAllConstrs(Stringify(args[0]));
     return Undefined();
 }
 

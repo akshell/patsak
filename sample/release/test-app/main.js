@@ -1112,6 +1112,31 @@ var dbTestSuite = {
                 "db.addConstrs('Y', [], [[['n'], 'X', ['n']]], [])");
     assertThrow(ConstraintError, "db.addConstrs('Y', [], [], ['!b'])");
     db.drop(['X', 'Y']);
+  },
+
+  testDropAllConstrs: function () {
+    create('X', {n: number._unique()});
+    create(
+      'Y',
+      {
+        n: number._foreign('X', 'n'),
+        s: string._unique(),
+        c: bool._check('c')
+      });
+    db.dropAllConstrs('Empty');
+    assertThrow(RelVarDependencyError, "db.dropAllConstrs('X')");
+    db.dropAllConstrs('Y');
+    assertEqual(db.getUnique('Y'), [['n', 's', 'c']]);
+    assertEqual(db.getForeign('Y'), []);
+    db.insert('Y', {n: 0, s: '', c: false});
+    db.dropAllConstrs('X');
+    create('Z', {n: number._unique(), s: string});
+    var s = 'x';
+    for (var i = 0; i < 20; ++i)
+      s += s;
+    db.insert('Z', {n: 0, s: s});
+    assertThrow(DBQuotaError, "db.dropAllConstrs('Z')");
+    db.drop(['X', 'Y', 'Z']);
   }
 };
 

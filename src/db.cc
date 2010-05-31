@@ -195,6 +195,8 @@ namespace
                         const ForeignKeySet& foreign_key_set,
                         const Strings& checks);
 
+        void DropAllConstrs(pqxx::work& work);
+
     private:
         string name_;
         RichHeader rich_header_;
@@ -793,6 +795,37 @@ void RelVar::AddConstrs(pqxx::work& work,
         unique_key_set_.add_unsure(unique_key);
     BOOST_FOREACH(const ForeignKey& foreign_key, foreign_key_set)
         foreign_key_set_.add_unsure(foreign_key);
+}
+
+
+void RelVar::DropAllConstrs(pqxx::work& work)
+{
+    if (rich_header_.empty())
+        return;
+    ostringstream oss;
+    oss << "SELECT ku.drop_all_constrs('" << name_ << "'); "
+        << "ALTER TABLE " << Quoted(name_) << " ADD UNIQUE (";
+    StringSet unique_key;
+    OmitInvoker print_sep((SepPrinter(oss)));
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_header_) {
+        string attr_name(rich_attr.GetName());
+        unique_key.add_sure(attr_name);
+        print_sep();
+        oss << Quoted(attr_name);
+    }
+    oss << ')';
+    try {
+        pqxx::subtransaction(work).exec(oss.str());
+    } catch (const pqxx::sql_error& err) {
+        throw (string(err.what()).substr(0, 13) == "ERROR:  index"
+               ? Error(Error::DB_QUOTA, "Unique string is too long")
+               : Error(Error::REL_VAR_DEPENDENCY,
+                       ("Unique cannot be dropped "
+                        "because other RelVar references it")));
+    }
+    unique_key_set_.clear();
+    unique_key_set_.add_sure(unique_key);
+    foreign_key_set_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1571,6 +1604,13 @@ void Access::AddConstrs(const string& rel_var_name,
                        unique_key_set,
                        foreign_key_set,
                        checks);
+}
+
+
+void Access::DropAllConstrs(const std::string& rel_var_name)
+{
+    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
+    rel_var.DropAllConstrs(*work_ptr_);
 }
 
 

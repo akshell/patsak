@@ -185,6 +185,8 @@ namespace ku
                         const UniqueKeySet& unique_key_set,
                         const ForeignKeySet& foreign_key_set,
                         const Strings& checks);
+
+        void DropAllConstrs(const std::string& rel_var_name);
         
         std::string GetAppPatsakVersion(const std::string& name) const;
         void CheckAppExists(const std::string& name) const;
