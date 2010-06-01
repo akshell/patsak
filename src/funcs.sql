@@ -111,7 +111,7 @@ $$ LANGUAGE plpgsql VOLATILE;
 
 
 CREATE FUNCTION ku.get_schema_size(prefix text) RETURNS numeric AS $$
-    SELECT SUM(pg_total_relation_size(pg_class.oid))
+    SELECT COALESCE(SUM(pg_total_relation_size(pg_class.oid)), 0)
     FROM pg_class, pg_namespace
     WHERE pg_namespace.nspname = $1
     AND pg_class.relnamespace = pg_namespace.oid;
