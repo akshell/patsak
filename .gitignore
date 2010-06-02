@@ -1,5 +1,3 @@
-syntax: glob
-
 obj
 exe
 cov
@@ -7,3 +5,4 @@ doc
 var
 TAGS
 Doxyfile.bak
+.sconsign.dblite
