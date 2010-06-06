@@ -69,6 +69,8 @@ ku::Value Draft::Impl::Get(Type type) const
                 Context::GetCurrent()->Global(), 1, &v8_value));
         if (json.IsEmpty())
             throw Propagate();
+        if (!json->IsString())
+            throw Error(Error::TYPE, "Cannot serialize a value into JSON");
         return ku::Value(type, Stringify(json));
     }
     KU_ASSERT(type == Type::DUMMY);

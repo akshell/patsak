@@ -1156,6 +1156,7 @@ var dbTestSuite = {
       function () {
         db.insert('X', {j: {toJSON: function () { throw new E(); }}});
       });
+    assertThrow(TypeError, "db.insert('X', {j: undefined})");
     db.drop(['X']);
   }
 };
