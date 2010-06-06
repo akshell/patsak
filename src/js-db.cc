@@ -148,7 +148,8 @@ namespace
         Handle<v8::Value> arg(String::New(s.c_str()));
         Handle<v8::Value> result(
             parse_json_func->Call(Context::GetCurrent()->Global(), 1, &arg));
-        KU_ASSERT(!result.IsEmpty());
+        if (result.IsEmpty())
+            throw Propagate();
         return result;
     }
 
