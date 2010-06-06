@@ -41,24 +41,24 @@ namespace ku
 
         std::string TranslateQuery(Header& header,
                                    const std::string& query,
-                                   const Values& query_params = Values(),
+                                   const Drafts& query_params = Drafts(),
                                    const Strings& by_exprs = Strings(),
-                                   const Values& by_params = Values(),
+                                   const Drafts& by_params = Drafts(),
                                    size_t start = 0,
                                    size_t length = MINUS_ONE) const;
         
         std::string TranslateCount(const std::string& query,
-                                   const Values& params) const;
+                                   const Drafts& params) const;
 
         std::string TranslateUpdate(const std::string& rel_var_name,
                                     const std::string& where,
-                                    const Values& where_params,
-                                    const StringMap& attr_expr_map,
-                                    const Values& expr_params) const;
+                                    const Drafts& where_params,
+                                    const StringMap& expr_map,
+                                    const Drafts& expr_params) const;
 
         std::string TranslateDelete(const std::string& rel_var_name,
                                     const std::string& where,
-                                    const Values& params) const;
+                                    const Drafts& params) const;
 
         std::string TranslateExpr(const std::string& expr,
                                   const std::string& rel_var_name,

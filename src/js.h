@@ -6,6 +6,8 @@
 
 #include "common.h"
 
+#include <boost/scoped_ptr.hpp>
+
 
 namespace ku
 {

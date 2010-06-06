@@ -22,6 +22,22 @@ using namespace boost::gregorian;
 // Type
 ////////////////////////////////////////////////////////////////////////////////
 
+Type::Type(const string& pg_str)
+{
+    if (pg_str == "float8" || pg_str == "int4") {
+        tag_ = NUMBER;
+    } else if (pg_str == "text") {
+        tag_ = STRING;
+    } else if (pg_str == "bool") {
+        tag_ = BOOL;
+    } else if (pg_str == "timestamp") {
+        tag_ = DATE;
+    } else {
+        KU_ASSERT_EQUAL(pg_str, "json");
+        tag_ = JSON;
+    }
+}
+
 bool Type::TraitsAreCompatible(Trait lhs, Trait rhs)
 {
     return ((lhs == COMMON && rhs == COMMON) ||
@@ -31,13 +47,14 @@ bool Type::TraitsAreCompatible(Trait lhs, Trait rhs)
 
 bool Type::IsApplicable(Trait trait) const
 {
-    return trait == COMMON || tag_ == Type::NUMBER;
+    return trait == COMMON || tag_ == NUMBER;
 }
 
 
 string Type::GetPgStr(Trait trait) const
 {
-    static const char* pg_strs[] = {"float8", "text", "bool", "timestamp(3)"};
+    static const char* pg_strs[] =
+        {"float8", "text", "bool", "timestamp(3)", "ku.json"};
 
     KU_ASSERT(tag_ < DUMMY && IsApplicable(trait));
     if (trait == COMMON)
@@ -48,7 +65,7 @@ string Type::GetPgStr(Trait trait) const
 
 string Type::GetKuStr(Trait trait) const
 {
-    static const char* ku_strs[] = {"number", "string", "bool", "date"};
+    static const char* ku_strs[] = {"number", "string", "bool", "date", "json"};
 
     KU_ASSERT(tag_ < DUMMY && IsApplicable(trait));
     if (trait == COMMON)
@@ -59,37 +76,9 @@ string Type::GetKuStr(Trait trait) const
 
 string Type::GetCastFunc() const
 {
+    if (tag_ == DATE || tag_ == JSON)
+        throw Error(Error::TYPE, "Cannot coerce any type to " + GetKuStr());
     return "ku.to_" + GetKuStr();
-}
-
-
-Type ku::PgType(const string& pg_type)
-{
-    if (pg_type == "float8" || pg_type == "int4") {
-        return Type::NUMBER;
-    } else if (pg_type == "text") {
-        return Type::STRING;
-    } else if (pg_type == "bool") {
-        return Type::BOOL;
-    } else {
-        KU_ASSERT_EQUAL(pg_type, "timestamp");
-        return Type::DATE;
-    }
-}
-
-
-Type ku::KuType(const string& ku_type)
-{
-    if (ku_type == "number") {
-        return Type::NUMBER;
-    } else if (ku_type == "string") {
-        return Type::STRING;
-    } else if (ku_type == "bool") {
-        return Type::BOOL;
-    } else {
-        KU_ASSERT_EQUAL(ku_type, "date");
-        return Type::DATE;
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,6 +139,9 @@ Type BinaryOp::GetCommonType(Type left_type, Type right_type) const
     if (IsComparison(tag_)) {
         if (left_type == right_type)
             return left_type;
+        if ((left_type == Type::JSON && right_type == Type::STRING) ||
+            (left_type == Type::STRING && right_type == Type::JSON))
+            return Type::STRING;
         return Type::NUMBER;
     }
 
@@ -241,12 +233,9 @@ string UnaryOp::GetPgStr() const
 class Value::Impl {
 public:
     virtual ~Impl();
-    virtual Impl* Clone() const = 0;
     virtual Type GetType() const = 0;
     virtual PgLiter GetPgLiter() const = 0;
-    virtual double GetDouble() const = 0;
-    virtual string GetString() const = 0;
-    virtual bool GetBool() const = 0;
+    virtual bool Get(double& d, string& s) const = 0;
 };
 
 
@@ -262,10 +251,6 @@ namespace
         NumberValue(double repr)
             : repr_(repr) {}
 
-        virtual Impl* Clone() const {
-            return new NumberValue(*this);
-        }
-        
         virtual Type GetType() const {
             return Type::NUMBER;
         }
@@ -281,17 +266,9 @@ namespace
                            false);
         }
         
-        virtual double GetDouble() const {
-            return repr_;
-        }
-        
-        virtual string GetString() const {
-            return repr_ == repr_ ? lexical_cast<string>(repr_) : "NaN";
-        }
-        
-        virtual bool GetBool() const {
-            // false on 0 and NaN, otherwise true
-            return repr_ == repr_ ? repr_ : false;
+        virtual bool Get(double& d, string& /*s*/) const {
+            d = repr_;
+            return false;
         }
 
     private:
@@ -304,10 +281,6 @@ namespace
         StringValue(const string& repr)
             : repr_(repr) {}
         
-        virtual Impl* Clone() const {
-            return new StringValue(*this);
-        }
-        
         virtual Type GetType() const {
             return Type::STRING;
         }
@@ -316,21 +289,9 @@ namespace
             return PgLiter(repr_, true);
         }
         
-        virtual double GetDouble() const {
-            istringstream iss(repr_);
-            double result;
-            iss >> result;
-            if (iss.fail() || !iss.eof())
-                return numeric_limits<double>::quiet_NaN();
-            return result;
-        }
-        
-        virtual string GetString() const {
-            return repr_;
-        }
-        
-        virtual bool GetBool() const {
-            return !repr_.empty();
+        virtual bool Get(double& /*d*/, string& s) const {
+            s = repr_;
+            return true;
         }
 
     private:
@@ -343,28 +304,17 @@ namespace
         BooleanValue(bool repr)
             : repr_(repr) {}
         
-        virtual Impl* Clone() const {
-            return new BooleanValue(*this);
-        }
-        
         virtual Type GetType() const {
             return Type::BOOL;
         }
         
         virtual PgLiter GetPgLiter() const {
-            return PgLiter(GetString(), false);
+            return PgLiter(repr_ ? "true" : "false", false);
         }
         
-        virtual double GetDouble() const {
-            return repr_;
-        }
-        
-        virtual string GetString() const {
-            return repr_ ? "true" : "false";
-        }
-        
-        virtual bool GetBool() const {
-            return repr_;
+        virtual bool Get(double& d, string& /*s*/) const {
+            d = repr_;
+            return false;
         }
 
     private:
@@ -382,10 +332,6 @@ namespace
         DateValue(const ptime& repr)
             : repr_(repr) {}
         
-        virtual Impl* Clone() const {
-            return new DateValue(*this);
-        }
-        
         virtual Type GetType() const {
             return Type::DATE;
         }
@@ -396,20 +342,9 @@ namespace
             return PgLiter(oss.str(), false);
         }
         
-        virtual double GetDouble() const {
-            time_duration diff(repr_ - GetEpoch());
-            return diff.total_milliseconds();
-        }
-        
-        virtual string GetString() const {
-            ostringstream oss;
-            oss.imbue(GetLocale());
-            oss << repr_;
-            return oss.str();
-        }
-        
-        virtual bool GetBool() const {
-            return true;
+        virtual bool Get(double& d, string& /*s*/) const {
+            d = (repr_ - GetEpoch()).total_milliseconds();
+            return false;
         }
 
     private:
@@ -421,13 +356,24 @@ namespace
                     new time_facet("%a, %d %b %Y %H:%M:%S GMT"));
             return loc;
         }
-    };    
+    };
+
+
+    class JSONValue : public StringValue {
+    public:
+        JSONValue(const string& repr)
+            : StringValue(repr) {}
+        
+        virtual Type GetType() const {
+            return Type::JSON;
+        }
+    };
 }
 
 
 namespace
 {
-    Value::Impl* CreateValueImplByDouble(const Type& type, double d)
+    Value::Impl* CreateValueImplByDouble(Type type, double d)
     {
         if (type == Type::NUMBER) {
             return new NumberValue(d);
@@ -440,7 +386,7 @@ namespace
     }
 
     
-    Value::Impl* CreateValueImplByString(const Type& type, const string& s)
+    Value::Impl* CreateValueImplByString(Type type, const string& s)
     {
         if (type == Type::STRING) {
             return new StringValue(s);
@@ -454,60 +400,49 @@ namespace
         } else if (type == Type::BOOL) {
             KU_ASSERT(s == "true" || s == "false");
             return new BooleanValue(s == "true");
-        } else {
-            KU_ASSERT(type == Type::DATE);
+        } else if (type == Type::DATE) {
             return new DateValue(time_from_string(s));
+        } else {
+            KU_ASSERT(type == Type::JSON);
+            return new JSONValue(s);
         }
     }
 }
 
 
-Value::Value(const Type& type, double d)
+Value::Value(Type type, double d)
     : pimpl_(CreateValueImplByDouble(type, d))
 {
 }
 
 
-Value::Value(const Type& type, int i)
+Value::Value(Type type, int i)
     : pimpl_(CreateValueImplByDouble(type, i))
 {
 }
 
 
-Value::Value(const Type& type, const std::string& s)
+Value::Value(Type type, const std::string& s)
     : pimpl_(CreateValueImplByString(type, s))
 {
 }
 
 
-Value::Value(const Type& type, const char* c)
+Value::Value(Type type, const char* c)
     : pimpl_(CreateValueImplByString(type, c))
 {
 }
 
 
-Value::Value(const Type& type, bool b)
+Value::Value(Type type, bool b)
 {
     KU_ASSERT(type == Type::BOOL);
     pimpl_.reset(new BooleanValue(b));
 }
 
 
-Value::Value(const Value& other)
-    : pimpl_(other.pimpl_->Clone())
-{
-}
-
-
 Value::~Value()
 {
-}
-
-
-Value& Value::operator=(const Value& other)
-{
-    pimpl_.reset(other.pimpl_->Clone());
-    return *this;
 }
 
 
@@ -523,39 +458,9 @@ PgLiter Value::GetPgLiter() const
 }
 
 
-double Value::GetDouble() const
+bool Value::Get(double& d, std::string& s) const
 {
-    return pimpl_->GetDouble();
-}
-
-
-string Value::GetString() const
-{
-    return pimpl_->GetString();
-}
-
-
-bool Value::GetBool() const
-{
-    return pimpl_->GetBool();
-}
-
-
-Value Value::Cast(Type cast_type) const
-{
-    if (cast_type == GetType())
-        return *this;
-    if (cast_type == Type::NUMBER)
-        return Value(cast_type, GetDouble());
-    if (cast_type == Type::STRING)
-        return Value(cast_type, GetString());
-    if (cast_type == Type::BOOL)
-        return Value(cast_type, GetBool());
-    KU_ASSERT(cast_type == Type::DATE);
-    return Value(cast_type,
-                 (GetType() == Type::STRING
-                  ? ParseDate(GetString())
-                  : GetDouble()));
+    return pimpl_->Get(d, s);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

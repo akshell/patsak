@@ -106,24 +106,35 @@ namespace ku
             return !(*this == other);
         }
 
-        T& find(const typename FindT::second_argument_type& key) {
-            typename base::iterator
-                itr(std::find_if(begin(), end(), std::bind2nd(FindT(), key)));
-            if (itr == end()) {
-                FindT().not_found(key);
-                throw std::runtime_error("key not found");
-            }
-            return *itr;
+        T* find_ptr(const typename FindT::second_argument_type& key) {
+            typename base::iterator itr(
+                std::find_if(begin(), end(), std::bind2nd(FindT(), key)));
+            return itr == end() ? 0 : &*itr;
         }
 
-        const T& find(const typename FindT::second_argument_type& key) const {
-            typename base::const_iterator
-                itr(std::find_if(begin(), end(), std::bind2nd(FindT(), key)));
-            if (itr == end()) {
+        T& find(const typename FindT::second_argument_type& key) {
+            T* ptr = find_ptr(key);
+            if (!ptr) {
                 FindT().not_found(key);
                 throw std::runtime_error("key not found");
             }
-            return *itr;
+            return *ptr;
+        }
+        
+        const T*
+        find_ptr(const typename FindT::second_argument_type& key) const {
+            typename base::const_iterator itr(
+                std::find_if(begin(), end(), std::bind2nd(FindT(), key)));
+            return itr == end() ? 0 : &*itr;
+        }
+        
+        const T& find(const typename FindT::second_argument_type& key) const {
+            const T* ptr = find_ptr(key);
+            if (!ptr) {
+                FindT().not_found(key);
+                throw std::runtime_error("key not found");
+            }
+            return *ptr;
         }
     };
 }

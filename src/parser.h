@@ -199,22 +199,6 @@ namespace ku
 
     Rel ParseRel(const std::string& str);
     Expr ParseExpr(const std::string& str);
-
-    std::ostream& operator<<(std::ostream& os, const RangeVar& rv);
-    std::ostream& operator<<(std::ostream& os, const NamedExpr& ne);
-
-    std::ostream& operator<<(std::ostream& os, const Base& base);
-    std::ostream& operator<<(std::ostream& os, const Union& u);
-    std::ostream& operator<<(std::ostream& os, const Select& select);
-
-
-    std::ostream& operator<<(std::ostream& os, const Liter& liter);
-    std::ostream& operator<<(std::ostream& os, const MultiField& multi_field);
-    std::ostream& operator<<(std::ostream& os, const PosArg& pos_arg);
-    std::ostream& operator<<(std::ostream& os, const Quant& quant);
-    std::ostream& operator<<(std::ostream& os, const Binary& binary);
-    std::ostream& operator<<(std::ostream& os, const Unary& unary);
-    std::ostream& operator<<(std::ostream& os, const Cond& cond);
 }
 
 #endif // PARSER_H

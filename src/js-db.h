@@ -9,6 +9,10 @@
 
 namespace ku
 {
+    extern v8::Persistent<v8::Function> stringify_json_func;
+    extern v8::Persistent<v8::Function> parse_json_func;
+
+    
     class DBBg {
     public:
         DECLARE_JS_CLASS(DBBg);

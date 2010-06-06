@@ -106,7 +106,7 @@ namespace
 ///////////////////////////////////////////////////////////////////////////////
 
 RichAttr::RichAttr(const string& name,
-                   const Type& type,
+                   Type type,
                    Type::Trait trait,
                    const Value* default_ptr)
     : attr_(name, type)
@@ -150,9 +150,12 @@ const Value* RichAttr::GetDefaultPtr() const
 
 void RichAttr::SetDefaultPtr(const Value* default_ptr)
 {
-    default_ptr_.reset(default_ptr
-                       ? new Value(default_ptr->Cast(GetType()))
-                       : 0);
+    if (default_ptr) {
+        KU_ASSERT(default_ptr->GetType() == GetType());
+        default_ptr_.reset(new Value(*default_ptr));
+    } else {
+        default_ptr_.reset();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,7 +188,7 @@ namespace
         const ForeignKeySet& GetForeignKeySet() const;
         void AddAttrs(pqxx::work& work, const RichHeader& attrs);
         void DropAttrs(pqxx::work& work, const StringSet& attr_names);
-        void AddDefault(pqxx::work& work, const ValueMap& value_map);
+        void AddDefault(pqxx::work& work, const DraftMap& draft_map);
         void DropDefault(pqxx::work& work, const StringSet& attr_names);
 
         void AddConstrs(pqxx::work& work,
@@ -266,7 +269,7 @@ RelVar::RelVar(pqxx::work& work, const string& name)
         KU_ASSERT_EQUAL(tuple.size(), 3U);
         KU_ASSERT(!tuple[0].is_null() && ! tuple[1].is_null());
         string name(tuple[0].c_str());
-        Type type(PgType(tuple[1].c_str()));
+        Type type(tuple[1].c_str());
         Type::Trait trait = Type::COMMON;
         auto_ptr<Value> default_ptr;
         if (string(tuple[1].c_str()) == "int4") {
@@ -705,26 +708,24 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
 }
 
 
-void RelVar::AddDefault(pqxx::work& work, const ValueMap& value_map)
+void RelVar::AddDefault(pqxx::work& work, const DraftMap& draft_map)
 {
-    if (value_map.empty())
+    if (draft_map.empty())
         return;
-    vector<size_t> indexes;
-    indexes.reserve(value_map.size());
+    RichHeader new_rich_header(rich_header_);
     ostringstream oss;
     oss << "ALTER TABLE " << Quoted(name_) << ' ';
     OmitInvoker print_sep((SepPrinter(oss)));
-    BOOST_FOREACH(const ValueMap::value_type& name_value, value_map) {
-        indexes.push_back(
-            &rich_header_.find(name_value.first) - &rich_header_[0]);
+    BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map) {
+        RichAttr& new_rich_attr(new_rich_header.find(named_draft.first));
+        const Value& value(named_draft.second.Get(new_rich_attr.GetType()));
+        new_rich_attr.SetDefaultPtr(&value);
         print_sep();
-        oss << "ALTER " << Quoted(name_value.first)
-            << " SET DEFAULT " <<  Quoter(work)(name_value.second.GetPgLiter());
+        oss << "ALTER " << Quoted(named_draft.first)
+            << " SET DEFAULT " <<  Quoter(work)(value.GetPgLiter());
     }
     work.exec(oss.str());
-    size_t i = 0;
-    BOOST_FOREACH(const ValueMap::value_type& name_value, value_map)
-        rich_header_[indexes[i++]].SetDefaultPtr(&name_value.second);
+    rich_header_ = new_rich_header;
 }
 
 
@@ -900,10 +901,9 @@ void DBMeta::Drop(pqxx::work& work, const StringSet& rel_var_names)
     vector<size_t> indexes(rel_var_names.size(), -1);
     for (size_t i = 0; i < rel_vars_.size(); ++i) {
         const RelVar& rel_var(rel_vars_[i]);
-        StringSet::const_iterator name_itr = find(
-            rel_var_names.begin(), rel_var_names.end(), rel_var.GetName());
-        if (name_itr != rel_var_names.end())
-            indexes[name_itr - rel_var_names.begin()] = i;
+        const string* name_ptr = rel_var_names.find_ptr(rel_var.GetName());
+        if (name_ptr)
+            indexes[name_ptr - &rel_var_names[0]] = i;
         else
             BOOST_FOREACH(const ForeignKey& foreign_key,
                           rel_var.GetForeignKeySet())
@@ -1390,9 +1390,9 @@ void Access::Drop(const StringSet& rel_var_names)
 
 
 QueryResult Access::Query(const string& query,
-                          const Values& query_params,
+                          const Drafts& query_params,
                           const Strings& by_exprs,
-                          const Values& by_params,
+                          const Drafts& by_params,
                           size_t start,
                           size_t length) const
 {
@@ -1418,7 +1418,7 @@ QueryResult Access::Query(const string& query,
 }
 
 
-size_t Access::Count(const string& query, const Values& params) const
+size_t Access::Count(const string& query, const Drafts& params) const
 {
     string sql(db_impl_.GetTranslator().TranslateCount(query, params));
     pqxx::result pqxx_result(work_ptr_->exec(sql));
@@ -1430,23 +1430,23 @@ size_t Access::Count(const string& query, const Values& params) const
 
 size_t Access::Update(const string& rel_var_name,
                       const string& where,
-                      const Values& where_params,
-                      const StringMap& attr_expr_map,
-                      const Values& expr_params)
+                      const Drafts& where_params,
+                      const StringMap& expr_map,
+                      const Drafts& expr_params)
 {
     db_impl_.GetQuotaChecker().Check(*work_ptr_);
     
     const RichHeader& rich_header(GetRichHeader(rel_var_name));
     uint64_t size = 0;
-    BOOST_FOREACH(const StringMap::value_type& attr_expr, attr_expr_map) {
-        rich_header.find(attr_expr.first);
+    BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map) {
+        rich_header.find(named_expr.first);
         // FIXME it's wrong estimation for expressions
-        size += attr_expr.second.size();
+        size += named_expr.second.size();
     }
     string sql(db_impl_.GetTranslator().TranslateUpdate(rel_var_name,
                                                         where,
                                                         where_params,
-                                                        attr_expr_map,
+                                                        expr_map,
                                                         expr_params));
     size_t result;
     try {
@@ -1465,7 +1465,7 @@ size_t Access::Update(const string& rel_var_name,
 
 size_t Access::Delete(const string& rel_var_name,
                       const string& where,
-                      const Values& params)
+                      const Drafts& params)
 {
     string sql(db_impl_.GetTranslator().TranslateDelete(rel_var_name,
                                                         where,
@@ -1480,7 +1480,7 @@ size_t Access::Delete(const string& rel_var_name,
 }
 
 
-Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
+Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
 {
     static const format empty_cmd("SELECT ku.insert_into_empty('%1%');");
     static const format cmd(
@@ -1495,21 +1495,21 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
     string sql_str;
     uint64_t size = 0;
     if (rich_header.empty()) {
-        if (!value_map.empty())
-            rich_header.find(value_map.begin()->first); // throws
+        if (!draft_map.empty())
+            rich_header.find(draft_map.begin()->first); // throws
         sql_str = (format(empty_cmd) % rel_var_name).str();
     } else {
-        if (!value_map.empty()) {
-            BOOST_FOREACH(const ValueMap::value_type& name_value, value_map)
-                rich_header.find(name_value.first);
+        if (!draft_map.empty()) {
+            BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map)
+                rich_header.find(named_draft.first);
             ostringstream names_oss, values_oss;
             OmitInvoker print_names_sep((SepPrinter(names_oss)));
             OmitInvoker print_values_sep((SepPrinter(values_oss)));
             Quoter quoter(db_impl_.GetConnection());
             BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
-                ValueMap::const_iterator itr(
-                    value_map.find(rich_attr.GetName()));
-                if (itr == value_map.end()) {
+                DraftMap::const_iterator itr(
+                    draft_map.find(rich_attr.GetName()));
+                if (itr == draft_map.end()) {
                     if (rich_attr.GetTrait() != Type::SERIAL &&
                         !rich_attr.GetDefaultPtr())
                         throw Error(Error::ATTR_VALUE_REQUIRED,
@@ -1520,8 +1520,8 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
                     print_names_sep();
                     names_oss << Quoted(rich_attr.GetName());
                     print_values_sep();
-                    Value casted_value(itr->second.Cast(rich_attr.GetType()));
-                    values_oss << quoter(casted_value.GetPgLiter());
+                    Value value(itr->second.Get(rich_attr.GetType()));
+                    values_oss << quoter(value.GetPgLiter());
                 }
             }
             sql_str = (format(cmd)
@@ -1534,10 +1534,11 @@ Values Access::Insert(const string& rel_var_name, const ValueMap& value_map)
         }
         BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
             const Value* default_ptr = rich_attr.GetDefaultPtr();
-            if (default_ptr)
-                size += (default_ptr->GetType() == Type::STRING
-                         ? default_ptr->GetString().size()
-                         : 16); // other types occupy constant amount of space
+            if (default_ptr) {
+                double d;
+                string s;
+                size += default_ptr->Get(d, s) ? s.size() : 16;
+            }
         }
     }
     pqxx::result pqxx_result;
@@ -1575,11 +1576,10 @@ void Access::DropAttrs(const string& rel_var_name,
 }
 
 
-void Access::AddDefault(const string& rel_var_name,
-                        const ValueMap& value_map)
+void Access::AddDefault(const string& rel_var_name, const DraftMap& draft_map)
 {
     RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
-    rel_var.AddDefault(*work_ptr_, value_map);
+    rel_var.AddDefault(*work_ptr_, draft_map);
 }
 
 

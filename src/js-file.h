@@ -6,7 +6,7 @@
 
 #include "js-common.h"
 
-#include <boost/shared_ptr.hpp>
+#include <boost/scoped_ptr.hpp>
 
 #include <sys/stat.h>
 

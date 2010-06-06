@@ -16,15 +16,89 @@ using boost::shared_ptr;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// GetRichHeader
+// JSON functions
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+Persistent<Function> ku::stringify_json_func;
+Persistent<Function> ku::parse_json_func;
+
+////////////////////////////////////////////////////////////////////////////////
+// Draft::Impl
+////////////////////////////////////////////////////////////////////////////////
+
+class Draft::Impl {
+public:
+    Impl(Handle<v8::Value> v8_value);
+    ~Impl();
+    ku::Value Get(Type type) const;
+
+private:
+    Persistent<v8::Value> v8_value_;
+};
+
+
+Draft::Impl::Impl(Handle<v8::Value> v8_value)
+    : v8_value_(Persistent<v8::Value>::New(v8_value))
 {
-    const RichHeader& GetRichHeader(Handle<v8::Value> name)
-    {
-        return access_ptr->GetRichHeader(Stringify(name));
+}
+
+
+Draft::Impl::~Impl()
+{
+    v8_value_.Dispose();
+}
+
+
+ku::Value Draft::Impl::Get(Type type) const
+{
+    if (type == Type::NUMBER)
+        return ku::Value(type, v8_value_->NumberValue());
+    if (type == Type::STRING)
+        return ku::Value(type, Stringify(v8_value_));
+    if (type == Type::BOOL)
+        return ku::Value(type, v8_value_->BooleanValue());
+    if (type == Type::DATE) {
+        if (!v8_value_->IsDate())
+            throw Error(Error::TYPE, "Date expected");
+        return ku::Value(type, v8_value_->NumberValue());
     }
+    if (type == Type::JSON) {
+        Handle<v8::Value> v8_value(v8_value_);
+        Handle<v8::Value> json(
+            stringify_json_func->Call(
+                Context::GetCurrent()->Global(), 1, &v8_value));
+        if (json.IsEmpty())
+            throw Propagate();
+        return ku::Value(type, Stringify(json));
+    }
+    KU_ASSERT(type == Type::DUMMY);
+    if (v8_value_->IsNumber())
+        return ku::Value(Type::NUMBER, v8_value_->NumberValue());
+    if (v8_value_->IsBoolean())
+        return ku::Value(Type::BOOL, v8_value_->BooleanValue());
+    if (v8_value_->IsDate())
+        return ku::Value(Type::DATE, v8_value_->NumberValue());
+    return ku::Value(Type::STRING, Stringify(v8_value_));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Draft definitions
+////////////////////////////////////////////////////////////////////////////////
+
+Draft::Draft(Impl* pimpl)
+    : pimpl_(pimpl)
+{
+}
+
+
+Draft::~Draft()
+{
+}
+
+
+ku::Value Draft::Get(Type type) const
+{
+    return pimpl_->Get(type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,25 +107,25 @@ namespace
 
 namespace
 {
-    ku::Value ReadKuValue(Handle<v8::Value> v8_value)
+    const RichHeader& GetRichHeader(Handle<v8::Value> name)
     {
-        if (v8_value->IsBoolean())
-            return ku::Value(Type::BOOL, v8_value->BooleanValue());
-        if (v8_value->IsNumber())
-            return ku::Value(Type::NUMBER, v8_value->NumberValue());
-        if (v8_value->IsDate())
-            return ku::Value(Type::DATE, v8_value->NumberValue());
-        return ku::Value(Type::STRING, Stringify(v8_value));
+        return access_ptr->GetRichHeader(Stringify(name));
+    }
+    
+
+    Draft CreateDraft(Handle<v8::Value> value)
+    {
+        return Draft(new Draft::Impl(value));
     }
 
 
-    Values ReadParams(Handle<v8::Value> value)
+    Drafts ReadParams(Handle<v8::Value> value)
     {
         Handle<Array> array(GetArray(value));
-        Values result;
+        Drafts result;
         result.reserve(array->Length());
         for (size_t i = 0; i < array->Length(); ++i)
-            result.push_back(ReadKuValue(array->Get(Integer::New(i))));
+            result.push_back(CreateDraft(array->Get(Integer::New(i))));
         return result;
     }
     
@@ -59,16 +133,23 @@ namespace
     Handle<v8::Value> MakeV8Value(const ku::Value& ku_value)
     {
         Type type(ku_value.GetType());
+        double d;
+        string s;
+        ku_value.Get(d, s);
         if (type == Type::NUMBER)
-            return Number::New(ku_value.GetDouble());
-        else if (type == Type::STRING)
-            return String::New(ku_value.GetString().c_str());
-        else if (type == Type::BOOL) 
-            return Boolean::New(ku_value.GetBool());
-        else {
-            KU_ASSERT(type == Type::DATE);
-            return Date::New(ku_value.GetDouble());
-        }
+            return Number::New(d);
+        if (type == Type::STRING)
+            return String::New(s.c_str());
+        if (type == Type::BOOL) 
+            return Boolean::New(d);
+        if (type == Type::DATE)
+            return Date::New(d);
+        KU_ASSERT(type == Type::JSON);
+        Handle<v8::Value> arg(String::New(s.c_str()));
+        Handle<v8::Value> result(
+            parse_json_func->Call(Context::GetCurrent()->Global(), 1, &arg));
+        KU_ASSERT(!result.IsEmpty());
+        return result;
     }
 
 
@@ -95,16 +176,16 @@ namespace
     }
 
 
-    ValueMap ReadValueMap(Handle<v8::Value> value)
+    DraftMap ReadDraftMap(Handle<v8::Value> value)
     {
         if (!value->IsObject())
             throw Error(Error::TYPE, "Object required");
         PropEnumerator prop_enumerator(value->ToObject());
-        ValueMap result;
+        DraftMap result;
         for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
             Prop prop(prop_enumerator.GetProp(i));
-            result.insert(ValueMap::value_type(Stringify(prop.key),
-                                               ReadKuValue(prop.value)));
+            result.insert(DraftMap::value_type(Stringify(prop.key),
+                                               CreateDraft(prop.value)));
         }
         return result;
     }
@@ -375,7 +456,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, DefaultCb,
     CheckArgsLength(args, 1);
     if (trait_ == Type::SERIAL)
         throw Error(Error::USAGE, "Default and serial are incompatible");
-    shared_ptr<ku::Value> default_ptr(new ku::Value(ReadKuValue(args[0])));
+    shared_ptr<ku::Value> default_ptr(
+        new ku::Value(CreateDraft(args[0]).Get(type_)));
     return JSNew<TypeBg>(type_, trait_, default_ptr, ac_ptrs_);
 }
 
@@ -464,6 +546,7 @@ void DBBg::Init(v8::Handle<v8::Object> object) const
     Set(object, "string", JSNew<TypeBg>(Type::STRING));
     Set(object, "bool", JSNew<TypeBg>(Type::BOOL));
     Set(object, "date", JSNew<TypeBg>(Type::DATE));
+    Set(object, "json", JSNew<TypeBg>(Type::JSON));
 }
 
 
@@ -674,7 +757,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, InsertCb,
 {
     CheckArgsLength(args, 2);
     string name(Stringify(args[0]));
-    Values values(access_ptr->Insert(name, ReadValueMap(args[1])));
+    Values values(access_ptr->Insert(name, ReadDraftMap(args[1])));
     const RichHeader& rich_header(access_ptr->GetRichHeader(name));
     KU_ASSERT_EQUAL(values.size(), rich_header.size());
     Handle<Object> result(Object::New());
@@ -700,16 +783,16 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, UpdateCb,
     CheckArgsLength(args, 5);
     if (!args[3]->IsObject())
         throw Error(Error::TYPE, "Update needs an object");
-    StringMap field_expr_map;
+    StringMap expr_map;
     PropEnumerator prop_enumerator(args[3]->ToObject());
     for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
         Prop prop(prop_enumerator.GetProp(i));
-        field_expr_map.insert(StringMap::value_type(Stringify(prop.key),
-                                                    Stringify(prop.value)));
+        expr_map.insert(StringMap::value_type(Stringify(prop.key),
+                                              Stringify(prop.value)));
     }
     size_t rows_number = access_ptr->Update(
         Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]),
-        field_expr_map, ReadParams(args[4]));
+        expr_map, ReadParams(args[4]));
     return Number::New(static_cast<double>(rows_number));
 }
 
@@ -737,7 +820,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, AddAttrsCb,
         if (type_ptr->GetTrait() == Type::SERIAL)
             throw Error(Error::NOT_IMPLEMENTED,
                         "Adding of serial attributes is not implemented");
-        const ku::Value& value(ReadKuValue(descr->Get(Integer::New(1))));
+        ku::Value value(
+            CreateDraft(descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
         rich_attrs.add_sure(RichAttr(Stringify(prop.key),
                                      type_ptr->GetType(),
                                      type_ptr->GetTrait(),
@@ -761,7 +845,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, AddDefaultCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 2);
-    access_ptr->AddDefault(Stringify(args[0]), ReadValueMap(args[1]));
+    access_ptr->AddDefault(Stringify(args[0]), ReadDraftMap(args[1]));
     return Undefined();
 }
 

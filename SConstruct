@@ -56,7 +56,7 @@ def invoke_script(dir, obj_dir, exports):
                       exports=exports,
                       duplicate=False)
 
-objects = invoke_script('src', '', 'env')
+common_objects, js_objects = invoke_script('src', '', 'env')
 test_objects = invoke_script('test', 'test', 'test_env')
 
 revision = Popen(['git', 'rev-parse', '--short', 'HEAD'],
@@ -71,9 +71,11 @@ main_obj = main_env.Object(target=join('obj', env['mode'], 'main.o'),
 def program_path(name):
     return join('exe', env['mode'], name)
 
-program = env.Program(program_path('patsak'), objects + [main_obj])
+program = env.Program(program_path('patsak'),
+                      common_objects + js_objects + [main_obj])
+
 test_program = test_env.Program(program_path('test-patsak'),
-                                objects + test_objects)
+                                common_objects + test_objects)
 
 ################################################################################
 

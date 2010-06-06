@@ -5,6 +5,9 @@ DROP SCHEMA IF EXISTS ku CASCADE;
 CREATE SCHEMA ku;
 
 
+CREATE DOMAIN ku.json AS text;
+
+
 CREATE FUNCTION ku.to_string(f float8) RETURNS text AS $$
     SELECT $1::text;
 $$ LANGUAGE SQL IMMUTABLE;
@@ -16,7 +19,12 @@ $$ LANGUAGE SQL IMMUTABLE;
 
 
 CREATE FUNCTION ku.to_string(t timestamp(3)) RETURNS text AS $$
-    SELECT to_char($1, 'Dy, DD Mon YYYY HH:MI:SS GMT');
+    SELECT to_char($1, 'Dy Mon DD YYYY HH:MI:SS');
+$$ LANGUAGE SQL IMMUTABLE;
+
+
+CREATE FUNCTION ku.to_string(j ku.json) RETURNS text AS $$
+    SELECT $1::text;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
@@ -39,7 +47,17 @@ $$ LANGUAGE SQL IMMUTABLE;
 
 
 CREATE FUNCTION ku.to_number(t timestamp(3)) RETURNS float8 AS $$
-    SELECT extract(epoch from $1)*1000;
+    SELECT extract(epoch from $1) * 1000;
+$$ LANGUAGE SQL IMMUTABLE;
+
+
+CREATE FUNCTION ku.to_number(j ku.json) RETURNS float8 AS $$
+    SELECT ku.to_number($1::text);
+$$ LANGUAGE SQL IMMUTABLE;
+
+
+CREATE FUNCTION ku.to_bool(t text) RETURNS bool AS $$
+    SELECT CASE WHEN $1 = '' THEN false ELSE true END;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
@@ -48,8 +66,13 @@ CREATE FUNCTION ku.to_bool(f float8) RETURNS bool AS $$
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE FUNCTION ku.to_bool(t text) RETURNS bool AS $$
-    SELECT CASE WHEN $1 = '' THEN false ELSE true END;
+CREATE FUNCTION ku.to_bool(t timestamp(3)) RETURNS bool AS $$
+    SELECT true;
+$$ LANGUAGE SQL IMMUTABLE;
+
+
+CREATE FUNCTION ku.to_bool(j ku.json) RETURNS bool AS $$
+    SELECT true;
 $$ LANGUAGE SQL IMMUTABLE;
 
 

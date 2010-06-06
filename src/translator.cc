@@ -109,16 +109,16 @@ namespace
             ostringstream os_;
         };
         
-        Control(const DBViewer& db_viewer, const Values& params);
+        Control(const DBViewer& db_viewer, const Drafts& params);
 
         const Header& LookupBind(const RangeVar& rv) const;
         Header TranslateRel(const Rel& rel);
-        Type TranslateExpr(const Expr& expr, const RangeVar* this_rv_ptr);
-        void TranslateAndCastExpr(const Expr& expr,
-                                  const RangeVar* this_rv_ptr,
-                                  Type needed_type);
-        Type GetParamType(size_t pos) const;
-        void PrintParam(size_t pos);
+        
+        Type TranslateExpr(const Expr& expr,
+                           const RangeVar* this_rv_ptr,
+                           Type needed_type = Type::DUMMY);
+
+        Type PrintParam(size_t pos, Type needed_type = Type::DUMMY);
         const Header& GetHeader(const string& rel_var_name) const;
 
         DBViewer::RelVarAttrs
@@ -133,11 +133,9 @@ namespace
         typedef vector<BindData> BindStack;
 
         const DBViewer& db_viewer_;
-        const Values& params_;
+        const Drafts& params_;
         BindStack bind_stack_;
         ostream* os_ptr_;
-
-        void CheckParam(size_t pos) const;
     };
 
 
@@ -179,7 +177,7 @@ namespace
 // Control definitons
 ////////////////////////////////////////////////////////////////////////////////
 
-Control::Control(const DBViewer& db_viewer, const Values& params)
+Control::Control(const DBViewer& db_viewer, const Drafts& params)
     : db_viewer_(db_viewer)
     , params_(params)
     , os_ptr_(0)
@@ -207,37 +205,36 @@ Header Control::TranslateRel(const Rel& rel)
 }
 
 
-Type Control::TranslateExpr(const Expr& expr, const RangeVar* this_rv_ptr)
+Type Control::TranslateExpr(const Expr& expr,
+                            const RangeVar* this_rv_ptr,
+                            Type needed_type)
 {
-    return apply_visitor(ExprTranslator(*this, this_rv_ptr), expr);    
-}
-
-
-void Control::TranslateAndCastExpr(const Expr& expr,
-                                   const RangeVar* this_rv_ptr,
-                                   Type cast_type)
-{
+    if (const PosArg* pos_arg_ptr = boost::get<PosArg>(&expr))
+        return PrintParam(pos_arg_ptr->pos, needed_type);
+    if (needed_type == Type::DUMMY)
+        return apply_visitor(ExprTranslator(*this, this_rv_ptr), expr);
     string expr_str;
     Type type;
     {
         StringScope string_scope(*this, expr_str);
         type = TranslateExpr(expr, this_rv_ptr);
     }
-    *this << Casted(type, cast_type, expr_str);
+    *this << Casted(type, needed_type, expr_str);
+    return needed_type;
 }
 
 
-Type Control::GetParamType(size_t pos) const
+Type Control::PrintParam(size_t pos, Type needed_type)
 {
-    CheckParam(pos);
-    return params_[pos - 1].GetType();
-}
-
-
-void Control::PrintParam(size_t pos)
-{
-    CheckParam(pos);
-    *this << db_viewer_.Quote(params_[pos - 1].GetPgLiter());
+    if (pos == 0)
+        throw Error(Error::QUERY, "Position 0 is invalid");
+    if (pos > params_.size())
+        throw Error(
+            Error::QUERY,
+            "Position " + lexical_cast<string>(pos) + " is out of range");
+    Value value(params_[pos - 1].Get(needed_type));
+    *this << db_viewer_.Quote(value.GetPgLiter());
+    return value.GetType();
 }
 
 
@@ -276,18 +273,6 @@ Control& Control::operator<<(const T& t)
 Control& Control::operator<<(const PgLiter& pg_liter)
 {
     return (*this) << db_viewer_.Quote(pg_liter);
-}
-
-
-void Control::CheckParam(size_t pos) const
-{
-    if (pos == 0)
-        throw Error(Error::QUERY, "Position 0 is invalid");
-    if (pos > params_.size())
-        throw Error(Error::QUERY,
-                    ("Position " +
-                     lexical_cast<string>(pos) +
-                     " is out of range"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -609,11 +594,15 @@ Header SelectBuilder::BuildHeader(const Select::Protos& protos) const
 void SelectBuilder::BuildWhere(const Expr& expr,
                                const RangeVar* this_rv_ptr) const
 {
-    const Liter* liter_ptr = boost::get<Liter>(&expr);
-    if (liter_ptr && liter_ptr->value.GetBool())
-        return;
+    if (const Liter* liter_ptr = boost::get<Liter>(&expr)) {
+        double d = 0;
+        string s;
+        liter_ptr->value.Get(d, s);
+        if (d || !s.empty())
+            return;
+    }
     control_ << " WHERE ";
-    control_.TranslateAndCastExpr(expr, this_rv_ptr, Type::BOOL);
+    control_.TranslateExpr(expr, this_rv_ptr, Type::BOOL);
 }       
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -764,8 +753,7 @@ Type ExprTranslator::operator()(const MultiField& multi_field) const
 
 Type ExprTranslator::operator()(const PosArg& pos_arg) const
 {
-    control_.PrintParam(pos_arg.pos);
-    return control_.GetParamType(pos_arg.pos);
+    return control_.PrintParam(pos_arg.pos);
 }
 
 
@@ -782,7 +770,7 @@ Type ExprTranslator::operator()(const Quant& quant) const
     const RangeVar* this_rv_ptr = (quant.rvs.size() == 1
                                    ? &quant.rvs.front()
                                    : 0);
-    control_.TranslateAndCastExpr(quant.pred, this_rv_ptr, Type::BOOL);
+    control_.TranslateExpr(quant.pred, this_rv_ptr, Type::BOOL);
     control_ << "))";
     return Type::BOOL;
 }
@@ -812,9 +800,7 @@ Type ExprTranslator::operator()(const Binary& binary) const
 Type ExprTranslator::operator()(const Unary& unary) const
 {
     control_ << unary.op.GetPgStr() << ' ';
-    control_.TranslateAndCastExpr(unary.operand,
-                                  this_rv_ptr_,
-                                  unary.op.GetOpType());
+    control_.TranslateExpr(unary.operand, this_rv_ptr_, unary.op.GetOpType());
     return unary.op.GetOpType();
 }
 
@@ -822,7 +808,7 @@ Type ExprTranslator::operator()(const Unary& unary) const
 Type ExprTranslator::operator()(const Cond& cond) const
 {
     control_ << "(CASE WHEN ";
-    control_.TranslateAndCastExpr(cond.term, this_rv_ptr_, Type::BOOL);
+    control_.TranslateExpr(cond.term, this_rv_ptr_, Type::BOOL);
     string yes_str, no_str;
     Type yes_type, no_type;
     {
@@ -918,7 +904,7 @@ namespace
 {
     string DoTranslateQuery(const DBViewer& db_viewer,
                             const string& query,
-                            const Values& params,
+                            const Drafts& params,
                             Header* header_ptr = 0)
     {
         Control control(db_viewer, params);
@@ -936,7 +922,7 @@ namespace
                            const string& base_name,
                            const Header& base_header,
                            const string& expr_str,
-                           const Values& params,
+                           const Drafts& params,
                            Type required_type = Type::DUMMY)
     {
         Control control(db_viewer, params);
@@ -948,10 +934,7 @@ namespace
         string result;
         {
             Control::StringScope string_scope(control, result);
-            if (required_type != Type::DUMMY)
-                control.TranslateAndCastExpr(expr, &rv, required_type);
-            else
-                control.TranslateExpr(expr, &rv);
+            control.TranslateExpr(expr, &rv, required_type);
         }
         return result;
     }
@@ -960,9 +943,9 @@ namespace
 
 string Translator::TranslateQuery(Header& header,
                                   const string& query,
-                                  const Values& query_params,
+                                  const Drafts& query_params,
                                   const Strings& by_exprs,
-                                  const Values& by_params,
+                                  const Drafts& by_params,
                                   size_t start,
                                   size_t length) const
 {
@@ -991,7 +974,7 @@ string Translator::TranslateQuery(Header& header,
 
 
 string Translator::TranslateCount(const string& query_str,
-                                  const Values& params) const
+                                  const Drafts& params) const
 {
     return ("SELECT COUNT(*) FROM (" +
             DoTranslateQuery(db_viewer_, query_str, params) +
@@ -1001,25 +984,25 @@ string Translator::TranslateCount(const string& query_str,
 
 string Translator::TranslateUpdate(const string& rel_var_name,
                                    const string& where,
-                                   const Values& where_params,
-                                   const StringMap& field_expr_map,
-                                   const Values& update_params) const
+                                   const Drafts& where_params,
+                                   const StringMap& expr_map,
+                                   const Drafts& update_params) const
 {
-    if (field_expr_map.empty())
+    if (expr_map.empty())
         throw Error(Error::VALUE, "Empty update field set");
     ostringstream oss;
     oss << "UPDATE " << Quoted(rel_var_name) << " SET ";
     const Header& header(db_viewer_.GetHeader(rel_var_name));
     OmitInvoker print_sep((SepPrinter(oss)));
-    BOOST_FOREACH(const StringMap::value_type& field_expr, field_expr_map) {
+    BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map) {
         print_sep();
-        oss << Quoted(field_expr.first) << " = ";
+        oss << Quoted(named_expr.first) << " = ";
         oss << DoTranslateExpr(db_viewer_,
                                rel_var_name,
                                header,
-                               field_expr.second,
+                               named_expr.second,
                                update_params,
-                               GetAttrType(header, field_expr.first));
+                               GetAttrType(header, named_expr.first));
     }
     oss << " WHERE " << DoTranslateExpr(db_viewer_,
                                         rel_var_name,
@@ -1033,7 +1016,7 @@ string Translator::TranslateUpdate(const string& rel_var_name,
 
 string Translator::TranslateDelete(const string& rel_var_name,
                                    const string& where,
-                                   const Values& params) const
+                                   const Drafts& params) const
 {
     return ("DELETE FROM " +
             Quoted(rel_var_name) +
@@ -1055,6 +1038,6 @@ string Translator::TranslateExpr(const string& ku_expr_str,
                            rel_var_name,
                            rel_header,
                            ku_expr_str,
-                           Values(),
+                           Drafts(),
                            Type::BOOL);
 }

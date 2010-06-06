@@ -12,6 +12,7 @@ number = db.number;
 string = db.string;
 bool = db.bool;
 date = db.date;
+json = db.json;
 
 READ_ONLY   = 1 << 0;
 DONT_ENUM   = 1 << 1;
@@ -587,7 +588,7 @@ var dbTestSuite = {
     db.insert('legal', {});
     assertSame(query('legal')[0].x, true);
     db.drop(['legal']);
-    assertThrow(TypeError, create, 'illegal', {x: date._default('illegal')});
+    assertThrow(TypeError, "date._default('illegal')");
 
     assertThrow(ValueError,
                 create, 'illegal', {}, {foreign: [['a', 'b']]});
@@ -668,6 +669,7 @@ var dbTestSuite = {
                "db.insert('User', {name: 'zzz', age: 42})");
     db.del('User', 'id >= 3', []);
     assertEqual(items(db.insert('Empty', {})), []);
+    assertEqual(query('Empty').map(items), [[]]);
     assertThrow(ConstraintError, "db.insert('Empty', {})");
     db.del('Empty', 'true', []);
     create('Num', {n: number, i: number._integer()._default(3.14)});
@@ -814,18 +816,18 @@ var dbTestSuite = {
     var someDate = new Date('Wed, Mar 04 2009 16:12:09 GMT');
     var otherDate = new Date(2009, 0, 15, 13, 27, 11, 481);
     db.insert('d1', {d: someDate});
+    assertSame(query('{s: d1.d + ""}')[0].s, 'Wed Mar 04 2009 04:12:09');
     assertEqual(field('d', 'd1'), [someDate]);
     create('d2', {d: date}, {foreign: [[['d'], 'd1', ['d']]]});
     assertThrow(ConstraintError,
-               function () { db.insert('d2', {d: otherDate}); });
+                function () { db.insert('d2', {d: otherDate}); });
     db.insert('d1', {d: otherDate});
     assertEqual(field('d', 'd1', [], ['-d']), [someDate, otherDate]);
     db.insert('d2', {d: otherDate});
-    db.insert('d1', {d: 3.14});
-    db.insert('d1', {d: false});
-    db.insert('d1', {d: 'Sat, 27 Feb 2010 16:14:20 GMT'});
     assertThrow(TypeError, "db.insert('d1', {d: new Date('invalid')})");
     assertThrow(TypeError, "db.insert('d1', {d: 'invalid'})");
+    assertThrow(TypeError, "db.insert('d1', {d: 42})");
+    assertThrow(TypeError, "db.update('d1', 'true', [], {d: 'd + 1'}, [])");
     db.drop(['d1', 'd2']);
   },
 
@@ -1137,6 +1139,24 @@ var dbTestSuite = {
     db.insert('Z', {n: 0, s: s});
     assertThrow(DBQuotaError, "db.dropAllConstrs('Z')");
     db.drop(['X', 'Y', 'Z']);
+  },
+
+  testJSON: function () {
+    create('X', {j: json});
+    db.insert('X', {j: [1, 2, 3]});
+    assertEqual(query('X')[0].j, [1, 2, 3]);
+    db.insert('X', {j: 42});
+    var tuples = query('{n: X.j + 0}');
+    assertSame(tuples[0].n, 42);
+    assert(isNaN(tuples[1].n));
+    assertThrow(TypeError, "db.update('X', 'true', [], {j: 'j + 1'}, [])");
+    function E() {}
+    assertThrow(
+      E,
+      function () {
+        db.insert('X', {j: {toJSON: function () { throw new E(); }}});
+      });
+    db.drop(['X']);
   }
 };
 

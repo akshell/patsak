@@ -6,7 +6,7 @@
 
 #include "common.h"
 
-#include <boost/shared_ptr.hpp>
+#include <boost/scoped_ptr.hpp>
 #include <boost/variant.hpp>
 
 
@@ -69,7 +69,7 @@ namespace ku
     class RichAttr {
     public:
         RichAttr(const std::string& name,
-                 const Type& type,
+                 Type type,
                  Type::Trait trait = Type::COMMON,
                  const Value* default_ptr = 0);
 
@@ -147,27 +147,27 @@ namespace ku
         void Drop(const StringSet& rel_var_names);
         
         QueryResult Query(const std::string& query,
-                          const Values& query_params = Values(),
+                          const Drafts& query_params = Drafts(),
                           const Strings& by_exprs = Strings(),
-                          const Values& by_params = Values(),
+                          const Drafts& by_params = Drafts(),
                           size_t start = 0,
                           size_t length = MINUS_ONE) const;
 
         size_t Count(const std::string& query,
-                     const Values& params = Values()) const;
-
+                     const Drafts& params = Drafts()) const;
+        
         size_t Update(const std::string& rel_var_name,
                       const std::string& where,
-                      const Values& where_params,
-                      const StringMap& field_expr_map,
-                      const Values& expr_params = Values());
+                      const Drafts& where_params,
+                      const StringMap& expr_map,
+                      const Drafts& expr_params = Drafts());
 
         size_t Delete(const std::string& rel_var_name,
                       const std::string& where,
-                      const Values& params = Values());
+                      const Drafts& params = Drafts());
         
         Values Insert(const std::string& rel_var_name,
-                      const ValueMap& value_map);
+                      const DraftMap& draft_map);
 
         void AddAttrs(const std::string& rel_var_name,
                       const RichHeader& rich_attrs);
@@ -176,7 +176,7 @@ namespace ku
                        const StringSet& attr_names);
 
         void AddDefault(const std::string& rel_var_name,
-                        const ValueMap& value_map);
+                        const DraftMap& draft_map);
 
         void DropDefault(const std::string& rel_var_name,
                          const StringSet& attr_names);

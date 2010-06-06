@@ -3,8 +3,6 @@
 
 Import('test_env')
 
-sources = ['test-main.cc']
-objects = [test_env.Object(source)
-           for source in sources]
+objects = [test_env.Object('test-main.cc')]
 
 Return('objects')

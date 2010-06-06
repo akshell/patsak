@@ -6,7 +6,7 @@
 
 #include "orset.h"
 
-#include <boost/scoped_ptr.hpp>
+#include <boost/shared_ptr.hpp>
 #include <boost/operators.hpp>
 
 #include <iostream>
@@ -77,6 +77,7 @@ namespace ku
             STRING,
             BOOL,
             DATE,
+            JSON,
             DUMMY
         };
 
@@ -90,6 +91,7 @@ namespace ku
 
         Type(Tag tag) : tag_(tag) {} // implicit
         Type()        : tag_(DUMMY) {}
+        Type(const std::string& pg_str);
         bool IsApplicable(Trait trait) const;
         std::string GetPgStr(Trait trait = COMMON) const;
         std::string GetKuStr(Trait trait = COMMON) const;
@@ -102,10 +104,6 @@ namespace ku
     private:
         Tag tag_;
     };
-
-
-    Type PgType(const std::string& pg_type);
-    Type KuType(const std::string& ku_type);
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -120,33 +118,23 @@ namespace ku
 
     ////////////////////////////////////////////////////////////////////////////
 
-    // To be defined by an upper level
-    double ParseDate(const std::string& str);
-
-
     class Value: private boost::equality_comparable<Value> {
     public:
         class Impl;
 
-        Value(const Type& type, double d);
-        Value(const Type& type, int i);
-        Value(const Type& type, const std::string& s);
-        Value(const Type& type, const char* c);
-        Value(const Type& type, bool b);
-
-        Value(const Value& other);
+        Value(Type type, double d);
+        Value(Type type, int i);
+        Value(Type type, const std::string& s);
+        Value(Type type, const char* c);
+        Value(Type type, bool b);
         ~Value();
-        Value& operator=(const Value& other);
         
         Type GetType() const;
         PgLiter GetPgLiter() const;
-        double GetDouble() const;
-        std::string GetString() const;
-        bool GetBool() const;
-        Value Cast(Type cast_type) const;
+        bool Get(double& d, std::string& s) const;
 
     private:
-        boost::scoped_ptr<Impl> pimpl_;
+        boost::shared_ptr<Impl> pimpl_;
     };
 
     ////////////////////////////////////////////////////////////////////////////
@@ -205,12 +193,9 @@ namespace ku
             : name_(name), type_(type) {}
 
         const std::string& GetName() const { return name_; }
+
         Type GetType() const { return type_; }
             
-        bool operator==(const Attr& other) const {
-            return name_ == other.name_ && type_ == other.type_;
-        }
-
     private:
         std::string name_;
         Type type_;
@@ -253,6 +238,20 @@ namespace ku
     
     // Print header in ku style
     std::ostream& operator<<(std::ostream& os, const Header& header);
+    
+    ////////////////////////////////////////////////////////////////////////////
+
+    class Draft {
+    public:
+        class Impl;
+        
+        Draft(Impl* pimpl);
+        ~Draft();
+        Value Get(Type type = Type::DUMMY) const;
+        
+    private:
+        boost::shared_ptr<Impl> pimpl_;
+    };
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -261,8 +260,9 @@ namespace ku
     typedef std::vector<std::string> Strings;
     typedef std::vector<Value> Values;
     typedef std::vector<Type> Types;
+    typedef std::vector<Draft> Drafts;
     typedef std::map<std::string, std::string> StringMap;
-    typedef std::map<std::string, Value> ValueMap;
+    typedef std::map<std::string, Draft> DraftMap;
     typedef std::vector<char> Chars;
 
     const size_t MINUS_ONE = static_cast<size_t>(-1);

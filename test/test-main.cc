@@ -194,6 +194,153 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Printers
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    class Bracer {
+    public:
+        Bracer(ostream& os, const string& name)
+            : os_(os) { os_ << '(' << name; }
+
+        ~Bracer()     { os_ << ')'; }
+
+    private:
+        ostream& os_;
+    };
+}
+
+
+namespace ku
+{
+    ostream& operator<<(ostream&os, const Value& value)
+    {
+        double d;
+        string s;
+        if (value.Get(d, s))
+            return os << '"' << s << '"';
+        if (value.GetType() == Type::BOOL)
+            return os << (d ? "true" : "false");
+        return os << d;
+    }
+
+    
+    ostream& operator<<(ostream& os, const RangeVar& rv)
+    {
+        Bracer b(os, "rv");
+        if (rv.GetName().empty())
+            os << " *this*";
+        else
+            os << ' ' << rv.GetName()
+               << ' ' << rv.GetRel();
+        return os;
+    }
+
+
+    ostream& operator<<(ostream& os, const NamedExpr& ne)
+    {
+        Bracer b(os, "as");
+        return os << ' ' << ne.name << ' ' << ne.expr;
+    }
+
+
+    ostream& operator<<(ostream& os, const Base& base)
+    {
+        Bracer b(os, "base");
+        return os << ' ' << base.name;
+    }
+
+
+    ostream& operator<<(ostream& os, const Union& un)
+    {
+        Bracer b(os, "union");
+        return os << ' ' << un.left << ' ' << un.right;
+    }
+
+
+    ostream& operator<<(ostream& os, const Select& select)
+    {
+        Bracer b(os, "where");
+        os << ' ' << select.expr;
+        BOOST_FOREACH(const Proto& proto, select.protos)
+            os << ' ' << proto;
+        return os;
+    }
+
+
+    ostream& operator<<(ostream& os, const Liter& liter)
+    {
+        return os << liter.value;
+    }
+
+
+    void PrintStringSet(ostream& os, const StringSet& ss)
+    {
+        BOOST_FOREACH(const string& str, ss)
+            os << ' ' << str;
+    }
+
+
+    void PrintKeys(ostream& os, const MultiField& multi_field, size_t n)
+    {
+        os << ' ';
+        if (n) {
+            Bracer b(os, "key");
+            PrintStringSet(os, multi_field.path[n - 1]);
+            PrintKeys(os, multi_field, n - 1);
+        } else
+            os << multi_field.rv;
+    }
+
+
+    ostream& operator<<(ostream& os, const MultiField& multi_field)
+    {
+        Bracer b(os, multi_field.IsMulti() ? "fields" : "field");
+        PrintStringSet(os, multi_field.path.back());
+        PrintKeys(os, multi_field, multi_field.path.size() - 1);
+        return os;
+    }
+
+
+    ostream& operator<<(ostream& os, const PosArg& pos_arg)
+    {
+        return os << '$' << pos_arg.pos;
+    }
+
+
+    ostream& operator<<(ostream& os, const Quant& quant)
+    {
+        Bracer b(os, quant.flag ? "always" : "once");
+        os << ' ' << quant.pred;
+        BOOST_FOREACH(const RangeVar& rv, quant.rvs)
+            os << ' ' << rv;
+        return os;
+    }
+
+
+    ostream& operator<<(ostream& os, const Binary& binary)
+    {
+        Bracer b(os, binary.op.GetKuStr());
+        return os << ' ' << binary.left << ' ' << binary.right;
+    }
+
+
+    ostream& operator<<(ostream& os, const Unary& unary)
+    {
+        Bracer b(os, unary.op.GetKuStr());
+        return os << ' ' << unary.operand;
+    }
+
+
+    ostream& operator<<(ostream& os, const Cond& cond)
+    {
+        Bracer b(os, "?");
+        return os << ' ' << cond.term << ' ' << cond.yes << ' ' << cond.no;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // orset test
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -248,8 +395,11 @@ namespace ku
 {
     bool operator==(const Value& lhs, const Value& rhs)
     {
-        return (lhs.GetType() == rhs.GetType() &&
-                lhs.GetString() == rhs.GetString());
+        if (lhs.GetType() != rhs.GetType())
+            return false;
+        double ld = 0, rd = 0;
+        string ls, rs;
+        return lhs.Get(ld, ls) == rhs.Get(rd, rs) && ld == rd && ls == rs;
     }
 
 
@@ -308,7 +458,7 @@ namespace
         ValuesSet values_set_;
 
         void ReadHeader(istream& is);
-        static Value ReadValue(istream& is, const Type& type);
+        static Value ReadValue(istream& is, Type type);
         void ReadMetaData(istream& is);
         void ReadValuesSet(istream& is);
         void PrintHeader(ostream& os) const;
@@ -447,18 +597,31 @@ void Table::ReadHeader(istream& is)
     BOOST_CHECK(!names_line.empty() && ! types_line.empty());
     istringstream names_iss(names_line), types_iss(types_line);
     for (;;) {
-        string name, type;
+        string name, type_str;
         names_iss >> name;
-        types_iss >> type;
-        if (name.empty() && type.empty())
+        types_iss >> type_str;
+        if (name.empty() && type_str.empty())
             break;
-        BOOST_CHECK(!name.empty() && ! type.empty());
-        rich_header_.add_sure(RichAttr(name, KuType(type)));
+        BOOST_CHECK(!name.empty() && ! type_str.empty());
+        Type type;
+        if (type_str == "number") {
+            type = Type::NUMBER;
+        } else if (type_str == "string") {
+            type = Type::STRING;
+        } else if (type_str == "bool") {
+            type = Type::BOOL;
+        } else if (type_str == "date") {
+            type = Type::DATE;
+        } else {
+            KU_ASSERT_EQUAL(type_str, "json");
+            type = Type::JSON;
+        }
+        rich_header_.add_sure(RichAttr(name, type));
     }
 }
 
 
-Value Table::ReadValue(istream& is, const Type& type)
+Value Table::ReadValue(istream& is, Type type)
 {
     if (type == Type::NUMBER) {
         double d;
@@ -592,7 +755,7 @@ void Table::PrintValuesSet(ostream& os) const
 {
     BOOST_FOREACH(const Values& values, values_set_) {
         BOOST_FOREACH(const Value& value, values)
-            os << value.GetString() << ' ';
+            os << value << ' ';
         os << '\n';
     }
 }
@@ -607,6 +770,43 @@ void Table::AddAllUniqueKey()
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
         all_unique_key.add_sure(rich_attr.GetName());
     unique_key_set_.add_unsure(all_unique_key);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Draft definitions
+////////////////////////////////////////////////////////////////////////////////
+
+struct Draft::Impl {
+    Value value;
+
+    Impl(const Value& value) : value(value) {}
+};
+
+
+Draft::Draft(Impl* pimpl)
+    : pimpl_(pimpl)
+{
+}
+
+
+Draft::~Draft()
+{
+}
+
+
+Value Draft::Get(Type type) const
+{
+    KU_ASSERT(type == Type::DUMMY || type == pimpl_->value.GetType());
+    return pimpl_->value;
+}
+
+
+namespace
+{
+    Draft CreateDraft(const Value& value)
+    {
+        return Draft(new Draft::Impl(value));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -625,7 +825,6 @@ namespace
                                   const string& str);
         Table Query(const string& query);
         Table DumpRelVar(const string& rel_var_name);
-        void InsertValues(const string& rel_var_name, const Values& values);
         void CreateRelVar(const string& rel_var_name, const Table& table);
         StringSet GetRelVarNames();
         const RichHeader& GetRelVarRichHeader(const string& rel_var_name);
@@ -679,20 +878,6 @@ Table DBFixture::DumpRelVar(const string& rel_var_name)
 }
 
 
-void DBFixture::InsertValues(const string& rel_var_name, const Values& values)
-{
-    Access access(db);
-    const RichHeader& rich_header(access.GetRichHeader(rel_var_name));
-    assert(values.size() == rich_header.size());
-    ValueMap value_map;
-    for (size_t i = 0; i < rich_header.size(); ++i)
-        value_map.insert(ValueMap::value_type(rich_header[i].GetName(),
-                                              values[i]));
-    access.Insert(rel_var_name, value_map);
-    access.Commit();
-}
-
-
 void DBFixture::CreateRelVar(const string& rel_var_name, const Table& table)
 {
     Access access(db);
@@ -704,12 +889,11 @@ void DBFixture::CreateRelVar(const string& rel_var_name, const Table& table)
                   table.GetChecks());
     BOOST_FOREACH(const Values& values, table.GetValuesSet()) {
         assert(values.size() == rich_header.size());
-        ValueMap value_map;
+        DraftMap draft_map;
         for (size_t i = 0; i < rich_header.size(); ++i)
-            value_map.insert(
-                ValueMap::value_type(rich_header[i].GetName(),
-                                     values[i]));
-        access.Insert(rel_var_name, value_map);
+            draft_map.insert(DraftMap::value_type(rich_header[i].GetName(),
+                                                  CreateDraft(values[i])));
+        access.Insert(rel_var_name, draft_map);
     }
     access.Commit();
     BOOST_CHECK(DumpRelVar(rel_var_name) == table);
@@ -754,13 +938,15 @@ BOOST_FIXTURE_TEST_CASE(db_test, DBFixture)
     LoadRelVarFromFile("Post");
     LoadRelVarFromFile("Comment");
 
-    Header date_header;
-    date_header.add_sure(Attr("d", Type::DATE));
-    Table date_table(date_header);
+    Header header;
+    header.add_sure(Attr("d", Type::DATE));
+    header.add_sure(Attr("j", Type::JSON));
+    Table table(header);
     Values row;
     row.push_back(Value(Type::DATE, "2009-03-04 17:41:05.915"));
-    date_table.AddRow(row);
-    CreateRelVar("Date", date_table);
+    row.push_back(Value(Type::JSON, "{}"));
+    table.AddRow(row);
+    CreateRelVar("Test", table);
     
     StringSet rel_var_names(GetRelVarNames());
 
@@ -862,9 +1048,9 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
                       Error);
 
 
-    Values params;
-    params.push_back(Value(Type::STRING, "anton"));
-    params.push_back(Value(Type::NUMBER, 23));
+    Drafts params;
+    params.push_back(CreateDraft(Value(Type::STRING, "anton")));
+    params.push_back(CreateDraft(Value(Type::NUMBER, 23)));
     Header header;
     BOOST_CHECK_EQUAL(
         translator.TranslateQuery(header, "{name: $1, age: $2}", params),
@@ -876,26 +1062,26 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
     Strings by_exprs;
     by_exprs.push_back("id % $1");
     by_exprs.push_back("name + $2");
-    Values by_params;
-    by_params.push_back(Value(Type::NUMBER, 42));
-    by_params.push_back(Value(Type::STRING, "abc"));
+    Drafts by_params;
+    by_params.push_back(CreateDraft(Value(Type::NUMBER, 42)));
+    by_params.push_back(CreateDraft(Value(Type::STRING, "abc")));
     BOOST_CHECK_EQUAL(
-        translator.TranslateQuery(header, "User", Values(),
+        translator.TranslateQuery(header, "User", Drafts(),
                                   by_exprs, by_params, 3, 4),
         "SELECT * FROM (SELECT DISTINCT \"User\".* FROM \"User\") AS \"@\" "
         "ORDER BY (\"@\".\"id\" % 42), (\"@\".\"name\" || 'abc') "
         "LIMIT 4 OFFSET 3");
     BOOST_CHECK_EQUAL(
-        translator.TranslateQuery(header, "User", Values(),
-                                  Strings(), Values(), 5),
+        translator.TranslateQuery(header, "User", Drafts(),
+                                  Strings(), Drafts(), 5),
         "SELECT DISTINCT \"User\".* FROM \"User\" OFFSET 5");
     BOOST_CHECK_EQUAL(
-        translator.TranslateQuery(header, "User", Values(),
-                                  Strings(), Values(), 0, 6),
+        translator.TranslateQuery(header, "User", Drafts(),
+                                  Strings(), Drafts(), 0, 6),
         "SELECT DISTINCT \"User\".* FROM \"User\" LIMIT 6");
 
     params.clear();
-    params.push_back(Value(Type::NUMBER, 2));
+    params.push_back(CreateDraft(Value(Type::NUMBER, 2)));
     BOOST_CHECK_EQUAL(
         translator.TranslateCount("User where id % $ == 0", params),
         "SELECT COUNT(*) FROM ("
@@ -907,16 +1093,14 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
         translator.TranslateDelete("User","id % $ == 0", params),
         "DELETE FROM \"User\" WHERE ((\"User\".\"id\" % 2) = 0)");
     
-    StringMap field_expr_map;
-    field_expr_map.insert(
-        StringMap::value_type("flooder", "id == 0 || !flooder"));
-    field_expr_map.insert(
-        StringMap::value_type("name", "name + id + $"));
-    Values expr_params;
-    expr_params.push_back(Value(Type::STRING, "abc"));
+    StringMap expr_map;
+    expr_map.insert(StringMap::value_type("flooder", "id == 0 || !flooder"));
+    expr_map.insert(StringMap::value_type("name", "name + id + $"));
+    Drafts expr_params;
+    expr_params.push_back(CreateDraft(Value(Type::STRING, "abc")));
     BOOST_CHECK_EQUAL(
         translator.TranslateUpdate(
-            "User", "id % $ == 0", params, field_expr_map, expr_params),
+            "User", "id % $ == 0", params, expr_map, expr_params),
         "UPDATE \"User\" SET "
         "\"flooder\" = "
         "((\"User\".\"id\" = 0) OR NOT \"User\".\"flooder\"), "
@@ -943,17 +1127,9 @@ BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
     BOOST_CHECK(Query("str").GetValuesSet().at(0).at(0) ==
                 Value(Type::STRING, "'test\\\""));
 
-    LoadRelVarFromString("num", "val\nnumber\n---");
-    Values cast_values;
-    cast_values.push_back(Value(Type::STRING, "125.3"));
-    InsertValues("num", cast_values);
+    LoadRelVarFromString("num", "val\nnumber\n---\n125.3");
     BOOST_CHECK(Query("num").GetValuesSet().at(0).at(0) ==
                 Value(Type::NUMBER, 125.3));    
-
-    CreateRelVar("empty", Table(Header()));
-    InsertValues("empty", Values());
-    BOOST_CHECK_THROW(InsertValues("empty", Values()), Error);
-    BOOST_CHECK(Query("empty").GetValuesSet().size() == 1);
 
     LoadRelVarFromString("bool", "val\nbool\n---\ntrue\nfalse");
 

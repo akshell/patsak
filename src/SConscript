@@ -9,18 +9,23 @@ env.Command('init.js.h', 'init.js', '\
  echo "};\\n}";\
 ) > $TARGET')
 
-sources = [
+common_sources = [
     'db.cc',
     'parser.cc',
     'translator.cc',
     'common.cc',
+    'debug.cc',
+    ]
+
+js_sources = [
     'js.cc',
     'js-common.cc',
     'js-file.cc',
     'js-db.cc',
-    'debug.cc',
     ]
 
-objects = [env.Object(source)
-           for source in sources]
-Return('objects')
+common_objects, js_objects = [
+    [env.Object(source) for source in sources]
+    for sources in (common_sources, js_sources)]
+
+Return('common_objects', 'js_objects')

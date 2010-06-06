@@ -830,26 +830,6 @@ string ExceptionResponse::MakeExceptionDescr(const TryCatch& try_catch)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// ParseDate from common.h
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    Handle<Function> parse_date_func;
-}
-
-
-double ku::ParseDate(const string& str)
-{
-    KU_ASSERT(!parse_date_func.IsEmpty());
-    Handle<v8::Value> value(String::New(str.c_str()));
-    Handle<v8::Value> result(
-        parse_date_func->Call(Context::GetCurrent()->Global(), 1, &value));
-    KU_ASSERT(result->IsNumber());
-    return result->NumberValue();
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // ComputeStackLimit
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -980,10 +960,12 @@ Program::Impl::Impl(const Place& place,
     Set(core_, "dbQuota", Number::New(db_.GetDBQuota()));
     Set(core_, "fsQuota", Number::New(db_.GetFSQuota()));
 
-    parse_date_func = Persistent<Function>::New(
-        Handle<Function>::Cast(
-            Get(Get(context_->Global(), "Date")->ToObject(), "parse")));
-    
+    Handle<Object> json(Get(context_->Global(), "JSON")->ToObject());
+    stringify_json_func = Persistent<Function>::New(
+        Handle<Function>::Cast(Get(json, "stringify")));
+    parse_json_func = Persistent<Function>::New(
+        Handle<Function>::Cast(Get(json, "parse")));
+
     // Run init.js script
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
                                                       sizeof(INIT_JS)),
