@@ -24,18 +24,6 @@ namespace ku
     };
 
 
-    // Other application accessor interface
-    class AppAccessor {
-    public:
-        virtual std::auto_ptr<Chars> operator()(const std::string& app_name,
-                                                const std::string& request,
-                                                const Strings& file_pathes,
-                                                const char* data_ptr,
-                                                size_t data_size,
-                                                const Access& access) = 0;
-    };
-
-
     struct Place {
         const std::string app_name;
         const std::string owner_name;
@@ -60,8 +48,7 @@ namespace ku
                 const std::string& release_code_path,
                 const std::string& app_media_path,
                 const std::string& release_media_path,
-                DB& db,
-                AppAccessor& app_accessor);
+                DB& db);
         
         ~Program();
         

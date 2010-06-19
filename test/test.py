@@ -108,14 +108,6 @@ class Test(unittest.TestCase):
                           BAD_APP_NAME])
         self.assertEqual(process.stdout.read().split('\n')[0], 'ERROR')
         self.assertEqual(process.wait(), 0)
-        process = _popen([PATSAK_FILE,
-                          '--config-file', CONFIG_FILE,
-                          '--patsak-pattern', PATSAK_FILE,
-                          '--test',
-                          '--expr',
-                          '_core.requestApp("another-app", "2+2", [], "")',
-                          APP_NAME])
-        self.assertEqual(process.stdout.read(), 'OK\n4\n')
         
     def _connect(self, path):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -172,14 +164,6 @@ class Test(unittest.TestCase):
             'File is read only' in
             talk('PROCESS\nFILE %s\nREQUEST 25\n_core.files[0]._write("")'
                  % CONFIG_FILE))
-        request = '''
-_core.requestApp(
-  'another-app', '_core.files[0]._read()._toString()', _core.files, '')
-'''
-        self.assertEqual(
-            talk('PROCESS\nFILE %s\nREQUEST %d\n%s'
-                 % (CONFIG_FILE, len(request), request)),
-            'OK\n' + open(CONFIG_FILE).read())
 
         self.assertEqual(
             talk('PROCESS _core.db.create("xxx", {}, [], [], []); throw 1'),
@@ -244,25 +228,12 @@ _core.requestApp(
             talk('PROCESS _core.owner + " " + _core.spot'),
             'OK\ntest user test-spot')
         self.assertEqual(
-            talk('PROCESS '
-                 '_core.requestApp("another-app", "_core.issuer", [], "")'),
-            'OK\n' + APP_NAME)
-        self.assertEqual(
             talk('PROCESS function f() { f(); } f()'),
             'ERROR\nRangeError: Maximum call stack size exceeded')
         self.assertEqual(talk('PROCESS s="x"; while(1) s+=s'),
                          'ERROR\n<Out of memory>')
         self.assertRaises(socket.error, self._connect, socket_path)
         
-    def testVersion01(self):
-        process = _popen([PATSAK_FILE,
-                          '--config-file', CONFIG_FILE,
-                          '--patsak-pattern', '../patsak%s/exe/release/patsak',
-                          '--test',
-                          '--expr', '_core.requestApp("app01", "", [], "")',
-                          APP_NAME])
-        self.assertEqual(process.stdout.read(), 'OK\nHello from 0.1!\n')
-
         
 def _create_schema(cursor, schema_name):
     cursor.execute('DROP SCHEMA IF EXISTS "%s" CASCADE' % schema_name)

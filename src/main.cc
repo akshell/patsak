@@ -27,18 +27,6 @@ using boost::lexical_cast;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Constants
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    const boost::posix_time::seconds CONNECT_TIMEOUT(3);
-    const boost::posix_time::seconds READ_TIMEOUT(3);
-    const char DEFAULT_CONFIG_FILE[] = "/ak/patsak.conf";
-    const ssize_t BUF_SIZE = 1024;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // Utils
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,345 +66,6 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Lock
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class Lock {
-    public:
-        Lock(const string& path);
-        ~Lock();
-
-    private:
-        int fd_;
-    };
-}
-
-
-Lock::Lock(const string& path)
-{
-    fd_ = open(path.c_str(), O_CREAT | O_CLOEXEC, S_IRUSR | S_IWUSR);
-    KU_ASSERT(fd_ != -1);
-    int ret = flock(fd_, LOCK_EX);
-    KU_ASSERT(!ret);
-}
-
-
-Lock::~Lock()
-{
-    close(fd_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Connector
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    Error TimedOut()
-    {
-        return Error(Error::REQUEST_APP, "Request timed out");
-    }
-
-    
-    class Connector {
-    public:
-        Connector(stream_protocol::socket& socket);
-        bool operator()(const stream_protocol::endpoint& endpoint);
-
-    private:
-        enum State {
-            INITIAL,
-            TIMED_OUT,
-            FAIL,
-            OK
-        };
-        
-        stream_protocol::socket& socket_;
-        asio::deadline_timer timer_;
-        State state_;
-
-        void HandleConnect(const asio::error_code& error);
-        void HandleTimer(const asio::error_code& error);
-    };
-}
-
-
-Connector::Connector(stream_protocol::socket& socket)
-    : socket_(socket)
-    , timer_(socket.get_io_service())
-{
-}
-
-
-bool Connector::operator()(const stream_protocol::endpoint& endpoint)
-{
-    socket_.get_io_service().reset();
-    state_ = INITIAL;
-    socket_.async_connect(endpoint, bind(&Connector::HandleConnect, this, _1));
-    timer_.expires_from_now(CONNECT_TIMEOUT);
-    timer_.async_wait(bind(&Connector::HandleTimer, this, _1));
-    socket_.get_io_service().run();
-    KU_ASSERT(state_ != INITIAL);
-    if (state_ == TIMED_OUT)
-        throw TimedOut();
-    return state_ == OK;
-}
-
-
-void Connector::HandleConnect(const asio::error_code& error)
-{
-    if (state_ == INITIAL) {
-        timer_.cancel();
-        state_ = error ? FAIL : OK;
-    }
-}
-
-
-void Connector::HandleTimer(const asio::error_code& /*error*/)
-{
-    if (state_ == INITIAL) {
-        socket_.cancel();
-        state_ = TIMED_OUT;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Reader
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class Reader {
-    public:
-        Reader(stream_protocol::socket& socket);
-        auto_ptr<Chars> operator()();
-
-    private:
-        stream_protocol::socket& socket_;
-        asio::streambuf buf_;
-        asio::deadline_timer timer_;
-        bool processed_;
-        auto_ptr<Chars> data_ptr_;
-
-        void HandleRead(const asio::error_code& error, size_t size);
-        void HandleTimer(const asio::error_code& error);
-    };
-}
-
-
-Reader::Reader(stream_protocol::socket& socket)
-    : socket_(socket)
-    , timer_(socket.get_io_service())
-{
-}
-
-
-auto_ptr<Chars> Reader::operator()()
-{
-    processed_ = false;
-    async_read(socket_, buf_, bind(&Reader::HandleRead, this, _1, _2));
-    timer_.expires_from_now(READ_TIMEOUT);
-    timer_.async_wait(bind(&Reader::HandleTimer, this, _1));
-    socket_.get_io_service().reset();
-    socket_.get_io_service().run();
-    KU_ASSERT(processed_);
-    if (data_ptr_.get())
-        return data_ptr_;
-    else
-        throw TimedOut();
-}
-
-
-void Reader::HandleRead(const asio::error_code& /*error*/, size_t size)
-{
-    if (!processed_) {
-        timer_.cancel();
-        data_ptr_.reset(new Chars(size));
-        buf_.commit(size);
-        istream(&buf_).read(&data_ptr_->front(), size);
-        processed_ = true;
-    }
-}
-
-
-void Reader::HandleTimer(const asio::error_code& /*error*/)
-{
-    if (!processed_) {
-        socket_.cancel();
-        processed_ = true;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AppAccessorImpl
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class AppAccessorImpl : public AppAccessor {
-    public:
-        AppAccessorImpl(const string& self_name,
-                        const string& patsak_pattern,
-                        const string& code_dir,
-                        const string& socket_dir,
-                        const string& guard_dir,
-                        const Strings& args,
-                        const string& user); // user is held by reference
-        
-        virtual auto_ptr<Chars> operator()(const string& app_name,
-                                           const string& request,
-                                           const Strings& file_pathes,
-                                           const char* data_ptr,
-                                           size_t data_size,
-                                           const Access& access);
-        
-    private:
-        asio::io_service io_service_;
-        string self_name_;
-        string patsak_file_, patsak_prefix_, patsak_suffix_;
-        string code_dir_;
-        string socket_dir_;
-        string guard_dir_;
-        Strings args_;
-        const string& user_;
-
-        void LaunchApp(const string& app_name, const string& patsak_version);
-    };
-}
-
-
-AppAccessorImpl::AppAccessorImpl(const string& self_name,
-                                 const string& patsak_pattern,
-                                 const string& code_dir,
-                                 const string& socket_dir,
-                                 const string& guard_dir,
-                                 const Strings& args,
-                                 const string& user)
-    : self_name_(self_name)
-    , code_dir_(code_dir)
-    , socket_dir_(socket_dir)
-    , guard_dir_(guard_dir)
-    , args_(args)
-    , user_(user)
-{
-    if (patsak_pattern.empty()) {
-        char buf[BUF_SIZE];
-        ssize_t size = readlink("/proc/self/exe", buf, BUF_SIZE);
-        KU_ASSERT(size != -1 && size < BUF_SIZE);
-        patsak_file_.assign(buf, size);
-    } else {
-        size_t index = patsak_pattern.find("%s");
-        if (index == string::npos) {
-            patsak_file_ = patsak_pattern;
-        } else {
-            patsak_prefix_ = patsak_pattern.substr(0, index);
-            patsak_suffix_ = patsak_pattern.substr(index + 2);
-        }
-    }
-}
-
-
-auto_ptr<Chars> AppAccessorImpl::operator()(const string& app_name,
-                                            const string& request,
-                                            const Strings& file_pathes,
-                                            const char* data_ptr,
-                                            size_t data_size,
-                                            const Access& access)
-{
-    if (app_name == self_name_)
-        throw Error(Error::USAGE, "Self request is forbidden");
-    string patsak_version = access.GetAppPatsakVersion(app_name);
-    
-    stream_protocol::endpoint endpoint(socket_dir_ + "/release/" + app_name);
-    stream_protocol::socket socket(io_service_);
-
-    Connector connector(socket);
-    if (!connector(endpoint)) {
-        Lock(guard_dir_ + "/release/" + app_name);
-        if (!connector(endpoint)) {
-            LaunchApp(app_name, patsak_version);
-            bool connected = connector(endpoint);
-            KU_ASSERT(connected);
-        }
-    }
-
-    vector<asio::const_buffer> buffers;
-    buffers.reserve(file_pathes.size() + 5);
-
-    string process_header("PROCESS");
-    buffers.push_back(asio::buffer(process_header));
-
-    string data_header;
-    if (data_size) {
-        data_header = "\nDATA " + lexical_cast<string>(data_size) + '\n';
-        buffers.push_back(asio::buffer(data_header));
-        buffers.push_back(asio::buffer(data_ptr, data_size));
-    }
-
-    vector<string> file_descrs;
-    file_descrs.reserve(file_pathes.size());
-    BOOST_FOREACH(const string& file_path, file_pathes) {
-        file_descrs.push_back("\nFILE " + file_path);
-        buffers.push_back(asio::buffer(file_descrs.back()));
-    }
-
-    string request_header("\nUSER " + user_ +
-                          "\nISSUER " + self_name_ +
-                          "\nREQUEST " +
-                          lexical_cast<string>(request.size()) +
-                          '\n');
-    buffers.push_back(asio::buffer(request_header));
-    buffers.push_back(asio::buffer(request));
-
-    asio::error_code error_code;
-    asio::write(socket, buffers, asio::transfer_all(), error_code);
-    KU_ASSERT(!error_code);
-
-    return Reader(socket)();
-}
-
-
-void AppAccessorImpl::LaunchApp(const string& app_name,
-                                const string& patsak_version)
-{
-    int pipe_fds[2];
-    int ret = pipe(pipe_fds);
-    KU_ASSERT(!ret);
-    pid_t pid = fork();
-    KU_ASSERT(pid != -1);
-    if (pid) {
-        close(pipe_fds[1]);
-        pid_t child_pid = waitpid(pid, 0, 0);
-        KU_ASSERT_EQUAL(child_pid, pid);
-        char buf[6];
-        ssize_t count = read(pipe_fds[0], buf, 6);
-        close(pipe_fds[0]);
-        KU_ASSERT_EQUAL(count, 6);
-        KU_ASSERT_EQUAL(string(buf, buf + 6), "READY\n");
-    } else {
-        close(pipe_fds[0]);
-        freopen("/dev/null", "w", stderr);
-        int fd = dup2(pipe_fds[1], 1);
-        KU_ASSERT_EQUAL(fd, 1);
-        if (pipe_fds[1] != 1)
-            close(pipe_fds[1]);
-        vector<char*> argv(args_.size() + 3);
-        const string& patsak_file(
-            patsak_file_.empty()
-            ? patsak_prefix_ + patsak_version + patsak_suffix_
-            : patsak_file_);
-        argv[0] = const_cast<char*>(patsak_file.c_str());
-        for (size_t i = 0; i < args_.size(); ++i)
-            argv[i + 1] = const_cast<char*>(args_[i].c_str());
-        argv[argv.size() - 2] = const_cast<char*>(app_name.c_str());
-        execv(argv[0], &argv[0]);
-        Fail(strerror(errno));
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // RequestHandler
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -424,9 +73,7 @@ namespace
 {
     class RequestHandler {
     public:
-        RequestHandler(Program& program,
-                       string& user,
-                       stream_protocol::socket& socket);
+        RequestHandler(Program& program, stream_protocol::socket& socket);
         bool Handle();
 
     private:
@@ -435,7 +82,6 @@ namespace
         };
         
         Program& program_;
-        string& user_; // user_ is a reference! AppAccessorImpl reads it.
         stream_protocol::socket& socket_;
         asio::streambuf buf_;
         istream is_;
@@ -450,10 +96,8 @@ namespace
 }
 
 RequestHandler::RequestHandler(Program& program,
-                               string& user,
                                stream_protocol::socket& socket)
     : program_(program)
-    , user_(user)
     , socket_(socket)
     , is_(&buf_)
 {
@@ -503,8 +147,7 @@ void RequestHandler::HandleProcess()
         string expr_str;
         getline(is_, expr_str);
         Chars expr(expr_str.begin(), expr_str.end());
-        user_ = "";
-        response_ptr = program_.Eval(user_, expr);
+        response_ptr = program_.Eval("", expr);
     } else {
         NextLine();
         ReadLine();
@@ -529,11 +172,10 @@ void RequestHandler::HandleProcess()
             file_pathes.push_back(ReadCommandTail());
             is_ >> command;
         }
+        string user;
         if (command == "USER") {
-            user_ = ReadCommandTail();
+            user = ReadCommandTail();
             is_ >> command;
-        } else {
-            user_ = "";
         }
         string issuer;
         if (command == "ISSUER") {
@@ -555,9 +197,9 @@ void RequestHandler::HandleProcess()
                 throw ProcessingError("FILE is not supported by EXPR");
             if (!issuer.empty())
                 throw ProcessingError("ISSUER is not supported by EXPR");
-            response_ptr = program_.Eval(user_, input);
+            response_ptr = program_.Eval(user, input);
         } else {
-            response_ptr = program_.Process(user_,
+            response_ptr = program_.Process(user,
                                             input,
                                             file_pathes,
                                             data_ptr,
@@ -726,10 +368,8 @@ namespace
         void MakePathesAbsolute();
         bool IsRelease() const;
         auto_ptr<DB> InitDB() const;
-        auto_ptr<AppAccessor> InitAppAccessor() const;
 
-        auto_ptr<Program> InitProgram(DB& db,
-                                      AppAccessor& app_accessor) const;
+        auto_ptr<Program> InitProgram(DB& db) const;
         
         void RunTest(Program& program, istream& is) const;
         
@@ -754,8 +394,7 @@ void MainRunner::Run()
     if (!test_mode_)
         Daemonize();
     auto_ptr<DB> db_ptr(InitDB());
-    auto_ptr<AppAccessor> app_accessor_ptr(InitAppAccessor());
-    auto_ptr<Program> program_ptr(InitProgram(*db_ptr, *app_accessor_ptr));
+    auto_ptr<Program> program_ptr(InitProgram(*db_ptr));
     if (test_mode_) {
         if (expr_.empty()) {
             RunTest(*program_ptr, cin);
@@ -776,7 +415,7 @@ void MainRunner::Parse(int argc, char** argv)
         ("help,h", "print help message")
         ("rev,r", "print revision")
         ("config-file,f",
-         po::value<string>(&config_file_)->default_value(DEFAULT_CONFIG_FILE),
+         po::value<string>(&config_file_)->default_value("/ak/patsak.conf"),
          "config file path")
         ("test,t", po::bool_switch(&test_mode_), "test mode")
         ("expr,e",
@@ -940,34 +579,7 @@ auto_ptr<DB> MainRunner::InitDB() const
 }
 
 
-auto_ptr<AppAccessor> MainRunner::InitAppAccessor() const
-{
-    Strings args;
-    if (pass_opts_)
-        args +=
-            "--log-file", log_file_,
-            "--socket-dir", socket_dir_,
-            "--guard-dir", guard_dir_,
-            "--code-dir", code_dir_,
-            "--media-dir", media_dir_,
-            "--db-user", db_user_,
-            "--db-password", db_password_,
-            "--db-name", db_name_,
-            "--wait", lexical_cast<string>(wait_);
-    else if (config_file_ != DEFAULT_CONFIG_FILE)
-        args += "-f", config_file_;
-    return auto_ptr<AppAccessor>(new AppAccessorImpl(app_name_,
-                                                     patsak_pattern_,
-                                                     code_dir_,
-                                                     socket_dir_,
-                                                     guard_dir_,
-                                                     args,
-                                                     user_));
-}
-
-
-auto_ptr<Program> MainRunner::InitProgram(DB& db,
-                                          AppAccessor& app_accessor) const
+auto_ptr<Program> MainRunner::InitProgram(DB& db) const
 {
     string spaced_owner_name(owner_name_);
     BOOST_FOREACH(char& c, spaced_owner_name)
@@ -980,8 +592,7 @@ auto_ptr<Program> MainRunner::InitProgram(DB& db,
                                          code_dir_ + "/release/",
                                          media_dir_ + path_suffix_,
                                          media_dir_ + "/release/",
-                                         db,
-                                         app_accessor));
+                                         db));
 }
 
 
@@ -1031,7 +642,7 @@ void MainRunner::RunServer(Program& program)
             if (!socket_ptr.get())
                 break;
             fcntl(socket_ptr->native(), F_SETFD, FD_CLOEXEC);
-            RequestHandler request_handler(program, user_, *socket_ptr);
+            RequestHandler request_handler(program, *socket_ptr);
             bool proceed = request_handler.Handle();
             socket_ptr->close();
             if (!proceed)

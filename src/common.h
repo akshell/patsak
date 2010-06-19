@@ -27,7 +27,6 @@ namespace ku
             USAGE,
             NOT_IMPLEMENTED,
 
-            REQUEST_APP,
             REQUEST_HOST,
             NO_SUCH_APP,
             NO_SUCH_USER,

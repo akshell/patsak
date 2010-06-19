@@ -39,7 +39,6 @@
     defineErrorClass('Usage'),
     defineErrorClass('NotImplemented'),
 
-    defineErrorClass('RequestApp'),
     defineErrorClass('RequestHost'),
     defineErrorClass('NoSuchApp'),
     defineErrorClass('NoSuchUser'),

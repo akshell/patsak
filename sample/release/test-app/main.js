@@ -26,7 +26,6 @@ DONT_DELETE = 1 << 2;
   'set',
   'hash',
   'construct',
-  'requestApp',
   'requestHost'
 ].forEach(
   function (name) {
@@ -336,45 +335,6 @@ var baseTestSuite = {
     assertThrow(UsageError, construct);
     assertThrow(TypeError, construct, 42, []);
     assertThrow(TypeError, construct, function () {}, 42);
-  },
-
-  testRequestApp: function () {
-    fs.list('').forEach(remove);
-    fs.open('file1')._write('wuzzup');
-    fs.open('file2')._write('yo ho ho');
-    assertEqual(
-      requestApp(
-        'another-app',
-        ('[_core.files[0]._read()._toString(),' +
-         ' _core.files[1]._read()._toString(),' +
-         ' _core.data._toString()]'),
-        ['file1', fs.open('file2')],
-        'yo!!!'),
-      'wuzzup,yo ho ho,yo!!!');
-    assert(fs.exists('file1') && fs.exists('file2'));
-    assertThrow(NoSuchAppError, requestApp, 'no-such-app', 'hi', [], null);
-    assertThrow(TypeError, requestApp, 'another-app', '', 42, null);
-    assertEqual(requestApp('another-app', new Binary('_core.issuer'), [], ''),
-                'test-app');
-    assertEqual(requestApp('another-app', '_core.user', [], ''), _core.user);
-    assertEqual(
-      requestApp('another-app', '_core.files[0].writable', ['file1'], ''),
-      'false');
-    assertEqual(
-      requestApp('another-app', '_core.files[0]._read()[0]', ['file1'], ''),
-      'w'.charCodeAt(0));
-    assertThrow(RequestAppError, requestApp,
-                'another-app', "_core.files[0]._write('')", ['file1'], '');
-    assertThrow(NoSuchAppError, requestApp, 'invalid/app/name', '', [], null);
-    assertThrow(UsageError, requestApp, 'test-app', '2+2', [], null);
-    assertThrow(RequestAppError, requestApp, 'throwing-app', '', [], null);
-    assertThrow(RequestAppError, requestApp, 'blocking-app', '', [], null);
-    assertThrow(PathError, requestApp, 'another-app', '', ['..'], null);
-    assertThrow(NoSuchEntryError,
-                requestApp, 'another-app', '', ['no-such-file'], null);
-    fs.createDir('dir');
-    assertThrow(EntryIsDirError, requestApp, 'another-app', '', ['dir'], null);
-    assertThrow(TypeError, "requestApp('another-app', 'hi', 42, null)");
   },
 
   testRequestHost: function () {
@@ -1169,9 +1129,6 @@ var fileTestSuite = {
   setUp: function ()
   {
     fs.list('').forEach(remove);
-    requestApp('another-app',
-               "_core.fs.list('').forEach(_core.fs.remove, _core.fs)",
-               [], '');
     fs.createDir('dir1');
     fs.createDir('dir2');
     fs.createDir('dir1/subdir');
@@ -1214,12 +1171,6 @@ var fileTestSuite = {
     assertThrow(ValueError, function () { file._read(); });
     remove('test');
 
-    requestApp('another-app', "_core.fs.open('file')._write('text')", [], '');
-    file = fs.open('another-app', 'file');
-    assertEqual(file._read(), 'text');
-    assert(!file.writable);
-    assertThrow(FileIsReadOnlyError, function () { file._write(''); });
-
     assertThrow(EntryIsNotDirError, "fs.open('file/xxx')");
     assertThrow(EntryIsDirError, "fs.open('dir1')");
     assertThrow(
@@ -1257,8 +1208,6 @@ var fileTestSuite = {
   testList: function () {
     assertEqual(fs.list('').sort(), ['dir1', 'dir2', 'file']);
     assertThrow(NoSuchEntryError, "fs.list('no such dir')");
-    requestApp('another-app', "_core.fs.createDir('dir')", [], '');
-    assertEqual(fs.list('another-app', 'dir'), []);
   },
 
   testGetModDate: function () {

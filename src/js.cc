@@ -442,7 +442,6 @@ namespace
 
         CoreBg(const Place& place,
                const CodeReader& code_reader,
-               AppAccessor& app_accessor,
                FSBg& fs_bg);
 
         void Init(Handle<Object> object) const;
@@ -450,7 +449,6 @@ namespace
     private:
         Place place_;
         const CodeReader& code_reader_;
-        AppAccessor& app_accessor_;
         FSBg& fs_bg_;
         
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, PrintCb,
@@ -471,9 +469,6 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ConstructCb,
                              const Arguments&) const;
         
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestAppCb,
-                             const Arguments&) const;
-        
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestHostCb,
                              const Arguments&) const;
     };
@@ -490,7 +485,6 @@ DEFINE_JS_CLASS(CoreBg, "Core", object_template, /*proto_template*/)
     SetFunction(object_template, "getCodeModDate", GetCodeModDateCb);
     SetFunction(object_template, "hash", HashCb);
     SetFunction(object_template, "construct", ConstructCb);
-    SetFunction(object_template, "requestApp", RequestAppCb);
     SetFunction(object_template, "requestHost", RequestHostCb);
     Set(object_template, "db", DBBg::GetJSClass().GetObjectTemplate());
     Set(object_template, "fs", FSBg::GetJSClass().GetObjectTemplate());
@@ -499,11 +493,9 @@ DEFINE_JS_CLASS(CoreBg, "Core", object_template, /*proto_template*/)
 
 CoreBg::CoreBg(const Place& place,
                const CodeReader& code_reader,
-               AppAccessor& app_accessor,
                FSBg& fs_bg)
     : place_(place)
     , code_reader_(code_reader)
-    , app_accessor_(app_accessor)
     , fs_bg_(fs_bg)
 {
 }
@@ -597,45 +589,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, ConstructCb,
     for (size_t i = 0; i < array->Length(); ++i)
         values.push_back(array->Get(Integer::New(i)));
     return constructor->NewInstance(array->Length(), &values[0]);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestAppCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 4);
-    string app_name(Stringify(args[0]));
-    string request(Stringify(args[1]));
-    BinaryBg::Reader binary_reader(args[3]);
-
-    Handle<Array> files(GetArray(args[2]));
-    Strings file_pathes;
-    file_pathes.reserve(files->Length());
-    for (size_t i = 0; i < files->Length(); ++i) {
-        Handle<v8::Value> item(files->Get(Integer::New(i)));
-        const FileBg* file_ptr = FileBg::GetJSClass().Cast(item);
-        string path(file_ptr ? file_ptr->GetPath() : fs_bg_.ReadPath(item));
-        if (!S_ISREG(GetStat(path)->st_mode))
-            throw Error(Error::ENTRY_IS_DIR, "Directory cannot be passed");
-        file_pathes.push_back(path);
-    }
-
-    auto_ptr<Chars> data_ptr(app_accessor_(app_name,
-                                           request,
-                                           file_pathes,
-                                           binary_reader.GetStartPtr(),
-                                           binary_reader.GetSize(),
-                                           *access_ptr));
-    KU_ASSERT(data_ptr->size() >= 3);
-    if (string(&data_ptr->front(), 3) == "OK\n") {
-        data_ptr->erase(data_ptr->begin(), data_ptr->begin() + 3);
-        return BinaryBg::Create(data_ptr);
-    } else {
-        KU_ASSERT_MESSAGE(string(&data_ptr->front(), 6) == "ERROR\n",
-                          string(&data_ptr->front(), data_ptr->size()));
-        throw Error(Error::REQUEST_APP,
-                    "Exception occured in \"" + app_name + "\" app");
-    }
 }
 
 
@@ -879,8 +832,7 @@ public:
          const string& release_code_path,
          const string& app_media_path,
          const string& release_media_path,
-         DB& db,
-         AppAccessor& app_accessor);
+         DB& db);
     
     ~Impl();
     
@@ -927,14 +879,13 @@ Program::Impl::Impl(const Place& place,
                     const string& release_code_path,
                     const string& app_media_path,
                     const string& release_media_path,
-                    DB& db,
-                    AppAccessor& app_accessor)
+                    DB& db)
     : initialized_(false)
     , db_(db)
     , code_reader_(app_code_path, release_code_path)
     , db_bg_(place.app_name == "profile")
     , fs_bg_(app_media_path, release_media_path, db.GetFSQuota())
-    , core_bg_(place, code_reader_, app_accessor, fs_bg_)
+    , core_bg_(place, code_reader_, fs_bg_)
 {
     V8::SetFatalErrorHandler(HandleFatalError);
     
@@ -1107,15 +1058,13 @@ Program::Program(const Place& place,
                  const string& release_code_path,
                  const string& app_media_path,
                  const string& release_media_path,
-                 DB& db,
-                 AppAccessor& app_accessor)
+                 DB& db)
     : pimpl_(new Impl(place,
                       app_code_path,
                       release_code_path,
                       app_media_path,
                       release_media_path,
-                      db,
-                      app_accessor))
+                      db))
 {
 }
 
