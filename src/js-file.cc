@@ -371,7 +371,7 @@ void BinaryBg::SetIndexedProperties(Handle<Object> object) const
 }
 
 
-Handle<Object> BinaryBg::DoCreate()
+Handle<Object> BinaryBg::Wrap()
 {
     Handle<Object> result(GetJSClass().Instantiate(this));
     SetIndexedProperties(result);
@@ -379,9 +379,9 @@ Handle<Object> BinaryBg::DoCreate()
 }
 
 
-Handle<Object> BinaryBg::Create(auto_ptr<Chars> data_ptr)
+Handle<Object> BinaryBg::New(auto_ptr<Chars> data_ptr)
 {
-    return (new BinaryBg(data_ptr))->DoCreate();
+    return (new BinaryBg(data_ptr))->Wrap();
 }
 
 
@@ -425,7 +425,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, RangeCb,
         : args.Length() == 1
         ? new BinaryBg(*this, ReadIndex(args[0]))
         : new BinaryBg(*this, ReadIndex(args[0]), ReadIndex(args[1]));
-    return binary_ptr->DoCreate();
+    return binary_ptr->Wrap();
 }
 
 
@@ -502,7 +502,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, Md5Cb,
     MD5(reinterpret_cast<unsigned char*>(start_ptr_),
         size_,
         reinterpret_cast<unsigned char*>(&data_ptr->front()));
-    return BinaryBg::Create(data_ptr);
+    return BinaryBg::New(data_ptr);
 }
 
 
@@ -513,7 +513,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, Sha1Cb,
     SHA1(reinterpret_cast<unsigned char*>(start_ptr_),
          size_,
          reinterpret_cast<unsigned char*>(&data_ptr->front()));
-    return BinaryBg::Create(data_ptr);
+    return BinaryBg::New(data_ptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -758,7 +758,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, ReadCb,
     ssize_t count = read(fd_, &data_ptr->front(), data_ptr->size());
     KU_ASSERT(count != -1);
     data_ptr->resize(count);
-    return BinaryBg::Create(data_ptr);
+    return BinaryBg::New(data_ptr);
 }
 
 

@@ -40,7 +40,7 @@ namespace ku
         };
 
         static v8::Handle<v8::Object>
-        Create(std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>());
+        New(std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>());
 
         ~BinaryBg();
 
@@ -60,7 +60,7 @@ namespace ku
                  size_t stop = MINUS_ONE);
         
         void SetIndexedProperties(v8::Handle<v8::Object> object) const;
-        v8::Handle<v8::Object> DoCreate();
+        v8::Handle<v8::Object> Wrap();
         size_t ReadIndex(v8::Handle<v8::Value> value) const;
         
         DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetLengthCb,

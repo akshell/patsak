@@ -619,7 +619,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestHostCb,
         if (error_code != asio::error::eof)
             throw asio::system_error(error_code);
         const char* data_ptr = asio::buffer_cast<const char*>(streambuf.data());
-        return BinaryBg::Create(
+        return BinaryBg::New(
             auto_ptr<Chars>(new Chars(data_ptr, data_ptr + streambuf.size())));
     } catch (const asio::system_error& error) {
         throw Error(Error::REQUEST_HOST, error.what());
@@ -1028,7 +1028,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         file_ptrs[i] = file_ptr;
     }
     Set(core_, "files", files);
-    Set(core_, "data", BinaryBg::Create(data_ptr));
+    Set(core_, "data", BinaryBg::New(data_ptr));
     Set(core_, "user", String::New(user.c_str()));
     Set(core_, "issuer", String::New(issuer.c_str()));
 
