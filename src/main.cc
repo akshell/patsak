@@ -6,24 +6,17 @@
 
 #include <asio.hpp>
 #include <boost/program_options.hpp>
-#include <boost/assign/std/vector.hpp>
 #include <boost/bind.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/foreach.hpp>
 
-#include <sys/file.h>
-#include <sys/wait.h>
 #include <fstream>
-#include <unistd.h>
 
 
 using namespace std;
 using namespace ku;
 using asio::local::stream_protocol;
 namespace po = boost::program_options;
-using namespace boost::assign;
 using boost::bind;
-using boost::lexical_cast;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,7 +73,7 @@ namespace
         struct ProcessingError : public runtime_error {
             ProcessingError(const string& message) : runtime_error(message) {}
         };
-        
+
         Program& program_;
         stream_protocol::socket& socket_;
         asio::streambuf buf_;
@@ -103,7 +96,7 @@ RequestHandler::RequestHandler(Program& program,
 {
     is_.exceptions(ios::eofbit | ios::failbit | ios::badbit);
 }
-        
+
 
 bool RequestHandler::Handle()
 {
@@ -212,7 +205,7 @@ void RequestHandler::HandleProcess()
     buffers.push_back(asio::buffer(beginning));
     buffers.push_back(asio::buffer(response_ptr->GetData(),
                                    response_ptr->GetSize()));
-    asio::write(socket_, buffers);    
+    asio::write(socket_, buffers);
 }
 
 
@@ -240,7 +233,7 @@ namespace
     class TransferController {
     public:
         TransferController(size_t size) : size_(size) {}
-        
+
         size_t operator()(const asio::error_code&, size_t bytes_read) const {
             return bytes_read > size_ ? 0 : size_ - bytes_read;
         }
@@ -285,7 +278,7 @@ namespace
         unsigned wait_;
         bool handled_;
         bool accepted_;
-        
+
         void HandleAccept(const asio::error_code& error);
         void HandleTimer(const asio::error_code& error);
     };
@@ -345,7 +338,7 @@ namespace
     public:
         MainRunner(int argc, char** argv);
         void Run();
-        
+
     private:
         string expr_, user_;
         string patsak_pattern_;
@@ -360,7 +353,7 @@ namespace
         bool pass_opts_;
 
         void Parse(int argc, char** argv);
-        
+
         static void RequireOption(const string& name,
                                   const string& value);
 
@@ -370,15 +363,15 @@ namespace
         auto_ptr<DB> InitDB() const;
 
         auto_ptr<Program> InitProgram(DB& db) const;
-        
+
         void RunTest(Program& program, istream& is) const;
-        
+
         static bool HandleRequest(Program& program,
                                   stream_protocol::socket& socket);
 
         void RunServer(Program& program);
     };
-}    
+}
 
 
 MainRunner::MainRunner(int argc, char** argv)
@@ -425,7 +418,7 @@ void MainRunner::Parse(int argc, char** argv)
          po::value<string>(&user_),
          "user name (test mode only)")
         ;
-    
+
     po::options_description config_options("Config options");
     config_options.add_options()
         ("patsak-pattern,p",
@@ -620,7 +613,7 @@ void MainRunner::RunServer(Program& program)
                    ? app_name_
                    : app_name_ + ':' + owner_name_ + '@' + spot_name_) +
                   ": ");
-    
+
     string socket_path(socket_dir_ + path_suffix_);
     remove(socket_path.c_str());
     asio::io_service io_service;
@@ -635,7 +628,7 @@ void MainRunner::RunServer(Program& program)
         cout << "READY\n";
         cout.flush();
         freopen("/dev/null", "w", stdout);
-    
+
         for (;;) {
             auto_ptr<stream_protocol::socket> socket_ptr(
                 Acceptor(acceptor, wait_)());
@@ -648,7 +641,7 @@ void MainRunner::RunServer(Program& program)
             if (!proceed)
                 break;
         }
-        
+
         acceptor.close();
     } catch (const asio::system_error& err) {
         Log(string("Network error: ") + err.what());
