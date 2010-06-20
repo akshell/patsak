@@ -504,7 +504,6 @@ CoreBg::CoreBg(const Place& place,
 void CoreBg::Init(Handle<Object> core) const
 {
     JSClassBase::InitConstructors(core);
-    Handle<Object> app(Object::New());
     Set(core, "app", String::New(place_.app_name.c_str()));
     if (!place_.spot_name.empty()) {
         Set(core, "spot", String::New(place_.spot_name.c_str()));
