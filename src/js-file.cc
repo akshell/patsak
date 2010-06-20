@@ -112,41 +112,6 @@ int ku::GetPathDepth(const std::string& path)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// BinaryBg::Reader definitions
-////////////////////////////////////////////////////////////////////////////////
-
-BinaryBg::Reader::Reader(Handle<v8::Value> value)
-    : binary_ptr_(BinaryBg::GetJSClass().Cast(value))
-    , utf8_value_ptr_(binary_ptr_ ? 0 : new String::Utf8Value(value))
-{
-}
-
-
-BinaryBg::Reader::~Reader()
-{
-}
-
-
-const char* BinaryBg::Reader::GetStartPtr() const
-{
-    return (binary_ptr_
-            ? binary_ptr_->start_ptr_
-            : utf8_value_ptr_.get()
-            ? **utf8_value_ptr_
-            : 0);
-}
-
-
-size_t BinaryBg::Reader::GetSize() const
-{
-    return (binary_ptr_
-            ? binary_ptr_->size_
-            : utf8_value_ptr_.get()
-            ? utf8_value_ptr_->length()
-            : 0);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // BinaryBg::Holder
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -287,8 +252,8 @@ Handle<v8::Value> BinaryBg::ConstructorCb(const Arguments& args)
             } else if (const BinaryBg* binary_ptr =
                        BinaryBg::GetJSClass().Cast(args[0])) {
                 if (args.Length() == 1) {
-                    data.assign(binary_ptr->start_ptr_,
-                                binary_ptr->start_ptr_ + binary_ptr->size_);
+                    data.assign(binary_ptr->data_,
+                                binary_ptr->data_ + binary_ptr->size_);
                 } else if (const BinaryBg* second_binary_ptr =
                            BinaryBg::GetJSClass().Cast(args[1])) {
                     vector<const BinaryBg*> binary_ptrs(args.Length());
@@ -306,7 +271,7 @@ Handle<v8::Value> BinaryBg::ConstructorCb(const Arguments& args)
                     char* start_ptr = &data[0];
                     BOOST_FOREACH(binary_ptr, binary_ptrs) {
                         memcpy(start_ptr,
-                               binary_ptr->start_ptr_,
+                               binary_ptr->data_,
                                binary_ptr->size_);
                         start_ptr += binary_ptr->size_;
                     }
@@ -315,7 +280,7 @@ Handle<v8::Value> BinaryBg::ConstructorCb(const Arguments& args)
                     string from_charset(args.Length() > 2 ?
                                         ReadLower(args[2])
                                         : "utf-8");
-                    transcode(binary_ptr->start_ptr_, binary_ptr->size_,
+                    transcode(binary_ptr->data_, binary_ptr->size_,
                               from_charset, to_charset,
                               data);
                 }
@@ -335,10 +300,10 @@ Handle<v8::Value> BinaryBg::ConstructorCb(const Arguments& args)
 BinaryBg::BinaryBg(auto_ptr<Chars> data_ptr)
 {
     if (!data_ptr.get() || data_ptr->empty()) {
-        start_ptr_ = 0;
+        data_ = 0;
         size_ = 0;
     } else {
-        start_ptr_ = &data_ptr->front();
+        data_ = &data_ptr->front();
         size_ = data_ptr->size();
         holder_ptr_.reset(new Holder(data_ptr));
     }
@@ -349,10 +314,10 @@ BinaryBg::BinaryBg(const BinaryBg& parent, size_t start, size_t stop)
 {
     stop = min(stop, parent.size_);
     if (start >= stop) {
-        start_ptr_ = 0;
+        data_ = 0;
         size_ = 0;
     } else {
-        start_ptr_ = parent.start_ptr_ + start;
+        data_ = parent.data_ + start;
         size_ = stop - start;
         holder_ptr_ = parent.holder_ptr_;
     }
@@ -364,10 +329,22 @@ BinaryBg::~BinaryBg()
 }
 
 
+const char* BinaryBg::GetData() const
+{
+    return data_;
+}
+
+
+size_t BinaryBg::GetSize() const
+{
+    return size_;
+}
+
+
 void BinaryBg::SetIndexedProperties(Handle<Object> object) const
 {
     object->SetIndexedPropertiesToExternalArrayData(
-        start_ptr_, kExternalUnsignedByteArray, size_);
+        data_, kExternalUnsignedByteArray, size_);
 }
 
 
@@ -398,9 +375,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, ToStringCb,
 {
     string charset(args.Length() ? Stringify(args[0]) : "utf-8");
     if (charset == "utf-8" || charset == "utf8")
-        return String::New(start_ptr_, size_);
+        return String::New(data_, size_);
     Chars data;
-    transcode(start_ptr_, size_, charset, "utf-16le", data);
+    transcode(data_, size_, charset, "utf-16le", data);
     assert(data.size() % 2 == 0);
     return String::New(reinterpret_cast<uint16_t*>(&data[0]), data.size() / 2);
 }
@@ -432,7 +409,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, RangeCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, FillCb,
                     const Arguments&, args) const
 {
-    memset(start_ptr_, args.Length() ? args[0]->Uint32Value() : 0, size_);
+    memset(data_, args.Length() ? args[0]->Uint32Value() : 0, size_);
     return args.This();
 }
 
@@ -441,20 +418,20 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, IndexOfCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    Reader reader(args[0]);
+    Binarizator binarizator(args[0]);
     size_t index = args.Length() > 1 ? ReadIndex(args[1]) : 0;
-    if (!reader.GetSize())
+    if (!binarizator.GetSize())
         return Integer::New(min(index, size_));
     if (index >= size_)
         return Integer::New(-1);
-    const char* end_ptr = start_ptr_ + size_;
-    const char* found_ptr = search(const_cast<const char*>(start_ptr_ + index),
-                                   end_ptr,
-                                   reader.GetStartPtr(),
-                                   reader.GetStartPtr() + reader.GetSize());
-    return Integer::New(found_ptr == end_ptr
+    const char* end = data_ + size_;
+    const char* found = search(const_cast<const char*>(data_ + index),
+                               end,
+                               binarizator.GetData(),
+                               binarizator.GetData() + binarizator.GetSize());
+    return Integer::New(found == end
                         ? -1
-                        : found_ptr - start_ptr_);
+                        : found - data_);
 }
 
 
@@ -462,18 +439,18 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, LastIndexOfCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    Reader reader(args[0]);
+    Binarizator binarizator(args[0]);
     size_t index = args.Length() > 1 ? ReadIndex(args[1]) : size_;
-    if (!reader.GetSize())
+    if (!binarizator.GetSize())
         return Integer::New(min(index, size_));
-    const char* end_ptr = start_ptr_ + min(index + reader.GetSize(), size_);
-    const char* found_ptr = find_end(const_cast<const char*>(start_ptr_),
-                                     end_ptr,
-                                     reader.GetStartPtr(),
-                                     reader.GetStartPtr() + reader.GetSize());
-    return Integer::New(found_ptr == end_ptr
+    const char* end = data_ + min(index + binarizator.GetSize(), size_);
+    const char* found = find_end(const_cast<const char*>(data_),
+                                 end,
+                                 binarizator.GetData(),
+                                 binarizator.GetData() + binarizator.GetSize());
+    return Integer::New(found == end
                         ? -1
-                        : found_ptr - start_ptr_);
+                        : found - data_);
 }
 
 
@@ -484,8 +461,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, CompareCb,
     const BinaryBg* other_ptr = BinaryBg::GetJSClass().Cast(args[0]);
     if (!other_ptr)
         throw Error(Error::TYPE, "Binary expected");
-    int cmp = memcmp(start_ptr_,
-                     other_ptr->start_ptr_,
+    int cmp = memcmp(data_,
+                     other_ptr->data_,
                      min(size_, other_ptr->size_));
     return Integer::New(cmp == 0
                         ? (size_ == other_ptr->size_
@@ -499,7 +476,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, Md5Cb,
                     const Arguments&, /*args*/) const
 {
     auto_ptr<Chars> data_ptr(new Chars(16));
-    MD5(reinterpret_cast<unsigned char*>(start_ptr_),
+    MD5(reinterpret_cast<unsigned char*>(data_),
         size_,
         reinterpret_cast<unsigned char*>(&data_ptr->front()));
     return BinaryBg::New(data_ptr);
@@ -510,10 +487,45 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, Sha1Cb,
                     const Arguments&, /*args*/) const
 {
     auto_ptr<Chars> data_ptr(new Chars(20));
-    SHA1(reinterpret_cast<unsigned char*>(start_ptr_),
+    SHA1(reinterpret_cast<unsigned char*>(data_),
          size_,
          reinterpret_cast<unsigned char*>(&data_ptr->front()));
     return BinaryBg::New(data_ptr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Binarizator definitions
+////////////////////////////////////////////////////////////////////////////////
+
+Binarizator::Binarizator(Handle<v8::Value> value)
+    : binary_ptr_(BinaryBg::GetJSClass().Cast(value))
+    , utf8_value_ptr_(binary_ptr_ ? 0 : new String::Utf8Value(value))
+{
+}
+
+
+Binarizator::~Binarizator()
+{
+}
+
+
+const char* Binarizator::GetData() const
+{
+    return (binary_ptr_
+            ? binary_ptr_->GetData()
+            : utf8_value_ptr_.get()
+            ? **utf8_value_ptr_
+            : 0);
+}
+
+
+size_t Binarizator::GetSize() const
+{
+    return (binary_ptr_
+            ? binary_ptr_->GetSize()
+            : utf8_value_ptr_.get()
+            ? utf8_value_ptr_->length()
+            : 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -767,10 +779,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, WriteCb,
 {
     ChangeScope change_scope(*this);
     CheckArgsLength(args, 1);
-    BinaryBg::Reader binary_reader(args[0]);
-    ssize_t count = write(
-        fd_, binary_reader.GetStartPtr(), binary_reader.GetSize());
-    KU_ASSERT_EQUAL(count, static_cast<ssize_t>(binary_reader.GetSize()));
+    Binarizator binarizator(args[0]);
+    ssize_t count = write(fd_, binarizator.GetData(), binarizator.GetSize());
+    KU_ASSERT_EQUAL(count, static_cast<ssize_t>(binarizator.GetSize()));
     return args.This();
 }
 

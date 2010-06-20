@@ -608,11 +608,11 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestHostCb,
                 break;
         if (error_code)
             throw asio::system_error(error_code);
-        BinaryBg::Reader binary_reader(args[2]);
-        if (binary_reader.GetSize())
+        Binarizator binarizator(args[2]);
+        if (binarizator.GetSize())
             asio::write(socket,
-                        asio::buffer(binary_reader.GetStartPtr(),
-                                     binary_reader.GetSize()),
+                        asio::buffer(binarizator.GetData(),
+                                     binarizator.GetSize()),
                         asio::transfer_all());
         asio::streambuf streambuf;
         asio::read(socket, streambuf, asio::transfer_all(), error_code);
@@ -661,13 +661,13 @@ namespace
         virtual const char* GetData() const;
 
     private:
-        BinaryBg::Reader binary_reader_;
+        Binarizator binarizator_;
     };  
 }
 
 
 OkResponse::OkResponse(Handle<v8::Value> value)
-    : binary_reader_(value)
+    : binarizator_(value)
 {
 }
 
@@ -680,13 +680,13 @@ string OkResponse::GetStatus() const
 
 size_t OkResponse::GetSize() const
 {
-    return binary_reader_.GetSize();
+    return binarizator_.GetSize();
 }
 
 
 const char* OkResponse::GetData() const
 {
-    return binary_reader_.GetStartPtr();
+    return binarizator_.GetData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

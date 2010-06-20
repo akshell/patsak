@@ -27,28 +27,20 @@ namespace ku
     public:
         DECLARE_JS_CLASS(BinaryBg);
 
-        class Reader {
-        public:
-            Reader(v8::Handle<v8::Value> value);
-            ~Reader();
-            const char* GetStartPtr() const;
-            size_t GetSize() const;
-
-        private:
-            const BinaryBg* binary_ptr_;
-            std::auto_ptr<v8::String::Utf8Value> utf8_value_ptr_;
-        };
+        ~BinaryBg();
 
         static v8::Handle<v8::Object>
         New(std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>());
 
-        ~BinaryBg();
+        const char* GetData() const;
+        size_t GetSize() const;
+
 
     private:
         class Holder;
         
         boost::shared_ptr<Holder> holder_ptr_;
-        char* start_ptr_;
+        char* data_;
         size_t size_;
         
         static v8::Handle<v8::Value> ConstructorCb(const v8::Arguments& args);
@@ -90,6 +82,19 @@ namespace ku
         
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, Sha1Cb,
                              const v8::Arguments&) const;
+    };
+
+    
+    class Binarizator {
+    public:
+        Binarizator(v8::Handle<v8::Value> value);
+        ~Binarizator();
+        const char* GetData() const;
+        size_t GetSize() const;
+        
+    private:
+        const BinaryBg* binary_ptr_;
+        std::auto_ptr<v8::String::Utf8Value> utf8_value_ptr_;
     };
 
 
