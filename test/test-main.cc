@@ -40,7 +40,7 @@ namespace
     public:
         typedef pair<string, string> Pair;
         typedef vector<Pair> Data;
-        
+
         TestReader(istream& is)
             : is_(is) {}
 
@@ -48,7 +48,7 @@ namespace
 
     private:
         istream& is_;
-        
+
         string ReadUpTo(const string& terminator);
         static bool Begins(const string& str, const string& prefix);
     };
@@ -107,7 +107,7 @@ namespace
     class FileTester {
     public:
         typedef function<T (const string&)> Transformer;
-        
+
         FileTester(const string& file_name,
                    const Transformer& trans1,
                    const Transformer& trans2)
@@ -128,8 +128,8 @@ namespace
                                     lexical_cast<string>(item2) +
                                     "\n*** END ***\n");
             }
-        }            
-        
+        }
+
     private:
         string file_name_;
         Transformer trans1_, trans2_;
@@ -147,7 +147,7 @@ namespace
     {
         return str;
     }
-    
+
 
     // Word-by-word string comparison
     class WordComparator : public binary_function<string, string, bool> {
@@ -225,7 +225,7 @@ namespace ku
         return os << d;
     }
 
-    
+
     ostream& operator<<(ostream& os, const RangeVar& rv)
     {
         Bracer b(os, "rv");
@@ -425,7 +425,7 @@ namespace ku
 namespace
 {
     typedef orset<Values> ValuesSet;
-        
+
     // In-memory relation representation
     class Table {
     public:
@@ -433,7 +433,7 @@ namespace
               const UniqueKeySet& unique_key_set = UniqueKeySet(),
               const ForeignKeySet& foreign_key_set = ForeignKeySet());
         Table(const Header& header);
-        
+
         Table(istream& is);
         bool operator==(const Table& other) const;
         bool operator!=(const Table& other) const { return !(*this == other); }
@@ -449,7 +449,7 @@ namespace
         void SetChecks(const Strings& checks);
         void SetForeignKeySet(const ForeignKeySet& foreign_key_set);
         void AddRow(const Values& values);
-        
+
     private:
         RichHeader rich_header_;
         UniqueKeySet unique_key_set_;
@@ -482,7 +482,7 @@ namespace
         return Table(file);
     }
 
-    
+
     Table ReadTableFromString(const string& str)
     {
         istringstream iss(str);
@@ -508,7 +508,7 @@ Table::Table(const Header& header)
     BOOST_FOREACH(const Attr& attr, header)
         rich_header_.add_sure(RichAttr(attr.GetName(), attr.GetType()));
     AddAllUniqueKey();
-}       
+}
 
 
 Table::Table(istream& is)
@@ -641,7 +641,7 @@ Value Table::ReadValue(istream& is, Type type)
         string date, time;
         is >> date >> time;
         return Value(type, date + ' ' + time);
-    }        
+    }
 }
 
 
@@ -736,7 +736,7 @@ void Table::ReadValuesSet(istream& is)
         BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
             values.push_back(ReadValue(iss, rich_attr.GetType()));
         values_set_.add_sure(values);
-    }    
+    }
 }
 
 
@@ -818,7 +818,7 @@ namespace
     class DBFixture : private noncopyable {
     public:
         DB db;
-        
+
         DBFixture();
         void LoadRelVarFromFile(const string& rel_var_name);
         void LoadRelVarFromString(const string& rel_var_name,
@@ -947,7 +947,7 @@ BOOST_FIXTURE_TEST_CASE(db_test, DBFixture)
     row.push_back(Value(Type::JSON, "{}"));
     table.AddRow(row);
     CreateRelVar("Test", table);
-    
+
     StringSet rel_var_names(GetRelVarNames());
 
     DeleteRelVars(StringSet());
@@ -980,7 +980,7 @@ namespace
                 header.add_sure(Attr(rich_attr.GetName(), rich_attr.GetType()));
             return header;
         }
-        
+
         virtual string Quote(const PgLiter& pg_liter) const {
             return (pg_liter.quote_me
                     ? conn_.quote(pg_liter.str)
@@ -1003,8 +1003,8 @@ namespace
         mutable pqxx::connection conn_;
         mutable vector<Header> headers_;
     };
-    
-    
+
+
     class TranslateFunctor {
     public:
         TranslateFunctor(Translator& translator)
@@ -1026,7 +1026,7 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
     LoadRelVarFromFile("User");
     LoadRelVarFromFile("Post");
     LoadRelVarFromFile("Comment");
-    
+
     TestDBViewer db_viewer(*this);
     Translator translator(db_viewer);
     TranslateFunctor translate_functor(translator);
@@ -1035,7 +1035,7 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
     BOOST_CHECK_THROW(translate_functor("User where Post.id"), Error);
     BOOST_CHECK_THROW(translate_functor("{smth: $0}"), Error);
     BOOST_CHECK_THROW(translate_functor("{smth: $1}"), Error);
-    BOOST_CHECK_THROW(translate_functor("union(User, Post)"), Error);    
+    BOOST_CHECK_THROW(translate_functor("union(User, Post)"), Error);
     BOOST_CHECK_THROW(translate_functor("{User.id, Post.id}"), Error);
     BOOST_CHECK_THROW(translate_functor("User where User[id, name]"), Error);
     //May be the following should work...
@@ -1092,7 +1092,7 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
     BOOST_CHECK_EQUAL(
         translator.TranslateDelete("User","id % $ == 0", params),
         "DELETE FROM \"User\" WHERE ((\"User\".\"id\" % 2) = 0)");
-    
+
     StringMap expr_map;
     expr_map.insert(StringMap::value_type("flooder", "id == 0 || !flooder"));
     expr_map.insert(StringMap::value_type("name", "name + id + $"));
@@ -1129,7 +1129,7 @@ BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
 
     LoadRelVarFromString("num", "val\nnumber\n---\n125.3");
     BOOST_CHECK(Query("num").GetValuesSet().at(0).at(0) ==
-                Value(Type::NUMBER, 125.3));    
+                Value(Type::NUMBER, 125.3));
 
     LoadRelVarFromString("bool", "val\nbool\n---\ntrue\nfalse");
 

@@ -58,10 +58,10 @@ namespace
         string release_path_;
 
         void CheckPath(const string& path) const;
-        
+
         auto_ptr<Chars> DoRead(const string& base_path,
                                const string& path) const;
-        
+
         time_t DoGetModDate(const string& base_path, const string& path) const;
     };
 }
@@ -211,7 +211,7 @@ namespace
 
     private:
         Persistent<Object> handler_;
-        
+
         static Handle<v8::Value> ConstructorCb(const Arguments& args);
 
         Handle<v8::Value> Call(const string& name,
@@ -220,35 +220,35 @@ namespace
 
         Handle<Boolean> CallIndicator(const string& name,
                                       Handle<v8::Value> arg) const;
-        
+
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetNamedCb,
                              Local<String>, const AccessorInfo&) const;
-        
+
         DECLARE_JS_CALLBACK3(Handle<v8::Value>, SetNamedCb,
                              Local<String>,
                              Local<v8::Value>,
                              const AccessorInfo&) const;
-        
+
         DECLARE_JS_CALLBACK2(Handle<Boolean>, QueryNamedCb,
                              Local<String>, const AccessorInfo&) const;
-        
+
         DECLARE_JS_CALLBACK2(Handle<Boolean>, DeleteNamedCb,
                              Local<String>, const AccessorInfo&) const;
-        
+
         DECLARE_JS_CALLBACK1(Handle<Array>, EnumCb,
                              const AccessorInfo&) const;
-        
+
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetIndexedCb,
                              uint32_t, const AccessorInfo&) const;
-        
+
         DECLARE_JS_CALLBACK3(Handle<v8::Value>, SetIndexedCb,
                              uint32_t,
                              Local<v8::Value>,
                              const AccessorInfo&) const;
-        
+
         DECLARE_JS_CALLBACK2(Handle<Boolean>, QueryIndexedCb,
                              uint32_t, const AccessorInfo&) const;
-        
+
         DECLARE_JS_CALLBACK2(Handle<Boolean>, DeleteIndexedCb,
                              uint32_t, const AccessorInfo&) const;
     };
@@ -337,7 +337,7 @@ DEFINE_JS_CALLBACK3(Handle<v8::Value>, ProxyBg, SetNamedCb,
     return Call("set", 2, argv);
 }
 
-        
+
 DEFINE_JS_CALLBACK2(Handle<Boolean>, ProxyBg, QueryNamedCb,
                     Local<String>, property,
                     const AccessorInfo&, /*info*/) const
@@ -431,30 +431,30 @@ namespace
                FSBg& fs_bg);
 
         void Init(Handle<Object> object) const;
-        
+
     private:
         Place place_;
         const CodeReader& code_reader_;
         FSBg& fs_bg_;
-        
+
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, PrintCb,
                              const Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, SetCb,
                              const Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadCodeCb,
                              const Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetCodeModDateCb,
                              const Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, HashCb,
                              const Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ConstructCb,
                              const Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestHostCb,
                              const Arguments&) const;
     };
@@ -622,7 +622,7 @@ namespace
     public:
         DECLARE_JS_CLASS(GlobalBg);
         GlobalBg() {}
-    };    
+    };
 }
 
 
@@ -648,7 +648,7 @@ namespace
 
     private:
         Binarizator binarizator_;
-    };  
+    };
 }
 
 
@@ -727,7 +727,7 @@ namespace
     class ExceptionResponse : public ErrorResponse {
     public:
         ExceptionResponse(const TryCatch& try_catch);
-        
+
     private:
         static string MakeExceptionDescr(const TryCatch& try_catch);
     };
@@ -796,7 +796,7 @@ namespace
 {
     jmp_buf environment;
 
-    
+
     void HandleFatalError(const char* location, const char* message)
     {
         if (string(message) != "Allocation failed - process out of memory")
@@ -818,9 +818,9 @@ public:
          const string& app_media_path,
          const string& release_media_path,
          DB& db);
-    
+
     ~Impl();
-    
+
     auto_ptr<Response> Process(const string& user,
                                const Chars& request,
                                const Strings& pathes,
@@ -829,7 +829,7 @@ public:
 
     auto_ptr<Response> Eval(const string& user, const Chars& expr);
     bool IsDead() const;
-    
+
 private:
     bool initialized_;
     DB& db_;
@@ -840,7 +840,7 @@ private:
     GlobalBg global_bg_;
     Persistent<Context> context_;
     Persistent<Object> core_;
-    
+
     auto_ptr<Response> Run(Handle<Function> function,
                            Handle<Object> object,
                            Handle<v8::Value> arg);
@@ -873,14 +873,14 @@ Program::Impl::Impl(const Place& place,
     , core_bg_(place, code_reader_, fs_bg_)
 {
     V8::SetFatalErrorHandler(HandleFatalError);
-    
+
     ResourceConstraints rc;
     rc.set_max_young_space_size(MAX_YOUNG_SPACE_SIZE);
     rc.set_max_old_space_size(MAX_OLD_SPACE_SIZE);
     rc.set_stack_limit(ComputeStackLimit(STACK_LIMIT));
     bool ret = v8::SetResourceConstraints(&rc);
     KU_ASSERT(ret);
-    
+
     HandleScope handle_scope;
     context_ = Context::New(NULL, GlobalBg::GetJSClass().GetObjectTemplate());
     Handle<Object> global_proto(context_->Global()->GetPrototype()->ToObject());
@@ -979,7 +979,7 @@ auto_ptr<Response> Program::Impl::Run(Handle<Function> function,
     access_ptr = 0;
     return result;
 }
-    
+
 
 auto_ptr<Response> Program::Impl::Call(const string& user,
                                        const Chars& input,
@@ -1000,12 +1000,12 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
             return response_ptr;
         initialized_ = true;
     }
-    
+
     Handle<v8::Value> func_value(Get(object, func_name));
     if (func_value.IsEmpty() || !func_value->IsFunction())
         return auto_ptr<Response>(
             new ErrorResponse(func_name + " is not a function"));
-    
+
     Handle<Array> files(Array::New(file_pathes.size()));
     vector<FileBg*> file_ptrs(file_pathes.size());
     for (size_t i = 0; i < file_pathes.size(); ++i) {
@@ -1025,7 +1025,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         file_ptr->Close();
     return result;
 }
-                                       
+
 
 void Program::Impl::SetInternal(Handle<Object> object,
                                 const string& field,

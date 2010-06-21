@@ -24,7 +24,7 @@ namespace ku
         void not_found(const T& /*key*/) const {}
     };
 
-    
+
     template <typename T,
               typename CompT = std::equal_to<T>,
               typename FindT = item_finder<T, CompT> >
@@ -32,7 +32,7 @@ namespace ku
     private:
         typedef std::vector<T> base;
         typedef orset<T, CompT, FindT> this_type;
-        
+
     public:
         using base::iterator;
         using base::const_iterator;
@@ -40,7 +40,7 @@ namespace ku
         using base::value_type;
         using base::reverse_iterator;
         using base::const_reverse_iterator;
-        
+
         using base::begin;
         using base::end;
         using base::rbegin;
@@ -120,14 +120,14 @@ namespace ku
             }
             return *ptr;
         }
-        
+
         const T*
         find_ptr(const typename FindT::second_argument_type& key) const {
             typename base::const_iterator itr(
                 std::find_if(begin(), end(), std::bind2nd(FindT(), key)));
             return itr == end() ? 0 : &*itr;
         }
-        
+
         const T& find(const typename FindT::second_argument_type& key) const {
             const T* ptr = find_ptr(key);
             if (!ptr) {

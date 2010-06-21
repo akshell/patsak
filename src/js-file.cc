@@ -530,7 +530,7 @@ public:
     FSQuotaChecker(uint64_t quota, uint64_t size);
     void Check() const;
     void Change(int64_t diff);
-    
+
 private:
     uint64_t quota_;
     uint64_t size_;
@@ -657,7 +657,7 @@ void FileBg::Close()
         int ret = close(fd_);
         KU_ASSERT_EQUAL(ret, 0);
         fd_ = -1;
-    }    
+    }
 }
 
 
@@ -802,7 +802,7 @@ namespace
         }
         return result;
     }
-    
+
 
     string DoReadPath(const string& root_path,
                       Handle<v8::Value> value,

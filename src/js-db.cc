@@ -113,7 +113,7 @@ namespace
     {
         return access_ptr->GetRichHeader(Stringify(name));
     }
-    
+
 
     Draft CreateDraft(Handle<v8::Value> value)
     {
@@ -130,7 +130,7 @@ namespace
             result.push_back(CreateDraft(array->Get(Integer::New(i))));
         return result;
     }
-    
+
 
     Handle<v8::Value> MakeV8Value(const ku::Value& ku_value)
     {
@@ -142,7 +142,7 @@ namespace
             return Number::New(d);
         if (type == Type::STRING)
             return String::New(s.c_str());
-        if (type == Type::BOOL) 
+        if (type == Type::BOOL)
             return Boolean::New(d);
         if (type == Type::DATE)
             return Date::New(d);
@@ -166,7 +166,7 @@ namespace
         return result;
     }
 
-    
+
     StringSet ReadStringSet(Handle<v8::Value> value)
     {
         Handle<Array> array(GetArray(value));
@@ -218,7 +218,7 @@ namespace
                            ReadStringSet(foreign->Get(Integer::New(2)))));
         }
     }
-    
+
 
     void ReadChecks(Handle<v8::Value> value, Strings& checks)
     {
@@ -226,7 +226,7 @@ namespace
         for (size_t i = 0; i < array->Length(); ++i)
             checks.push_back(Stringify(array->Get(Integer::New(i))));
     }
-}    
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // AddedConstr
@@ -264,7 +264,7 @@ namespace
                         const string& ref_attr_name)
             : ref_rel_var_name_(ref_rel_var_name)
             , ref_attr_name_(ref_attr_name) {}
-        
+
         virtual void Retrieve(const string& attr_name,
                               UniqueKeySet& /*unique_key_set*/,
                               ForeignKeySet& foreign_key_set,
@@ -294,7 +294,7 @@ namespace
                               Strings& checks) const {
             checks.push_back(check_);
         }
-        
+
     private:
         string check_;
     };
@@ -311,7 +311,7 @@ namespace
         DECLARE_JS_CLASS(TypeBg);
 
         TypeBg(Type type);
-        
+
         Type GetType() const;
         Type::Trait GetTrait() const;
         const ku::Value* GetDefaultPtr() const;
@@ -333,12 +333,12 @@ namespace
                                             Type::Trait,
                                             shared_ptr<ku::Value>,
                                             AddedConstrPtrs);
-        
+
         TypeBg(Type type,
                Type::Trait trait,
                shared_ptr<ku::Value> default_ptr,
-               const AddedConstrPtrs& ac_ptrs);        
-        
+               const AddedConstrPtrs& ac_ptrs);
+
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetNameCb,
                              Local<String>, const AccessorInfo&) const;
 
@@ -352,7 +352,7 @@ namespace
                              const Arguments&) const;
 
         Handle<v8::Value> NewWithAddedConstr(AddedConstrPtr ac_ptr) const;
-        
+
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, UniqueCb,
                              const Arguments&) const;
 
@@ -471,7 +471,7 @@ Handle<v8::Value> TypeBg::NewWithAddedConstr(AddedConstrPtr ac_ptr) const
     AddedConstrPtrs new_ac_ptrs(ac_ptrs_);
     new_ac_ptrs.push_back(ac_ptr);
     return JSNew<TypeBg>(type_, trait_, default_ptr_, new_ac_ptrs);
-    
+
 }
 
 
@@ -643,7 +643,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateCb,
                        foreign_key_set,
                        checks);
     return Undefined();
-    
+
 }
 
 
@@ -767,7 +767,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, InsertCb,
     for (size_t i = 0; i < values.size(); ++i)
         Set(result, rich_header[i].GetName(), MakeV8Value(values[i]));
     return result;
-}    
+}
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DelCb,

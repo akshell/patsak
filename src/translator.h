@@ -21,12 +21,12 @@ namespace ku
                          const StringSet& attr_names)
                 : rel_var_name(rel_var_name), attr_names(attr_names) {}
         };
-        
+
         virtual ~DBViewer() {}
 
         virtual
         const Header& GetHeader(const std::string& rel_var_name) const = 0;
-        
+
         virtual
         std::string Quote(const PgLiter& pg_liter) const = 0;
 
@@ -46,7 +46,7 @@ namespace ku
                                    const Drafts& by_params = Drafts(),
                                    size_t start = 0,
                                    size_t length = MINUS_ONE) const;
-        
+
         std::string TranslateCount(const std::string& query,
                                    const Drafts& params) const;
 
@@ -63,7 +63,7 @@ namespace ku
         std::string TranslateExpr(const std::string& expr,
                                   const std::string& rel_var_name,
                                   const Header& header) const;
-                       
+
     private:
         const DBViewer& db_viewer_;
     };

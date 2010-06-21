@@ -13,7 +13,7 @@
 namespace ku
 {
     ////////////////////////////////////////////////////////////////////////////
-    
+
     struct Base {
         std::string name;
 
@@ -32,7 +32,7 @@ namespace ku
     Rel;
 
     ////////////////////////////////////////////////////////////////////////////
-    
+
     class RangeVar : private boost::equality_comparable<RangeVar> {
     public:
         struct Impl {
@@ -42,13 +42,13 @@ namespace ku
             Impl(const std::string& name, const Rel& rel)
                 : name(name), rel(rel) {}
         };
-        
+
         RangeVar(boost::shared_ptr<Impl> pimpl)
             : pimpl_(pimpl) {}
 
         RangeVar(const std::string& name, const Rel& rel)
             : pimpl_(new Impl(name, rel)) {}
-        
+
         bool operator==(const RangeVar& other) const {
             return pimpl_ == other.pimpl_;
         }
@@ -56,20 +56,20 @@ namespace ku
         std::string GetName() const {
             return pimpl_->name;
         }
-        
+
         const Rel& GetRel() const {
             return pimpl_->rel;
         }
-        
+
     private:
         boost::shared_ptr<Impl> pimpl_;
     };
-    
+
     ////////////////////////////////////////////////////////////////////////////
 
     struct Liter {
         Value value;
-        
+
         explicit Liter(const Value& value) : value(value) {}
     };
 
@@ -80,7 +80,7 @@ namespace ku
 
         RangeVar rv;
         Path path;
-        
+
         MultiField(const RangeVar& rv, const Path& path)
             : rv(rv), path(path)
             {
@@ -95,19 +95,19 @@ namespace ku
         bool IsForeign() const { return path.size() > 1;        }
     };
 
-    
+
     struct PosArg {
         unsigned pos;
 
         PosArg(unsigned pos) : pos(pos) {}
     };
 
-    
+
     struct Quant;
     struct Binary;
     struct Unary;
     struct Cond;
-    
+
 
     typedef boost::variant<
         Liter,
@@ -121,9 +121,9 @@ namespace ku
 
     ////////////////////////////////////////////////////////////////////////////
 
-    struct Quant {    
+    struct Quant {
         typedef orset<RangeVar> RangeVars;
-        
+
         bool flag;
         RangeVars rvs;
         Expr pred;
@@ -138,7 +138,7 @@ namespace ku
         Expr left;
         Expr right;
 
-        
+
         Binary(BinaryOp op, const Expr& left, const Expr& right)
             : op(op), left(left), right(right) {}
     };
@@ -147,7 +147,7 @@ namespace ku
     struct Unary {
         UnaryOp op;
         Expr operand;
-        
+
         Unary(UnaryOp op, const Expr& operand)
             : op(op), operand(operand) {}
     };
@@ -160,7 +160,7 @@ namespace ku
 
         Cond(const Expr& term, const Expr& yes, const Expr& no)
             : term(term), yes(yes), no(no) {}
-    };    
+    };
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -172,7 +172,7 @@ namespace ku
             : name(name), expr(expr) {}
     };
 
-    
+
     typedef boost::variant<RangeVar, MultiField, NamedExpr> Proto;
 
 
@@ -185,7 +185,7 @@ namespace ku
         Select(const Protos& protos, const Expr& expr)
             : protos(protos), expr(expr) {}
     };
-    
+
 
     struct Union {
         Rel left;

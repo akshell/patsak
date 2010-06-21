@@ -38,7 +38,7 @@ namespace {
     class Lookuper {
     public:
         typedef orset<RangeVar> RangeVars;
-        
+
         Lookuper();
 
         RangeVars EnterScope(const RVDef& rv_def);
@@ -144,7 +144,7 @@ namespace
         struct result {
             typedef void type;
         };
-        
+
         template <typename ContT, typename ItemT>
         void operator()(ContT& c, const ItemT& item) const {
             c.push_back(item);
@@ -153,7 +153,7 @@ namespace
 
 
     // Closure definitions
-    
+
 #define CLOSURE1(name, T1)                                             \
     struct name : public  boost::spirit::classic::closure<name, T1> {  \
         member1 val;                                                   \
@@ -179,14 +179,14 @@ namespace
 
     CLOSURE1(PathClosure, MultiField::Path);
     CLOSURE1(PathEntryClosure, StringSet);
-    
+
     CLOSURE1(RelClosure, Wrapper<Rel>);
     CLOSURE3(SelectClosure, Wrapper<Rel>, Select::Protos, protos,
              Wrapper<Expr>, expr);
     CLOSURE1(ProtosClosure, Select::Protos);
     CLOSURE1(ProtoClosure, Wrapper<Proto>);
     CLOSURE2(MultiFieldProtoClosure, Wrapper<Proto>, Wrapper<RangeVar>, rv);
-    CLOSURE2(ExprProtoClosure, Wrapper<Proto>, string, name);    
+    CLOSURE2(ExprProtoClosure, Wrapper<Proto>, string, name);
 
     CLOSURE1(ExprClosure, Wrapper<Expr>);
     CLOSURE3(QuantClosure, Wrapper<Expr>, bool, flag, Quant::RangeVars, rvs);
@@ -195,26 +195,26 @@ namespace
     CLOSURE2(CondClosure, Wrapper<Expr>, Wrapper<Expr>, yes);
     CLOSURE2(FieldExprClosure, Wrapper<Expr>, Wrapper<RangeVar>, rv);
     CLOSURE2(StringLiterClosure, Wrapper<Expr>, string, str);
-    
-    
+
+
 #undef CLOSURE1
 #undef CLOSURE2
 #undef CLOSURE3
-    
+
 
     class Parser : public noncopyable {
     public:
         Rel ParseRel(const string& str);
         Expr ParseExpr(const string& str);
         static Parser& GetInstance();
-        
+
     private:
         rule<phrase_scanner_t, ExprClosure::context_t> expr;
         rule<phrase_scanner_t, RelClosure::context_t> rel_rule;
         rule<phrase_scanner_t, IdClosure::context_t> id;
         rule<phrase_scanner_t, RVDefClosure::context_t> rv_def;
         rule<phrase_scanner_t, PathClosure::context_t> path_rule;
-        
+
         subrule< 1, PathClosure::context_t> path;
         subrule< 2, PathEntryClosure::context_t> path_entry;
 
@@ -240,10 +240,10 @@ namespace
         subrule<21, StringLiterClosure::context_t> string_liter;
         subrule<22, ExprClosure::context_t> bool_liter;
         subrule<23, FieldExprClosure::context_t> field_expr;
-        
-        
+
+
         Lookuper lookuper_;
-        
+
         Parser();
     };
 }
@@ -254,7 +254,7 @@ Parser& Parser::GetInstance()
 {
     static Parser instance;
     return instance;
-}   
+}
 
 
 Rel Parser::ParseRel(const string& str)
@@ -316,7 +316,7 @@ Parser::Parser()
                 ('[' >> id[checked_add(path_entry.val, arg1)] % ',' >> ']') |
                 id[checked_add(path_entry.val, arg1)])
         )[path_rule.val = arg1];
-    
+
     // rel grammar definition
     rel_rule
         = (
@@ -333,7 +333,7 @@ Parser::Parser()
                           rel[union_rel.val = (
                                   construct_<Union>(union_rel.val, arg1))])) >>
                 ')'),
-            
+
             select_rel = (
                 select_header[
                     select_rel.protos = arg1,
@@ -359,7 +359,7 @@ Parser::Parser()
                 path_rule[
                     multi_field_proto.val = (
                         construct_<MultiField>(multi_field_proto.rv, arg1))]),
-            
+
             expr_proto = (
                 id[expr_proto.name = arg1] >> ':' >>
                 expr[expr_proto.val = construct_<NamedExpr>(expr_proto.name,
@@ -367,14 +367,14 @@ Parser::Parser()
 
             rv_proto = (
                 id[rv_proto.val = lookup])
-                
-            
+
+
             )[rel_rule.val = arg1];
 
 
 #define UNARY(subexpr)                                          \
     (subexpr[EXPR.val = construct_<Unary>(EXPR.op, (arg1))])
-    
+
 #define BINARY(subexpr)                                 \
     (subexpr[EXPR.val = construct_<Binary>(EXPR.op,     \
                                            (EXPR.val),  \
@@ -410,10 +410,10 @@ Parser::Parser()
                                                     EXPR.rvs,
                                                     arg1)]))) |
                 SUBST(cond_expr)),
-            
+
 #undef EXPR
 #define EXPR cond_expr
-            
+
             EXPR = (
                 SUBST(log_or_expr) >>
                 !('?' >> expr[cond_expr.yes = arg1] >>
@@ -422,7 +422,7 @@ Parser::Parser()
                           construct_<Cond>((cond_expr.val),
                                            (cond_expr.yes),
                                            (arg1)))])),
-            
+
 #undef EXPR
 #define EXPR log_or_expr
 
@@ -430,7 +430,7 @@ Parser::Parser()
                 SUBST(log_and_expr) >>
                 *(OP(str_p("||"), BinaryOp::LOG_OR) >>
                   BINARY(log_and_expr))),
-            
+
 #undef EXPR
 #define EXPR log_and_expr
 
@@ -438,7 +438,7 @@ Parser::Parser()
                 SUBST(eq_expr) >>
                 *(OP(str_p("&&"), BinaryOp::LOG_AND) >>
                   BINARY(eq_expr))),
-            
+
 #undef EXPR
 #define EXPR eq_expr
 
@@ -447,7 +447,7 @@ Parser::Parser()
                 *((OP(str_p("=="), BinaryOp::EQ) |
                    OP(str_p("!="), BinaryOp::NE)) >>
                   BINARY(rel_expr))),
-            
+
 #undef EXPR
 #define EXPR rel_expr
 
@@ -461,7 +461,7 @@ Parser::Parser()
 
 #undef EXPR
 #define EXPR add_expr
-            
+
             EXPR = (
                 SUBST(mul_expr) >>
                 *((OP(ch_p('+'), BinaryOp::SUM) |
@@ -480,17 +480,17 @@ Parser::Parser()
 
 #undef EXPR
 #define EXPR unary_expr
-            
+
             EXPR = (
                 ((OP(ch_p('+'), UnaryOp::PLUS) |
                   OP(ch_p('-'), UnaryOp::MINUS) |
                   OP(ch_p('!'), UnaryOp::NEG)) >>
                  UNARY(prim_expr)) |
                 SUBST(prim_expr)),
-                                           
+
 #undef EXPR
 #define EXPR prim_expr
-            
+
             EXPR = (
                 SUBST(number_liter) |
                 SUBST(bool_liter)   |
@@ -502,13 +502,13 @@ Parser::Parser()
 
 #undef EXPR
 #define EXPR number_liter
-            
+
             EXPR = (
                 LITER(real_p, Type::NUMBER, arg1)),
 
 #undef EXPR
 #define EXPR string_liter
-            
+
             EXPR = (
                 lexeme_d[
                     LITER((confix_p('"',
@@ -522,7 +522,7 @@ Parser::Parser()
 
 #undef EXPR
 #define EXPR bool_liter
-            
+
             EXPR = (
                 LITER(keyword_p("true"), Type::BOOL, true) |
                 LITER(keyword_p("false"), Type::BOOL, false)),
@@ -535,7 +535,7 @@ Parser::Parser()
                   (('.' >> epsilon_p(~ch_p('['))) | epsilon_p('['))) |
                  epsilon_p[EXPR.rv = lookup("")]) >>
                 path_rule[EXPR.val = construct_<MultiField>(EXPR.rv, arg1)])
-            
+
             )[expr.val = arg1];
 
 #undef UNARY

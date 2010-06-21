@@ -92,7 +92,7 @@ namespace
         return tag == BinaryOp::LOG_AND || tag == BinaryOp::LOG_OR;
     }
 
-    
+
     bool IsComparison(BinaryOp::Tag tag)
     {
         switch (tag) {
@@ -148,7 +148,7 @@ Type BinaryOp::GetCommonType(Type left_type, Type right_type) const
     if (tag_ == SUM && (left_type == Type::STRING ||
                         right_type == Type::STRING))
         return Type::STRING;
-    
+
     return Type::NUMBER;
 }
 
@@ -209,7 +209,7 @@ Type UnaryOp::GetOpType() const
     default:
         KU_ASSERT_EQUAL(tag_, NEG);
         return Type::BOOL;
-    }   
+    }
 }
 
 
@@ -223,7 +223,7 @@ string UnaryOp::GetPgStr() const
     default:
         KU_ASSERT_EQUAL(tag_, NEG);
         return "NOT";
-    }    
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,7 +254,7 @@ namespace
         virtual Type GetType() const {
             return Type::NUMBER;
         }
-        
+
         virtual PgLiter GetPgLiter() const {
             return PgLiter((repr_ != repr_
                             ? "'NaN'::float8"
@@ -265,7 +265,7 @@ namespace
                             : lexical_cast<string>(repr_)),
                            false);
         }
-        
+
         virtual bool Get(double& d, string& /*s*/) const {
             d = repr_;
             return false;
@@ -275,20 +275,20 @@ namespace
         double repr_;
     };
 
-    
+
     class StringValue : public Value::Impl {
     public:
         StringValue(const string& repr)
             : repr_(repr) {}
-        
+
         virtual Type GetType() const {
             return Type::STRING;
         }
-        
+
         virtual PgLiter GetPgLiter() const {
             return PgLiter(repr_, true);
         }
-        
+
         virtual bool Get(double& /*d*/, string& s) const {
             s = repr_;
             return true;
@@ -303,15 +303,15 @@ namespace
     public:
         BooleanValue(bool repr)
             : repr_(repr) {}
-        
+
         virtual Type GetType() const {
             return Type::BOOL;
         }
-        
+
         virtual PgLiter GetPgLiter() const {
             return PgLiter(repr_ ? "true" : "false", false);
         }
-        
+
         virtual bool Get(double& d, string& /*s*/) const {
             d = repr_;
             return false;
@@ -319,7 +319,7 @@ namespace
 
     private:
         bool repr_;
-    };    
+    };
 
 
     class DateValue : public Value::Impl {
@@ -328,20 +328,20 @@ namespace
             static const ptime epoch(date(1970,1,1));
             return epoch;
         }
-        
+
         DateValue(const ptime& repr)
             : repr_(repr) {}
-        
+
         virtual Type GetType() const {
             return Type::DATE;
         }
-        
+
         virtual PgLiter GetPgLiter() const {
             ostringstream oss;
             oss << '\'' << repr_ << "'::" + GetType().GetPgStr();
             return PgLiter(oss.str(), false);
         }
-        
+
         virtual bool Get(double& d, string& /*s*/) const {
             d = (repr_ - GetEpoch()).total_milliseconds();
             return false;
@@ -363,7 +363,7 @@ namespace
     public:
         JSONValue(const string& repr)
             : StringValue(repr) {}
-        
+
         virtual Type GetType() const {
             return Type::JSON;
         }
@@ -385,7 +385,7 @@ namespace
         }
     }
 
-    
+
     Value::Impl* CreateValueImplByString(Type type, const string& s)
     {
         if (type == Type::STRING) {
@@ -475,7 +475,7 @@ ostream& ku::operator<<(ostream& os, const Header& header)
         print_sep();
         os << '"' << attr.GetName() << "\": "
            << Quoted(attr.GetType().GetKuStr());
-    }   
+    }
     os << '}';
     return os;
 }

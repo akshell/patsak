@@ -11,21 +11,21 @@
 namespace ku
 {
     extern std::string log_prefix;
-    
+
     void Log(const std::string& message);
 
     std::string Backtrace();
 
     void Fail(const std::string& message) __attribute__((noreturn));
-    
+
     void FailOnAssertion(
         const std::string& file,
         int line,
         const std::string& pretty_function,
         const std::string& assertion,
         const std::string& message = "") __attribute__((noreturn));
-    
-    
+
+
     inline void Assert(const std::string& file,
                        int line,
                        const std::string& pretty_function,

@@ -33,10 +33,10 @@ namespace ku
 
     extern v8::Persistent<v8::Object> js_error_classes;
 
-    
+
     class Propagate {};
 
-    
+
     void ThrowError(const ku::Error& err);
     std::string Stringify(v8::Handle<v8::Value> value);
     void CheckArgsLength(const v8::Arguments& args, int length);
@@ -49,7 +49,7 @@ namespace ku
                      const std::string& name,
                      v8::InvocationCallback callback);
 
-    
+
     template <typename OwnerT, typename PropT>
     void Set(v8::Handle<OwnerT> owner,
              const std::string& name,
@@ -66,7 +66,7 @@ namespace ku
         Prop(v8::Handle<v8::Value> key, v8::Handle<v8::Value> value)
             : key(key), value(value) {}
     };
-    
+
 
     class PropEnumerator {
     public:
@@ -78,7 +78,7 @@ namespace ku
         size_t GetSize() const {
             return size_;
         }
-        
+
         Prop GetProp(size_t index) const {
             v8::Handle<v8::Value> key(keys_->Get(v8::Integer::New(index)));
             v8::Handle<v8::Value> value(object_->Get(key));
@@ -106,13 +106,13 @@ namespace ku
         v8::Handle<v8::ObjectTemplate> GetObjectTemplate() const;
         static void InitConstructors(v8::Handle<v8::Object> holder);
         v8::Handle<v8::Function> GetFunction();
-        
+
     protected:
         JSClassBase(const std::string& name,
                     v8::InvocationCallback constructor = 0);
-        
+
         ~JSClassBase();
-        
+
         void* Cast(v8::Handle<v8::Value> value);
         v8::Handle<v8::ObjectTemplate> GetProtoTemplate() const;
 
@@ -125,8 +125,8 @@ namespace ku
 
         static std::vector<JSClassBase*>& GetInstancePtrs();
     };
-    
-    
+
+
     template <typename T>
     class JSClass : public JSClassBase {
     public:
@@ -224,8 +224,8 @@ namespace ku
     {
         return T::GetJSClass().Instantiate(new T(arg1, arg2, arg3, arg4));
     }
-    
-    
+
+
     template <typename T>
     T& GetBg(v8::Handle<v8::Value> holder)
     {
@@ -236,7 +236,7 @@ namespace ku
                             js_class.GetName() + " object was expected");
         return *bg_ptr;
     }
-    
+
 
     class Watcher : public boost::noncopyable {
     public:
@@ -258,7 +258,7 @@ namespace ku
         };
 
         static bool TimedOut() { return timed_out_; }
-        
+
     private:
         static bool initialized_;
         static bool timed_out_;
@@ -284,7 +284,7 @@ namespace ku
 #define DECLARE_JS_CLASS(cls)                                           \
     static ku::JSClass<cls>& GetJSClass();                              \
     static void AdjustTemplates(v8::Handle<v8::ObjectTemplate>,         \
-                                v8::Handle<v8::ObjectTemplate>)    
+                                v8::Handle<v8::ObjectTemplate>)
 
 
 #define DEFINE_JS_CONSTRUCTOR(cls, name, constructor,                   \

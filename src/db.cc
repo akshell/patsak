@@ -32,7 +32,7 @@ namespace
     const size_t MAX_REL_VAR_NUMBER = 500;
     const size_t MAX_STRING_SIZE = 1024 * 1024;
     const uint64_t QUOTA_MULTIPLICATOR = 1024 * 1024;
-    
+
 #ifdef TEST
     const size_t ADDED_SIZE_MULTIPLICATOR = 16;
     const size_t CHANGED_ROWS_COUNT_LIMIT = 10;
@@ -166,7 +166,7 @@ namespace
 {
     class DBMeta;
 
-    
+
     class RelVar {
     public:
         RelVar(pqxx::work& work, const string& name);
@@ -214,7 +214,7 @@ namespace
         StringSet ReadAttrNames(const string& pg_array) const;
 
         void PrintUniqueKey(ostream& os, const StringSet& unique_key) const;
-        
+
         void PrintForeignKey(ostream& os,
                              const DBMeta& meta,
                              const ForeignKey& foreign_key) const;
@@ -222,11 +222,11 @@ namespace
         void PrintCheck(ostream& os,
                         const Translator& translator,
                         const string& check) const;
-        
+
         void InitHeader();
     };
-    
-    
+
+
     typedef vector<RelVar> RelVars;
 
 
@@ -236,7 +236,7 @@ namespace
         const RelVar& Get(const string& rel_var_name) const;
         RelVar& Get(const string& rel_var_name);
         const RelVars& GetAll() const;
-        
+
         void Create(pqxx::work& work,
                     const Translator& translator,
                     const string& rel_var_name,
@@ -244,7 +244,7 @@ namespace
                     const UniqueKeySet& unique_key_set,
                     const ForeignKeySet& foreign_key_set,
                     const Strings& checks);
-        
+
         void Drop(pqxx::work& work, const StringSet& rel_var_names);
 
     private:
@@ -370,7 +370,7 @@ RelVar::RelVar(pqxx::work& work,
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
         if (rich_attr.GetTrait() == Type::SERIAL)
             oss << (format(alter_sequence_cmd) % name % rich_attr.GetName());
-    
+
     work.exec(oss.str());
 }
 
@@ -968,7 +968,7 @@ namespace
         void CommitHappened();
         const DBMeta& GetMeta() const;
         DBMeta& ChangeMeta();
-    
+
     private:
         boost::scoped_ptr<DBMeta> meta_;
         string schema_name_;
@@ -1023,7 +1023,7 @@ namespace
         virtual const Header& GetHeader(const string& rel_var_name) const;
         virtual string Quote(const PgLiter& pg_liter) const;
         virtual RelVarAttrs GetReference(const RelVarAttrs& key) const;
-        
+
     private:
         const Manager& manager_;
         Quoter quoter_;
@@ -1435,7 +1435,7 @@ size_t Access::Update(const string& rel_var_name,
                       const Drafts& expr_params)
 {
     db_impl_.GetQuotaChecker().Check(*work_ptr_);
-    
+
     const RichHeader& rich_header(GetRichHeader(rel_var_name));
     uint64_t size = 0;
     BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map) {
@@ -1621,7 +1621,7 @@ namespace
         return Error(Error::NO_SUCH_APP, "No such app: \"" + name + '"');
     }
 
-    
+
     Strings StringsFromQueryResult(const pqxx::result& pqxx_result)
     {
         Strings result;

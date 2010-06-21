@@ -39,7 +39,7 @@ namespace ku
                       (!owner_name.empty() && !spot_name.empty()));
         }
     };
-    
+
 
     class Program {
     public:
@@ -49,9 +49,9 @@ namespace ku
                 const std::string& app_media_path,
                 const std::string& release_media_path,
                 DB& db);
-        
+
         ~Program();
-        
+
         std::auto_ptr<Response> Process(
             const std::string& user,
             const Chars& request,
@@ -63,7 +63,7 @@ namespace ku
                                      const Chars& expr);
 
         bool IsDead() const;
-        
+
     private:
         class Impl;
         boost::scoped_ptr<Impl> pimpl_;

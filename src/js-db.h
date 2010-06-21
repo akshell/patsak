@@ -12,7 +12,7 @@ namespace ku
     extern v8::Persistent<v8::Function> stringify_json_func;
     extern v8::Persistent<v8::Function> parse_json_func;
 
-    
+
     class DBBg {
     public:
         DECLARE_JS_CLASS(DBBg);
@@ -23,10 +23,10 @@ namespace ku
     private:
         const bool priviliged_;
         bool rolled_back_;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RollBackCb,
                              const v8::Arguments&);
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, QueryCb,
                              const v8::Arguments&) const;
 
@@ -35,7 +35,7 @@ namespace ku
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CreateCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DropCb,
                              const v8::Arguments&) const;
 
@@ -44,61 +44,61 @@ namespace ku
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetHeaderCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetIntegerCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetSerialCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetDefaultCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetUniqueCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetForeignCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, InsertCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DelCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, UpdateCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, AddAttrsCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DropAttrsCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, AddDefaultCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DropDefaultCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, AddConstrsCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, DropAllConstrsCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetAppDescriptionCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetAdminedAppsCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetDevelopedAppsCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetAppsByLabelCb,
                              const v8::Arguments&) const;
-        
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, GetUserEmailCb,
                              const v8::Arguments&) const;
     };

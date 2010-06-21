@@ -18,7 +18,7 @@ namespace ku
     class OmitInvoker {
     public:
         typedef boost::function<void ()> Func;
-    
+
         OmitInvoker(Func func, int count = 1)
             : func_(func), count_(count) {}
 
@@ -28,7 +28,7 @@ namespace ku
             else
                 func_();
         }
-    
+
     private:
         Func func_;
         int count_;
@@ -52,7 +52,7 @@ namespace ku
     inline std::string Quoted(const std::string& str) {
         return '"' + str + '"';
     }
-    
+
 
     inline Types GetValuesTypes(const Values& values)
     {
@@ -86,12 +86,12 @@ namespace ku
         T& Get()                  { return boost::get<T>(data_);  }
         const T* GetPtr()   const { return boost::get<T>(&data_); }
         T* GetPtr()               { return boost::get<T>(&data_); }
-        
+
     private:
         struct Null {};
-        
+
         boost::variant<Null, T> data_;
-    };    
+    };
 }
 
 #endif // UTILS_H

@@ -49,7 +49,7 @@ def _popen(*args, **kwds):
                  'stderr': subprocess.PIPE,
                  })
     return subprocess.Popen(*args, **kwds)
-                 
+
 
 class Test(unittest.TestCase):
     def _check_launch(self, args, code=0, program=None):
@@ -108,7 +108,7 @@ class Test(unittest.TestCase):
                           BAD_APP_NAME])
         self.assertEqual(process.stdout.read().split('\n')[0], 'ERROR')
         self.assertEqual(process.wait(), 0)
-        
+
     def _connect(self, path):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(path)
@@ -126,7 +126,7 @@ class Test(unittest.TestCase):
         # populating media dir with initial data to test FSBg initialization
         os.mkdir(MEDIA_DIR + '/release/test-app/dir')
         open(MEDIA_DIR + '/release/test-app/dir/file', 'w').write('hello')
-        
+
         _popen([PATSAK_FILE,
                 '--config-file', CONFIG_FILE,
                 '--wait', '1',
@@ -146,9 +146,9 @@ class Test(unittest.TestCase):
 
         def talk(message):
             return self._talk_through_socket(socket_path, message)
-        
+
         self.assertEqual(talk('STATUS'), 'OK\n')
-        
+
         self.assertEqual(talk('PROCESS 2+2'), 'OK\n4')
         self.assertEqual(talk('PROCESS\nDATA 0\n\nREQUEST 3\n2+2'), 'OK\n4')
         self.assertEqual(talk('PROCESS\nUSER anton\nEXPR 6\nmain()'), 'OK\n0')
@@ -179,14 +179,14 @@ class Test(unittest.TestCase):
         # Timed out test. Long to run.
 #         self.assertEqual(talk('PROCESS for (;;) main();'),
 #                          'ERROR\n<Timed out>')
-        
+
         sock = self._connect(socket_path)
         sock.send('PROCESS\nREQUEST 3\n')
         time.sleep(0.1)
         sock.send('2+2')
         self.assertEqual(sock.recv(4096), 'OK\n4')
         sock.close()
-        
+
         self.assertEqual(talk('UNKNOWN'),
                          'FAIL\nUnknown request: UNKNOWN')
         self.assertEqual(talk('PROCESS\nREQUEST 3 hi!\n2+2'),
@@ -201,7 +201,7 @@ class Test(unittest.TestCase):
                          'FAIL\nFILE is not supported by EXPR')
         self.assertEqual(talk('PROCESS\nISSUER test-app\nEXPR 3\n2+2'),
                          'FAIL\nISSUER is not supported by EXPR')
-        
+
         self.assertEqual(talk('PROCESS _core.app.spot'),
                          'OK\nundefined')
         self.assertEqual(talk('STOP'), 'OK\n')
@@ -220,7 +220,7 @@ class Test(unittest.TestCase):
                                    APP_NAME, USER_NAME, SPOT_NAME)
         def talk(message):
             return self._talk_through_socket(socket_path, message)
-        
+
         self.assertEqual(talk('PROCESS\nREQUEST 1\n1'),
                          'ERROR\nmain is not a function')
         self.assertEqual(talk('PROCESS pass'), 'OK\ntrue')
@@ -233,13 +233,13 @@ class Test(unittest.TestCase):
         self.assertEqual(talk('PROCESS s="x"; while(1) s+=s'),
                          'ERROR\n<Out of memory>')
         self.assertRaises(socket.error, self._connect, socket_path)
-        
-        
+
+
 def _create_schema(cursor, schema_name):
     cursor.execute('DROP SCHEMA IF EXISTS "%s" CASCADE' % schema_name)
     cursor.execute('SELECT ku.create_schema(%s)', (schema_name,))
-    
-        
+
+
 def _create_db():
     conn = psycopg2.connect(DB_PARAMS % 'template1')
     conn.set_isolation_level(0)
@@ -275,12 +275,12 @@ def _drop_db():
             raise
     conn.close()
 
-    
+
 def _make_dir_tree(base_dir):
     os.makedirs(os.path.join(base_dir, 'release'));
     os.makedirs(os.path.join(base_dir, 'spots', APP_NAME, USER_NAME))
 
-    
+
 def _make_dirs():
     if os.path.exists(TMP_DIR):
         shutil.rmtree(TMP_DIR)
@@ -290,7 +290,7 @@ def _make_dirs():
     os.mkdir(os.path.join(MEDIA_DIR, 'release', APP_NAME))
     os.mkdir(os.path.join(MEDIA_DIR, 'release', 'another-app'))
 
-    
+
 def _write_config():
     with open(CONFIG_FILE, 'w') as f:
         f.write('''
@@ -307,7 +307,7 @@ log-file=%s
        SOCKET_DIR, GUARD_DIR, MEDIA_DIR,
        LOG_FILE))
 
-    
+
 def main():
     if len(sys.argv) != 2:
         print 'Usage: ', sys.argv[0], ' dir'
@@ -320,12 +320,12 @@ def main():
     _create_db()
     _make_dirs()
     _write_config()
-    
+
     unittest.TextTestRunner(verbosity=2).run(suite)
-    
+
     _popen(['killall', '-w', 'patsak'])
     shutil.rmtree(TMP_DIR)
-    
-        
+
+
 if __name__ == '__main__':
     main()

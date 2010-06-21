@@ -43,7 +43,7 @@ namespace
         string expr_;
     };
 
-    
+
     ostream& operator<<(ostream& os, const Casted& casted)
     {
         if (casted.cast_func_.empty())
@@ -80,7 +80,7 @@ namespace
             BindUnit(const RangeVar& rv, const Header& header)
                 : rv(rv), header(header) {}
         };
-        
+
         typedef vector<BindUnit> BindData;
 
         // Scope for binding rangevars.
@@ -108,12 +108,12 @@ namespace
             ostream* old_os_ptr_;
             ostringstream os_;
         };
-        
+
         Control(const DBViewer& db_viewer, const Drafts& params);
 
         const Header& LookupBind(const RangeVar& rv) const;
         Header TranslateRel(const Rel& rel);
-        
+
         Type TranslateExpr(const Expr& expr,
                            const RangeVar* this_rv_ptr,
                            Type needed_type = Type::DUMMY);
@@ -143,7 +143,7 @@ namespace
     public:
         RelTranslator(Control& control)
             : control_(control) {}
-        
+
         Header operator()(const Base& base) const;
         Header operator()(const Select& select) const;
         Header operator()(const Union& un) const;
@@ -154,11 +154,11 @@ namespace
         Control::BindData BindSelect(const Select& select) const;
     };
 
-    
+
     class ExprTranslator : public static_visitor<Type> {
     public:
         ExprTranslator(Control& control, const RangeVar* this_rv_ptr);
-        
+
         Type operator()(const Liter& liter) const;
         Type operator()(const MultiField& multi_field) const;
         Type operator()(const PosArg& pos_arg) const;
@@ -195,7 +195,7 @@ const Header& Control::LookupBind(const RangeVar& rv) const
                 return bind_unit.header;
     }
     throw Error(Error::QUERY, "Rangevar \"" + rv.GetName() + "\" is unbound");
-    
+
 }
 
 
@@ -314,7 +314,7 @@ Control::StringScope::~StringScope()
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
-{    
+{
     typedef orset<RangeVar> RangeVarSet;
 
 
@@ -399,7 +399,7 @@ namespace
     public:
         ProtoRangeVarCollector(RangeVarSet& rvs)
             : rvs_(rvs) {}
-        
+
         void operator()(const RangeVar& rv) const;
         void operator()(const MultiField& multi_field) const;
         void operator()(const NamedExpr& ne) const;
@@ -408,7 +408,7 @@ namespace
         RangeVarSet& rvs_;
     };
 }
-    
+
 
 void ProtoRangeVarCollector::operator()(const RangeVar& rv) const
 {
@@ -460,7 +460,7 @@ void ProtoTranslator::operator()(const RangeVar& rv)
     const Header& rv_header(control_.LookupBind(rv));
     BOOST_FOREACH(const Attr& attr, rv_header)
         AddAttr(attr);
-    
+
     control_ << Quoted(rv.GetName()) << ".*";
 }
 
@@ -603,7 +603,7 @@ void SelectBuilder::BuildWhere(const Expr& expr,
     }
     control_ << " WHERE ";
     control_.TranslateExpr(expr, this_rv_ptr, Type::BOOL);
-}       
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // FieldTranslator definitons
@@ -724,7 +724,7 @@ string FieldTranslator::FollowReference(const string& rel_var_name,
                    << Quoted(ref.rel_var_name)
                    << '.' << Quoted(ref.attr_names[i]);
     }
-    
+
     return ref.rel_var_name;
 }
 

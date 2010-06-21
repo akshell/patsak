@@ -35,14 +35,14 @@ namespace ku
         }
     };
 
-    
+
     typedef orset<ForeignKey> ForeignKeySet;
     typedef orset<StringSet> UniqueKeySet;
-        
+
     ////////////////////////////////////////////////////////////////////////////
     // DB
     ////////////////////////////////////////////////////////////////////////////
-    
+
     class Access;
 
 
@@ -54,18 +54,18 @@ namespace ku
         ~DB();
         uint64_t GetDBQuota() const;
         uint64_t GetFSQuota() const;
-        
+
     private:
         class Impl;
         friend class Access;
-        
+
         boost::scoped_ptr<Impl> pimpl_;
     };
 
     ////////////////////////////////////////////////////////////////////////////
     // Access
     ////////////////////////////////////////////////////////////////////////////
-    
+
     class RichAttr {
     public:
         RichAttr(const std::string& name,
@@ -86,7 +86,7 @@ namespace ku
         boost::shared_ptr<Value> default_ptr_;
     };
 
-    
+
     typedef orset<RichAttr, ByNameComparator<RichAttr>, ByNameFinder<RichAttr> >
     RichHeader;
 
@@ -125,7 +125,7 @@ namespace ku
     public:
         explicit Access(DB& db);
         ~Access();
-        
+
         void Commit();
 
         StringSet GetNames() const;
@@ -137,15 +137,15 @@ namespace ku
 
         const ForeignKeySet&
         GetForeignKeySet(const std::string& rel_var_name) const;
-        
+
         void Create(const std::string& name,
                     const RichHeader& rich_header,
                     const UniqueKeySet& unique_key_set,
                     const ForeignKeySet& foreign_keys,
                     const Strings& checks);
-        
+
         void Drop(const StringSet& rel_var_names);
-        
+
         QueryResult Query(const std::string& query,
                           const Drafts& query_params = Drafts(),
                           const Strings& by_exprs = Strings(),
@@ -155,7 +155,7 @@ namespace ku
 
         size_t Count(const std::string& query,
                      const Drafts& params = Drafts()) const;
-        
+
         size_t Update(const std::string& rel_var_name,
                       const std::string& where,
                       const Drafts& where_params,
@@ -165,13 +165,13 @@ namespace ku
         size_t Delete(const std::string& rel_var_name,
                       const std::string& where,
                       const Drafts& params = Drafts());
-        
+
         Values Insert(const std::string& rel_var_name,
                       const DraftMap& draft_map);
 
         void AddAttrs(const std::string& rel_var_name,
                       const RichHeader& rich_attrs);
-        
+
         void DropAttrs(const std::string& rel_var_name,
                        const StringSet& attr_names);
 
@@ -187,7 +187,7 @@ namespace ku
                         const Strings& checks);
 
         void DropAllConstrs(const std::string& rel_var_name);
-        
+
         std::string GetAppPatsakVersion(const std::string& name) const;
         void CheckAppExists(const std::string& name) const;
         App DescribeApp(const std::string& name) const;
@@ -199,7 +199,7 @@ namespace ku
 
     private:
         class WorkWrapper;
-        
+
         DB::Impl& db_impl_;
         boost::scoped_ptr<WorkWrapper> work_ptr_;
     };

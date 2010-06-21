@@ -16,7 +16,7 @@
 namespace ku
 {
     ////////////////////////////////////////////////////////////////////////////
-    
+
     class Error : public std::runtime_error {
     public:
         enum Tag {
@@ -52,10 +52,10 @@ namespace ku
             ENTRY_IS_NOT_DIR,
             FILE_IS_READ_ONLY
         };
-        
+
         Error(Tag tag, const std::string& msg)
             : std::runtime_error(msg), tag_(tag) {}
-        
+
         Tag GetTag() const { return tag_; }
 
     private:
@@ -99,7 +99,7 @@ namespace ku
         bool operator<(Type other) const {
             return tag_ < other.tag_;
         }
-        
+
     private:
         Tag tag_;
     };
@@ -110,7 +110,7 @@ namespace ku
     public:
         std::string str;
         bool quote_me;
-        
+
         explicit PgLiter(const std::string& str, bool quote_it)
             : str(str), quote_me(quote_it) {}
     };
@@ -127,7 +127,7 @@ namespace ku
         Value(Type type, const char* c);
         Value(Type type, bool b);
         ~Value();
-        
+
         Type GetType() const;
         PgLiter GetPgLiter() const;
         bool Get(double& d, std::string& s) const;
@@ -153,7 +153,7 @@ namespace ku
             EQ,
             NE,
             LOG_AND,
-            LOG_OR            
+            LOG_OR
         };
 
         BinaryOp(Tag tag) : tag_(tag) {} // implicit
@@ -182,10 +182,10 @@ namespace ku
 
     private:
         Tag tag_;
-    };        
+    };
 
     ////////////////////////////////////////////////////////////////////////////
-    
+
     class Attr : private boost::equality_comparable<Attr> {
     public:
         Attr(const std::string& name, Type type)
@@ -194,7 +194,7 @@ namespace ku
         const std::string& GetName() const { return name_; }
 
         Type GetType() const { return type_; }
-            
+
     private:
         std::string name_;
         Type type_;
@@ -209,7 +209,7 @@ namespace ku
         }
     };
 
-    
+
     template <typename T>
     class ByNameFinder : public std::binary_function<T, std::string, bool> {
     public:
@@ -233,21 +233,21 @@ namespace ku
     {
         return header.find(attr_name).GetType();
     }
-    
-    
+
+
     // Print header in ku style
     std::ostream& operator<<(std::ostream& os, const Header& header);
-    
+
     ////////////////////////////////////////////////////////////////////////////
 
     class Draft {
     public:
         class Impl;
-        
+
         Draft(Impl* pimpl);
         ~Draft();
         Value Get(Type type = Type::DUMMY) const;
-        
+
     private:
         boost::shared_ptr<Impl> pimpl_;
     };
