@@ -287,14 +287,19 @@ namespace ku
                                 v8::Handle<v8::ObjectTemplate>)    
 
 
-#define DEFINE_JS_CLASS(cls, name, object_template, proto_template)     \
+#define DEFINE_JS_CONSTRUCTOR(cls, name, constructor,                   \
+                              object_template, proto_template)          \
     ku::JSClass<cls>& cls::GetJSClass() {                               \
-        static ku::JSClass<cls> result(name);                           \
+        static ku::JSClass<cls> result(name, constructor);              \
         return result;                                                  \
     }                                                                   \
     void cls::AdjustTemplates(                                          \
         v8::Handle<v8::ObjectTemplate> object_template,                 \
         v8::Handle<v8::ObjectTemplate> proto_template)
+
+
+#define DEFINE_JS_CLASS(cls, name, object_template, proto_template)     \
+    DEFINE_JS_CONSTRUCTOR(cls, name, 0, object_template, proto_template)
 
 
 #define DECLARE_JS_CALLBACK1(T, name, T1)                     \

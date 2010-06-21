@@ -146,15 +146,8 @@ namespace
 }
 
 
-JSClass<ScriptBg>& ScriptBg::GetJSClass()
-{
-    static JSClass<ScriptBg> result("Script", ConstructorCb);
-    return result;
-}
-
-
-void ScriptBg::AdjustTemplates(Handle<ObjectTemplate> /*object_template*/,
-                               Handle<ObjectTemplate> proto_template)
+DEFINE_JS_CONSTRUCTOR(ScriptBg, "Script", ConstructorCb,
+                      /*object_template*/, proto_template)
 {
     SetFunction(proto_template, "_run", RunCb);
 }
@@ -262,15 +255,8 @@ namespace
 }
 
 
-JSClass<ProxyBg>& ProxyBg::GetJSClass()
-{
-    static JSClass<ProxyBg> result("Proxy", ConstructorCb);
-    return result;
-}
-
-
-void ProxyBg::AdjustTemplates(Handle<ObjectTemplate> object_template,
-                              Handle<ObjectTemplate> /*proto_template*/)
+DEFINE_JS_CONSTRUCTOR(ProxyBg, "Proxy", ConstructorCb,
+                      object_template, /*proto_template*/)
 {
     object_template->SetNamedPropertyHandler(GetNamedCb,
                                              SetNamedCb,

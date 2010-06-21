@@ -141,15 +141,8 @@ BinaryBg::Holder::~Holder()
 // BinaryBg
 ////////////////////////////////////////////////////////////////////////////////
 
-JSClass<BinaryBg>& BinaryBg::GetJSClass()
-{
-    static JSClass<BinaryBg> result("Binary", ConstructorCb);
-    return result;
-}
-
-
-void BinaryBg::AdjustTemplates(Handle<ObjectTemplate> object_template,
-                               Handle<ObjectTemplate> proto_template)
+DEFINE_JS_CONSTRUCTOR(BinaryBg, "Binary", ConstructorCb,
+                      object_template, proto_template)
 {
     object_template->SetAccessor(String::NewSymbol("length"), GetLengthCb,
                                  0, Handle<v8::Value>(), DEFAULT,
