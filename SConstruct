@@ -88,8 +88,7 @@ env.AlwaysBuild(env.Alias('test',
                           all,
                           'python test/test.py exe/' + env['mode']))
 
-env.AlwaysBuild(env.Alias('doc', None, 'doxygen'))
-env.AlwaysBuild(env.Alias('clean', None, 'rm -rf obj exe cov doc'))
+env.AlwaysBuild(env.Alias('clean', None, 'rm -rf obj exe cov'))
 
 ################################################################################
 
