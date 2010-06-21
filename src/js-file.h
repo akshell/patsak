@@ -31,10 +31,13 @@ namespace ku
 
         static v8::Handle<v8::Object>
         New(std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>());
+        
+        static v8::Handle<v8::Object> New(const BinaryBg& parent,
+                                          size_t start = 0,
+                                          size_t stop = MINUS_ONE);
 
         const char* GetData() const;
         size_t GetSize() const;
-
 
     private:
         class Holder;

@@ -18,6 +18,7 @@ COMMON_FLAGS = {
         'boost_date_time-mt',
         'boost_program_options-mt',
         'boost_thread-mt',
+        'http_parser',
         ],
     'variables': vars,
     }

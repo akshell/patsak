@@ -5,6 +5,7 @@ Script = _core.Script;
 Proxy = _core.Proxy;
 Binary = _core.Binary;
 Binary.prototype.toString = Binary.prototype._toString;
+HTTPParser = _core.HTTPParser;
 db = _core.db;
 fs = _core.fs;
 
@@ -438,6 +439,156 @@ var baseTestSuite = {
             }
           })),
       []);
+  },
+
+  testHTTPParser: function () {
+    assertSame(HTTPParser(), undefined);
+      assertThrow(ValueError, "new HTTPParser('bad', {})");
+    assertThrow(TypeError, "new HTTPParser('request', 42)");
+    assertThrow(TypeError, "new HTTPParser('request', {})._exec(42)");
+    [
+      'DELETE',
+      'GET',
+      'HEAD',
+      'POST',
+      'PUT',
+      'CONNECT',
+      'OPTIONS',
+      'TRACE',
+      'COPY',
+      'LOCK',
+      'MKCOL',
+      'MOVE',
+      'PROPFIND',
+      'PROPPATCH',
+      'UNLOCK'
+    ].forEach(
+      function (method) {
+        var parsed;
+        new HTTPParser(
+          'request',
+          {onHeadersComplete: function (info) { parsed = info.method; }})._exec(
+            new Binary(method + ' / HTTP/1.0\r\n\r\n'));
+        assertSame(parsed, method);
+      });
+    var binary = new Binary('GET /some/path?a=1&b=2#fragment HTTP/1.0\r\n\r\n');
+    function E() {}
+    ['onMessageBegin', 'onPath', 'onHeadersComplete'].forEach(
+      function (name) {
+        assertThrow(
+          E,
+          function () {
+            var handler = {};
+            handler[name] = function () { throw new E(); };
+            new HTTPParser('request', handler)._exec(binary);
+          });
+        });
+    var Handler = function () {
+      this.history = [];
+    };
+    Handler.prototype = {
+      onMessageBegin: function () {
+        this.history.push(['onMessageBegin']);
+      },
+
+      onMessageComplete: function () {
+        this.history.push(['onMessageComplete']);
+      },
+
+      onHeadersComplete: function (info) {
+        this.history.push(['onHeadersComplete'].concat(items(info)));
+      }
+    };
+    [
+      'onPath',
+      'onUrl',
+      'onFragment',
+      'onQueryString',
+      'onHeaderField',
+      'onHeaderValue',
+      'onBody'
+    ].forEach(
+      function (name) {
+        Handler.prototype[name] = function (data) {
+          this.history.push([name, data + '']);
+        };
+      });
+    var handler = new Handler();
+    new HTTPParser('request', {})._exec(binary);
+    new HTTPParser('request', handler)._exec(binary);
+    assertEqual(
+      handler.history,
+      [
+        ['onMessageBegin'],
+        ['onPath', '/some/path'],
+        ['onQueryString', 'a=1&b=2'],
+        ['onUrl', '/some/path?a=1&b=2#fragment'],
+        ['onFragment', 'fragment'],
+        [
+          'onHeadersComplete',
+          ['method', 'GET'],
+          ['versionMajor', 1],
+          ['versionMinor', 0],
+          ['shouldKeepAlive', false],
+          ['upgrade', false]
+        ],
+        ['onMessageComplete']
+      ]);
+    handler = new Handler();
+    var parser = new HTTPParser('request', handler);
+    [
+      'POST /path/script.cgi HTTP/1.1\r\nContent-Type: application/',
+      'x-www-form-urlencoded\r\nContent-',
+      'Length: 32\r\nHost: example.com\r\n\r\nhome=Cosby&',
+      'favorite+flavor=flies'
+    ].forEach(function (s) { parser._exec(new Binary(s)); });
+    assertEqual(
+      handler.history,
+      [
+        ['onMessageBegin'],
+        ['onUrl', '/path/script.cgi'],
+        ['onPath', '/path/script.cgi'],
+        ['onHeaderField', 'Content-Type'],
+        ['onHeaderValue', 'application/'],
+        ['onHeaderValue', 'x-www-form-urlencoded'],
+        ['onHeaderField', 'Content-'],
+        ['onHeaderField', 'Length'],
+        ['onHeaderValue', '32'],
+        ['onHeaderField', 'Host'],
+        ['onHeaderValue', 'example.com'],
+        [
+          'onHeadersComplete',
+          ['method', 'POST'],
+          ['versionMajor', 1],
+          ['versionMinor', 1],
+          ['shouldKeepAlive', true],
+          ['upgrade', false]
+        ],
+        ['onBody', 'home=Cosby&'],
+        ['onBody', 'favorite+flavor=flies'],
+        ['onMessageComplete']
+      ]);
+    assertThrow(ValueError, function () { parser._exec(new Binary('bla')); });
+    handler = new Handler();
+    new HTTPParser('response', handler)._exec(
+      new Binary('HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nyo'));
+    assertEqual(
+      handler.history,
+      [
+        ['onMessageBegin'],
+        ['onHeaderField', 'Content-Length'],
+        ['onHeaderValue', '2'],
+        [
+          'onHeadersComplete',
+          ['status', 200],
+          ['versionMajor', 1],
+          ['versionMinor', 1],
+          ['shouldKeepAlive', true],
+          ['upgrade', false]
+        ],
+        ['onBody', 'yo'],
+        ['onMessageComplete']
+      ]);
   }
 };
 

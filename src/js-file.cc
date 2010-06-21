@@ -355,6 +355,14 @@ Handle<Object> BinaryBg::New(auto_ptr<Chars> data_ptr)
 }
 
 
+v8::Handle<v8::Object> BinaryBg::New(const BinaryBg& parent,
+                                     size_t start,
+                                     size_t stop)
+{
+    return (new BinaryBg(parent, start, stop))->Wrap();
+}
+
+
 DEFINE_JS_CALLBACK2(Handle<v8::Value>, BinaryBg, GetLengthCb,
                     Local<String>, /*property*/,
                     const AccessorInfo&, /*info*/) const
