@@ -39,10 +39,10 @@
     defineErrorClass('Usage'),
     defineErrorClass('NotImplemented'),
 
-    defineErrorClass('RequestHost'),
     defineErrorClass('NoSuchApp'),
     defineErrorClass('NoSuchUser'),
     defineErrorClass('Conversion'),
+    defineErrorClass('Socket'),
 
     _core.DBError,
     defineErrorClass('RelVarExists', _core.DBError),

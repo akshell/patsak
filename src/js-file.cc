@@ -13,6 +13,8 @@
 #include <errno.h>
 #include <dirent.h>
 #include <iconv.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 
 using namespace ku;
@@ -607,11 +609,73 @@ int64_t FileBg::ChangeScope::GetAllocatedSize() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// BaseFileBg definitions
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_JS_CLASS(BaseFileBg, "BaseFile", object_template, proto_template)
+{
+    object_template->SetAccessor(String::NewSymbol("closed"),
+                                 GetClosedCb, 0,
+                                 Handle<v8::Value>(), DEFAULT,
+                                 ReadOnly | DontDelete);
+    SetFunction(proto_template, "_close", CloseCb);
+
+}
+
+
+BaseFileBg::BaseFileBg(int fd)
+    : fd_(fd)
+{
+    if (fd == -1)
+        throw MakeErrnoError();
+}
+
+
+BaseFileBg::~BaseFileBg()
+{
+    Close();
+}
+
+
+void BaseFileBg::Close()
+{
+    if (fd_ != -1) {
+        int ret = close(fd_);
+        KU_ASSERT_EQUAL(ret, 0);
+        fd_ = -1;
+    }
+}
+
+
+void BaseFileBg::CheckOpen() const
+{
+    if (fd_ == -1)
+        throw Error(Error::VALUE, "File is already closed");
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, BaseFileBg, GetClosedCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/) const
+{
+    return Boolean::New(fd_ == -1);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, BaseFileBg, CloseCb,
+                    const Arguments&, /*args*/)
+{
+    Close();
+    return Undefined();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // FileBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(FileBg, "File", object_template, proto_template)
+DEFINE_JS_SUBCLASS(FileBg, "File", BaseFileBg, object_template, proto_template)
 {
+    BaseFileBg::AdjustTemplates(object_template, proto_template);
     object_template->SetAccessor(String::NewSymbol("length"),
                                  GetLengthCb, SetLengthCb,
                                  Handle<v8::Value>(), DEFAULT,
@@ -624,11 +688,6 @@ DEFINE_JS_CLASS(FileBg, "File", object_template, proto_template)
                                  GetWritableCb, 0,
                                  Handle<v8::Value>(), DEFAULT,
                                  ReadOnly | DontDelete);
-    object_template->SetAccessor(String::NewSymbol("closed"),
-                                 GetClosedCb, 0,
-                                 Handle<v8::Value>(), DEFAULT,
-                                 ReadOnly | DontDelete);
-    SetFunction(proto_template, "_close", CloseCb);
     SetFunction(proto_template, "_flush", FlushCb);
     SetFunction(proto_template, "_read", ReadCb);
     SetFunction(proto_template, "_write", WriteCb);
@@ -636,43 +695,19 @@ DEFINE_JS_CLASS(FileBg, "File", object_template, proto_template)
 
 
 FileBg::FileBg(const string& path, FSQuotaChecker* quota_checker_ptr)
-    : path_(path)
-    , fd_(quota_checker_ptr
-          ? open(path.c_str(), O_CLOEXEC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)
-          : open(path.c_str(), O_CLOEXEC | O_RDONLY))
+    : BaseFileBg(
+        quota_checker_ptr
+        ? open(path.c_str(), O_CLOEXEC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)
+        : open(path.c_str(), O_CLOEXEC | O_RDONLY))
+    , path_(path)
     , quota_checker_ptr_(quota_checker_ptr)
 {
-    if (fd_ == -1)
-        throw MakeErrnoError();
-}
-
-
-FileBg::~FileBg()
-{
-    Close();
 }
 
 
 string FileBg::GetPath() const
 {
     return path_;
-}
-
-
-void FileBg::Close()
-{
-    if (fd_ != -1) {
-        int ret = close(fd_);
-        KU_ASSERT_EQUAL(ret, 0);
-        fd_ = -1;
-    }
-}
-
-
-void FileBg::CheckOpen() const
-{
-    if (fd_ == -1)
-        throw Error(Error::VALUE, "File is already closed");
 }
 
 
@@ -736,22 +771,6 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetWritableCb,
 }
 
 
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetClosedCb,
-                    Local<String>, /*property*/,
-                    const AccessorInfo&, /*info*/) const
-{
-    return Boolean::New(fd_ == -1);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, CloseCb,
-                    const Arguments&, /*args*/)
-{
-    Close();
-    return Undefined();
-}
-
-
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, FlushCb,
                     const Arguments&, args) const
 {
@@ -784,6 +803,95 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, WriteCb,
     ssize_t count = write(fd_, binarizator.GetData(), binarizator.GetSize());
     KU_ASSERT_EQUAL(count, static_cast<ssize_t>(binarizator.GetSize()));
     return args.This();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// SocketBg definitions
+////////////////////////////////////////////////////////////////////////////////
+
+const size_t SocketBg::MAX_OPEN_COUNT = 100;
+size_t SocketBg::open_count = 0;
+
+
+DEFINE_JS_SUBCLASS(SocketBg, "Socket", BaseFileBg,
+                   object_template, proto_template)
+{
+    BaseFileBg::AdjustTemplates(object_template, proto_template);
+    SetFunction(proto_template, "_receive", ReceiveCb);
+    SetFunction(proto_template, "_send", SendCb);
+}
+
+
+int SocketBg::Connect(const std::string& host, const std::string& service)
+{
+    if (open_count >= MAX_OPEN_COUNT)
+        throw Error(Error::SOCKET, "Too many open sockets");
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    struct addrinfo* first_info_ptr;
+    if (int ret = getaddrinfo(host.c_str(), service.c_str(),
+                              &hints, &first_info_ptr))
+        throw Error(Error::SOCKET, gai_strerror(ret));
+    int fd;
+    struct addrinfo* info_ptr = first_info_ptr;
+    for (; info_ptr; info_ptr = info_ptr->ai_next) {
+        fd = socket(info_ptr->ai_family,
+                    info_ptr->ai_socktype,
+                    info_ptr->ai_protocol);
+        KU_ASSERT(fd != -1);
+        if (connect(fd, info_ptr->ai_addr, info_ptr->ai_addrlen) != -1)
+            break;
+        close(fd);
+    }
+    freeaddrinfo(first_info_ptr);
+    if (!info_ptr)
+        throw Error(Error::SOCKET, "Failed to connect");
+    ++open_count;
+    return fd;
+}
+
+
+SocketBg::SocketBg(const string& host, const string& service)
+    : BaseFileBg(Connect(host, service))
+{
+}
+
+
+void SocketBg::Close()
+{
+    if (fd_ != -1)
+        --open_count;
+    BaseFileBg::Close();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, SocketBg, ReceiveCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    CheckOpen();
+    size_t size = args[0]->Uint32Value();
+    auto_ptr<Chars> data_ptr(new Chars(size));
+    ssize_t received = recv(fd_, &data_ptr->front(), size, 0);
+    if (received == -1)
+        throw Error(Error::SOCKET, strerror(errno));
+    data_ptr->resize(received);
+    return BinaryBg::New(data_ptr);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, SocketBg, SendCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    CheckOpen();
+    Binarizator binarizator(args[0]);
+    ssize_t sent = send(fd_, binarizator.GetData(), binarizator.GetSize(), 0);
+    if (sent == -1)
+        throw Error(Error::SOCKET, strerror(errno));
+    return Integer::New(sent);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -833,6 +941,7 @@ DEFINE_JS_CLASS(FSBg, "FS", object_template, /*proto_template*/)
 {
     BinaryBg::GetJSClass();
     FileBg::GetJSClass();
+    SocketBg::GetJSClass();
     SetFunction(object_template, "open", OpenCb);
     SetFunction(object_template, "exists", ExistsCb);
     SetFunction(object_template, "isDir", IsDirCb);
@@ -842,6 +951,7 @@ DEFINE_JS_CLASS(FSBg, "FS", object_template, /*proto_template*/)
     SetFunction(object_template, "createDir", CreateDirCb);
     SetFunction(object_template, "remove", RemoveCb);
     SetFunction(object_template, "rename", RenameCb);
+    SetFunction(object_template, "connect", ConnectCb);
 }
 
 
@@ -968,4 +1078,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RenameCb,
     if (rename(from_path.c_str(), to_path.c_str()) == -1)
         throw MakeErrnoError();
     return Undefined();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ConnectCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 2);
+    return JSNew<SocketBg>(Stringify(args[0]), Stringify(args[1]));
 }

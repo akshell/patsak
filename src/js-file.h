@@ -31,7 +31,7 @@ namespace ku
 
         static v8::Handle<v8::Object>
         New(std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>());
-        
+
         static v8::Handle<v8::Object> New(const BinaryBg& parent,
                                           size_t start = 0,
                                           size_t stop = MINUS_ONE);
@@ -101,26 +101,45 @@ namespace ku
     };
 
 
+    class BaseFileBg {
+    public:
+        DECLARE_JS_CLASS(BaseFileBg);
+
+        virtual void Close();
+
+    protected:
+        int fd_;
+
+        BaseFileBg(int fd);
+        virtual ~BaseFileBg();
+        void CheckOpen() const;
+
+    private:
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetClosedCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CloseCb,
+                             const v8::Arguments&);
+    };
+
+
     class FSQuotaChecker;
 
 
-    class FileBg {
+    class FileBg : public BaseFileBg {
     public:
         DECLARE_JS_CLASS(FileBg);
 
         FileBg(const std::string& path, FSQuotaChecker* quota_checker_ptr = 0);
-        ~FileBg();
         std::string GetPath() const;
-        void Close();
 
     private:
         class ChangeScope;
 
         std::string path_;
-        int fd_;
         FSQuotaChecker* quota_checker_ptr_;
 
-        void CheckOpen() const;
         size_t GetSize() const;
 
         DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetLengthCb,
@@ -145,13 +164,6 @@ namespace ku
                              v8::Local<v8::String>,
                              const v8::AccessorInfo&) const;
 
-        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetClosedCb,
-                             v8::Local<v8::String>,
-                             const v8::AccessorInfo&) const;
-
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CloseCb,
-                             const v8::Arguments&);
-
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, FlushCb,
                              const v8::Arguments&) const;
 
@@ -159,6 +171,27 @@ namespace ku
                              const v8::Arguments&) const;
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, WriteCb,
+                             const v8::Arguments&) const;
+    };
+
+
+    class SocketBg : public BaseFileBg {
+    public:
+        DECLARE_JS_CLASS(SocketBg);
+
+        SocketBg(const std::string& host, const std::string& service);
+        virtual void Close();
+
+    private:
+        static const size_t MAX_OPEN_COUNT;
+        static size_t open_count;
+
+        static int Connect(const std::string& host, const std::string& service);
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ReceiveCb,
+                             const v8::Arguments&) const;
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, SendCb,
                              const v8::Arguments&) const;
     };
 
@@ -208,6 +241,9 @@ namespace ku
                              const v8::Arguments&);
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RenameCb,
+                             const v8::Arguments&) const;
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ConnectCb,
                              const v8::Arguments&) const;
     };
 }

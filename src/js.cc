@@ -7,9 +7,6 @@
 #include "db.h"
 
 #include <boost/foreach.hpp>
-#include <boost/thread.hpp>
-#include <boost/bind.hpp>
-#include <asio.hpp>
 #include <http_parser.h>
 
 #include <setjmp.h>
@@ -18,10 +15,6 @@
 using namespace ku;
 using namespace std;
 using namespace v8;
-using boost::scoped_ptr;
-using boost::bind;
-using boost::noncopyable;
-using asio::ip::tcp;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -669,9 +662,6 @@ namespace
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ConstructCb,
                              const Arguments&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, RequestHostCb,
-                             const Arguments&) const;
     };
 }
 
@@ -687,7 +677,6 @@ DEFINE_JS_CLASS(CoreBg, "Core", object_template, /*proto_template*/)
     SetFunction(object_template, "getCodeModDate", GetCodeModDateCb);
     SetFunction(object_template, "hash", HashCb);
     SetFunction(object_template, "construct", ConstructCb);
-    SetFunction(object_template, "requestHost", RequestHostCb);
     Set(object_template, "db", DBBg::GetJSClass().GetObjectTemplate());
     Set(object_template, "fs", FSBg::GetJSClass().GetObjectTemplate());
 }
@@ -790,42 +779,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, ConstructCb,
     for (size_t i = 0; i < array->Length(); ++i)
         values.push_back(array->Get(Integer::New(i)));
     return constructor->NewInstance(array->Length(), &values[0]);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, RequestHostCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 3);
-    asio::io_service io_service;
-    tcp::resolver resolver(io_service);
-    tcp::resolver::query query(Stringify(args[0]), Stringify(args[1]));
-    tcp::socket socket(io_service);
-    try {
-        asio::error_code error_code = asio::error::host_not_found;
-        for (tcp::resolver::iterator itr = resolver.resolve(query);
-             itr != tcp::resolver::iterator();
-             ++itr)
-            if (!socket.connect(*itr, error_code))
-                break;
-        if (error_code)
-            throw asio::system_error(error_code);
-        Binarizator binarizator(args[2]);
-        if (binarizator.GetSize())
-            asio::write(socket,
-                        asio::buffer(binarizator.GetData(),
-                                     binarizator.GetSize()),
-                        asio::transfer_all());
-        asio::streambuf streambuf;
-        asio::read(socket, streambuf, asio::transfer_all(), error_code);
-        if (error_code != asio::error::eof)
-            throw asio::system_error(error_code);
-        const char* data_ptr = asio::buffer_cast<const char*>(streambuf.data());
-        return BinaryBg::New(
-            auto_ptr<Chars>(new Chars(data_ptr, data_ptr + streambuf.size())));
-    } catch (const asio::system_error& error) {
-        throw Error(Error::REQUEST_HOST, error.what());
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -79,6 +79,7 @@ void ku::SetFunction(Handle<Template> template_,
 ////////////////////////////////////////////////////////////////////////////////
 
 JSClassBase::JSClassBase(const string& name,
+                         JSClassBase* parent_ptr,
                          v8::InvocationCallback constructor)
     : name_(name)
     , function_template_(FunctionTemplate::New(constructor))
@@ -87,6 +88,8 @@ JSClassBase::JSClassBase(const string& name,
     function_template_->SetClassName(String::New(name.c_str()));
     GetObjectTemplate()->SetInternalFieldCount(1);
     cast_js_classes_.push_back(function_template_);
+    if (parent_ptr)
+        parent_ptr->cast_js_classes_.push_back(function_template_);
 }
 
 

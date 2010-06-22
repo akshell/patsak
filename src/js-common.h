@@ -109,6 +109,7 @@ namespace ku
 
     protected:
         JSClassBase(const std::string& name,
+                    JSClassBase* parent_ptr = 0,
                     v8::InvocationCallback constructor = 0);
 
         ~JSClassBase();
@@ -131,6 +132,7 @@ namespace ku
     class JSClass : public JSClassBase {
     public:
         JSClass(const std::string& name,
+                JSClassBase* parent_ptr = 0,
                 v8::InvocationCallback constructor = 0);
 
         v8::Handle<v8::Object> Instantiate(T* bg_ptr);
@@ -146,8 +148,9 @@ namespace ku
 
 template <typename T>
 ku::JSClass<T>::JSClass(const std::string& name,
+                        JSClassBase* parent_ptr,
                         v8::InvocationCallback constructor)
-    : JSClassBase(name, constructor)
+    : JSClassBase(name, parent_ptr, constructor)
 {
     T::AdjustTemplates(GetObjectTemplate(), GetProtoTemplate());
 }
@@ -287,15 +290,34 @@ namespace ku
                                 v8::Handle<v8::ObjectTemplate>)
 
 
-#define DEFINE_JS_CONSTRUCTOR(cls, name, constructor,                   \
-                              object_template, proto_template)          \
+#define DO_DEFINE_JS_SUBCONSTRUCTOR(cls, name, parent_ptr, constructor, \
+                                    object_template, proto_template)    \
     ku::JSClass<cls>& cls::GetJSClass() {                               \
-        static ku::JSClass<cls> result(name, constructor);              \
+        static ku::JSClass<cls> result(name, parent_ptr, constructor);  \
         return result;                                                  \
     }                                                                   \
     void cls::AdjustTemplates(                                          \
         v8::Handle<v8::ObjectTemplate> object_template,                 \
         v8::Handle<v8::ObjectTemplate> proto_template)
+
+
+#define DEFINE_JS_SUBCONSTRUCTOR(cls, name, parent, constructor,        \
+                                 object_template, proto_template)       \
+    DO_DEFINE_JS_SUBCONSTRUCTOR(                                        \
+        cls, name, &parent::GetJSClass(), constructor,                  \
+        object_template, proto_template)
+
+
+#define DEFINE_JS_SUBCLASS(cls, name, parent,                           \
+                           object_template, proto_template)             \
+    DEFINE_JS_SUBCONSTRUCTOR(                                           \
+        cls, name, parent, 0, object_template, proto_template)
+
+
+#define DEFINE_JS_CONSTRUCTOR(cls, name, constructor,                   \
+                              object_template, proto_template)          \
+    DO_DEFINE_JS_SUBCONSTRUCTOR(                                        \
+        cls, name, 0, constructor, object_template, proto_template)
 
 
 #define DEFINE_JS_CLASS(cls, name, object_template, proto_template)     \

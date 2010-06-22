@@ -26,8 +26,7 @@ DONT_DELETE = 1 << 2;
   'getCodeModDate',
   'set',
   'hash',
-  'construct',
-  'requestHost'
+  'construct'
 ].forEach(
   function (name) {
     var func = _core[name];
@@ -336,14 +335,6 @@ var baseTestSuite = {
     assertThrow(UsageError, construct);
     assertThrow(TypeError, construct, 42, []);
     assertThrow(TypeError, construct, function () {}, 42);
-  },
-
-  testRequestHost: function () {
-    var response = requestHost('example.com', 80,
-                               'GET / HTTP/1.0\r\n\r\n') + '';
-    assertSame(response.substr(0, response.indexOf('\r')), 'HTTP/1.1 200 OK');
-    assert(response.indexOf('2606') != -1);
-    assertThrow(RequestHostError, requestHost, 'bad host name', 80, '');
   },
 
   testProxy: function () {
@@ -1497,6 +1488,24 @@ var fileTestSuite = {
     binary = new Binary();
     assertSame(hex(binary._md5()), 'd41d8cd98f00b204e9800998ecf8427e');
     assertSame(hex(binary._sha1()), 'da39a3ee5e6b4b0d3255bfef95601890afd80709');
+  },
+
+  testConnect: function () {
+    assertThrow(SocketError, "fs.connect('bad host', 'http')");
+    assertThrow(SocketError, "fs.connect('localhost', '666')");
+    var socket = fs.connect('example.com', 'http');
+    var request = 'GET / HTTP/1.0\r\n\r\n';
+    assertSame(socket._send(request), request.length);
+    var response = socket._receive(15);
+    assertSame(response + '', 'HTTP/1.1 200 OK');
+    assert(!socket.closed);
+    socket._close();
+    assert(socket.closed);
+    assertThrow(ValueError, function () { socket._send('yo'); });
+//     var sockets = [];
+//     for (var i = 0; i < 100; ++i)
+//       sockets.push(fs.connect('example.com', '80'));
+//     assertThrow(SocketError, "fs.connect('example.com', '80')");
   }
 };
 

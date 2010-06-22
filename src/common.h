@@ -27,10 +27,10 @@ namespace ku
             USAGE,
             NOT_IMPLEMENTED,
 
-            REQUEST_HOST,
             NO_SUCH_APP,
             NO_SUCH_USER,
             CONVERSION,
+            SOCKET,
 
             DB,
             REL_VAR_EXISTS,
