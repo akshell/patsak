@@ -17,7 +17,7 @@
 #include <netdb.h>
 
 
-using namespace ku;
+using namespace ak;
 using namespace v8;
 using namespace std;
 using boost::lexical_cast;
@@ -59,7 +59,7 @@ namespace
 // Interface functions
 ////////////////////////////////////////////////////////////////////////////////
 
-auto_ptr<Chars> ku::ReadFile(const string& path)
+auto_ptr<Chars> ak::ReadFile(const string& path)
 {
     int fd = open(path.c_str(), O_RDONLY);
     if (fd == -1)
@@ -80,7 +80,7 @@ auto_ptr<Chars> ku::ReadFile(const string& path)
 }
 
 
-auto_ptr<struct stat> ku::GetStat(const string& path, bool ignore_error)
+auto_ptr<struct stat> ak::GetStat(const string& path, bool ignore_error)
 {
     auto_ptr<struct stat> result(new struct stat());
     if (stat(path.c_str(), result.get()) != -1)
@@ -91,7 +91,7 @@ auto_ptr<struct stat> ku::GetStat(const string& path, bool ignore_error)
 }
 
 
-int ku::GetPathDepth(const string& path)
+int ak::GetPathDepth(const string& path)
 {
     int depth = 0;
     for (size_t from = 0; from < path.size(); ++from) {
@@ -535,7 +535,7 @@ size_t Binarizator::GetSize() const
 // FSQuotaChecker definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-class ku::FSQuotaChecker {
+class ak::FSQuotaChecker {
 public:
     FSQuotaChecker(uint64_t quota, uint64_t size);
     void Check() const;

@@ -10,7 +10,7 @@
 #include <boost/variant.hpp>
 
 
-namespace ku
+namespace ak
 {
     ////////////////////////////////////////////////////////////////////////////
     // ForeignKey, ForeignKeySet, and UniqueKeySet

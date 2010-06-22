@@ -9,7 +9,7 @@
 
 
 using namespace std;
-using namespace ku;
+using namespace ak;
 using namespace v8;
 using boost::ref;
 using boost::shared_ptr;
@@ -19,8 +19,8 @@ using boost::shared_ptr;
 // JSON functions
 ////////////////////////////////////////////////////////////////////////////////
 
-Persistent<Function> ku::stringify_json_func;
-Persistent<Function> ku::parse_json_func;
+Persistent<Function> ak::stringify_json_func;
+Persistent<Function> ak::parse_json_func;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Draft::Impl
@@ -30,7 +30,7 @@ class Draft::Impl {
 public:
     Impl(Handle<v8::Value> v8_value);
     ~Impl();
-    ku::Value Get(Type type) const;
+    ak::Value Get(Type type) const;
 
 private:
     Persistent<v8::Value> v8_value_;
@@ -49,18 +49,18 @@ Draft::Impl::~Impl()
 }
 
 
-ku::Value Draft::Impl::Get(Type type) const
+ak::Value Draft::Impl::Get(Type type) const
 {
     if (type == Type::NUMBER)
-        return ku::Value(type, v8_value_->NumberValue());
+        return ak::Value(type, v8_value_->NumberValue());
     if (type == Type::STRING)
-        return ku::Value(type, Stringify(v8_value_));
+        return ak::Value(type, Stringify(v8_value_));
     if (type == Type::BOOL)
-        return ku::Value(type, v8_value_->BooleanValue());
+        return ak::Value(type, v8_value_->BooleanValue());
     if (type == Type::DATE) {
         if (!v8_value_->IsDate())
             throw Error(Error::TYPE, "Date expected");
-        return ku::Value(type, v8_value_->NumberValue());
+        return ak::Value(type, v8_value_->NumberValue());
     }
     if (type == Type::JSON) {
         Handle<v8::Value> v8_value(v8_value_);
@@ -71,16 +71,16 @@ ku::Value Draft::Impl::Get(Type type) const
             throw Propagate();
         if (!json->IsString())
             throw Error(Error::TYPE, "Cannot serialize a value into JSON");
-        return ku::Value(type, Stringify(json));
+        return ak::Value(type, Stringify(json));
     }
     KU_ASSERT(type == Type::DUMMY);
     if (v8_value_->IsNumber())
-        return ku::Value(Type::NUMBER, v8_value_->NumberValue());
+        return ak::Value(Type::NUMBER, v8_value_->NumberValue());
     if (v8_value_->IsBoolean())
-        return ku::Value(Type::BOOL, v8_value_->BooleanValue());
+        return ak::Value(Type::BOOL, v8_value_->BooleanValue());
     if (v8_value_->IsDate())
-        return ku::Value(Type::DATE, v8_value_->NumberValue());
-    return ku::Value(Type::STRING, Stringify(v8_value_));
+        return ak::Value(Type::DATE, v8_value_->NumberValue());
+    return ak::Value(Type::STRING, Stringify(v8_value_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +98,7 @@ Draft::~Draft()
 }
 
 
-ku::Value Draft::Get(Type type) const
+ak::Value Draft::Get(Type type) const
 {
     return pimpl_->Get(type);
 }
@@ -132,7 +132,7 @@ namespace
     }
 
 
-    Handle<v8::Value> MakeV8Value(const ku::Value& ku_value)
+    Handle<v8::Value> MakeV8Value(const ak::Value& ku_value)
     {
         Type type(ku_value.GetType());
         double d;
@@ -314,7 +314,7 @@ namespace
 
         Type GetType() const;
         Type::Trait GetTrait() const;
-        const ku::Value* GetDefaultPtr() const;
+        const ak::Value* GetDefaultPtr() const;
         void RetrieveConstrs(const string& attr_name,
                              UniqueKeySet& unique_key_set,
                              ForeignKeySet& foreign_key_set,
@@ -326,17 +326,17 @@ namespace
 
         Type type_;
         Type::Trait trait_;
-        shared_ptr<ku::Value> default_ptr_;
+        shared_ptr<ak::Value> default_ptr_;
         AddedConstrPtrs ac_ptrs_;
 
         friend Handle<Object> JSNew<TypeBg>(Type,
                                             Type::Trait,
-                                            shared_ptr<ku::Value>,
+                                            shared_ptr<ak::Value>,
                                             AddedConstrPtrs);
 
         TypeBg(Type type,
                Type::Trait trait,
-               shared_ptr<ku::Value> default_ptr,
+               shared_ptr<ak::Value> default_ptr,
                const AddedConstrPtrs& ac_ptrs);
 
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetNameCb,
@@ -385,7 +385,7 @@ TypeBg::TypeBg(Type type)
 
 TypeBg::TypeBg(Type type,
                Type::Trait trait,
-               shared_ptr<ku::Value> default_ptr,
+               shared_ptr<ak::Value> default_ptr,
                const AddedConstrPtrs& ac_ptrs)
     : type_(type)
     , trait_(trait)
@@ -407,7 +407,7 @@ Type::Trait TypeBg::GetTrait() const
 }
 
 
-const ku::Value* TypeBg::GetDefaultPtr() const
+const ak::Value* TypeBg::GetDefaultPtr() const
 {
     return default_ptr_.get();
 }
@@ -459,8 +459,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, DefaultCb,
     CheckArgsLength(args, 1);
     if (trait_ == Type::SERIAL)
         throw Error(Error::USAGE, "Default and serial are incompatible");
-    shared_ptr<ku::Value> default_ptr(
-        new ku::Value(CreateDraft(args[0]).Get(type_)));
+    shared_ptr<ak::Value> default_ptr(
+        new ak::Value(CreateDraft(args[0]).Get(type_)));
     return JSNew<TypeBg>(type_, trait_, default_ptr, ac_ptrs_);
 }
 
@@ -823,7 +823,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, AddAttrsCb,
         if (type_ptr->GetTrait() == Type::SERIAL)
             throw Error(Error::NOT_IMPLEMENTED,
                         "Adding of serial attributes is not implemented");
-        ku::Value value(
+        ak::Value value(
             CreateDraft(descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
         rich_attrs.add_sure(RichAttr(Stringify(prop.key),
                                      type_ptr->GetType(),

@@ -25,7 +25,7 @@ namespace v8
 }
 
 
-namespace ku
+namespace ak
 {
     class Access;
     extern Access* access_ptr;
@@ -37,7 +37,7 @@ namespace ku
     class Propagate {};
 
 
-    void ThrowError(const ku::Error& err);
+    void ThrowError(const ak::Error& err);
     std::string Stringify(v8::Handle<v8::Value> value);
     void CheckArgsLength(const v8::Arguments& args, int length);
     v8::Handle<v8::Array> GetArray(v8::Handle<v8::Value> value);
@@ -98,7 +98,7 @@ namespace ku
 // JSClass
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace ku
+namespace ak
 {
     class JSClassBase : boost::noncopyable {
     public:
@@ -147,7 +147,7 @@ namespace ku
 
 
 template <typename T>
-ku::JSClass<T>::JSClass(const std::string& name,
+ak::JSClass<T>::JSClass(const std::string& name,
                         JSClassBase* parent_ptr,
                         v8::InvocationCallback constructor)
     : JSClassBase(name, parent_ptr, constructor)
@@ -157,7 +157,7 @@ ku::JSClass<T>::JSClass(const std::string& name,
 
 
 template <typename T>
-v8::Handle<v8::Object> ku::JSClass<T>::Instantiate(T* bg_ptr)
+v8::Handle<v8::Object> ak::JSClass<T>::Instantiate(T* bg_ptr)
 {
     v8::Handle<v8::Object> result(GetFunction()->NewInstance());
     Attach(result, bg_ptr);
@@ -166,7 +166,7 @@ v8::Handle<v8::Object> ku::JSClass<T>::Instantiate(T* bg_ptr)
 
 
 template <typename T>
-void ku::JSClass<T>::Attach(v8::Handle<v8::Object> object, T* bg_ptr)
+void ak::JSClass<T>::Attach(v8::Handle<v8::Object> object, T* bg_ptr)
 {
     v8::Persistent<v8::Object>::New(object).MakeWeak(bg_ptr, DeleteCb);
     object->SetInternalField(0, v8::External::New(bg_ptr));
@@ -174,14 +174,14 @@ void ku::JSClass<T>::Attach(v8::Handle<v8::Object> object, T* bg_ptr)
 
 
 template <typename T>
-T* ku::JSClass<T>::Cast(v8::Handle<v8::Value> value)
+T* ak::JSClass<T>::Cast(v8::Handle<v8::Value> value)
 {
     return static_cast<T*>(JSClassBase::Cast(value));
 }
 
 
 template <typename T>
-void ku::JSClass<T>::DeleteCb(v8::Persistent<v8::Value> object, void* parameter)
+void ak::JSClass<T>::DeleteCb(v8::Persistent<v8::Value> object, void* parameter)
 {
     delete static_cast<T*>(parameter);
     object.Dispose();
@@ -192,7 +192,7 @@ void ku::JSClass<T>::DeleteCb(v8::Persistent<v8::Value> object, void* parameter)
 // JSClass helpers
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace ku
+namespace ak
 {
     template <typename T>
     v8::Handle<v8::Object> JSNew()
@@ -235,7 +235,7 @@ namespace ku
         JSClass<T>& js_class(T::GetJSClass());
         T* bg_ptr = js_class.Cast(holder);
         if (!bg_ptr)
-            throw ku::Error(ku::Error::TYPE,
+            throw ak::Error(ak::Error::TYPE,
                             js_class.GetName() + " object was expected");
         return *bg_ptr;
     }
@@ -274,26 +274,26 @@ namespace ku
 
 
 #define JS_CATCH(T)                                                     \
-    catch (const ku::Propagate& err) {                                  \
+    catch (const ak::Propagate& err) {                                  \
         return T();                                                     \
-    } catch (const ku::Error& err) {                                    \
-        ku::ThrowError(err);                                            \
+    } catch (const ak::Error& err) {                                    \
+        ak::ThrowError(err);                                            \
         return T();                                                     \
     } catch (const std::exception& err) {                               \
-        ku::Fail(err.what());                                           \
+        ak::Fail(err.what());                                           \
     }
 
 
 #define DECLARE_JS_CLASS(cls)                                           \
-    static ku::JSClass<cls>& GetJSClass();                              \
+    static ak::JSClass<cls>& GetJSClass();                              \
     static void AdjustTemplates(v8::Handle<v8::ObjectTemplate>,         \
                                 v8::Handle<v8::ObjectTemplate>)
 
 
 #define DO_DEFINE_JS_SUBCONSTRUCTOR(cls, name, parent_ptr, constructor, \
                                     object_template, proto_template)    \
-    ku::JSClass<cls>& cls::GetJSClass() {                               \
-        static ku::JSClass<cls> result(name, parent_ptr, constructor);  \
+    ak::JSClass<cls>& cls::GetJSClass() {                               \
+        static ak::JSClass<cls> result(name, parent_ptr, constructor);  \
         return result;                                                  \
     }                                                                   \
     void cls::AdjustTemplates(                                          \
@@ -340,8 +340,8 @@ namespace ku
 
 
 #define JS_CALLBACK_GUARD(T)                        \
-    ku::Watcher::CallbackGuard callback_guard__;    \
-    if (ku::Watcher::TimedOut())                    \
+    ak::Watcher::CallbackGuard callback_guard__;    \
+    if (ak::Watcher::TimedOut())                    \
         return T()
 
 
@@ -350,7 +350,7 @@ namespace ku
     {                                                                   \
         JS_CALLBACK_GUARD(T);                                           \
         try {                                                           \
-            return ku::GetBg<cls>(a1.Holder()).name##Impl(a1);          \
+            return ak::GetBg<cls>(a1.Holder()).name##Impl(a1);          \
         } JS_CATCH(T);                                                  \
     }                                                                   \
     T cls::name##Impl(T1 arg1)
@@ -361,7 +361,7 @@ namespace ku
     {                                                                   \
         JS_CALLBACK_GUARD(T);                                           \
         try {                                                           \
-            return ku::GetBg<cls>(a2.Holder()).name##Impl(a1, a2);      \
+            return ak::GetBg<cls>(a2.Holder()).name##Impl(a1, a2);      \
         } JS_CATCH(T);                                                  \
     }                                                                   \
     T cls::name##Impl(T1 arg1, T2 arg2)
@@ -372,7 +372,7 @@ namespace ku
     {                                                                   \
         JS_CALLBACK_GUARD(T);                                           \
         try {                                                           \
-            return ku::GetBg<cls>(a3.Holder()).name##Impl(a1, a2, a3);  \
+            return ak::GetBg<cls>(a3.Holder()).name##Impl(a1, a2, a3);  \
         } JS_CATCH(T);                                                  \
     }                                                                   \
     T cls::name##Impl(T1 arg1, T2 arg2, T3 arg3)

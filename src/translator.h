@@ -7,7 +7,7 @@
 #include "common.h"
 
 
-namespace ku
+namespace ak
 {
     // Database view provider. Translator accesses database through an instance
     // of subclass of this type.

@@ -12,7 +12,7 @@
 using namespace std;
 using namespace boost::spirit::classic;
 using namespace phoenix;
-using namespace ku;
+using namespace ak;
 using boost::shared_ptr;
 using boost::variant;
 using boost::static_visitor;
@@ -550,13 +550,13 @@ Parser::Parser()
 // Entry points
 ////////////////////////////////////////////////////////////////////////////////
 
-Rel ku::ParseRel(const string& str)
+Rel ak::ParseRel(const string& str)
 {
     return Parser::GetInstance().ParseRel(str);
 }
 
 
-Expr ku::ParseExpr(const string& str)
+Expr ak::ParseExpr(const string& str)
 {
     return Parser::GetInstance().ParseExpr(str);
 }

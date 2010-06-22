@@ -12,7 +12,7 @@
 
 
 using namespace std;
-using namespace ku;
+using namespace ak;
 using boost::lexical_cast;
 using boost::noncopyable;
 using boost::scoped_ptr;
@@ -28,10 +28,10 @@ namespace
 }
 
 
-string ku::log_prefix = "";
+string ak::log_prefix = "";
 
 
-void ku::Log(const string& message)
+void ak::Log(const string& message)
 {
     // Time zone management on linux is so tricky
     // that I preferred to handcode my time zone.
@@ -46,7 +46,7 @@ void ku::Log(const string& message)
 }
 
 
-string ku::Backtrace()
+string ak::Backtrace()
 {
 #ifdef BACKTRACE
     void* buffer[MAX_BACKTRACE_SIZE];
@@ -67,7 +67,7 @@ string ku::Backtrace()
 }
 
 
-void ku::Fail(const string& message)
+void ak::Fail(const string& message)
 {
     Log("Fail: " + message
 #ifdef BACKTRACE
@@ -78,7 +78,7 @@ void ku::Fail(const string& message)
 }
 
 
-void ku::FailOnAssertion(const string& file,
+void ak::FailOnAssertion(const string& file,
                          int line,
                          const string& pretty_function,
                          const string& assertion,

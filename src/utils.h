@@ -12,7 +12,7 @@
 #include <ostream>
 
 
-namespace ku
+namespace ak
 {
     // Functor which passes count times, then calls a given function
     class OmitInvoker {

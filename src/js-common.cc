@@ -9,7 +9,7 @@
 #include <signal.h>
 
 
-using namespace ku;
+using namespace ak;
 using namespace v8;
 using namespace std;
 using boost::lexical_cast;
@@ -19,11 +19,11 @@ using boost::lexical_cast;
 // Stuff
 ////////////////////////////////////////////////////////////////////////////////
 
-Access* ku::access_ptr;
-Persistent<Object> ku::js_error_classes;
+Access* ak::access_ptr;
+Persistent<Object> ak::js_error_classes;
 
 
-void ku::ThrowError(const ku::Error& err)
+void ak::ThrowError(const ak::Error& err)
 {
     Handle<v8::Value> message(String::New(err.what()));
     ThrowException(
@@ -32,14 +32,14 @@ void ku::ThrowError(const ku::Error& err)
 }
 
 
-string ku::Stringify(Handle<v8::Value> value)
+string ak::Stringify(Handle<v8::Value> value)
 {
     String::Utf8Value utf8_value(value);
     return string(*utf8_value, utf8_value.length());
 }
 
 
-void ku::CheckArgsLength(const Arguments& args, int length)
+void ak::CheckArgsLength(const Arguments& args, int length)
 {
     if (args.Length() < length)
         throw Error(Error::USAGE,
@@ -49,7 +49,7 @@ void ku::CheckArgsLength(const Arguments& args, int length)
 }
 
 
-Handle<Array> ku::GetArray(Handle<v8::Value> value)
+Handle<Array> ak::GetArray(Handle<v8::Value> value)
 {
     if (!value->IsArray())
         throw Error(Error::TYPE, "Array required");
@@ -57,13 +57,13 @@ Handle<Array> ku::GetArray(Handle<v8::Value> value)
 }
 
 
-Handle<v8::Value> ku::Get(Handle<Object> object, const string& name)
+Handle<v8::Value> ak::Get(Handle<Object> object, const string& name)
 {
     return object->Get(String::New(name.c_str()));
 }
 
 
-void ku::SetFunction(Handle<Template> template_,
+void ak::SetFunction(Handle<Template> template_,
                      const string& name,
                      InvocationCallback callback)
 {

@@ -9,7 +9,7 @@
 #include <boost/scoped_ptr.hpp>
 
 
-namespace ku
+namespace ak
 {
     class DB;
     class Access;

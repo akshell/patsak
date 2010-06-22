@@ -12,7 +12,7 @@
 
 
 using namespace std;
-using namespace ku;
+using namespace ak;
 using boost::lexical_cast;
 using namespace boost::posix_time;
 using namespace boost::gregorian;
@@ -467,7 +467,7 @@ bool Value::Get(double& d, string& s) const
 // Header
 ///////////////////////////////////////////////////////////////////////////////
 
-ostream& ku::operator<<(ostream& os, const Header& header)
+ostream& ak::operator<<(ostream& os, const Header& header)
 {
     os << '{';
     OmitInvoker print_sep((SepPrinter(os)));

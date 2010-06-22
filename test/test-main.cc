@@ -20,7 +20,7 @@
 #include <fstream>
 
 using namespace std;
-using namespace ku;
+using namespace ak;
 using boost::bind;
 using boost::function;
 using boost::lexical_cast;
@@ -212,7 +212,7 @@ namespace
 }
 
 
-namespace ku
+namespace ak
 {
     ostream& operator<<(ostream&os, const Value& value)
     {
@@ -391,7 +391,7 @@ BOOST_AUTO_TEST_CASE(parser_test)
 // Comparison stuff
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace ku
+namespace ak
 {
     bool operator==(const Value& lhs, const Value& rhs)
     {

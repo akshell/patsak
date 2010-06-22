@@ -12,7 +12,7 @@
 #include <memory>
 
 
-namespace ku
+namespace ak
 {
     template <typename T, typename CompT = std::equal_to<T> >
     class item_finder : public std::binary_function<T, T, bool> {

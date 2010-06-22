@@ -8,7 +8,7 @@
 #include <sstream>
 
 
-namespace ku
+namespace ak
 {
     extern std::string log_prefix;
 
@@ -66,13 +66,13 @@ namespace ku
 #else // NDEBUG
 
 #define KU_ASSERT(cond)                                                 \
-    ku::Assert(__FILE__, __LINE__, __PRETTY_FUNCTION__, cond, #cond)
+    ak::Assert(__FILE__, __LINE__, __PRETTY_FUNCTION__, cond, #cond)
 
 #define KU_ASSERT_MESSAGE(cond, message)        \
-    ku::Assert(__FILE__, __LINE__, __PRETTY_FUNCTION__, cond, #cond, message)
+    ak::Assert(__FILE__, __LINE__, __PRETTY_FUNCTION__, cond, #cond, message)
 
 #define KU_ASSERT_EQUAL(lhs, rhs)                                       \
-    ku::AssertEqual(__FILE__, __LINE__, __PRETTY_FUNCTION__,            \
+    ak::AssertEqual(__FILE__, __LINE__, __PRETTY_FUNCTION__,            \
                     lhs, rhs, #lhs, #rhs)
 
 #endif // NDEBUG

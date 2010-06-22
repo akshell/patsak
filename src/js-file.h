@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 
 
-namespace ku
+namespace ak
 {
     std::auto_ptr<Chars> ReadFile(const std::string& path);
 
