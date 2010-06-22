@@ -237,7 +237,7 @@ class Test(unittest.TestCase):
 
 def _create_schema(cursor, schema_name):
     cursor.execute('DROP SCHEMA IF EXISTS "%s" CASCADE' % schema_name)
-    cursor.execute('SELECT ku.create_schema(%s)', (schema_name,))
+    cursor.execute('SELECT ak.create_schema(%s)', (schema_name,))
 
 
 def _create_db():

@@ -54,7 +54,7 @@ bool Type::IsApplicable(Trait trait) const
 string Type::GetPgStr(Trait trait) const
 {
     static const char* pg_strs[] =
-        {"float8", "text", "bool", "timestamp(3)", "ku.json"};
+        {"float8", "text", "bool", "timestamp(3)", "ak.json"};
 
     KU_ASSERT(tag_ < DUMMY && IsApplicable(trait));
     if (trait == COMMON)
@@ -78,7 +78,7 @@ string Type::GetCastFunc() const
 {
     if (tag_ == DATE || tag_ == JSON)
         throw Error(Error::TYPE, "Cannot coerce any type to " + GetKuStr());
-    return "ku.to_" + GetKuStr();
+    return "ak.to_" + GetKuStr();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

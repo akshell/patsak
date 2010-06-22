@@ -262,7 +262,7 @@ namespace
 RelVar::RelVar(pqxx::work& work, const string& name)
     : name_(name)
 {
-    static const format query("SELECT * FROM ku.describe_table('\"%1%\"');");
+    static const format query("SELECT * FROM ak.describe_table('\"%1%\"');");
     pqxx::result pqxx_result = work.exec((format(query) % name_).str());
     rich_header_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
@@ -376,7 +376,7 @@ RelVar::RelVar(pqxx::work& work,
 
 
 void RelVar::LoadConstrs(pqxx::work& work, const DBMeta& meta) {
-    static const format query("SELECT * FROM ku.describe_constrs('\"%1%\"')");
+    static const format query("SELECT * FROM ak.describe_constrs('\"%1%\"')");
     pqxx::result pqxx_result = work.exec((format(query) % name_).str());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
         KU_ASSERT_EQUAL(tuple.size(), 4U);
@@ -804,7 +804,7 @@ void RelVar::DropAllConstrs(pqxx::work& work)
     if (rich_header_.empty())
         return;
     ostringstream oss;
-    oss << "SELECT ku.drop_all_constrs('" << name_ << "'); "
+    oss << "SELECT ak.drop_all_constrs('" << name_ << "'); "
         << "ALTER TABLE " << Quoted(name_) << " ADD UNIQUE (";
     StringSet unique_key;
     OmitInvoker print_sep((SepPrinter(oss)));
@@ -835,7 +835,7 @@ void RelVar::DropAllConstrs(pqxx::work& work)
 
 DBMeta::DBMeta(pqxx::work& work, const string& schema_name)
 {
-    static const format query("SELECT * FROM ku.get_schema_tables('%1%');");
+    static const format query("SELECT * FROM ak.get_schema_tables('%1%');");
     pqxx::result pqxx_result = work.exec((format(query) % schema_name).str());
     rel_vars_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
@@ -1143,7 +1143,7 @@ void QuotaChecker::Check(pqxx::work& work)
 
 uint64_t QuotaChecker::CalculateTotalSize(pqxx::work& work) const
 {
-    static const format query("SELECT ku.get_schema_size('%1%');");
+    static const format query("SELECT ak.get_schema_size('%1%');");
     pqxx::result pqxx_result(work.exec((format(query) % schema_name_).str()));
     KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
     KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
@@ -1188,9 +1188,9 @@ DB::Impl::Impl(const string& opt,
     , db_viewer_(manager_, Quoter(conn_))
     , translator_(db_viewer_)
 {
-    static const format create_cmd("SELECT ku.create_schema('%1%');");
+    static const format create_cmd("SELECT ak.create_schema('%1%');");
     static const format set_cmd("SET search_path TO \"%1%\", pg_catalog;");
-    static const format quota_query("SELECT * FROM ku.get_app_quotas('%1%');");
+    static const format quota_query("SELECT * FROM ak.get_app_quotas('%1%');");
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
     {
         pqxx::work work(conn_);
@@ -1478,7 +1478,7 @@ size_t Access::Delete(const string& rel_var_name,
 
 Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
 {
-    static const format empty_cmd("SELECT ku.insert_into_empty('%1%');");
+    static const format empty_cmd("SELECT ak.insert_into_empty('%1%');");
     static const format cmd(
         "INSERT INTO \"%1%\" (%2%) VALUES (%3%) RETURNING *;");
     static const format default_cmd(
@@ -1633,7 +1633,7 @@ namespace
 
 string Access::GetAppPatsakVersion(const string& name) const
 {
-    static const format query("SELECT ku.get_app_patsak_version(%1%);");
+    static const format query("SELECT ak.get_app_patsak_version(%1%);");
     pqxx::result pqxx_result(
         work_ptr_->exec((format(query) % work_ptr_->quote(name)).str()));
     KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
@@ -1652,9 +1652,9 @@ void Access::CheckAppExists(const string& name) const
 
 App Access::DescribeApp(const string& name) const
 {
-    static const format app_query("SELECT * FROM ku.describe_app(%1%);");
-    static const format devs_query("SELECT * FROM ku.get_app_devs(%1%);");
-    static const format labels_query("SELECT * FROM ku.get_app_labels(%1%);");
+    static const format app_query("SELECT * FROM ak.describe_app(%1%);");
+    static const format devs_query("SELECT * FROM ak.get_app_devs(%1%);");
+    static const format labels_query("SELECT * FROM ak.get_app_labels(%1%);");
     pqxx::result app_pqxx_result =
         work_ptr_->exec((format(app_query) % work_ptr_->quote(name)).str());
     KU_ASSERT(app_pqxx_result.size() < 2);
@@ -1676,7 +1676,7 @@ App Access::DescribeApp(const string& name) const
 
 string Access::GetUserEmail(const string& user_name) const
 {
-    static const format query("SELECT ku.get_user_email(%1%);");
+    static const format query("SELECT ak.get_user_email(%1%);");
     pqxx::result pqxx_result =
         work_ptr_->exec((format(query) % work_ptr_->quote(user_name)).str());
     KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
@@ -1711,21 +1711,21 @@ namespace
 
 Strings Access::GetAdminedApps(const string& user_name) const
 {
-    static const format query("SELECT * FROM ku.get_admined_apps(%1%);");
+    static const format query("SELECT * FROM ak.get_admined_apps(%1%);");
     return GetApps(*this, *work_ptr_, query, user_name);
 }
 
 
 Strings Access::GetDevelopedApps(const string& user_name) const
 {
-    static const format query("SELECT * FROM ku.get_developed_apps(%1%);");
+    static const format query("SELECT * FROM ak.get_developed_apps(%1%);");
     return GetApps(*this, *work_ptr_, query, user_name);
 }
 
 
 Strings Access::GetAppsByLabel(const string& label_name) const
 {
-    static const format query("SELECT * FROM ku.get_apps_by_label(%1%);");
+    static const format query("SELECT * FROM ak.get_apps_by_label(%1%);");
     return StringsFromQueryResult(
         work_ptr_->exec((format(query) % work_ptr_->quote(label_name)).str()));
 }

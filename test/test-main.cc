@@ -1105,7 +1105,7 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
         "\"flooder\" = "
         "((\"User\".\"id\" = 0) OR NOT \"User\".\"flooder\"), "
         "\"name\" = "
-        "((\"User\".\"name\" || ku.to_string(\"User\".\"id\")) || 'abc') "
+        "((\"User\".\"name\" || ak.to_string(\"User\".\"id\")) || 'abc') "
         "WHERE ((\"User\".\"id\" % 2) = 0)");
 }
 

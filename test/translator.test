@@ -62,7 +62,7 @@ FROM "User"
 *(
 User where User.id % 2
 **
-SELECT DISTINCT "User".* FROM "User" WHERE ku.to_bool(("User"."id" % 2))
+SELECT DISTINCT "User".* FROM "User" WHERE ak.to_bool(("User"."id" % 2))
 *)
 
 *(
@@ -77,11 +77,11 @@ FROM (SELECT DISTINCT ("User"."name" = 'Vasya') AS "is_vasya", "User"."name"
 *(
 {strange: User.id ? User.name : -Post.id ? Post.id : Post.title == User.name}
 **
-SELECT DISTINCT (CASE WHEN ku.to_bool("User"."id")
+SELECT DISTINCT (CASE WHEN ak.to_bool("User"."id")
                  THEN "User"."name"
-                 ELSE ku.to_string((CASE WHEN ku.to_bool(- "Post"."id")
+                 ELSE ak.to_string((CASE WHEN ak.to_bool(- "Post"."id")
                                          THEN "Post"."id"
-                                         ELSE ku.to_number(("Post"."title" = "User"."name"))
+                                         ELSE ak.to_number(("Post"."title" = "User"."name"))
                                          END))
                  END) AS "strange" FROM "User", "Post"
 *)
@@ -89,7 +89,7 @@ SELECT DISTINCT (CASE WHEN ku.to_bool("User"."id")
 *(
 {name_n_age: User.name + " " + User.age}
 **
-SELECT DISTINCT (("User"."name" || ' ') || ku.to_string("User"."age")) AS "name_n_age"
+SELECT DISTINCT (("User"."name" || ' ') || ak.to_string("User"."age")) AS "name_n_age"
 FROM "User"
 *)
 
