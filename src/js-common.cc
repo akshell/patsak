@@ -78,7 +78,7 @@ void ku::SetFunction(Handle<Template> template_,
 // JSClassBase
 ////////////////////////////////////////////////////////////////////////////////
 
-JSClassBase::JSClassBase(const std::string& name,
+JSClassBase::JSClassBase(const string& name,
                          v8::InvocationCallback constructor)
     : name_(name)
     , function_template_(FunctionTemplate::New(constructor))
@@ -98,7 +98,7 @@ JSClassBase::~JSClassBase()
 }
 
 
-std::string JSClassBase::GetName() const
+string JSClassBase::GetName() const
 {
     return name_;
 }

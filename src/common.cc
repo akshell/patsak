@@ -422,7 +422,7 @@ Value::Value(Type type, int i)
 }
 
 
-Value::Value(Type type, const std::string& s)
+Value::Value(Type type, const string& s)
     : pimpl_(CreateValueImplByString(type, s))
 {
 }
@@ -458,7 +458,7 @@ PgLiter Value::GetPgLiter() const
 }
 
 
-bool Value::Get(double& d, std::string& s) const
+bool Value::Get(double& d, string& s) const
 {
     return pimpl_->Get(d, s);
 }

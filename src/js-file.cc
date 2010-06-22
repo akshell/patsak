@@ -57,7 +57,7 @@ namespace
 // Interface functions
 ////////////////////////////////////////////////////////////////////////////////
 
-auto_ptr<Chars> ku::ReadFile(const std::string& path)
+auto_ptr<Chars> ku::ReadFile(const string& path)
 {
     int fd = open(path.c_str(), O_RDONLY);
     if (fd == -1)
@@ -89,7 +89,7 @@ auto_ptr<struct stat> ku::GetStat(const string& path, bool ignore_error)
 }
 
 
-int ku::GetPathDepth(const std::string& path)
+int ku::GetPathDepth(const string& path)
 {
     int depth = 0;
     for (size_t from = 0; from < path.size(); ++from) {
@@ -635,7 +635,7 @@ DEFINE_JS_CLASS(FileBg, "File", object_template, proto_template)
 }
 
 
-FileBg::FileBg(const std::string& path, FSQuotaChecker* quota_checker_ptr)
+FileBg::FileBg(const string& path, FSQuotaChecker* quota_checker_ptr)
     : path_(path)
     , fd_(quota_checker_ptr
           ? open(path.c_str(), O_CLOEXEC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)

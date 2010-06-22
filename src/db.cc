@@ -1607,7 +1607,7 @@ void Access::AddConstrs(const string& rel_var_name,
 }
 
 
-void Access::DropAllConstrs(const std::string& rel_var_name)
+void Access::DropAllConstrs(const string& rel_var_name)
 {
     RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
     rel_var.DropAllConstrs(*work_ptr_);
