@@ -67,7 +67,7 @@ void ak::SetFunction(Handle<Template> template_,
                      const string& name,
                      InvocationCallback callback)
 {
-    KU_ASSERT(!name.empty());
+    AK_ASSERT(!name.empty());
     Set(template_,
         name.c_str(),
         FunctionTemplate::New(callback),
@@ -116,8 +116,8 @@ Handle<ObjectTemplate> JSClassBase::GetObjectTemplate() const
 Handle<Function> JSClassBase::GetFunction()
 {
     if (function_.IsEmpty()) {
-        KU_ASSERT(type_switch_.IsEmpty());
-        KU_ASSERT(!cast_js_classes_.empty());
+        AK_ASSERT(type_switch_.IsEmpty());
+        AK_ASSERT(!cast_js_classes_.empty());
         type_switch_ = Persistent<TypeSwitch>::New(
             TypeSwitch::New(cast_js_classes_.size(), &cast_js_classes_[0]));
         cast_js_classes_.clear();
@@ -134,7 +134,7 @@ void* JSClassBase::Cast(Handle<v8::Value> value)
     if (!type_switch_->match(value))
         return 0;
     Handle<v8::Value> internal_field(value->ToObject()->GetInternalField(0));
-    KU_ASSERT(internal_field->IsExternal());
+    AK_ASSERT(internal_field->IsExternal());
     Handle<External> external = Handle<External>::Cast(internal_field);
     return external->Value();
 }
@@ -144,7 +144,7 @@ void JSClassBase::InitConstructors(Handle<Object> holder)
 {
     BOOST_FOREACH(JSClassBase* class_ptr, GetInstancePtrs()) {
         const string& name(class_ptr->GetName());
-        KU_ASSERT(name.size());
+        AK_ASSERT(name.size());
         Set(holder, name, class_ptr->GetFunction());
     }
 }

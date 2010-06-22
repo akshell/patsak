@@ -66,15 +66,15 @@ auto_ptr<Chars> ak::ReadFile(const string& path)
         throw MakeErrnoError();
     struct stat st;
     int ret = fstat(fd, &st);
-    KU_ASSERT_EQUAL(ret, 0);
+    AK_ASSERT_EQUAL(ret, 0);
     if (S_ISDIR(st.st_mode)) {
         close(fd);
         throw Error(Error::ENTRY_IS_DIR, "Attempt to read directory");
     }
-    KU_ASSERT(S_ISREG(st.st_mode));
+    AK_ASSERT(S_ISREG(st.st_mode));
     auto_ptr<Chars> result(new Chars(st.st_size));
     ssize_t bytes_readen = read(fd, &result->front(), st.st_size);
-    KU_ASSERT_EQUAL(bytes_readen, st.st_size);
+    AK_ASSERT_EQUAL(bytes_readen, st.st_size);
     close(fd);
     return result;
 }
@@ -604,7 +604,7 @@ int64_t FileBg::ChangeScope::GetAllocatedSize() const
 {
     struct stat st;
     int ret = fstat(file_.fd_, &st);
-    KU_ASSERT_EQUAL(ret, 0);
+    AK_ASSERT_EQUAL(ret, 0);
     return st.st_blocks * 512;
 }
 
@@ -641,7 +641,7 @@ void BaseFileBg::Close()
 {
     if (fd_ != -1) {
         int ret = close(fd_);
-        KU_ASSERT_EQUAL(ret, 0);
+        AK_ASSERT_EQUAL(ret, 0);
         fd_ = -1;
     }
 }
@@ -715,7 +715,7 @@ size_t FileBg::GetSize() const
 {
     struct stat st;
     int ret = fstat(fd_, &st);
-    KU_ASSERT_EQUAL(ret, 0);
+    AK_ASSERT_EQUAL(ret, 0);
     return st.st_size;
 }
 
@@ -736,7 +736,7 @@ DEFINE_JS_CALLBACK3(void, FileBg, SetLengthCb,
 {
     ChangeScope change_scope(*this);
     int ret = ftruncate(fd_, value->Uint32Value());
-    KU_ASSERT_EQUAL(ret, 0);
+    AK_ASSERT_EQUAL(ret, 0);
 }
 
 
@@ -746,7 +746,7 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetPositionCb,
 {
     CheckOpen();
     off_t position = lseek(fd_, 0, SEEK_CUR);
-    KU_ASSERT(position != -1);
+    AK_ASSERT(position != -1);
     return Integer::New(position);
 }
 
@@ -758,7 +758,7 @@ DEFINE_JS_CALLBACK3(void, FileBg, SetPositionCb,
 {
     CheckOpen();
     off_t position = lseek(fd_, value->Uint32Value(), SEEK_SET);
-    KU_ASSERT(position != -1);
+    AK_ASSERT(position != -1);
 }
 
 
@@ -776,7 +776,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, FlushCb,
 {
     CheckOpen();
     int ret = fsync(fd_);
-    KU_ASSERT_EQUAL(ret, 0);
+    AK_ASSERT_EQUAL(ret, 0);
     return args.This();
 }
 
@@ -788,7 +788,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, ReadCb,
     auto_ptr<Chars> data_ptr(
         new Chars(args.Length() ? args[0]->Uint32Value() : GetSize()));
     ssize_t count = read(fd_, &data_ptr->front(), data_ptr->size());
-    KU_ASSERT(count != -1);
+    AK_ASSERT(count != -1);
     data_ptr->resize(count);
     return BinaryBg::New(data_ptr);
 }
@@ -801,7 +801,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, WriteCb,
     CheckArgsLength(args, 1);
     Binarizator binarizator(args[0]);
     ssize_t count = write(fd_, binarizator.GetData(), binarizator.GetSize());
-    KU_ASSERT_EQUAL(count, static_cast<ssize_t>(binarizator.GetSize()));
+    AK_ASSERT_EQUAL(count, static_cast<ssize_t>(binarizator.GetSize()));
     return args.This();
 }
 
@@ -840,7 +840,7 @@ int SocketBg::Connect(const std::string& host, const std::string& service)
         fd = socket(info_ptr->ai_family,
                     info_ptr->ai_socktype,
                     info_ptr->ai_protocol);
-        KU_ASSERT(fd != -1);
+        AK_ASSERT(fd != -1);
         if (connect(fd, info_ptr->ai_addr, info_ptr->ai_addrlen) != -1)
             break;
         close(fd);
@@ -908,7 +908,7 @@ namespace
         uint64_t result = st.st_blocks * 512;
         if (S_ISDIR(st.st_mode)) {
             DIR* dir_ptr = opendir(path.c_str());
-            KU_ASSERT(dir_ptr);
+            AK_ASSERT(dir_ptr);
             while (struct dirent* dirent_ptr = readdir(dir_ptr)) {
                 string name(dirent_ptr->d_name);
                 if (name != "." && name != "..")

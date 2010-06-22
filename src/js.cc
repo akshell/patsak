@@ -434,7 +434,7 @@ DEFINE_JS_CALLBACK2(Handle<Boolean>, ProxyBg, DeleteIndexedCb,
 #define DEFINE_HTTP_DATA_CALLBACK(name)                                 \
     static int On##name(http_parser *p, const char *at, size_t size) {  \
         HTTPParserBg* parser = static_cast<HTTPParserBg*>(p->data);     \
-        KU_ASSERT(parser->binary_ptr_);                                 \
+        AK_ASSERT(parser->binary_ptr_);                                 \
         Handle<v8::Value> value(Get(parser->handler_, "on" #name));     \
         if (!value->IsFunction())                                       \
             return 0;                                                   \
@@ -1048,7 +1048,7 @@ Program::Impl::Impl(const Place& place,
     rc.set_max_old_space_size(MAX_OLD_SPACE_SIZE);
     rc.set_stack_limit(ComputeStackLimit(STACK_LIMIT));
     bool ret = v8::SetResourceConstraints(&rc);
-    KU_ASSERT(ret);
+    AK_ASSERT(ret);
 
     HandleScope handle_scope;
     context_ = Context::New(NULL, GlobalBg::GetJSClass().GetObjectTemplate());
@@ -1075,9 +1075,9 @@ Program::Impl::Impl(const Place& place,
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
                                                       sizeof(INIT_JS)),
                                           String::New("native init.js")));
-    KU_ASSERT(!script.IsEmpty());
+    AK_ASSERT(!script.IsEmpty());
     Handle<v8::Value> init_ret(script->Run());
-    KU_ASSERT(!init_ret.IsEmpty());
+    AK_ASSERT(!init_ret.IsEmpty());
 
     js_error_classes = Persistent<Object>::New(
         Get(core_, "errors")->ToObject()->Clone());
@@ -1162,7 +1162,7 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
     if (!initialized_) {
         Handle<Function> require_func(
             Handle<Function>::Cast(Get(context_->Global(), "require")));
-        KU_ASSERT(!require_func.IsEmpty());
+        AK_ASSERT(!require_func.IsEmpty());
         auto_ptr<Response> response_ptr(
             Run(require_func, context_->Global(), String::New("main")));
         if (response_ptr->GetStatus() != "OK")

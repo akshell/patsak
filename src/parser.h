@@ -84,11 +84,11 @@ namespace ak
         MultiField(const RangeVar& rv, const Path& path)
             : rv(rv), path(path)
             {
-                KU_ASSERT(!path.empty());
+                AK_ASSERT(!path.empty());
                 for (Path::const_iterator itr = path.begin();
                      itr != path.end();
                      ++itr)
-                    KU_ASSERT(!itr->empty());
+                    AK_ASSERT(!itr->empty());
             }
 
         bool IsMulti()   const { return path.back().size() > 1; }

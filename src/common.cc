@@ -22,18 +22,18 @@ using namespace boost::gregorian;
 // Type
 ////////////////////////////////////////////////////////////////////////////////
 
-Type::Type(const string& pg_str)
+Type::Type(const string& pg_name)
 {
-    if (pg_str == "float8" || pg_str == "int4") {
+    if (pg_name == "float8" || pg_name == "int4") {
         tag_ = NUMBER;
-    } else if (pg_str == "text") {
+    } else if (pg_name == "text") {
         tag_ = STRING;
-    } else if (pg_str == "bool") {
+    } else if (pg_name == "bool") {
         tag_ = BOOL;
-    } else if (pg_str == "timestamp") {
+    } else if (pg_name == "timestamp") {
         tag_ = DATE;
     } else {
-        KU_ASSERT_EQUAL(pg_str, "json");
+        AK_ASSERT_EQUAL(pg_name, "json");
         tag_ = JSON;
     }
 }
@@ -51,25 +51,25 @@ bool Type::IsApplicable(Trait trait) const
 }
 
 
-string Type::GetPgStr(Trait trait) const
+string Type::GetPgName(Trait trait) const
 {
-    static const char* pg_strs[] =
+    static const char* pg_names[] =
         {"float8", "text", "bool", "timestamp(3)", "ak.json"};
 
-    KU_ASSERT(tag_ < DUMMY && IsApplicable(trait));
+    AK_ASSERT(tag_ < DUMMY && IsApplicable(trait));
     if (trait == COMMON)
-        return pg_strs[tag_];
+        return pg_names[tag_];
     return "int4";
 }
 
 
-string Type::GetKuStr(Trait trait) const
+string Type::GetName(Trait trait) const
 {
-    static const char* ku_strs[] = {"number", "string", "bool", "date", "json"};
+    static const char* names[] = {"number", "string", "bool", "date", "json"};
 
-    KU_ASSERT(tag_ < DUMMY && IsApplicable(trait));
+    AK_ASSERT(tag_ < DUMMY && IsApplicable(trait));
     if (trait == COMMON)
-        return ku_strs[tag_];
+        return names[tag_];
     return trait == INTEGER ? "integer" : "serial";
 }
 
@@ -77,8 +77,8 @@ string Type::GetKuStr(Trait trait) const
 string Type::GetCastFunc() const
 {
     if (tag_ == DATE || tag_ == JSON)
-        throw Error(Error::TYPE, "Cannot coerce any type to " + GetKuStr());
-    return "ak.to_" + GetKuStr();
+        throw Error(Error::TYPE, "Cannot coerce any type to " + GetName());
+    return "ak.to_" + GetName();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,9 +109,9 @@ namespace
     }
 }
 
-string BinaryOp::GetKuStr() const
+string BinaryOp::GetName() const
 {
-    static const char* ku_strings[] = {
+    static const char* names[] = {
         "+", // SUM,
         "-", // SUB
         "*", // MUL
@@ -127,7 +127,7 @@ string BinaryOp::GetKuStr() const
         "||"  // LOG_OR
     };
 
-    return ku_strings[tag_];
+    return names[tag_];
 }
 
 
@@ -161,9 +161,9 @@ Type BinaryOp::GetResultType(Type common_type) const
 }
 
 
-string BinaryOp::GetPgStr(Type common_type) const
+string BinaryOp::GetPgName(Type common_type) const
 {
-    static const char* pg_strings[] = {
+    static const char* pg_names[] = {
         "+", // SUM,
         "-", // SUB
         "*", // MUL
@@ -181,22 +181,22 @@ string BinaryOp::GetPgStr(Type common_type) const
 
     if (tag_ == SUM && common_type == Type::STRING)
         return "||";
-    return pg_strings[tag_];
+    return pg_names[tag_];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // UnaryOp
 ////////////////////////////////////////////////////////////////////////////////
 
-string UnaryOp::GetKuStr() const
+string UnaryOp::GetName() const
 {
-    static const char* ku_strings[] = {
+    static const char* names[] = {
         "+", // PLUS
         "-", // MINUS
         "!"  // NEG
     };
 
-    return ku_strings[tag_];
+    return names[tag_];
 }
 
 
@@ -207,13 +207,13 @@ Type UnaryOp::GetOpType() const
     case MINUS:
         return Type::NUMBER;
     default:
-        KU_ASSERT_EQUAL(tag_, NEG);
+        AK_ASSERT_EQUAL(tag_, NEG);
         return Type::BOOL;
     }
 }
 
 
-string UnaryOp::GetPgStr() const
+string UnaryOp::GetPgName() const
 {
     switch (tag_) {
     case PLUS:
@@ -221,7 +221,7 @@ string UnaryOp::GetPgStr() const
     case MINUS:
         return "-";
     default:
-        KU_ASSERT_EQUAL(tag_, NEG);
+        AK_ASSERT_EQUAL(tag_, NEG);
         return "NOT";
     }
 }
@@ -338,7 +338,7 @@ namespace
 
         virtual PgLiter GetPgLiter() const {
             ostringstream oss;
-            oss << '\'' << repr_ << "'::" + GetType().GetPgStr();
+            oss << '\'' << repr_ << "'::" + GetType().GetPgName();
             return PgLiter(oss.str(), false);
         }
 
@@ -378,7 +378,7 @@ namespace
         if (type == Type::NUMBER) {
             return new NumberValue(d);
         } else {
-            KU_ASSERT(type == Type::DATE);
+            AK_ASSERT(type == Type::DATE);
             if (d != d)
                 throw Error(Error::TYPE, "Invalid date");
             return new DateValue(DateValue::GetEpoch() + milliseconds(d));
@@ -398,12 +398,12 @@ namespace
                 ? lexical_cast<double>(s.substr(1, s.size() - 2))
                 : lexical_cast<double>(s));
         } else if (type == Type::BOOL) {
-            KU_ASSERT(s == "true" || s == "false");
+            AK_ASSERT(s == "true" || s == "false");
             return new BooleanValue(s == "true");
         } else if (type == Type::DATE) {
             return new DateValue(time_from_string(s));
         } else {
-            KU_ASSERT(type == Type::JSON);
+            AK_ASSERT(type == Type::JSON);
             return new JSONValue(s);
         }
     }
@@ -436,7 +436,7 @@ Value::Value(Type type, const char* c)
 
 Value::Value(Type type, bool b)
 {
-    KU_ASSERT(type == Type::BOOL);
+    AK_ASSERT(type == Type::BOOL);
     pimpl_.reset(new BooleanValue(b));
 }
 
@@ -474,7 +474,7 @@ ostream& ak::operator<<(ostream& os, const Header& header)
     BOOST_FOREACH(const Attr& attr, header) {
         print_sep();
         os << '"' << attr.GetName() << "\": "
-           << Quoted(attr.GetType().GetKuStr());
+           << Quoted(attr.GetType().GetName());
     }
     os << '}';
     return os;

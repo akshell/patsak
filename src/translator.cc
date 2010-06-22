@@ -257,7 +257,7 @@ Control::GetReference(const DBViewer::RelVarAttrs& key) const
 
 Control::operator ostream&() const
 {
-    KU_ASSERT(os_ptr_);
+    AK_ASSERT(os_ptr_);
     return *os_ptr_;
 }
 
@@ -288,7 +288,7 @@ Control::BindScope::BindScope(Control& control, const BindData& bind_data)
 
 Control::BindScope::~BindScope()
 {
-    KU_ASSERT(!control_.bind_stack_.empty());
+    AK_ASSERT(!control_.bind_stack_.empty());
     control_.bind_stack_.pop_back();
 }
 
@@ -467,7 +467,7 @@ void ProtoTranslator::operator()(const RangeVar& rv)
 
 void ProtoTranslator::operator()(const MultiField& multi_field)
 {
-    KU_ASSERT(!multi_field.rv.GetName().empty());
+    AK_ASSERT(!multi_field.rv.GetName().empty());
     OmitInvoker print_sep((SepPrinter(control_)));
     if (multi_field.IsForeign()) {
         BOOST_FOREACH(const string& field_name, multi_field.path.back()) {
@@ -571,7 +571,7 @@ Control::BindData SelectBuilder::BuildFrom(const RangeVarSet& rvs) const
         Header header = control_.TranslateRel(rv.GetRel());
         bind_data.push_back(Control::BindUnit(rv, header));
         if (base_ptr)
-            KU_ASSERT_EQUAL(base_ptr->name, rv.GetName());
+            AK_ASSERT_EQUAL(base_ptr->name, rv.GetName());
         else
             control_ << ") AS " << Quoted(rv.GetName());
     }
@@ -661,7 +661,7 @@ Type FieldTranslator::operator()()
 
 string FieldTranslator::GetFieldName() const
 {
-    KU_ASSERT(!multi_field_.IsMulti());
+    AK_ASSERT(!multi_field_.IsMulti());
     return multi_field_.path.back().front();
 }
 
@@ -713,7 +713,7 @@ string FieldTranslator::FollowReference(const string& rel_var_name,
 {
     DBViewer::RelVarAttrs key(rel_var_name, attr_names);
     DBViewer::RelVarAttrs ref(control_.GetReference(key));
-    KU_ASSERT_EQUAL(ref.attr_names.size(), attr_names.size());
+    AK_ASSERT_EQUAL(ref.attr_names.size(), attr_names.size());
 
     print_from_sep_();
     from_oss_ << Quoted(ref.rel_var_name);
@@ -759,7 +759,7 @@ Type ExprTranslator::operator()(const PosArg& pos_arg) const
 
 Type ExprTranslator::operator()(const Quant& quant) const
 {
-    KU_ASSERT(!quant.rvs.empty());
+    AK_ASSERT(!quant.rvs.empty());
     string modificator(quant.flag ? "NOT " : "");
     control_ << '(' << modificator << "EXISTS (";
     SelectBuilder builder(control_);
@@ -790,7 +790,7 @@ Type ExprTranslator::operator()(const Binary& binary) const
     }
     Type common_type = binary.op.GetCommonType(left_type, right_type);
     control_ << '(' << Casted(left_type, common_type, left_str)
-             << ' ' << binary.op.GetPgStr(common_type)
+             << ' ' << binary.op.GetPgName(common_type)
              << ' ' << Casted(right_type, common_type, right_str)
              << ')';
     return binary.op.GetResultType(common_type);
@@ -799,7 +799,7 @@ Type ExprTranslator::operator()(const Binary& binary) const
 
 Type ExprTranslator::operator()(const Unary& unary) const
 {
-    control_ << unary.op.GetPgStr() << ' ';
+    control_ << unary.op.GetPgName() << ' ';
     control_.TranslateExpr(unary.operand, this_rv_ptr_, unary.op.GetOpType());
     return unary.op.GetOpType();
 }
@@ -1030,14 +1030,14 @@ string Translator::TranslateDelete(const string& rel_var_name,
 }
 
 
-string Translator::TranslateExpr(const string& ku_expr_str,
+string Translator::TranslateExpr(const string& expr_str,
                                  const string& rel_var_name,
                                  const Header& rel_header) const
 {
     return DoTranslateExpr(db_viewer_,
                            rel_var_name,
                            rel_header,
-                           ku_expr_str,
+                           expr_str,
                            Drafts(),
                            Type::BOOL);
 }

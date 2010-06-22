@@ -90,10 +90,10 @@ namespace ak
 
         Type(Tag tag) : tag_(tag) {} // implicit
         Type()        : tag_(DUMMY) {}
-        Type(const std::string& pg_str);
+        Type(const std::string& pg_name);
         bool IsApplicable(Trait trait) const;
-        std::string GetPgStr(Trait trait = COMMON) const;
-        std::string GetKuStr(Trait trait = COMMON) const;
+        std::string GetPgName(Trait trait = COMMON) const;
+        std::string GetName(Trait trait = COMMON) const;
         std::string GetCastFunc() const;
 
         bool operator<(Type other) const {
@@ -157,10 +157,10 @@ namespace ak
         };
 
         BinaryOp(Tag tag) : tag_(tag) {} // implicit
-        std::string GetKuStr() const;
+        std::string GetName() const;
         Type GetCommonType(Type left_type, Type right_type) const;
         Type GetResultType(Type common_type) const;
-        std::string GetPgStr(Type common_type) const;
+        std::string GetPgName(Type common_type) const;
 
     private:
         Tag tag_;
@@ -176,9 +176,9 @@ namespace ak
         };
 
         UnaryOp(Tag tag) : tag_(tag) {} // implicit
-        std::string GetKuStr() const;
+        std::string GetName() const;
         Type GetOpType() const;
-        std::string GetPgStr() const;
+        std::string GetPgName() const;
 
     private:
         Tag tag_;
@@ -235,7 +235,6 @@ namespace ak
     }
 
 
-    // Print header in ku style
     std::ostream& operator<<(std::ostream& os, const Header& header);
 
     ////////////////////////////////////////////////////////////////////////////

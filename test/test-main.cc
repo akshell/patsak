@@ -321,14 +321,14 @@ namespace ak
 
     ostream& operator<<(ostream& os, const Binary& binary)
     {
-        Bracer b(os, binary.op.GetKuStr());
+        Bracer b(os, binary.op.GetName());
         return os << ' ' << binary.left << ' ' << binary.right;
     }
 
 
     ostream& operator<<(ostream& os, const Unary& unary)
     {
-        Bracer b(os, unary.op.GetKuStr());
+        Bracer b(os, unary.op.GetName());
         return os << ' ' << unary.operand;
     }
 
@@ -613,7 +613,7 @@ void Table::ReadHeader(istream& is)
         } else if (type_str == "date") {
             type = Type::DATE;
         } else {
-            KU_ASSERT_EQUAL(type_str, "json");
+            AK_ASSERT_EQUAL(type_str, "json");
             type = Type::JSON;
         }
         rich_header_.add_sure(RichAttr(name, type));
@@ -746,7 +746,7 @@ void Table::PrintHeader(ostream& os) const
         os << rich_attr.GetName() << ' ';
     os << '\n';
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-        os << rich_attr.GetType().GetKuStr() << ' ';
+        os << rich_attr.GetType().GetName() << ' ';
     os << '\n';
 }
 
@@ -796,7 +796,7 @@ Draft::~Draft()
 
 Value Draft::Get(Type type) const
 {
-    KU_ASSERT(type == Type::DUMMY || type == pimpl_->value.GetType());
+    AK_ASSERT(type == Type::DUMMY || type == pimpl_->value.GetType());
     return pimpl_->value;
 }
 

@@ -199,7 +199,7 @@ void RequestHandler::HandleProcess()
                                             issuer);
         }
     }
-    KU_ASSERT(response_ptr.get());
+    AK_ASSERT(response_ptr.get());
     vector<asio::const_buffer> buffers;
     string beginning = response_ptr->GetStatus() + '\n';
     buffers.push_back(asio::buffer(beginning));
@@ -305,7 +305,7 @@ auto_ptr<stream_protocol::socket> Acceptor::operator()()
     timer_.expires_from_now(boost::posix_time::seconds(wait_));
     timer_.async_wait(bind(&Acceptor::HandleTimer, this, _1));
     acceptor_.get_io_service().run();
-    KU_ASSERT(handled_);
+    AK_ASSERT(handled_);
     return accepted_ ? socket_ptr : auto_ptr<stream_protocol::socket>();
 }
 
@@ -314,7 +314,7 @@ void Acceptor::HandleAccept(const asio::error_code& error)
 {
     if (!handled_) {
         timer_.cancel();
-        KU_ASSERT(!error);
+        AK_ASSERT(!error);
         handled_ = accepted_ = true;
     }
 }

@@ -73,7 +73,7 @@ Lookuper::RangeVars Lookuper::EnterScope(const RVDef& rv_def)
 
 void Lookuper::ExitScope()
 {
-    KU_ASSERT(stack_.size() > 1);
+    AK_ASSERT(stack_.size() > 1);
     stack_.pop_back();
 }
 
@@ -99,7 +99,7 @@ RangeVar Lookuper::Lookup(const string& name)
 
 void Lookuper::Reset()
 {
-    KU_ASSERT_EQUAL(stack_.size(), 1U);
+    AK_ASSERT_EQUAL(stack_.size(), 1U);
     stack_.begin()->clear();
 }
 

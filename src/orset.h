@@ -85,7 +85,7 @@ namespace ak
         }
 
         void add_sure(const T& val) {
-            KU_ASSERT(!contains(val));
+            AK_ASSERT(!contains(val));
             push_back(val);
         }
 

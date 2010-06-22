@@ -73,7 +73,7 @@ ak::Value Draft::Impl::Get(Type type) const
             throw Error(Error::TYPE, "Cannot serialize a value into JSON");
         return ak::Value(type, Stringify(json));
     }
-    KU_ASSERT(type == Type::DUMMY);
+    AK_ASSERT(type == Type::DUMMY);
     if (v8_value_->IsNumber())
         return ak::Value(Type::NUMBER, v8_value_->NumberValue());
     if (v8_value_->IsBoolean())
@@ -132,12 +132,12 @@ namespace
     }
 
 
-    Handle<v8::Value> MakeV8Value(const ak::Value& ku_value)
+    Handle<v8::Value> MakeV8Value(const ak::Value& ak_value)
     {
-        Type type(ku_value.GetType());
+        Type type(ak_value.GetType());
         double d;
         string s;
-        ku_value.Get(d, s);
+        ak_value.Get(d, s);
         if (type == Type::NUMBER)
             return Number::New(d);
         if (type == Type::STRING)
@@ -146,7 +146,7 @@ namespace
             return Boolean::New(d);
         if (type == Type::DATE)
             return Date::New(d);
-        KU_ASSERT(type == Type::JSON);
+        AK_ASSERT(type == Type::JSON);
         Handle<v8::Value> arg(String::New(s.c_str()));
         Handle<v8::Value> result(
             parse_json_func->Call(Context::GetCurrent()->Global(), 1, &arg));
@@ -419,7 +419,7 @@ void TypeBg::RetrieveConstrs(const string& attr_name,
                              Strings& checks) const
 {
     BOOST_FOREACH(const AddedConstrPtr& ac_ptr, ac_ptrs_) {
-        KU_ASSERT(ac_ptr);
+        AK_ASSERT(ac_ptr);
         ac_ptr->Retrieve(attr_name, unique_key_set, foreign_key_set, checks);
     }
 }
@@ -429,7 +429,7 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, TypeBg, GetNameCb,
                     Local<String>, /*property*/,
                     const AccessorInfo&, /*info*/) const
 {
-    return String::New(type_.GetKuStr().c_str());
+    return String::New(type_.GetName().c_str());
 }
 
 
@@ -467,7 +467,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, DefaultCb,
 
 Handle<v8::Value> TypeBg::NewWithAddedConstr(AddedConstrPtr ac_ptr) const
 {
-    KU_ASSERT(ac_ptr.get());
+    AK_ASSERT(ac_ptr.get());
     AddedConstrPtrs new_ac_ptrs(ac_ptrs_);
     new_ac_ptrs.push_back(ac_ptr);
     return JSNew<TypeBg>(type_, trait_, default_ptr_, new_ac_ptrs);
@@ -593,7 +593,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, QueryCb,
     for (size_t tuple_idx = 0; tuple_idx < result_length; ++tuple_idx) {
         Handle<Object> item(Object::New());
         const Values& values(query_result.tuples[tuple_idx]);
-        KU_ASSERT_EQUAL(values.size(), header.size());
+        AK_ASSERT_EQUAL(values.size(), header.size());
         for (size_t attr_idx = 0; attr_idx < header.size(); ++attr_idx)
             Set(item,
                 header[attr_idx].GetName(),
@@ -675,7 +675,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetHeaderCb,
     BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
         Set(result, rich_attr.GetName(),
             String::New(
-                rich_attr.GetType().GetKuStr(rich_attr.GetTrait()).c_str()));
+                rich_attr.GetType().GetName(rich_attr.GetTrait()).c_str()));
     return result;
 }
 
@@ -762,7 +762,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, InsertCb,
     string name(Stringify(args[0]));
     Values values(access_ptr->Insert(name, ReadDraftMap(args[1])));
     const RichHeader& rich_header(access_ptr->GetRichHeader(name));
-    KU_ASSERT_EQUAL(values.size(), rich_header.size());
+    AK_ASSERT_EQUAL(values.size(), rich_header.size());
     Handle<Object> result(Object::New());
     for (size_t i = 0; i < values.size(); ++i)
         Set(result, rich_header[i].GetName(), MakeV8Value(values[i]));

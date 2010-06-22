@@ -35,7 +35,7 @@ namespace ak
             : app_name(app_name)
             , owner_name(owner_name)
             , spot_name(spot_name) {
-            KU_ASSERT((owner_name.empty() && spot_name.empty()) ||
+            AK_ASSERT((owner_name.empty() && spot_name.empty()) ||
                       (!owner_name.empty() && !spot_name.empty()));
         }
     };

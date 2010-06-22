@@ -59,19 +59,19 @@ namespace ak
 
 #ifdef NDEBUG
 
-#define KU_ASSERT(cond)
-#define KU_ASSERT_MESSAGE(cond, message)
-#define KU_ASSERT_EQUAL(lhs, rhs)
+#define AK_ASSERT(cond)
+#define AK_ASSERT_MESSAGE(cond, message)
+#define AK_ASSERT_EQUAL(lhs, rhs)
 
 #else // NDEBUG
 
-#define KU_ASSERT(cond)                                                 \
+#define AK_ASSERT(cond)                                                 \
     ak::Assert(__FILE__, __LINE__, __PRETTY_FUNCTION__, cond, #cond)
 
-#define KU_ASSERT_MESSAGE(cond, message)        \
+#define AK_ASSERT_MESSAGE(cond, message)        \
     ak::Assert(__FILE__, __LINE__, __PRETTY_FUNCTION__, cond, #cond, message)
 
-#define KU_ASSERT_EQUAL(lhs, rhs)                                       \
+#define AK_ASSERT_EQUAL(lhs, rhs)                                       \
     ak::AssertEqual(__FILE__, __LINE__, __PRETTY_FUNCTION__,            \
                     lhs, rhs, #lhs, #rhs)
 

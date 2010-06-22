@@ -112,8 +112,8 @@ RichAttr::RichAttr(const string& name,
     : attr_(name, type)
     , trait_(trait)
 {
-    KU_ASSERT(GetType().IsApplicable(trait_));
-    KU_ASSERT(!(trait_ == Type::SERIAL && default_ptr));
+    AK_ASSERT(GetType().IsApplicable(trait_));
+    AK_ASSERT(!(trait_ == Type::SERIAL && default_ptr));
     SetDefaultPtr(default_ptr);
 }
 
@@ -151,7 +151,7 @@ const Value* RichAttr::GetDefaultPtr() const
 void RichAttr::SetDefaultPtr(const Value* default_ptr)
 {
     if (default_ptr) {
-        KU_ASSERT(default_ptr->GetType() == GetType());
+        AK_ASSERT(default_ptr->GetType() == GetType());
         default_ptr_.reset(new Value(*default_ptr));
     } else {
         default_ptr_.reset();
@@ -266,21 +266,21 @@ RelVar::RelVar(pqxx::work& work, const string& name)
     pqxx::result pqxx_result = work.exec((format(query) % name_).str());
     rich_header_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
-        KU_ASSERT_EQUAL(tuple.size(), 3U);
-        KU_ASSERT(!tuple[0].is_null() && ! tuple[1].is_null());
+        AK_ASSERT_EQUAL(tuple.size(), 3U);
+        AK_ASSERT(!tuple[0].is_null() && ! tuple[1].is_null());
         string name(tuple[0].c_str());
         Type type(tuple[1].c_str());
         Type::Trait trait = Type::COMMON;
         auto_ptr<Value> default_ptr;
         if (string(tuple[1].c_str()) == "int4") {
-            KU_ASSERT(type == Type::NUMBER);
+            AK_ASSERT(type == Type::NUMBER);
             trait = Type::INTEGER;
         }
         if (!tuple[2].is_null()) {
             string default_str(tuple[2].c_str());
             if (default_str.substr(0, 8) == "nextval(") {
-                KU_ASSERT(type == Type::NUMBER);
-                KU_ASSERT(trait == Type::INTEGER);
+                AK_ASSERT(type == Type::NUMBER);
+                AK_ASSERT(trait == Type::INTEGER);
                 trait = Type::SERIAL;
             } else {
                 default_ptr.reset(new Value(type, default_str));
@@ -332,7 +332,7 @@ RelVar::RelVar(pqxx::work& work,
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
         print_sep();
         oss << Quoted(rich_attr.GetName()) << ' '
-            << rich_attr.GetType().GetPgStr(rich_attr.GetTrait())
+            << rich_attr.GetType().GetPgName(rich_attr.GetTrait())
             << " NOT NULL";
         const Value* default_ptr(rich_attr.GetDefaultPtr());
         if (default_ptr)
@@ -379,15 +379,15 @@ void RelVar::LoadConstrs(pqxx::work& work, const DBMeta& meta) {
     static const format query("SELECT * FROM ak.describe_constrs('\"%1%\"')");
     pqxx::result pqxx_result = work.exec((format(query) % name_).str());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
-        KU_ASSERT_EQUAL(tuple.size(), 4U);
-        KU_ASSERT(!tuple[0].is_null() && !tuple[1].is_null());
-        KU_ASSERT_EQUAL(string(tuple[0].c_str()).size(), 1U);
+        AK_ASSERT_EQUAL(tuple.size(), 4U);
+        AK_ASSERT(!tuple[0].is_null() && !tuple[1].is_null());
+        AK_ASSERT_EQUAL(string(tuple[0].c_str()).size(), 1U);
         StringSet attr_names(ReadAttrNames(tuple[1].c_str()));
         char constr_code = tuple[0].c_str()[0];
         if (constr_code == 'p' || constr_code == 'u') {
             unique_key_set_.add_sure(attr_names);
         } else if (constr_code == 'f') {
-            KU_ASSERT(!tuple[2].is_null() && !tuple[3].is_null());
+            AK_ASSERT(!tuple[2].is_null() && !tuple[3].is_null());
             string ref_rel_var_name(tuple[2].c_str());
             StringSet ref_attr_names(
                 meta.Get(ref_rel_var_name).ReadAttrNames(tuple[3].c_str()));
@@ -456,19 +456,19 @@ void RelVar::PrintAttrNames(ostream& os, const StringSet& names) {
 
 StringSet RelVar::ReadAttrNames(const string& pg_array) const
 {
-    KU_ASSERT(pg_array.size() >= 2);
+    AK_ASSERT(pg_array.size() >= 2);
     istringstream iss(pg_array.substr(1, pg_array.size() - 2));
     StringSet result;
     for (;;) {
         size_t index;
         iss >> index;
-        KU_ASSERT(!iss.fail());
+        AK_ASSERT(!iss.fail());
         result.add_sure(rich_header_[index - 1].GetName());
         if (iss.eof())
             return result;
         char comma;
         iss.get(comma);
-        KU_ASSERT_EQUAL(comma, ',');
+        AK_ASSERT_EQUAL(comma, ',');
     }
 }
 
@@ -513,11 +513,11 @@ void RelVar::PrintForeignKey(ostream& os,
                         ("Foreign key attribite type mismatch: \"" +
                          name_ + '.' +
                          key_attr_name + "\" is " +
-                         key_attr_type.GetKuStr(key_attr_trait) +
+                         key_attr_type.GetName(key_attr_trait) +
                          ", \"" +
                          foreign_key.ref_rel_var_name + '.' +
                          ref_attr_name + "\" is " +
-                         ref_attr_type.GetKuStr(ref_attr_trait)));
+                         ref_attr_type.GetName(ref_attr_trait)));
     }
     bool unique_found = false;
     BOOST_FOREACH(const StringSet& unique_key,
@@ -600,7 +600,7 @@ void RelVar::AddAttrs(pqxx::work& work, const RichHeader& rich_attrs)
                             "Attribute \"" + attr_name + "\" already exists");
         print_sep();
         oss << "ADD " << Quoted(attr_name) << ' '
-            << rich_attr.GetType().GetPgStr(rich_attr.GetTrait());
+            << rich_attr.GetType().GetPgName(rich_attr.GetTrait());
     }
     oss << "; UPDATE " << Quoted(name_) << " SET ";
     print_sep = OmitInvoker(SepPrinter(oss));
@@ -839,8 +839,8 @@ DBMeta::DBMeta(pqxx::work& work, const string& schema_name)
     pqxx::result pqxx_result = work.exec((format(query) % schema_name).str());
     rel_vars_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
-        KU_ASSERT_EQUAL(tuple.size(), 1U);
-        KU_ASSERT(!tuple[0].is_null());
+        AK_ASSERT_EQUAL(tuple.size(), 1U);
+        AK_ASSERT(!tuple[0].is_null());
         rel_vars_.push_back(RelVar(work, tuple[0].c_str()));
     }
     BOOST_FOREACH(RelVar& rel_var, rel_vars_)
@@ -1145,9 +1145,9 @@ uint64_t QuotaChecker::CalculateTotalSize(pqxx::work& work) const
 {
     static const format query("SELECT ak.get_schema_size('%1%');");
     pqxx::result pqxx_result(work.exec((format(query) % schema_name_).str()));
-    KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
-    KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
-    KU_ASSERT(!pqxx_result[0][0].is_null());
+    AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
+    AK_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
+    AK_ASSERT(!pqxx_result[0][0].is_null());
     return lexical_cast<uint64_t>(pqxx_result[0][0].c_str());
 }
 
@@ -1201,7 +1201,7 @@ DB::Impl::Impl(const string& opt,
         work.exec((format(set_cmd) % schema_name).str());
         pqxx::result pqxx_result(
             work.exec((format(quota_query) % app_name).str()));
-        KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
+        AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
         const pqxx::result::tuple& tuple(pqxx_result[0]);
         if (tuple[0].is_null())
             Fail("App \"" + app_name + "\" does not exist");
@@ -1283,7 +1283,7 @@ namespace
     Values GetTupleValues(const pqxx::result::tuple& tuple,
                           const Header& header)
     {
-        KU_ASSERT_EQUAL(tuple.size(), header.size());
+        AK_ASSERT_EQUAL(tuple.size(), header.size());
         Values result;
         result.reserve(tuple.size());
         for (size_t i = 0; i < tuple.size(); ++i) {
@@ -1418,8 +1418,8 @@ size_t Access::Count(const string& query, const Drafts& params) const
 {
     string sql(db_impl_.GetTranslator().TranslateCount(query, params));
     pqxx::result pqxx_result(work_ptr_->exec(sql));
-    KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
-    KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
+    AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
+    AK_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
     return pqxx_result[0][0].as<size_t>();
 }
 
@@ -1552,7 +1552,7 @@ Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
     db_impl_.GetQuotaChecker().DataWereAdded(1, size);
     if (rich_header.empty())
         return Values();
-    KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
+    AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
     return GetTupleValues(pqxx_result[0], rel_var.GetHeader());
 }
 
@@ -1623,7 +1623,7 @@ namespace
         Strings result;
         result.reserve(pqxx_result.size());
         BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
-            KU_ASSERT_EQUAL(tuple.size(), 1U);
+            AK_ASSERT_EQUAL(tuple.size(), 1U);
             result.push_back(tuple[0].as<string>());
         }
         return result;
@@ -1636,8 +1636,8 @@ string Access::GetAppPatsakVersion(const string& name) const
     static const format query("SELECT ak.get_app_patsak_version(%1%);");
     pqxx::result pqxx_result(
         work_ptr_->exec((format(query) % work_ptr_->quote(name)).str()));
-    KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
-    KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
+    AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
+    AK_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
     if (pqxx_result[0][0].is_null())
         throw NoSuchApp(name);
     return pqxx_result[0][0].as<string>();
@@ -1657,7 +1657,7 @@ App Access::DescribeApp(const string& name) const
     static const format labels_query("SELECT * FROM ak.get_app_labels(%1%);");
     pqxx::result app_pqxx_result =
         work_ptr_->exec((format(app_query) % work_ptr_->quote(name)).str());
-    KU_ASSERT(app_pqxx_result.size() < 2);
+    AK_ASSERT(app_pqxx_result.size() < 2);
     if (!app_pqxx_result.size())
         throw NoSuchApp(name);
     const pqxx::result::tuple& app_tuple(app_pqxx_result[0]);
@@ -1679,8 +1679,8 @@ string Access::GetUserEmail(const string& user_name) const
     static const format query("SELECT ak.get_user_email(%1%);");
     pqxx::result pqxx_result =
         work_ptr_->exec((format(query) % work_ptr_->quote(user_name)).str());
-    KU_ASSERT_EQUAL(pqxx_result.size(), 1U);
-    KU_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
+    AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
+    AK_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
     if (pqxx_result[0][0].is_null())
         throw Error(Error::NO_SUCH_USER, "No such user: \"" + user_name + '"');
     return pqxx_result[0][0].as<string>();
