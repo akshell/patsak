@@ -1159,8 +1159,7 @@ class DB::Impl {
 public:
     Impl(const string& opt,
          const string& schema_name,
-         const string& app_name,
-         int try_count = 3);
+         const string& app_name);
 
     uint64_t GetDBQuota() const;
     uint64_t GetFSQuota() const;
@@ -1172,7 +1171,6 @@ public:
 
 private:
     pqxx::connection conn_;
-    int try_count_;
     uint64_t db_quota_;
     uint64_t fs_quota_;
     Manager manager_;
@@ -1184,10 +1182,8 @@ private:
 
 DB::Impl::Impl(const string& opt,
                const string& schema_name,
-               const string& app_name,
-               int try_count)
+               const string& app_name)
     : conn_(opt)
-    , try_count_(try_count)
     , manager_(schema_name)
     , db_viewer_(manager_, Quoter(conn_))
     , translator_(db_viewer_)
