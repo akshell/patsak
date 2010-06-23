@@ -19,7 +19,6 @@ import psycopg2
 TMP_DIR       = '/tmp/patsak'
 SOCKET_DIR    = os.path.join(TMP_DIR, 'sockets')
 LOG_FILE      = os.path.join(TMP_DIR, 'log')
-GUARD_DIR     = os.path.join(TMP_DIR, 'guards')
 MEDIA_DIR     = os.path.join(TMP_DIR, 'media')
 CONFIG_FILE   = os.path.join(TMP_DIR, 'config')
 APP_NAME      = 'test-app'
@@ -213,7 +212,6 @@ class Test(unittest.TestCase):
     def testSpotServer(self):
         process = _popen([PATSAK_FILE,
                           '--config-file', CONFIG_FILE,
-                          '--pass-opts',
                           APP_NAME, USER_NAME, SPOT_NAME])
         self.assertEqual(process.stdout.readline(), 'READY\n')
         socket_path = os.path.join(SOCKET_DIR, 'spots',
@@ -285,7 +283,6 @@ def _make_dirs():
     if os.path.exists(TMP_DIR):
         shutil.rmtree(TMP_DIR)
     _make_dir_tree(SOCKET_DIR)
-    _make_dir_tree(GUARD_DIR)
     _make_dir_tree(MEDIA_DIR)
     os.mkdir(os.path.join(MEDIA_DIR, 'release', APP_NAME))
     os.mkdir(os.path.join(MEDIA_DIR, 'release', 'another-app'))
@@ -299,12 +296,11 @@ db-user=%s
 db-password=%s
 code-dir=%s/../sample
 socket-dir=%s
-guard-dir=%s
 media-dir=%s
 log-file=%s
 ''' % (DB_NAME, DB_USER, DB_PASSWORD,
        os.path.abspath(TEST_DIR),
-       SOCKET_DIR, GUARD_DIR, MEDIA_DIR,
+       SOCKET_DIR, MEDIA_DIR,
        LOG_FILE))
 
 

@@ -341,16 +341,14 @@ namespace
 
     private:
         string expr_, user_;
-        string patsak_pattern_;
         string log_file_, code_dir_, media_dir_;
-        string socket_dir_, guard_dir_;
+        string socket_dir_;
         string db_user_, db_password_, db_name_;
         string app_name_, owner_name_, spot_name_;
         string path_suffix_;
         bool test_mode_;
         unsigned wait_;
         string config_file_;
-        bool pass_opts_;
 
         void Parse(int argc, char** argv);
 
@@ -421,12 +419,8 @@ void MainRunner::Parse(int argc, char** argv)
 
     po::options_description config_options("Config options");
     config_options.add_options()
-        ("patsak-pattern,p",
-         po::value<string>(&patsak_pattern_),
-         "patsak path pattern")
         ("log-file,l", po::value<string>(&log_file_), "log file")
         ("socket-dir,s", po::value<string>(&socket_dir_), "socket directory")
-        ("guard-dir,g", po::value<string>(&guard_dir_), "guard directory")
         ("code-dir,c", po::value<string>(&code_dir_), "code directory")
         ("media-dir,m", po::value<string>(&media_dir_), "media directory")
         ("db-user",
@@ -439,9 +433,6 @@ void MainRunner::Parse(int argc, char** argv)
         ("wait,w",
          po::value<unsigned>(&wait_)->default_value(100),
          "seconds to wait for connection")
-        ("pass-opts",
-         po::bool_switch(&pass_opts_),
-         "pass options to children, not config")
         ;
 
     po::options_description hidden_options;
@@ -517,7 +508,6 @@ void MainRunner::Check() const
 {
     RequireOption("log-file", log_file_);
     RequireOption("socket-dir", socket_dir_);
-    RequireOption("guard-dir", guard_dir_);
     RequireOption("code-dir", code_dir_);
     RequireOption("media-dir", media_dir_);
     RequireOption("db-user", db_user_);
@@ -546,7 +536,6 @@ void MainRunner::MakePathesAbsolute()
     }
     MakePathAbsolute(curr_dir, log_file_);
     MakePathAbsolute(curr_dir, socket_dir_);
-    MakePathAbsolute(curr_dir, guard_dir_);
     MakePathAbsolute(curr_dir, code_dir_);
     MakePathAbsolute(curr_dir, media_dir_);
     MakePathAbsolute(curr_dir, config_file_);
