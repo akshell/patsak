@@ -992,7 +992,7 @@ public:
 
     auto_ptr<Response> Process(const string& user,
                                const Chars& request,
-                               const Strings& pathes,
+                               const Strings& paths,
                                auto_ptr<Chars> data_ptr,
                                const string& issuer);
 
@@ -1016,7 +1016,7 @@ private:
 
     auto_ptr<Response> Call(const string& user,
                             const Chars& input,
-                            const Strings& file_pathes,
+                            const Strings& file_paths,
                             auto_ptr<Chars> data_ptr,
                             const string& issuer,
                             Handle<Object> object,
@@ -1093,13 +1093,13 @@ Program::Impl::~Impl()
 
 auto_ptr<Response> Program::Impl::Process(const string& user,
                                           const Chars& request,
-                                          const Strings& file_pathes,
+                                          const Strings& file_paths,
                                           auto_ptr<Chars> data_ptr,
                                           const string& issuer)
 {
     HandleScope handle_scope;
     return Call(user, request,
-                file_pathes, data_ptr, issuer,
+                file_paths, data_ptr, issuer,
                 core_, "main");
 }
 
@@ -1152,7 +1152,7 @@ auto_ptr<Response> Program::Impl::Run(Handle<Function> function,
 
 auto_ptr<Response> Program::Impl::Call(const string& user,
                                        const Chars& input,
-                                       const Strings& file_pathes,
+                                       const Strings& file_paths,
                                        auto_ptr<Chars> data_ptr,
                                        const string& issuer,
                                        Handle<Object> object,
@@ -1175,10 +1175,10 @@ auto_ptr<Response> Program::Impl::Call(const string& user,
         return auto_ptr<Response>(
             new ErrorResponse(func_name + " is not a function"));
 
-    Handle<Array> files(Array::New(file_pathes.size()));
-    vector<FileBg*> file_ptrs(file_pathes.size());
-    for (size_t i = 0; i < file_pathes.size(); ++i) {
-        FileBg* file_ptr = new FileBg(file_pathes[i]);
+    Handle<Array> files(Array::New(file_paths.size()));
+    vector<FileBg*> file_ptrs(file_paths.size());
+    for (size_t i = 0; i < file_paths.size(); ++i) {
+        FileBg* file_ptr = new FileBg(file_paths[i]);
         files->Set(Integer::New(i), FileBg::GetJSClass().Instantiate(file_ptr));
         file_ptrs[i] = file_ptr;
     }
@@ -1230,11 +1230,11 @@ Program::~Program()
 
 auto_ptr<Response> Program::Process(const string& user,
                                     const Chars& request,
-                                    const Strings& file_pathes,
+                                    const Strings& file_paths,
                                     auto_ptr<Chars> data_ptr,
                                     const string& issuer)
 {
-    return pimpl_->Process(user, request, file_pathes, data_ptr, issuer);
+    return pimpl_->Process(user, request, file_paths, data_ptr, issuer);
 }
 
 

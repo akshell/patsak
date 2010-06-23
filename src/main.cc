@@ -160,9 +160,9 @@ void RequestHandler::HandleProcess()
             ReadLine();
             is_ >> command;
         }
-        Strings file_pathes;
+        Strings file_paths;
         while (command == "FILE") {
-            file_pathes.push_back(ReadCommandTail());
+            file_paths.push_back(ReadCommandTail());
             is_ >> command;
         }
         string user;
@@ -186,7 +186,7 @@ void RequestHandler::HandleProcess()
         if (command == "EXPR") {
             if (data_ptr.get())
                 throw ProcessingError("DATA is not supported by EXPR");
-            if (!file_pathes.empty())
+            if (!file_paths.empty())
                 throw ProcessingError("FILE is not supported by EXPR");
             if (!issuer.empty())
                 throw ProcessingError("ISSUER is not supported by EXPR");
@@ -194,7 +194,7 @@ void RequestHandler::HandleProcess()
         } else {
             response_ptr = program_.Process(user,
                                             input,
-                                            file_pathes,
+                                            file_paths,
                                             data_ptr,
                                             issuer);
         }
@@ -356,7 +356,7 @@ namespace
                                   const string& value);
 
         void Check() const;
-        void MakePathesAbsolute();
+        void MakePathsAbsolute();
         bool IsRelease() const;
         auto_ptr<DB> InitDB() const;
 
@@ -381,7 +381,7 @@ MainRunner::MainRunner(int argc, char** argv)
 
 void MainRunner::Run()
 {
-    MakePathesAbsolute();
+    MakePathsAbsolute();
     if (!test_mode_)
         Daemonize();
     auto_ptr<DB> db_ptr(InitDB());
@@ -527,7 +527,7 @@ void MainRunner::Check() const
 }
 
 
-void MainRunner::MakePathesAbsolute()
+void MainRunner::MakePathsAbsolute()
 {
     char* curr_dir = get_current_dir_name();
     if (!curr_dir) {

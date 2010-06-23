@@ -55,7 +55,7 @@ namespace ak
         std::auto_ptr<Response> Process(
             const std::string& user,
             const Chars& request,
-            const Strings& file_pathes = Strings(),
+            const Strings& file_paths = Strings(),
             std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>(),
             const std::string& issuer = "");
 
