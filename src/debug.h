@@ -51,7 +51,7 @@ namespace ak
             std::ostringstream oss;
             oss << lhs << " != " << rhs;
             FailOnAssertion(file, line, pretty_function,
-                            lhs_str + " != " + rhs_str, oss.str());
+                            lhs_str + " == " + rhs_str, oss.str());
         }
     }
 }
