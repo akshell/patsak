@@ -11,19 +11,6 @@
 
 namespace ak
 {
-    class DB;
-    class Access;
-
-
-    class Response {
-    public:
-        virtual ~Response() {}
-        virtual std::string GetStatus() const = 0;
-        virtual size_t GetSize() const = 0;
-        virtual const char* GetData() const = 0;
-    };
-
-
     struct Place {
         const std::string app_name;
         const std::string owner_name;
@@ -41,6 +28,9 @@ namespace ak
     };
 
 
+    class DB;
+
+
     class Program {
     public:
         Program(const Place& place,
@@ -52,16 +42,8 @@ namespace ak
 
         ~Program();
 
-        std::auto_ptr<Response> Process(
-            const std::string& user,
-            const Chars& request,
-            const Strings& file_paths = Strings(),
-            std::auto_ptr<Chars> data_ptr = std::auto_ptr<Chars>(),
-            const std::string& issuer = "");
-
-        std::auto_ptr<Response> Eval(const std::string& user,
-                                     const Chars& expr);
-
+        void Process(int sock_fd);
+        void Eval(const Chars& expr, int out_fd);
         bool IsDead() const;
 
     private:

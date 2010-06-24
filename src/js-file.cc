@@ -699,15 +699,8 @@ FileBg::FileBg(const string& path, FSQuotaChecker* quota_checker_ptr)
         quota_checker_ptr
         ? open(path.c_str(), O_CLOEXEC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)
         : open(path.c_str(), O_CLOEXEC | O_RDONLY))
-    , path_(path)
     , quota_checker_ptr_(quota_checker_ptr)
 {
-}
-
-
-string FileBg::GetPath() const
-{
-    return path_;
 }
 
 
@@ -822,7 +815,7 @@ DEFINE_JS_SUBCLASS(SocketBg, "Socket", BaseFileBg,
 }
 
 
-int SocketBg::Connect(const std::string& host, const std::string& service)
+int SocketBg::Connect(const string& host, const string& service)
 {
     if (open_count >= MAX_OPEN_COUNT)
         throw Error(Error::SOCKET, "Too many open sockets");
@@ -848,14 +841,21 @@ int SocketBg::Connect(const std::string& host, const std::string& service)
     freeaddrinfo(first_info_ptr);
     if (!info_ptr)
         throw Error(Error::SOCKET, "Failed to connect");
-    ++open_count;
     return fd;
+}
+
+
+SocketBg::SocketBg(int fd)
+    : BaseFileBg(fd)
+{
+    ++open_count;
 }
 
 
 SocketBg::SocketBg(const string& host, const string& service)
     : BaseFileBg(Connect(host, service))
 {
+    ++open_count;
 }
 
 

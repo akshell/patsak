@@ -132,12 +132,10 @@ namespace ak
         DECLARE_JS_CLASS(FileBg);
 
         FileBg(const std::string& path, FSQuotaChecker* quota_checker_ptr = 0);
-        std::string GetPath() const;
 
     private:
         class ChangeScope;
 
-        std::string path_;
         FSQuotaChecker* quota_checker_ptr_;
 
         size_t GetSize() const;
@@ -179,6 +177,7 @@ namespace ak
     public:
         DECLARE_JS_CLASS(SocketBg);
 
+        SocketBg(int fd);
         SocketBg(const std::string& host, const std::string& service);
         virtual void Close();
 

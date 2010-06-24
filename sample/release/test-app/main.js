@@ -1502,6 +1502,7 @@ var fileTestSuite = {
     socket._close();
     assert(socket.closed);
     assertThrow(ValueError, function () { socket._send('yo'); });
+    // Socket quota test. Slow to run.
 //     var sockets = [];
 //     for (var i = 0; i < 100; ++i)
 //       sockets.push(fs.connect('example.com', '80'));
@@ -1518,9 +1519,20 @@ main = function () {
 };
 
 
-_core.main = function (expr) {
-  return eval(expr);
+_core.main = function (socket) {
+  for (;;) {
+    var data = socket._receive(4096);
+    if (!data.length)
+      break;
+    var start = 0;
+    do {
+      var count = socket._send(data._range(start));
+      start += count;
+    } while (count && start < data.length);
+  }
 };
 
 
-'main.js value';
+throw42 = function () {
+  throw 42;
+};

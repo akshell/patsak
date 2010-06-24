@@ -803,141 +803,7 @@ DEFINE_JS_CLASS(GlobalBg, "Global", object_template, /*proto_template*/)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// OkResponse
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class OkResponse : public Response {
-    public:
-        OkResponse(Handle<v8::Value> value);
-        virtual string GetStatus() const;
-        virtual size_t GetSize() const;
-        virtual const char* GetData() const;
-
-    private:
-        Binarizator binarizator_;
-    };
-}
-
-
-OkResponse::OkResponse(Handle<v8::Value> value)
-    : binarizator_(value)
-{
-}
-
-
-string OkResponse::GetStatus() const
-{
-    return "OK";
-}
-
-
-size_t OkResponse::GetSize() const
-{
-    return binarizator_.GetSize();
-}
-
-
-const char* OkResponse::GetData() const
-{
-    return binarizator_.GetData();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// ErrorResponse
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class ErrorResponse : public Response {
-    public:
-        ErrorResponse(const string& descr);
-
-        virtual string GetStatus() const;
-        virtual size_t GetSize() const;
-        virtual const char* GetData() const;
-
-    private:
-        string descr_;
-    };
-}
-
-
-ErrorResponse::ErrorResponse(const string& descr)
-    : descr_(descr)
-{
-}
-
-
-string ErrorResponse::GetStatus() const
-{
-    return "ERROR";
-}
-
-
-size_t ErrorResponse::GetSize() const
-{
-    return descr_.size();
-}
-
-
-const char* ErrorResponse::GetData() const
-{
-    return descr_.data();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// ExceptionResponse
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class ExceptionResponse : public ErrorResponse {
-    public:
-        ExceptionResponse(const TryCatch& try_catch);
-
-    private:
-        static string MakeExceptionDescr(const TryCatch& try_catch);
-    };
-}
-
-
-ExceptionResponse::ExceptionResponse(const TryCatch& try_catch)
-    : ErrorResponse(MakeExceptionDescr(try_catch))
-{
-}
-
-
-string ExceptionResponse::MakeExceptionDescr(const TryCatch& try_catch)
-{
-    ostringstream oss;
-    Handle<Message> message(try_catch.Message());
-    if (!message.IsEmpty()) {
-        Handle<v8::Value> resource_name(message->GetScriptResourceName());
-        if (!resource_name->IsUndefined())
-            oss << "File \"" << Stringify(message->GetScriptResourceName())
-                << "\", line ";
-        else
-            oss << "Line ";
-        oss <<  message->GetLineNumber()
-            << ", column " << message->GetStartColumn() << '\n';
-    }
-    Handle<v8::Value> stack_trace(try_catch.StackTrace());
-    Handle<v8::Value> exception(try_catch.Exception());
-    if (!stack_trace.IsEmpty())
-        oss << Stringify(stack_trace);
-    else if (!message.IsEmpty())
-        oss << Stringify(message->Get());
-    else if (!exception.IsEmpty())
-        oss << Stringify(exception);
-    else
-        oss << "<Unknown exception>";
-    return oss.str();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// ComputeStackLimit
+// Utils
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
@@ -955,14 +821,8 @@ namespace
         if (answer > &size) return reinterpret_cast<uint32_t*>(sizeof(size));
         return answer;
     }
-}
 
-////////////////////////////////////////////////////////////////////////////////
-// HandleFatalError
-////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
     jmp_buf environment;
 
 
@@ -972,8 +832,27 @@ namespace
             Fail(string("Fatal error in ") + location + ": " + message);
         longjmp(environment, 1);
     }
-}
 
+
+    void Write(int fd, const char* data, size_t size)
+    {
+        if (fd == -1)
+            return;
+        while (size) {
+            ssize_t count = write(fd, data, size);
+            if (count <= 0)
+                break;
+            data += count;
+            size -= count;
+        }
+    }
+
+
+    void Write(int fd, const std::string& str)
+    {
+        Write(fd, str.c_str(), str.size());
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program::Impl
@@ -990,13 +869,8 @@ public:
 
     ~Impl();
 
-    auto_ptr<Response> Process(const string& user,
-                               const Chars& request,
-                               const Strings& paths,
-                               auto_ptr<Chars> data_ptr,
-                               const string& issuer);
-
-    auto_ptr<Response> Eval(const string& user, const Chars& expr);
+    void Process(int sock_fd);
+    void Eval(const Chars& expr, int out_fd);
     bool IsDead() const;
 
 private:
@@ -1010,17 +884,16 @@ private:
     Persistent<Context> context_;
     Persistent<Object> core_;
 
-    auto_ptr<Response> Run(Handle<Function> function,
-                           Handle<Object> object,
-                           Handle<v8::Value> arg);
+    bool Run(Handle<Object> object,
+             Handle<Function> function,
+             Handle<v8::Value> arg,
+             int out_fd,
+             bool print_ok);
 
-    auto_ptr<Response> Call(const string& user,
-                            const Chars& input,
-                            const Strings& file_paths,
-                            auto_ptr<Chars> data_ptr,
-                            const string& issuer,
-                            Handle<Object> object,
-                            const string& func_name);
+    void Call(Handle<Object> object,
+              const string& func_name,
+              Handle<v8::Value> arg,
+              int out_fd = -1);
 
     void SetInternal(Handle<Object> object,
                      const string& field,
@@ -1091,25 +964,23 @@ Program::Impl::~Impl()
 }
 
 
-auto_ptr<Response> Program::Impl::Process(const string& user,
-                                          const Chars& request,
-                                          const Strings& file_paths,
-                                          auto_ptr<Chars> data_ptr,
-                                          const string& issuer)
+void Program::Impl::Eval(const Chars& expr, int out_fd)
 {
     HandleScope handle_scope;
-    return Call(user, request,
-                file_paths, data_ptr, issuer,
-                core_, "main");
+    Context::Scope context_scope(context_);
+    Handle<v8::Value> arg(String::New(&expr[0], expr.size()));
+    Call(context_->Global(), "eval", arg, out_fd);
 }
 
 
-auto_ptr<Response> Program::Impl::Eval(const string& user, const Chars& expr)
+void Program::Impl::Process(int sock_fd)
 {
     HandleScope handle_scope;
-    return Call(user, expr,
-                Strings(), auto_ptr<Chars>(), "",
-                context_->Global(), "eval");
+    Context::Scope context_scope(context_);
+    SocketBg* socket_ptr(new SocketBg(sock_fd));
+    Handle<v8::Value> arg(SocketBg::GetJSClass().Instantiate(socket_ptr));
+    Call(core_, "main", arg);
+    socket_ptr->Close();
 }
 
 
@@ -1119,12 +990,16 @@ bool Program::Impl::IsDead() const
 }
 
 
-auto_ptr<Response> Program::Impl::Run(Handle<Function> function,
-                                      Handle<Object> object,
-                                      Handle<v8::Value> arg)
+bool Program::Impl::Run(Handle<Object> object,
+                        Handle<Function> function,
+                        Handle<v8::Value> arg,
+                        int out_fd,
+                        bool print_ok)
 {
-    if (setjmp(environment))
-        return auto_ptr<Response>(new ErrorResponse("<Out of memory>"));
+    if (setjmp(environment)) {
+        Write(out_fd, "ERROR\n<Out of memory>");
+        return false;
+    }
     Access access(db_);
     access_ptr = &access;
     TryCatch try_catch;
@@ -1133,66 +1008,70 @@ auto_ptr<Response> Program::Impl::Run(Handle<Function> function,
         Watcher::ExecutionGuard guard;
         value = function->Call(object, 1, &arg);
     }
-    auto_ptr<Response> result;
+    access_ptr = 0;
     if (Watcher::TimedOut()) {
-        result.reset(new ErrorResponse("<Timed out>"));
-    } else if (try_catch.HasCaught() || value.IsEmpty()) {
+        Write(out_fd, "ERROR\n<Timed out>");
+        return false;
+    }
+    if (try_catch.HasCaught() || value.IsEmpty()) {
         // I don't know the difference in these conditions but together
         // they handle all cases
-        result.reset(new ExceptionResponse(try_catch));
-    } else {
-        result.reset(new OkResponse(value));
-        if (!db_bg_.WasRolledBack())
-            access.Commit();
+        if (out_fd != -1) {
+            ostringstream oss;
+            oss << "ERROR\n";
+            Handle<v8::Value> stack_trace(try_catch.StackTrace());
+            if (!stack_trace.IsEmpty()) {
+                oss << Stringify(stack_trace);
+            } else {
+                Handle<Message> message(try_catch.Message());
+                if (!message.IsEmpty()) {
+                    oss << Stringify(message->Get()) << "\n    at ";
+                    Handle<v8::Value> resource_name(
+                        message->GetScriptResourceName());
+                    if (!resource_name->IsUndefined())
+                        oss << Stringify(resource_name) << ':';
+                    oss << message->GetLineNumber() << ':'
+                        << message->GetStartColumn();
+                } else {
+                    Handle<v8::Value> exception(try_catch.Exception());
+                    AK_ASSERT(!exception.IsEmpty());
+                    oss << Stringify(exception);
+                }
+            }
+            Write(out_fd, oss.str());
+        }
+        return false;
     }
-    access_ptr = 0;
-    return result;
+    if (out_fd != -1 && print_ok) {
+        Write(out_fd, "OK\n");
+        Binarizator binarizator(value);
+        Write(out_fd, binarizator.GetData(), binarizator.GetSize());
+    }
+    if (!db_bg_.WasRolledBack())
+        access.Commit();
+    return true;
 }
 
 
-auto_ptr<Response> Program::Impl::Call(const string& user,
-                                       const Chars& input,
-                                       const Strings& file_paths,
-                                       auto_ptr<Chars> data_ptr,
-                                       const string& issuer,
-                                       Handle<Object> object,
-                                       const string& func_name)
+void Program::Impl::Call(Handle<Object> object,
+                         const string& func_name,
+                         Handle<v8::Value> arg,
+                         int out_fd)
 {
-    Context::Scope context_scope(context_);
     if (!initialized_) {
         Handle<Function> require_func(
             Handle<Function>::Cast(Get(context_->Global(), "require")));
         AK_ASSERT(!require_func.IsEmpty());
-        auto_ptr<Response> response_ptr(
-            Run(require_func, context_->Global(), String::New("main")));
-        if (response_ptr->GetStatus() != "OK")
-            return response_ptr;
+        if (!Run(context_->Global(), require_func, String::New("main"),
+                 out_fd, false))
+            return;
         initialized_ = true;
     }
-
     Handle<v8::Value> func_value(Get(object, func_name));
     if (func_value.IsEmpty() || !func_value->IsFunction())
-        return auto_ptr<Response>(
-            new ErrorResponse(func_name + " is not a function"));
-
-    Handle<Array> files(Array::New(file_paths.size()));
-    vector<FileBg*> file_ptrs(file_paths.size());
-    for (size_t i = 0; i < file_paths.size(); ++i) {
-        FileBg* file_ptr = new FileBg(file_paths[i]);
-        files->Set(Integer::New(i), FileBg::GetJSClass().Instantiate(file_ptr));
-        file_ptrs[i] = file_ptr;
-    }
-    Set(core_, "files", files);
-    Set(core_, "data", BinaryBg::New(data_ptr));
-    Set(core_, "user", String::New(user.c_str()));
-    Set(core_, "issuer", String::New(issuer.c_str()));
-
-    auto_ptr<Response> result(Run(Handle<Function>::Cast(func_value),
-                                  object,
-                                  String::New(&input[0], input.size())));
-    BOOST_FOREACH(FileBg* file_ptr, file_ptrs)
-        file_ptr->Close();
-    return result;
+        Write(out_fd, "ERROR\n" + func_name + " is not a function");
+    else
+        Run(object, Handle<Function>::Cast(func_value), arg, out_fd, true);
 }
 
 
@@ -1228,19 +1107,15 @@ Program::~Program()
 }
 
 
-auto_ptr<Response> Program::Process(const string& user,
-                                    const Chars& request,
-                                    const Strings& file_paths,
-                                    auto_ptr<Chars> data_ptr,
-                                    const string& issuer)
+void Program::Process(int fd)
 {
-    return pimpl_->Process(user, request, file_paths, data_ptr, issuer);
+    return pimpl_->Process(fd);
 }
 
 
-auto_ptr<Response> Program::Eval(const string& user, const Chars& expr)
+void Program::Eval(const Chars& expr, int fd)
 {
-    return pimpl_->Eval(user, expr);
+    return pimpl_->Eval(expr, fd);
 }
 
 
