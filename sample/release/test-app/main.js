@@ -750,6 +750,7 @@ var dbTestSuite = {
     assertEqual(field('age', 'User where name == "den"'), [23]);
     assertThrow(QueryError, query, 'for (x in {f: 1}) x.f->k');
     assertThrow(QueryError, query, '{f: 1}', [], ['f->k']);
+    assertEqual(query('{} where $1 == $2', [false, new Date()]), []);
   },
 
   testInsert: function () {
