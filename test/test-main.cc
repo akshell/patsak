@@ -835,7 +835,7 @@ namespace
 
 
 DBFixture::DBFixture()
-    : db("dbname=test_patsak user=test password=test", "test", "test-app")
+    : db("dbname=test user=test password=test", "test", "test-app")
 {
     DeleteRelVars(GetRelVarNames());
     BOOST_REQUIRE(GetRelVarNames().empty());
@@ -968,7 +968,7 @@ namespace
     public:
         TestDBViewer(DBFixture& db_fixture)
             : db_fixture_(db_fixture)
-            , conn_("dbname=test_patsak user=test password=test") {}
+            , conn_("dbname=test user=test password=test") {}
 
         virtual const Header& GetHeader(const string& rel_var_name) const {
             headers_.push_back(Header());
