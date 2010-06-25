@@ -1251,6 +1251,9 @@ var dbTestSuite = {
     var tuples = query('{n: X.j + 0}');
     assertSame(tuples[0].n, 42);
     assert(isNaN(tuples[1].n));
+    tuples = query('X where j < "["');
+    assertSame(tuples.length, 1);
+    assertSame(tuples[0].j, 42);
     assertThrow(TypeError, "db.update('X', 'true', [], {j: 'j + 1'}, [])");
     function E() {}
     assertThrow(
