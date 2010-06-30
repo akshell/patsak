@@ -29,7 +29,6 @@ DB_PASSWORD  = 'test'
 DB_PARAMS    = 'user=%s password=%s dbname=%%s' % (DB_USER, DB_PASSWORD)
 TEST_PATH    = os.path.dirname(__file__)
 RELEASE_PATH = os.path.join(TEST_PATH, '../sample/release')
-INIT_DB_PATH = os.path.join(TEST_PATH, 'init-db.sql')
 FUNCS_PATH   = os.path.join(TEST_PATH, '../src/funcs.sql')
 
 
@@ -78,7 +77,6 @@ class Test(unittest.TestCase):
         self.assertEqual(self._eval('2+2\n3+3'), 'OK\n6')
         self.assertEqual(self._eval('s="x"; while(1) s+=s'),
                          'ERROR\n<Out of memory>')
-        self._check_launch(['eval', '2+2', 'no-such-app'], 1)
         self._check_launch(['eval', '2+2\n3+3', APP_NAME])
 
         process = _popen(
@@ -197,7 +195,6 @@ def _create_db():
     conn.close()
     conn = psycopg2.connect(DB_PARAMS % DB_NAME)
     cursor = conn.cursor()
-    cursor.execute(open(INIT_DB_PATH).read())
     cursor.execute(open(FUNCS_PATH).read())
     for app_name in os.listdir(RELEASE_PATH):
         if (app_name[0] == '.' or

@@ -1021,24 +1021,6 @@ var dbTestSuite = {
                 });
   },
 
-  testQuota: function () {
-    assert(_core.dbQuota > 0);
-    create('rv', {i: number._integer()._unique(), s: string});
-    var str = 'x';
-    for (var i = 0; i < 20; ++i)
-      str += str;
-    assertThrow(ConstraintError,
-                function () { db.insert('rv', {i: 0, s: str + 'x'}); });
-    // Slow DB size quota test, uncomment to run
-//     assertThrow(
-//       QuotaError,
-//       function () {
-//         for (var i = 0; ; ++i)
-//           db.insert('rv', {i: i, s: str});
-//       });
-    db.drop(['rv']);
-  },
-
   testBigIndexRow: function () {
     create('rv', {s: string});
     assertThrow(DBError, "db.insert('rv', {s: readCode('main.js')})");
@@ -1268,7 +1250,6 @@ var fileTestSuite = {
     file.length = 27;
     file.position += 1;
     assertEqual(file._read(), 'русский');
-    assert(file.writable);
     assert(!file.closed);
     file._flush();
     file._close();
@@ -1344,16 +1325,6 @@ var fileTestSuite = {
     assertEqual(fs.open('dir2/dir3/subdir/hello')._read(), 'hello world!');
     fs.rename('dir2/dir3', 'dir1');
     assertThrow(NoSuchEntryError, "fs.rename('no such file', 'xxx')");
-  },
-
-  testQuota: function () {
-    var data = new Binary(_core.fsQuota / 2, 'x'.charCodeAt(0));
-    fs.open('file1')._write(data);
-    fs.open('file2')._write(data);
-    assertThrow(QuotaError, function () { fs.open('file3')._write(data); });
-    remove('file1');
-    remove('file2');
-    remove('file3');
   },
 
   testBinary: function () {

@@ -198,13 +198,3 @@ BEGIN
     EXECUTE cmd;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
-
-
-CREATE FUNCTION ak.get_app_quotas(
-    app_name text, OUT db_quota integer, OUT fs_quota integer)
-    RETURNS RECORD AS
-$$
-    SELECT db_quota, fs_quota
-    FROM public.main_app AS app
-    WHERE app.name = $1;
-$$ LANGUAGE SQL STABLE;

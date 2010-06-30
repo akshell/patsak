@@ -191,8 +191,7 @@ int main(int argc, char** argv)
     DB db("user=" + db_user + " password=" + db_password + " dbname=" + db_name,
           (spot_name.empty()
            ? ':' + app_name
-           : ':' + app_name + ':' + owner_name + ':' + spot_name),
-          app_name);
+           : ':' + app_name + ':' + owner_name + ':' + spot_name));
 
     string path_suffix =
         spot_name.empty()

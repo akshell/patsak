@@ -124,20 +124,13 @@ namespace ak
     };
 
 
-    class FSQuotaChecker;
-
-
     class FileBg : public BaseFileBg {
     public:
         DECLARE_JS_CLASS(FileBg);
 
-        FileBg(const std::string& path, FSQuotaChecker* quota_checker_ptr = 0);
+        FileBg(const std::string& path);
 
     private:
-        class ChangeScope;
-
-        FSQuotaChecker* quota_checker_ptr_;
-
         size_t GetSize() const;
 
         DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetLengthCb,
@@ -156,10 +149,6 @@ namespace ak
         DECLARE_JS_CALLBACK3(void, SetPositionCb,
                              v8::Local<v8::String>,
                              v8::Local<v8::Value>,
-                             const v8::AccessorInfo&) const;
-
-        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetWritableCb,
-                             v8::Local<v8::String>,
                              const v8::AccessorInfo&) const;
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, FlushCb,
@@ -199,10 +188,7 @@ namespace ak
     public:
         DECLARE_JS_CLASS(FSBg);
 
-        FSBg(const std::string& app_path,
-             const std::string& release_path,
-             uint64_t quota);
-
+        FSBg(const std::string& app_path, const std::string& release_path);
         ~FSBg();
 
         std::string ReadPath(v8::Handle<v8::Value> value,
@@ -211,7 +197,6 @@ namespace ak
     private:
         const std::string app_path_;
         const std::string release_path_;
-        boost::scoped_ptr<FSQuotaChecker> quota_checker_ptr_;
 
         std::string ReadPath(const v8::Arguments& args) const;
 

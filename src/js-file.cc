@@ -532,83 +532,6 @@ size_t Binarizator::GetSize() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// FSQuotaChecker definitions
-////////////////////////////////////////////////////////////////////////////////
-
-class ak::FSQuotaChecker {
-public:
-    FSQuotaChecker(uint64_t quota, uint64_t size);
-    void Check() const;
-    void Change(int64_t diff);
-
-private:
-    uint64_t quota_;
-    uint64_t size_;
-};
-
-
-FSQuotaChecker::FSQuotaChecker(uint64_t quota, uint64_t size)
-    : quota_(quota)
-    , size_(size)
-{
-}
-
-
-void FSQuotaChecker::Check() const
-{
-    if (size_ > quota_)
-        throw Error(Error::QUOTA, "File storage quota exceeded");
-}
-
-
-void FSQuotaChecker::Change(int64_t diff)
-{
-    size_ = max(0LL, static_cast<int64_t>(size_) + diff);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// FileBg::ChangeScope
-////////////////////////////////////////////////////////////////////////////////
-
-class FileBg::ChangeScope {
-public:
-    ChangeScope(const FileBg& file);
-    ~ChangeScope();
-
-private:
-    const FileBg& file_;
-    int64_t initial_size_;
-
-    int64_t GetAllocatedSize() const;
-};
-
-
-FileBg::ChangeScope::ChangeScope(const FileBg& file)
-    : file_(file)
-{
-    file.CheckOpen();
-    if (!file.quota_checker_ptr_)
-        throw Error(Error::FILE_IS_READ_ONLY, "File is read only");
-    file.quota_checker_ptr_->Check();
-    initial_size_ = GetAllocatedSize();
-}
-
-
-FileBg::ChangeScope::~ChangeScope()
-{
-    file_.quota_checker_ptr_->Change(GetAllocatedSize() - initial_size_);
-}
-
-
-int64_t FileBg::ChangeScope::GetAllocatedSize() const
-{
-    struct stat st;
-    int ret = fstat(file_.fd_, &st);
-    AK_ASSERT_EQUAL(ret, 0);
-    return st.st_blocks * 512;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // BaseFileBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -684,22 +607,15 @@ DEFINE_JS_SUBCLASS(FileBg, "File", BaseFileBg, object_template, proto_template)
                                  GetPositionCb, SetPositionCb,
                                  Handle<v8::Value>(), DEFAULT,
                                  DontDelete);
-    object_template->SetAccessor(String::NewSymbol("writable"),
-                                 GetWritableCb, 0,
-                                 Handle<v8::Value>(), DEFAULT,
-                                 ReadOnly | DontDelete);
     SetFunction(proto_template, "_flush", FlushCb);
     SetFunction(proto_template, "_read", ReadCb);
     SetFunction(proto_template, "_write", WriteCb);
 }
 
 
-FileBg::FileBg(const string& path, FSQuotaChecker* quota_checker_ptr)
+FileBg::FileBg(const string& path)
     : BaseFileBg(
-        quota_checker_ptr
-        ? open(path.c_str(), O_CLOEXEC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)
-        : open(path.c_str(), O_CLOEXEC | O_RDONLY))
-    , quota_checker_ptr_(quota_checker_ptr)
+        open(path.c_str(), O_CLOEXEC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR))
 {
 }
 
@@ -727,7 +643,7 @@ DEFINE_JS_CALLBACK3(void, FileBg, SetLengthCb,
                     Local<v8::Value>, value,
                     const AccessorInfo&, /*info*/) const
 {
-    ChangeScope change_scope(*this);
+    CheckOpen();
     int ret = ftruncate(fd_, value->Uint32Value());
     AK_ASSERT_EQUAL(ret, 0);
 }
@@ -752,15 +668,6 @@ DEFINE_JS_CALLBACK3(void, FileBg, SetPositionCb,
     CheckOpen();
     off_t position = lseek(fd_, value->Uint32Value(), SEEK_SET);
     AK_ASSERT(position != -1);
-}
-
-
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetWritableCb,
-                    Local<String>, /*property*/,
-                    const AccessorInfo&, /*info*/) const
-{
-    CheckOpen();
-    return Boolean::New(quota_checker_ptr_);
 }
 
 
@@ -790,7 +697,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, ReadCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, WriteCb,
                     const Arguments&, args) const
 {
-    ChangeScope change_scope(*this);
+    CheckOpen();
     CheckArgsLength(args, 1);
     Binarizator binarizator(args[0]);
     ssize_t count = write(fd_, binarizator.GetData(), binarizator.GetSize());
@@ -939,12 +846,9 @@ DEFINE_JS_CLASS(FSBg, "FS", object_template, /*proto_template*/)
 }
 
 
-FSBg::FSBg(const string& app_path,
-           const string& release_path,
-           uint64_t quota)
+FSBg::FSBg(const string& app_path, const string& release_path)
     : app_path_(app_path)
     , release_path_(release_path)
-    , quota_checker_ptr_(new FSQuotaChecker(quota, CalcTotalSize(app_path)))
 {
 }
 
@@ -978,7 +882,7 @@ string FSBg::ReadPath(const Arguments& args) const
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, OpenCb,
                     const Arguments&, args) const
 {
-    return JSNew<FileBg>(ReadPath(args), quota_checker_ptr_.get());
+    return JSNew<FileBg>(ReadPath(args));
 }
 
 
@@ -1035,10 +939,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, CreateDirCb,
                     const Arguments&, args)
 {
     CheckArgsLength(args, 1);
-    quota_checker_ptr_->Check();
     if (mkdir(ReadPath(args[0]).c_str(), 0755) == -1)
         throw MakeErrnoError();
-    quota_checker_ptr_->Change(DIRECTORY_SIZE);
     return Undefined();
 }
 
@@ -1047,11 +949,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RemoveCb,
                     const Arguments&, args)
 {
     CheckArgsLength(args, 1);
-    string path(ReadPath(args[0], false));
-    int64_t size = GetStat(path)->st_blocks * 512;
-    if (remove(path.c_str()) == -1)
+    if (remove(ReadPath(args[0], false).c_str()) == -1)
         throw MakeErrnoError();
-    quota_checker_ptr_->Change(-size);
     return Undefined();
 }
 

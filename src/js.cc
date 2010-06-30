@@ -920,7 +920,7 @@ Program::Impl::Impl(const Place& place,
     , db_(db)
     , code_reader_(app_code_path, release_code_path)
     , db_bg_(place.app_name == "profile")
-    , fs_bg_(app_media_path, release_media_path, db.GetFSQuota())
+    , fs_bg_(app_media_path, release_media_path)
     , core_bg_(place, code_reader_, fs_bg_)
 {
     V8::SetFatalErrorHandler(HandleFatalError);
@@ -944,8 +944,6 @@ Program::Impl::Impl(const Place& place,
     Context::Scope context_scope(context_);
     core_bg_.Init(core_);
     db_bg_.Init(Get(core_, "db")->ToObject());
-    Set(core_, "dbQuota", Number::New(db_.GetDBQuota()));
-    Set(core_, "fsQuota", Number::New(db_.GetFSQuota()));
 
     Handle<Object> json(Get(context_->Global(), "JSON")->ToObject());
     stringify_json_func = Persistent<Function>::New(

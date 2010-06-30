@@ -30,16 +30,6 @@ namespace
     const size_t MAX_NAME_SIZE = 60;
     const size_t MAX_ATTR_NUMBER = 500;
     const size_t MAX_REL_VAR_NUMBER = 500;
-    const size_t MAX_STRING_SIZE = 1024 * 1024;
-    const uint64_t QUOTA_MULTIPLICATOR = 1024 * 1024;
-
-#ifdef TEST
-    const size_t ADDED_SIZE_MULTIPLICATOR = 16;
-    const size_t CHANGED_ROWS_COUNT_LIMIT = 10;
-#else
-    const size_t ADDED_SIZE_MULTIPLICATOR = 4;
-    const size_t CHANGED_ROWS_COUNT_LIMIT = 10000;
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -341,11 +331,6 @@ RelVar::RelVar(pqxx::work& work,
             oss << " DEFAULT nextval('\""
                 << name << '@' << rich_attr.GetName()
                 << "\"')";
-        if (rich_attr.GetType() == Type::STRING)
-            oss << " CHECK (bit_length("
-                << Quoted(rich_attr.GetName())
-                << ") <= " << 8 * MAX_STRING_SIZE
-                << ')';
     }
 
     BOOST_FOREACH(const StringSet& unique_key, unique_key_set_) {
@@ -1085,104 +1070,25 @@ Error DBViewerImpl::MakeKeyError(const RelVarAttrs& key,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// QuotaChecker
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    // Database space quota checker. Full of heuristics.
-    class QuotaChecker {
-    public:
-        QuotaChecker(const string& schema_name, uint64_t quota);
-        void DataWereAdded(size_t rows_count, uint64_t size);
-        void Check(pqxx::work& work);
-
-    private:
-        const string schema_name_;
-        uint64_t quota_;
-        uint64_t total_size_;
-        uint64_t added_size_;
-        size_t changed_rows_count_;
-
-        uint64_t CalculateTotalSize(pqxx::work& work) const;
-    };
-}
-
-
-QuotaChecker::QuotaChecker(const string& schema_name, uint64_t quota)
-    : schema_name_(schema_name)
-    , quota_(quota)
-    , total_size_(quota)
-    , added_size_(0)
-    , changed_rows_count_(0)
-{
-}
-
-
-void QuotaChecker::DataWereAdded(size_t rows_count, uint64_t size)
-{
-    changed_rows_count_ += rows_count;
-    added_size_ += size;
-}
-
-
-void QuotaChecker::Check(pqxx::work& work)
-{
-    if (changed_rows_count_ > CHANGED_ROWS_COUNT_LIMIT ||
-        (total_size_ + ADDED_SIZE_MULTIPLICATOR * added_size_ >= quota_)) {
-        total_size_ = CalculateTotalSize(work);
-        added_size_ = 0;
-        changed_rows_count_ = 0;
-    }
-    if (total_size_ >= quota_)
-        throw Error(Error::QUOTA,
-                    ("Database size quota exceeded, "
-                     "updates and inserts are forbidden"));
-}
-
-
-uint64_t QuotaChecker::CalculateTotalSize(pqxx::work& work) const
-{
-    static const format query("SELECT ak.get_schema_size('%1%');");
-    pqxx::result pqxx_result(work.exec((format(query) % schema_name_).str()));
-    AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
-    AK_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
-    AK_ASSERT(!pqxx_result[0][0].is_null());
-    return lexical_cast<uint64_t>(pqxx_result[0][0].c_str());
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // DB::Impl
 ////////////////////////////////////////////////////////////////////////////////
 
 class DB::Impl {
 public:
-    Impl(const string& opt,
-         const string& schema_name,
-         const string& app_name);
-
-    uint64_t GetDBQuota() const;
-    uint64_t GetFSQuota() const;
-
+    Impl(const string& opt, const string& schema_name);
     pqxx::connection& GetConnection();
     Manager& GetManager();
     const Translator& GetTranslator() const;
-    QuotaChecker& GetQuotaChecker();
 
 private:
     pqxx::connection conn_;
-    uint64_t db_quota_;
-    uint64_t fs_quota_;
     Manager manager_;
     DBViewerImpl db_viewer_;
     Translator translator_;
-    scoped_ptr<QuotaChecker> quota_checker_ptr_;
 };
 
 
-DB::Impl::Impl(const string& opt,
-               const string& schema_name,
-               const string& app_name)
+DB::Impl::Impl(const string& opt, const string& schema_name)
     : conn_(opt)
     , manager_(schema_name)
     , db_viewer_(manager_, Quoter(conn_))
@@ -1190,38 +1096,14 @@ DB::Impl::Impl(const string& opt,
 {
     static const format create_cmd("SELECT ak.create_schema('%1%');");
     static const format set_cmd("SET search_path TO \"%1%\", pg_catalog;");
-    static const format quota_query("SELECT * FROM ak.get_app_quotas('%1%');");
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
-    {
-        pqxx::work work(conn_);
-        try {
-            pqxx::subtransaction(work).exec(
-                (format(create_cmd) % schema_name).str());
-        } catch (const pqxx::sql_error&) {}
-        work.exec((format(set_cmd) % schema_name).str());
-        pqxx::result pqxx_result(
-            work.exec((format(quota_query) % app_name).str()));
-        AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
-        const pqxx::result::tuple& tuple(pqxx_result[0]);
-        if (tuple[0].is_null())
-            Fail("App \"" + app_name + "\" does not exist");
-        db_quota_ = QUOTA_MULTIPLICATOR * tuple[0].as<size_t>();
-        fs_quota_ = QUOTA_MULTIPLICATOR * tuple[1].as<size_t>();
-        work.commit(); // don't remove it, stupid idiot! is sets search_path!
-    }
-    quota_checker_ptr_.reset(new QuotaChecker(schema_name, db_quota_));
-}
-
-
-uint64_t DB::Impl::GetDBQuota() const
-{
-    return db_quota_;
-}
-
-
-uint64_t DB::Impl::GetFSQuota() const
-{
-    return fs_quota_;
+    pqxx::work work(conn_);
+    try {
+        pqxx::subtransaction(work).exec(
+            (format(create_cmd) % schema_name).str());
+    } catch (const pqxx::sql_error&) {}
+    work.exec((format(set_cmd) % schema_name).str());
+    work.commit(); // don't remove it, stupid idiot! is sets search_path!
 }
 
 
@@ -1242,36 +1124,18 @@ const Translator& DB::Impl::GetTranslator() const
     return translator_;
 }
 
-
-QuotaChecker& DB::Impl::GetQuotaChecker()
-{
-    return *quota_checker_ptr_;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // DB definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DB(const string& opt, const string& schema_name, const string& app_name)
+DB::DB(const string& opt, const string& schema_name)
 {
-    pimpl_.reset(new Impl(opt, schema_name, app_name));
+    pimpl_.reset(new Impl(opt, schema_name));
 }
 
 
 DB::~DB()
 {
-}
-
-
-uint64_t DB::GetDBQuota() const
-{
-    return pimpl_->GetDBQuota();
-}
-
-
-uint64_t DB::GetFSQuota() const
-{
-    return pimpl_->GetFSQuota();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1430,8 +1294,6 @@ size_t Access::Update(const string& rel_var_name,
                       const StringMap& expr_map,
                       const Drafts& expr_params)
 {
-    db_impl_.GetQuotaChecker().Check(*work_ptr_);
-
     const RichHeader& rich_header(GetRichHeader(rel_var_name));
     uint64_t size = 0;
     BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map) {
@@ -1454,7 +1316,6 @@ size_t Access::Update(const string& rel_var_name,
     } catch (const pqxx::sql_error& err) {
         throw Error(Error::DB, err.what());
     }
-    db_impl_.GetQuotaChecker().DataWereAdded(result, size);
     return result;
 }
 
@@ -1483,8 +1344,6 @@ Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
         "INSERT INTO \"%1%\" (%2%) VALUES (%3%) RETURNING *;");
     static const format default_cmd(
         "INSERT INTO \"%1%\" DEFAULT VALUES RETURNING *;");
-
-    db_impl_.GetQuotaChecker().Check(*work_ptr_);
 
     const RelVar& rel_var(db_impl_.GetManager().GetMeta().Get(rel_var_name));
     const RichHeader& rich_header(rel_var.GetRichHeader());
@@ -1549,7 +1408,6 @@ Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
     } catch (const pqxx::sql_error& err) {
         throw Error(Error::DB, err.what());
     }
-    db_impl_.GetQuotaChecker().DataWereAdded(1, size);
     if (rich_header.empty())
         return Values();
     AK_ASSERT_EQUAL(pqxx_result.size(), 1U);

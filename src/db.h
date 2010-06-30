@@ -48,12 +48,8 @@ namespace ak
 
     class DB {
     public:
-        DB(const std::string& opt,
-           const std::string& schema_name,
-           const std::string& app_name);
+        DB(const std::string& opt, const std::string& schema_name);
         ~DB();
-        uint64_t GetDBQuota() const;
-        uint64_t GetFSQuota() const;
 
     private:
         class Impl;
