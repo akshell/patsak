@@ -725,7 +725,7 @@ DEFINE_JS_SUBCLASS(SocketBg, "Socket", BaseFileBg,
 int SocketBg::Connect(const string& host, const string& service)
 {
     if (open_count >= MAX_OPEN_COUNT)
-        throw Error(Error::SOCKET, "Too many open sockets");
+        throw Error(Error::QUOTA, "Too many open sockets");
     struct addrinfo hints;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;

@@ -1438,7 +1438,7 @@ var fileTestSuite = {
 //     var sockets = [];
 //     for (var i = 0; i < 100; ++i)
 //       sockets.push(fs.connect('example.com', '80'));
-//     assertThrow(SocketError, "fs.connect('example.com', '80')");
+//     assertThrow(QuotaError, "fs.connect('example.com', '80')");
   }
 };
 
