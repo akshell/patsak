@@ -918,22 +918,6 @@ namespace
         }
         return result;
     }
-
-
-    string DoReadPath(const string& root_path,
-                      Handle<v8::Value> value,
-                      bool can_be_root = true)
-    {
-        string rel_path(Stringify(value));
-        int depth = GetPathDepth(rel_path);
-        if (depth < 0)
-            throw Error(Error::PATH,
-                        ("Path \"" + rel_path +
-                         "\" leads beyond the root directory"));
-        if (!can_be_root && !depth)
-            throw Error(Error::PATH, "Path \"" + rel_path + "\" is empty");
-        return root_path + '/' + rel_path;
-    }
 }
 
 
@@ -972,26 +956,29 @@ FSBg::~FSBg()
 
 string FSBg::ReadPath(Handle<v8::Value> value, bool can_be_root) const
 {
-    return DoReadPath(app_path_, value, can_be_root);
+    string rel_path(Stringify(value));
+    int depth = GetPathDepth(rel_path);
+    if (depth < 0)
+        throw Error(Error::PATH,
+                    ("Path \"" + rel_path +
+                     "\" leads beyond the root directory"));
+    if (!can_be_root && !depth)
+        throw Error(Error::PATH, "Path \"" + rel_path + "\" is empty");
+    return app_path_ + '/' + rel_path;
 }
 
 
 string FSBg::ReadPath(const Arguments& args) const
 {
     CheckArgsLength(args, 1);
-    if (args.Length() == 1)
-        return ReadPath(args[0]);
-    string app_name(Stringify(args[0]));
-    access_ptr->CheckAppExists(app_name);
-    return DoReadPath(release_path_ + '/' + app_name, args[1]);
+    return ReadPath(args[0]);
 }
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, OpenCb,
                     const Arguments&, args) const
 {
-    return JSNew<FileBg>(ReadPath(args),
-                         args.Length() == 1 ? quota_checker_ptr_.get() : 0);
+    return JSNew<FileBg>(ReadPath(args), quota_checker_ptr_.get());
 }
 
 

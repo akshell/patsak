@@ -264,7 +264,7 @@ var baseTestSuite = {
   testReadCode: function () {
     assertSame(readCode('subdir/hi.txt'), 'russian привет\n');
     assertSame(readCode('bad-app', 'main.js'), 'wuzzup!!!!!!!!\n');
-    assertThrow(NoSuchAppError, readCode, 'illegal/name', 'main.js');
+    assertThrow(ValueError, readCode, 'illegal/name', 'main.js');
     assertThrow(PathError, readCode, 'test-app', '');
     assertThrow(PathError,
                 readCode, 'test-app', 'subdir/../../another-app/main.js');
@@ -277,7 +277,7 @@ var baseTestSuite = {
     assert(getCodeModDate('lib', 'absolute/index.js') < new Date());
     assertThrow(NoSuchEntryError, getCodeModDate, 'no-such-file');
     assertThrow(NoSuchEntryError, getCodeModDate, 'lib', 'no-such-file');
-    assertThrow(NoSuchAppError, getCodeModDate, 'no-such-app', 'file');
+    assertThrow(ValueError, getCodeModDate, 'illegal/name', 'file');
   },
 
   testScript: function () {
@@ -1039,47 +1039,6 @@ var dbTestSuite = {
     db.drop(['rv']);
   },
 
-  testGetAppDescription: function () {
-    assertEqual(items(db.getAppDescription('test-app')),
-                [['admin', 'test user'],
-                 ['developers', ['Odysseus', 'Achilles']],
-                 ['summary', 'test app'],
-                 ['description', 'test app...'],
-                 ['labels', ['1', '2']]]);
-    assertEqual(items(db.getAppDescription('another-app')),
-                [['admin', 'Odysseus'],
-                 ['developers', []],
-                 ['summary', 'another app'],
-                 ['description', 'another app...'],
-                 ['labels', ['1']]]);
-    assertThrow(NoSuchAppError, "db.getAppDescription('no-such-app')");
-    assertThrow(UsageError, "db.getAppDescription()");
-  },
-
-  testGetUserEmail: function () {
-    assertThrow(UsageError, "db.getUserEmail('Achilles')");
-  },
-
-  testGetAdminedApps: function () {
-    assertEqual(db.getAdminedApps('test user').sort(),
-                ['bad-app', 'blocking-app',
-                 'lib', 'test-app', 'throwing-app']);
-    assertEqual(db.getAdminedApps('Achilles'), []);
-    assertThrow(NoSuchUserError, "db.getAdminedApps('no such user')");
-  },
-
-  testGetDevelopedApps: function () {
-    assertEqual(db.getDevelopedApps('Odysseus').sort(), ['lib', 'test-app']);
-    assertEqual(db.getDevelopedApps('test user'), []);
-    assertThrow(NoSuchUserError, "db.getDevelopedApps('no such user')");
-  },
-
-  testGetAppsByLabel: function () {
-    assertEqual(db.getAppsByLabel('1').sort(), ['another-app', 'test-app']);
-    assertEqual(db.getAppsByLabel('2'), ['test-app']);
-    assertEqual(db.getAppsByLabel('no such label'), []);
-  },
-
   testBigIndexRow: function () {
     create('rv', {s: string});
     assertThrow(DBError, "db.insert('rv', {s: readCode('main.js')})");
@@ -1327,8 +1286,6 @@ var fileTestSuite = {
           array.push('x');
         fs.open(array.join(''));
       });
-    assertThrow(NoSuchAppError, "fs.open('no-such-app', 'file')");
-    assertThrow(NoSuchEntryError, "fs.open('another-app', 'no such file')");
   },
 
   testExists: function () {

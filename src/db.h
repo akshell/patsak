@@ -100,27 +100,6 @@ namespace ak
     };
 
 
-    struct App {
-        std::string admin;
-        Strings developers;
-        std::string summary;
-        std::string description;
-        Strings labels;
-
-        App(const std::string& admin,
-            const Strings& developers,
-            const std::string& summary,
-            const std::string& description,
-            const Strings& labels)
-            : admin(admin)
-            , developers(developers)
-            , summary(summary)
-            , description(description)
-            , labels(labels)
-            {}
-    };
-
-
     class Access {
     public:
         explicit Access(DB& db);
@@ -187,15 +166,6 @@ namespace ak
                         const Strings& checks);
 
         void DropAllConstrs(const std::string& rel_var_name);
-
-        std::string GetAppPatsakVersion(const std::string& name) const;
-        void CheckAppExists(const std::string& name) const;
-        App DescribeApp(const std::string& name) const;
-        std::string GetUserEmail(const std::string& user_name) const;
-        void CheckUserExists(const std::string& name) const;
-        Strings GetAdminedApps(const std::string& user_name) const;
-        Strings GetDevelopedApps(const std::string& user_name) const;
-        Strings GetAppsByLabel(const std::string& label_name) const;
 
     private:
         class WorkWrapper;

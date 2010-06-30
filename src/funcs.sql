@@ -200,13 +200,6 @@ END;
 $$ LANGUAGE plpgsql VOLATILE;
 
 
-CREATE FUNCTION ak.get_app_patsak_version(name text) RETURNS text AS $$
-    SELECT patsak_version
-    FROM public.main_app AS app
-    WHERE app.name = $1;
-$$ LANGUAGE SQL STABLE;
-
-
 CREATE FUNCTION ak.get_app_quotas(
     app_name text, OUT db_quota integer, OUT fs_quota integer)
     RETURNS RECORD AS
@@ -214,81 +207,4 @@ $$
     SELECT db_quota, fs_quota
     FROM public.main_app AS app
     WHERE app.name = $1;
-$$ LANGUAGE SQL STABLE;
-
-
-CREATE FUNCTION ak.describe_app(
-    name text,
-    OUT id int4, OUT admin text, OUT summary text, OUT description text)
-    RETURNS SETOF RECORD AS
-$$
-    SELECT app.id, usr.username, app.summary, app.description
-    FROM public.main_app AS app, public.auth_user AS usr
-    WHERE app.admin_id = usr.id
-    AND app.name = $1;
-$$ LANGUAGE SQL STABLE;
-
-
-CREATE FUNCTION ak.get_app_devs(app_id int4, OUT dev_name text)
-    RETURNS SETOF text AS
-$$
-    SELECT usr.username
-    FROM public.auth_user AS usr, public.main_app_devs AS app_devs
-    WHERE usr.id = app_devs.user_id
-    AND app_devs.app_id = $1;
-$$ LANGUAGE SQL STABLE;
-
-
-CREATE FUNCTION ak.get_app_labels(app_id int4, OUT label_name text)
-    RETURNS SETOF text AS
-$$
-    SELECT label.name
-    FROM public.main_label AS label, public.main_app_labels AS app_labels
-    WHERE label.id = app_labels.label_id
-    AND app_labels.app_id = $1;
-$$ LANGUAGE SQL STABLE;
-
-
-CREATE FUNCTION ak.get_user_email(user_name text) RETURNS text AS
-$$
-    SELECT usr.email
-    FROM public.auth_user AS usr
-    WHERE usr.username = $1;
-$$ LANGUAGE SQL STABLE;
-
-
-CREATE FUNCTION ak.get_admined_apps(
-    user_name text, OUT app_name text)
-    RETURNS SETOF text AS
-$$
-    SELECT app.name
-    FROM public.main_app AS app, public.auth_user AS usr
-    WHERE app.admin_id = usr.id
-    AND usr.username = $1;
-$$ LANGUAGE SQL STABLE;
-
-
-CREATE FUNCTION ak.get_developed_apps(
-    user_name text, OUT app_name text)
-    RETURNS SETOF text AS
-$$
-    SELECT app.name
-    FROM public.main_app AS app, public.auth_user AS usr,
-         public.main_app_devs AS devs
-    WHERE devs.app_id = app.id
-    AND devs.user_id = usr.id
-    AND usr.username = $1;
-$$ LANGUAGE SQL STABLE;
-
-
-CREATE FUNCTION ak.get_apps_by_label(
-    label_name text, OUT app_name text)
-    RETURNS SETOF text AS
-$$
-    SELECT app.name
-    FROM public.main_app AS app, public.main_label AS label,
-         public.main_app_labels AS app_labels
-    WHERE app_labels.app_id = app.id
-    AND app_labels.label_id = label.id
-    AND label.name = $1;
 $$ LANGUAGE SQL STABLE;

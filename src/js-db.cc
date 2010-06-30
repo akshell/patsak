@@ -528,11 +528,6 @@ DEFINE_JS_CLASS(DBBg, "DB", object_template, /*proto_template*/)
     SetFunction(object_template, "dropDefault", DropDefaultCb);
     SetFunction(object_template, "addConstrs", AddConstrsCb);
     SetFunction(object_template, "dropAllConstrs", DropAllConstrsCb);
-    SetFunction(object_template, "getAppDescription", GetAppDescriptionCb);
-    SetFunction(object_template, "getAdminedApps", GetAdminedAppsCb);
-    SetFunction(object_template, "getDevelopedApps", GetDevelopedAppsCb);
-    SetFunction(object_template, "getAppsByLabel", GetAppsByLabelCb);
-    SetFunction(object_template, "getUserEmail", GetUserEmailCb);
 }
 
 
@@ -887,40 +882,3 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropAllConstrsCb,
     access_ptr->DropAllConstrs(Stringify(args[0]));
     return Undefined();
 }
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetAppDescriptionCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    App app(access_ptr->DescribeApp(Stringify(args[0])));
-    Handle<Object> result(Object::New());
-    Set(result, "admin", String::New(app.admin.c_str()));
-    Set(result, "developers", MakeV8Array(app.developers));
-    Set(result, "summary", String::New(app.summary.c_str()));
-    Set(result, "description", String::New(app.description.c_str()));
-    Set(result, "labels", MakeV8Array(app.labels));
-    return result;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetUserEmailCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    if (!priviliged_)
-        throw Error(Error::USAGE, "Application in not priviliged");
-    return String::New(access_ptr->GetUserEmail(Stringify(args[0])).c_str());
-}
-
-
-#define DEFINE_JS_CALLBACK_APPS(name)                               \
-    DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, name##Cb,          \
-                        const Arguments&, args) const {             \
-        CheckArgsLength(args, 1);                                   \
-        return MakeV8Array(access_ptr->name(Stringify(args[0])));   \
-    }
-
-DEFINE_JS_CALLBACK_APPS(GetAdminedApps)
-DEFINE_JS_CALLBACK_APPS(GetDevelopedApps)
-DEFINE_JS_CALLBACK_APPS(GetAppsByLabel)

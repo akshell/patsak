@@ -109,7 +109,6 @@ class Test(unittest.TestCase):
     def testReleaseServer(self):
         os.mkdir(MEDIA_PATH + '/release/test-app/dir')
         open(MEDIA_PATH + '/release/test-app/dir/file', 'w').write('hello')
-        open(MEDIA_PATH + '/release/another-app/file', 'w').write('hi')
 
         process = _popen([PATSAK_PATH,
                           '--config-file', CONFIG_PATH,
@@ -128,13 +127,6 @@ class Test(unittest.TestCase):
         self.assertEqual(self._talk('EVAL\nnew Binary(3)'), 'OK\n\0\0\0')
         self.assert_(
             'Uncaught 42\n    at main.js:' in self._talk('EVAL\nthrow42()'))
-
-        self.assertEqual(
-            self._talk('EVAL\nfs.open("another-app", "file")._read()'),
-            'OK\nhi')
-        self.assert_(
-            'FileIsReadOnlyError' in
-            self._talk('EVAL\nfs.open("another-app", "file")._write("yo")'))
 
         self.assert_(
             'Uncaught 1' in

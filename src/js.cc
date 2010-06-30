@@ -51,7 +51,8 @@ namespace
         string app_path_;
         string release_path_;
 
-        void CheckPath(const string& path) const;
+        static void CheckAppName(const string& app_name);
+        static void CheckPath(const string& path);
 
         auto_ptr<Chars> DoRead(const string& base_path,
                                const string& path) const;
@@ -76,7 +77,7 @@ auto_ptr<Chars> CodeReader::Read(const string& path) const
 auto_ptr<Chars> CodeReader::Read(const string& app_name,
                                  const string& path) const
 {
-    access_ptr->CheckAppExists(app_name);
+    CheckAppName(app_name);
     return DoRead(release_path_ + '/' + app_name, path);
 }
 
@@ -89,12 +90,20 @@ time_t CodeReader::GetModDate(const string& path) const
 
 time_t CodeReader::GetModDate(const string& app_name, const string& path) const
 {
-    access_ptr->CheckAppExists(app_name);
+    CheckAppName(app_name);
     return DoGetModDate(release_path_ + '/' + app_name, path);
 }
 
 
-void CodeReader::CheckPath(const string& path) const
+void CodeReader::CheckAppName(const string& app_name)
+{
+    BOOST_FOREACH(char c, app_name)
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-'))
+            throw Error(Error::VALUE, "Illegal app name");
+}
+
+
+void CodeReader::CheckPath(const string& path)
 {
     if (GetPathDepth(path) <= 0)
         throw Error(Error::PATH, "Code path \"" + path + "\" is illegal");
