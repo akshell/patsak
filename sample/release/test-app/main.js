@@ -671,14 +671,14 @@ var dbTestSuite = {
                         {foreign: [[['x', 'y'],
                                     'Post',
                                     ['id', 'author']]]});
-    assertThrow(DBQuotaError,
+    assertThrow(QuotaError,
                 function () {
                   var name = '';
                   for (var i = 0; i < 61; ++i)
                     name += 'x';
                   create(name, {});
                 });
-    assertThrow(DBQuotaError,
+    assertThrow(QuotaError,
                 function () {
                   attrs = {};
                   for (var i = 0; i < 1000; ++i)
@@ -1009,7 +1009,7 @@ var dbTestSuite = {
   },
 
   testRelVarNumber: function () {
-    assertThrow(DBQuotaError,
+    assertThrow(QuotaError,
                 function () {
                   for (var i = 0; i < 500; ++i)
                     create('rv' + i, {});
@@ -1031,7 +1031,7 @@ var dbTestSuite = {
                 function () { db.insert('rv', {i: 0, s: str + 'x'}); });
     // Slow DB size quota test, uncomment to run
 //     assertThrow(
-//       DBQuotaError,
+//       QuotaError,
 //       function () {
 //         for (var i = 0; ; ++i)
 //           db.insert('rv', {i: i, s: str});
@@ -1076,7 +1076,7 @@ var dbTestSuite = {
       descr['a' + i] = [number, i];
       db.addAttrs('X', descr);
     }
-    assertThrow(DBQuotaError, "db.addAttrs('X', {another: [string, '']})");
+    assertThrow(QuotaError, "db.addAttrs('X', {another: [string, '']})");
     create('Y', {});
     db.insert('Y', {});
     db.addAttrs('Y', {n: [number, 0], s: [string, '']});
@@ -1199,7 +1199,7 @@ var dbTestSuite = {
     for (var i = 0; i < 20; ++i)
       s += s;
     db.insert('Z', {n: 0, s: s});
-    assertThrow(DBQuotaError, "db.dropAllConstrs('Z')");
+    assertThrow(QuotaError, "db.dropAllConstrs('Z')");
     db.drop(['X', 'Y', 'Z']);
   },
 
@@ -1350,7 +1350,7 @@ var fileTestSuite = {
     var data = new Binary(_core.fsQuota / 2, 'x'.charCodeAt(0));
     fs.open('file1')._write(data);
     fs.open('file2')._write(data);
-    assertThrow(FSQuotaError, function () { fs.open('file3')._write(data); });
+    assertThrow(QuotaError, function () { fs.open('file3')._write(data); });
     remove('file1');
     remove('file2');
     remove('file3');

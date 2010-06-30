@@ -43,6 +43,7 @@
     defineErrorClass('NoSuchUser'),
     defineErrorClass('Conversion'),
     defineErrorClass('Socket'),
+    defineErrorClass('Quota'),
 
     _core.DBError,
     defineErrorClass('RelVarExists', _core.DBError),
@@ -53,10 +54,8 @@
     defineErrorClass('NoSuchAttr', _core.DBError),
     defineErrorClass('AttrValueRequired', _core.DBError),
     defineErrorClass('RelVarDependency', _core.DBError),
-    defineErrorClass('DBQuota', _core.DBError),
 
     _core.FSError,
-    defineErrorClass('FSQuota', _core.FSError),
     defineErrorClass('Path', _core.FSError),
     defineErrorClass('EntryExists', _core.FSError),
     defineErrorClass('NoSuchEntry', _core.FSError),

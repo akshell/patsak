@@ -557,7 +557,7 @@ FSQuotaChecker::FSQuotaChecker(uint64_t quota, uint64_t size)
 void FSQuotaChecker::Check() const
 {
     if (size_ > quota_)
-        throw Error(Error::FS_QUOTA, "File storage quota exceeded");
+        throw Error(Error::QUOTA, "File storage quota exceeded");
 }
 
 

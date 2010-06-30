@@ -31,6 +31,7 @@ namespace ak
             NO_SUCH_USER,
             CONVERSION,
             SOCKET,
+            QUOTA,
 
             DB,
             REL_VAR_EXISTS,
@@ -41,10 +42,8 @@ namespace ak
             NO_SUCH_ATTR,
             ATTR_VALUE_REQUIRED,
             REL_VAR_DEPENDENCY,
-            DB_QUOTA,
 
             FS,
-            FS_QUOTA,
             PATH,
             ENTRY_EXISTS,
             NO_SUCH_ENTRY,

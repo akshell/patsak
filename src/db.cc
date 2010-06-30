@@ -417,7 +417,7 @@ void RelVar::CheckName(const string& name)
             (format("RelVar and attribute name length must be "
                     "no more than %1% characters") %
              MAX_NAME_SIZE).str());
-        throw Error(Error::DB_QUOTA, message);
+        throw Error(Error::QUOTA, message);
     }
     const locale& loc(locale::classic());
     if (name[0] != '_' && !isalpha(name[0], loc))
@@ -438,7 +438,7 @@ void RelVar::CheckAttrNumber(size_t number)
         static const string message(
             (format("Maximum attribute number is %1%") %
              MAX_ATTR_NUMBER).str());
-        throw Error(Error::DB_QUOTA, message);
+        throw Error(Error::QUOTA, message);
     }
 }
 
@@ -819,7 +819,7 @@ void RelVar::DropAllConstrs(pqxx::work& work)
         pqxx::subtransaction(work).exec(oss.str());
     } catch (const pqxx::sql_error& err) {
         throw (string(err.what()).substr(0, 13) == "ERROR:  index"
-               ? Error(Error::DB_QUOTA, "Unique string is too long")
+               ? Error(Error::QUOTA, "Unique string is too long")
                : Error(Error::REL_VAR_DEPENDENCY,
                        ("Unique cannot be dropped "
                         "because other RelVar references it")));
@@ -878,7 +878,7 @@ void DBMeta::Create(pqxx::work& work,
         static const string message(
             (format("Maximum RelVar number is %1%") %
              MAX_REL_VAR_NUMBER).str());
-        throw Error(Error::DB_QUOTA, message);
+        throw Error(Error::QUOTA, message);
     }
     if (GetIdx(rel_var_name) != MINUS_ONE)
         throw Error(Error::REL_VAR_EXISTS,
@@ -1135,7 +1135,7 @@ void QuotaChecker::Check(pqxx::work& work)
         changed_rows_count_ = 0;
     }
     if (total_size_ >= quota_)
-        throw Error(Error::DB_QUOTA,
+        throw Error(Error::QUOTA,
                     ("Database size quota exceeded, "
                      "updates and inserts are forbidden"));
 }
