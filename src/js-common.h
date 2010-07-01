@@ -241,35 +241,19 @@ namespace ak
     }
 
 
-    class Watcher : public boost::noncopyable {
-    public:
-        struct ExecutionGuard {
-            ExecutionGuard();
-            ~ExecutionGuard();
-        };
-
-        struct CallbackGuard {
-            CallbackGuard() {
-                Watcher::in_callback_ = true;
-            }
-
-            ~CallbackGuard() {
-                Watcher::in_callback_ = false;
-                if (Watcher::timed_out_)
-                    v8::V8::TerminateExecution();
-            }
-        };
-
-        static bool TimedOut() { return timed_out_; }
-
-    private:
-        static bool initialized_;
-        static bool timed_out_;
-        static bool in_callback_;
-
-        Watcher(); // not defined
-        static void HandleAlarm(int /*signal*/);
+    struct ExecutionGuard {
+        ExecutionGuard();
+        ~ExecutionGuard();
     };
+
+
+    struct CallbackGuard {
+        CallbackGuard();
+        ~CallbackGuard();
+    };
+
+
+    bool TimedOut();
 }
 
 
@@ -340,8 +324,8 @@ namespace ak
 
 
 #define JS_CALLBACK_GUARD(T)                        \
-    ak::Watcher::CallbackGuard callback_guard__;    \
-    if (ak::Watcher::TimedOut())                    \
+    ak::CallbackGuard callback_guard__;             \
+    if (ak::TimedOut())                             \
         return T()
 
 

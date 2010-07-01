@@ -992,11 +992,11 @@ bool Program::Impl::Run(Handle<Object> object,
     TryCatch try_catch;
     Handle<v8::Value> value;
     {
-        Watcher::ExecutionGuard guard;
+        ExecutionGuard guard;
         value = function->Call(object, 1, &arg);
     }
     access_ptr = 0;
-    if (Watcher::TimedOut()) {
+    if (TimedOut()) {
         Write(out_fd, "ERROR\n<Timed out>");
         return false;
     }

@@ -163,39 +163,63 @@ vector<JSClassBase*>& JSClassBase::GetInstancePtrs()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Watcher
+// ExecutionGuard, CallbackGuard, and TimedOut
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Watcher::initialized_ = false;
-bool Watcher::timed_out_   = false;
-bool Watcher::in_callback_ = false;
-
-
-void Watcher::HandleAlarm(int /*signal*/)
+namespace
 {
-    Watcher::timed_out_ = true;
-    if (!Watcher::in_callback_)
-        V8::TerminateExecution();
+    bool handler_set = false;
+    bool timed_out   = false;
+    bool in_callback = false;
+
+
+    void HandleAlarm(int /*signal*/)
+    {
+        timed_out = true;
+        if (!in_callback)
+            V8::TerminateExecution();
+    }
 }
 
 
-Watcher::ExecutionGuard::ExecutionGuard()
+ExecutionGuard::ExecutionGuard()
 {
-    if (!Watcher::initialized_) {
+    if (!handler_set) {
         struct sigaction action;
-        action.sa_handler = Watcher::HandleAlarm;
+        action.sa_handler = HandleAlarm;
         sigemptyset(&action.sa_mask);
         action.sa_flags = 0;
         sigaction(SIGALRM, &action, 0);
-        Watcher::initialized_ = true;
+        handler_set = true;
     }
-    Watcher::timed_out_ = false;
-    Watcher::in_callback_ = false;
+    timed_out = false;
+    in_callback = false;
     alarm(10);
 }
 
 
-Watcher::ExecutionGuard::~ExecutionGuard()
+ExecutionGuard::~ExecutionGuard()
 {
     alarm(0);
 }
+
+
+CallbackGuard::CallbackGuard()
+{
+    in_callback = true;
+}
+
+
+CallbackGuard::~CallbackGuard() {
+    in_callback = false;
+    if (timed_out)
+        v8::V8::TerminateExecution();
+}
+
+
+bool ak::TimedOut()
+{
+    return timed_out;
+}
+
+
