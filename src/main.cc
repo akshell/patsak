@@ -65,20 +65,20 @@ int main(int argc, char** argv)
         ;
 
     string log_path, code_path, media_path;
-    string db_name, db_user, db_password, db_schema, db_tablespace;
+    string db_name, user_name, password, schema_name, tablespace_name;
     po::options_description config_options("Config options");
     config_options.add_options()
         ("log-file,l", po::value<string>(&log_path), "log file")
         ("code-dir,c", po::value<string>(&code_path), "code directory")
         ("media-dir,m", po::value<string>(&media_path), "media directory")
         ("db-name,n", po::value<string>(&db_name), "database name")
-        ("db-user,u", po::value<string>(&db_user), "database user")
-        ("db-password,p", po::value<string>(&db_password), "database password")
+        ("db-user,u", po::value<string>(&user_name), "database user")
+        ("db-password,p", po::value<string>(&password), "database password")
         ("db-schema,s",
-         po::value<string>(&db_schema)->default_value("public"),
+         po::value<string>(&schema_name)->default_value("public"),
          "database schema")
         ("db-tablespace,t",
-         po::value<string>(&db_tablespace)->default_value("pg_default"),
+         po::value<string>(&tablespace_name)->default_value("pg_default"),
          "database tablespace")
         ;
 
@@ -171,9 +171,9 @@ int main(int argc, char** argv)
     RequireOption("log-file", log_path);
     RequireOption("code-dir", code_path);
     RequireOption("media-dir", media_path);
-    RequireOption("db-name", db_user);
-    RequireOption("db-user", db_user);
-    RequireOption("db-password", db_password);
+    RequireOption("db-name", db_name);
+    RequireOption("db-user", user_name);
+    RequireOption("db-password", password);
 
     if (!eval) {
         char* curr_dir = get_current_dir_name();
@@ -194,9 +194,9 @@ int main(int argc, char** argv)
         AK_ASSERT(ret == 0);
     }
 
-    DB db("user=" + db_user + " password=" + db_password + " dbname=" + db_name,
-          db_schema,
-          db_tablespace);
+    DB db("user=" + user_name + " password=" + password + " dbname=" + db_name,
+          schema_name,
+          tablespace_name);
 
     string path_suffix =
         spot_name.empty()
