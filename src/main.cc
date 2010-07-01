@@ -65,7 +65,7 @@ int main(int argc, char** argv)
         ;
 
     string log_path, code_path, media_path;
-    string db_name, db_user, db_password;
+    string db_name, db_user, db_password, db_schema;
     po::options_description config_options("Config options");
     config_options.add_options()
         ("log-file,l", po::value<string>(&log_path), "log file")
@@ -74,6 +74,9 @@ int main(int argc, char** argv)
         ("db-name,n", po::value<string>(&db_name), "database name")
         ("db-user,u", po::value<string>(&db_user), "database user")
         ("db-password,p", po::value<string>(&db_password), "database password")
+        ("db-schema,s",
+         po::value<string>(&db_schema)->default_value("public"),
+         "database schema")
         ;
 
     string command;
@@ -189,9 +192,7 @@ int main(int argc, char** argv)
     }
 
     DB db("user=" + db_user + " password=" + db_password + " dbname=" + db_name,
-          (spot_name.empty()
-           ? ':' + app_name
-           : ':' + app_name + ':' + owner_name + ':' + spot_name));
+          db_schema);
 
     string path_suffix =
         spot_name.empty()

@@ -1094,15 +1094,10 @@ DB::Impl::Impl(const string& opt, const string& schema_name)
     , db_viewer_(manager_, Quoter(conn_))
     , translator_(db_viewer_)
 {
-    static const format create_cmd("SELECT ak.create_schema('%1%');");
-    static const format set_cmd("SET search_path TO \"%1%\", pg_catalog;");
+    static const format cmd("SET search_path TO \"%1%\", pg_catalog;");
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
     pqxx::work work(conn_);
-    try {
-        pqxx::subtransaction(work).exec(
-            (format(create_cmd) % schema_name).str());
-    } catch (const pqxx::sql_error&) {}
-    work.exec((format(set_cmd) % schema_name).str());
+    work.exec((format(cmd) % schema_name).str());
     work.commit(); // don't remove it, stupid idiot! is sets search_path!
 }
 

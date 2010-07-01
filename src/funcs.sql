@@ -81,6 +81,9 @@ CREATE FUNCTION ak.mod(a float8, b float8) RETURNS float8 AS $$
 $$ LANGUAGE SQL IMMUTABLE;
 
 
+CREATE OPERATOR % (leftarg = float8, rightarg = float8, procedure = ak.mod);
+
+
 CREATE FUNCTION ak.eval(t text) RETURNS text AS $$
 DECLARE
     r text;
