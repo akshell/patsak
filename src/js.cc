@@ -668,9 +668,6 @@ namespace
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, HashCb,
                              const Arguments&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ConstructCb,
-                             const Arguments&) const;
     };
 }
 
@@ -685,7 +682,6 @@ DEFINE_JS_CLASS(CoreBg, "Core", object_template, /*proto_template*/)
     SetFunction(object_template, "readCode", ReadCodeCb);
     SetFunction(object_template, "getCodeModDate", GetCodeModDateCb);
     SetFunction(object_template, "hash", HashCb);
-    SetFunction(object_template, "construct", ConstructCb);
     Set(object_template, "db", DBBg::GetJSClass().GetObjectTemplate());
     Set(object_template, "fs", FSBg::GetJSClass().GetObjectTemplate());
 }
@@ -772,22 +768,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, HashCb,
                 ? args[0]->ToObject()->GetIdentityHash()
                 : 0);
     return Integer::New(hash);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, ConstructCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 2);
-    if (!args[0]->IsFunction ())
-        throw Error(Error::TYPE, "First argument must be function");
-    Handle<Function> constructor(Handle<Function>::Cast(args[0]));
-    Handle<Array> array(GetArray(args[1]));
-    vector<Handle<v8::Value> > values;
-    values.reserve(array->Length());
-    for (size_t i = 0; i < array->Length(); ++i)
-        values.push_back(array->Get(Integer::New(i)));
-    return constructor->NewInstance(array->Length(), &values[0]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

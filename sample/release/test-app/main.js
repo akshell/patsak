@@ -25,8 +25,7 @@ DONT_DELETE = 1 << 2;
   'readCode',
   'getCodeModDate',
   'set',
-  'hash',
-  'construct'
+  'hash'
 ].forEach(
   function (name) {
     var func = _core[name];
@@ -326,15 +325,6 @@ var baseTestSuite = {
     assert(new NoSuchAttrError() instanceof DBError);
     assert(UsageError() instanceof UsageError);
     assertSame(NotImplementedError(42).message, '42');
-  },
-
-  testConstruct: function () {
-    assertSame(typeof(construct(Date, [])), 'object');
-    function C(a, b) { this.sum = a + b; }
-    assertSame(construct(C, [1, 2]).sum, 3);
-    assertThrow(UsageError, construct);
-    assertThrow(TypeError, construct, 42, []);
-    assertThrow(TypeError, construct, function () {}, 42);
   },
 
   testProxy: function () {

@@ -13,9 +13,11 @@
   function defineErrorClass(name, parent/* = Error */) {
     var fullName = name + 'Error';
     var result = function (message) {
-      if (!(this instanceof arguments.callee))
-        return _core.construct(arguments.callee,
-                               Array.prototype.slice.call(arguments));
+      if (!(this instanceof arguments.callee)) {
+        var self = {__proto__: arguments.callee.prototype};
+        arguments.callee.apply(self, arguments);
+        return self;
+      }
       Error.captureStackTrace(this);
       this.message = message + '';
       return undefined;
