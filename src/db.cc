@@ -1099,12 +1099,14 @@ DB::Impl::Impl(const string& opt,
     , db_viewer_(manager_, Quoter(conn_))
     , translator_(db_viewer_)
 {
-    static const format cmd("SET search_path TO \"%1%\", pg_catalog;"
-                            "SET default_tablespace TO \"%2%\";");
+    static const format cmd("SET search_path TO %1%, pg_catalog;"
+                            "SET default_tablespace TO %2%;");
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
     pqxx::work work(conn_);
-    work.exec((format(cmd) % schema_name % tablespace_name).str());
-    work.commit(); // don't remove it, stupid idiot! is sets search_path!
+    work.exec((format(cmd)
+               % conn_.quote(schema_name)
+               % conn_.quote(tablespace_name)).str());
+    work.commit();
 }
 
 
