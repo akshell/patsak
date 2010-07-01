@@ -835,7 +835,7 @@ namespace
 
 
 DBFixture::DBFixture()
-    : db("dbname=test user=test password=test", "public")
+    : db("dbname=test user=test password=test", "public", "pg_default")
 {
     DeleteRelVars(GetRelVarNames());
     BOOST_REQUIRE(GetRelVarNames().empty());

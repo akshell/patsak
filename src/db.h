@@ -48,7 +48,10 @@ namespace ak
 
     class DB {
     public:
-        DB(const std::string& opt, const std::string& schema_name);
+        DB(const std::string& opt,
+           const std::string& schema_name,
+           const std::string& tablespace_name);
+
         ~DB();
 
     private:

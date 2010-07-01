@@ -1075,7 +1075,10 @@ Error DBViewerImpl::MakeKeyError(const RelVarAttrs& key,
 
 class DB::Impl {
 public:
-    Impl(const string& opt, const string& schema_name);
+    Impl(const string& opt,
+         const string& schema_name,
+         const string& tablespace_name);
+
     pqxx::connection& GetConnection();
     Manager& GetManager();
     const Translator& GetTranslator() const;
@@ -1088,16 +1091,19 @@ private:
 };
 
 
-DB::Impl::Impl(const string& opt, const string& schema_name)
+DB::Impl::Impl(const string& opt,
+               const string& schema_name,
+               const string& tablespace_name)
     : conn_(opt)
     , manager_(schema_name)
     , db_viewer_(manager_, Quoter(conn_))
     , translator_(db_viewer_)
 {
-    static const format cmd("SET search_path TO \"%1%\", pg_catalog;");
+    static const format cmd("SET search_path TO \"%1%\", pg_catalog;"
+                            "SET default_tablespace TO \"%2%\";");
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
     pqxx::work work(conn_);
-    work.exec((format(cmd) % schema_name).str());
+    work.exec((format(cmd) % schema_name % tablespace_name).str());
     work.commit(); // don't remove it, stupid idiot! is sets search_path!
 }
 
@@ -1123,9 +1129,11 @@ const Translator& DB::Impl::GetTranslator() const
 // DB definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DB(const string& opt, const string& schema_name)
+DB::DB(const string& opt,
+       const string& schema_name,
+       const string& tablespace_name)
 {
-    pimpl_.reset(new Impl(opt, schema_name));
+    pimpl_.reset(new Impl(opt, schema_name, tablespace_name));
 }
 
 
