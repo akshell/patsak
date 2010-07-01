@@ -899,7 +899,7 @@ Program::Impl::Impl(const Place& place,
     : initialized_(false)
     , db_(db)
     , code_reader_(app_code_path, release_code_path)
-    , db_bg_(place.app_name == "profile")
+    , db_bg_()
     , fs_bg_(app_media_path, release_media_path)
     , core_bg_(place, code_reader_, fs_bg_)
 {

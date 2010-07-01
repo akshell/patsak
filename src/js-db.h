@@ -16,12 +16,11 @@ namespace ak
     class DBBg {
     public:
         DECLARE_JS_CLASS(DBBg);
-        DBBg(bool priviliged = false);
+        DBBg();
         void Init(v8::Handle<v8::Object> object) const;
         bool WasRolledBack();
 
     private:
-        const bool priviliged_;
         bool rolled_back_;
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RollBackCb,

@@ -531,9 +531,8 @@ DEFINE_JS_CLASS(DBBg, "DB", object_template, /*proto_template*/)
 }
 
 
-DBBg::DBBg(bool priviliged)
-    : priviliged_(priviliged)
-    , rolled_back_(false)
+DBBg::DBBg()
+    : rolled_back_(false)
 {
 }
 
