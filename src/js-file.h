@@ -23,30 +23,19 @@ namespace ak
     int GetPathDepth(const std::string& path);
 
 
-    class BaseFileBg {
-    public:
-        DECLARE_JS_CLASS(BaseFileBg);
-
-        virtual void Close();
-
+    class BaseFile {
     protected:
         int fd_;
 
-        BaseFileBg(int fd);
-        virtual ~BaseFileBg();
+        BaseFile(int fd);
+        ~BaseFile();
+
+        void Close();
         void CheckOpen() const;
-
-    private:
-        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetClosedCb,
-                             v8::Local<v8::String>,
-                             const v8::AccessorInfo&) const;
-
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CloseCb,
-                             const v8::Arguments&);
     };
 
 
-    class FileBg : public BaseFileBg {
+    class FileBg : private BaseFile {
     public:
         DECLARE_JS_CLASS(FileBg);
 
@@ -54,6 +43,10 @@ namespace ak
 
     private:
         size_t GetSize() const;
+
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetClosedCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
 
         DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetLengthCb,
                              v8::Local<v8::String>,
@@ -73,6 +66,9 @@ namespace ak
                              v8::Local<v8::Value>,
                              const v8::AccessorInfo&) const;
 
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CloseCb,
+                             const v8::Arguments&);
+
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, FlushCb,
                              const v8::Arguments&) const;
 
@@ -84,19 +80,26 @@ namespace ak
     };
 
 
-    class SocketBg : public BaseFileBg {
+    class SocketBg : private BaseFile {
     public:
         DECLARE_JS_CLASS(SocketBg);
 
         SocketBg(int fd);
         SocketBg(const std::string& host, const std::string& service);
-        virtual void Close();
+        void Close();
 
     private:
         static const size_t MAX_OPEN_COUNT;
         static size_t open_count;
 
         static int Connect(const std::string& host, const std::string& service);
+
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetClosedCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CloseCb,
+                             const v8::Arguments&);
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ReceiveCb,
                              const v8::Arguments&) const;

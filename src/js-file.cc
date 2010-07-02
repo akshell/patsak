@@ -108,21 +108,10 @@ int ak::GetPathDepth(const string& path)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// BaseFileBg definitions
+// BaseFile definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(BaseFileBg, "BaseFile", object_template, proto_template)
-{
-    object_template->SetAccessor(String::NewSymbol("closed"),
-                                 GetClosedCb, 0,
-                                 Handle<v8::Value>(), DEFAULT,
-                                 ReadOnly | DontDelete);
-    SetFunction(proto_template, "_close", CloseCb);
-
-}
-
-
-BaseFileBg::BaseFileBg(int fd)
+BaseFile::BaseFile(int fd)
     : fd_(fd)
 {
     if (fd == -1)
@@ -130,13 +119,13 @@ BaseFileBg::BaseFileBg(int fd)
 }
 
 
-BaseFileBg::~BaseFileBg()
+BaseFile::~BaseFile()
 {
     Close();
 }
 
 
-void BaseFileBg::Close()
+void BaseFile::Close()
 {
     if (fd_ != -1) {
         int ret = close(fd_);
@@ -146,35 +135,22 @@ void BaseFileBg::Close()
 }
 
 
-void BaseFileBg::CheckOpen() const
+void BaseFile::CheckOpen() const
 {
     if (fd_ == -1)
         throw Error(Error::VALUE, "File is already closed");
-}
-
-
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, BaseFileBg, GetClosedCb,
-                    Local<String>, /*property*/,
-                    const AccessorInfo&, /*info*/) const
-{
-    return Boolean::New(fd_ == -1);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, BaseFileBg, CloseCb,
-                    const Arguments&, /*args*/)
-{
-    Close();
-    return Undefined();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // FileBg definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_SUBCLASS(FileBg, "File", BaseFileBg, object_template, proto_template)
+DEFINE_JS_CLASS(FileBg, "File", object_template, proto_template)
 {
-    BaseFileBg::AdjustTemplates(object_template, proto_template);
+    object_template->SetAccessor(String::NewSymbol("closed"),
+                                 GetClosedCb, 0,
+                                 Handle<v8::Value>(), DEFAULT,
+                                 ReadOnly | DontDelete);
     object_template->SetAccessor(String::NewSymbol("length"),
                                  GetLengthCb, SetLengthCb,
                                  Handle<v8::Value>(), DEFAULT,
@@ -183,6 +159,7 @@ DEFINE_JS_SUBCLASS(FileBg, "File", BaseFileBg, object_template, proto_template)
                                  GetPositionCb, SetPositionCb,
                                  Handle<v8::Value>(), DEFAULT,
                                  DontDelete);
+    SetFunction(proto_template, "_close", CloseCb);
     SetFunction(proto_template, "_flush", FlushCb);
     SetFunction(proto_template, "_read", ReadCb);
     SetFunction(proto_template, "_write", WriteCb);
@@ -190,7 +167,7 @@ DEFINE_JS_SUBCLASS(FileBg, "File", BaseFileBg, object_template, proto_template)
 
 
 FileBg::FileBg(const string& path)
-    : BaseFileBg(
+    : BaseFile(
         open(path.c_str(), O_CLOEXEC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR))
 {
 }
@@ -202,6 +179,14 @@ size_t FileBg::GetSize() const
     int ret = fstat(fd_, &st);
     AK_ASSERT_EQUAL(ret, 0);
     return st.st_size;
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetClosedCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/) const
+{
+    return Boolean::New(fd_ == -1);
 }
 
 
@@ -247,6 +232,14 @@ DEFINE_JS_CALLBACK3(void, FileBg, SetPositionCb,
 }
 
 
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, CloseCb,
+                    const Arguments&, /*args*/)
+{
+    Close();
+    return Undefined();
+}
+
+
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, FlushCb,
                     const Arguments&, args) const
 {
@@ -289,10 +282,13 @@ const size_t SocketBg::MAX_OPEN_COUNT = 100;
 size_t SocketBg::open_count = 0;
 
 
-DEFINE_JS_SUBCLASS(SocketBg, "Socket", BaseFileBg,
-                   object_template, proto_template)
+DEFINE_JS_CLASS(SocketBg, "Socket", object_template, proto_template)
 {
-    BaseFileBg::AdjustTemplates(object_template, proto_template);
+    object_template->SetAccessor(String::NewSymbol("closed"),
+                                 GetClosedCb, 0,
+                                 Handle<v8::Value>(), DEFAULT,
+                                 ReadOnly | DontDelete);
+    SetFunction(proto_template, "_close", CloseCb);
     SetFunction(proto_template, "_receive", ReceiveCb);
     SetFunction(proto_template, "_send", SendCb);
 }
@@ -329,14 +325,14 @@ int SocketBg::Connect(const string& host, const string& service)
 
 
 SocketBg::SocketBg(int fd)
-    : BaseFileBg(fd)
+    : BaseFile(fd)
 {
     ++open_count;
 }
 
 
 SocketBg::SocketBg(const string& host, const string& service)
-    : BaseFileBg(Connect(host, service))
+    : BaseFile(Connect(host, service))
 {
     ++open_count;
 }
@@ -346,7 +342,23 @@ void SocketBg::Close()
 {
     if (fd_ != -1)
         --open_count;
-    BaseFileBg::Close();
+    BaseFile::Close();
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, SocketBg, GetClosedCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/) const
+{
+    return Boolean::New(fd_ == -1);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, SocketBg, CloseCb,
+                    const Arguments&, /*args*/)
+{
+    Close();
+    return Undefined();
 }
 
 
