@@ -4,6 +4,7 @@
 #include "js.h"
 #include "js-db.h"
 #include "js-file.h"
+#include "js-binary.h"
 #include "db.h"
 
 #include <boost/foreach.hpp>
@@ -448,9 +449,10 @@ DEFINE_JS_CALLBACK2(Handle<Boolean>, ProxyBg, DeleteIndexedCb,
         if (!value->IsFunction())                                       \
             return 0;                                                   \
         Handle<Function> func(Handle<Function>::Cast(value));           \
-        size_t start = at - parser->binary_ptr_->GetData();             \
+        Binarizator binarizator(*parser->binary_ptr_);                  \
+        size_t start = at - binarizator.GetData();                      \
         Handle<v8::Value> binary(                                       \
-            BinaryBg::New(*parser->binary_ptr_, start, start + size));  \
+            NewBinary(*parser->binary_ptr_, start, start + size));      \
         Handle<v8::Value> ret(                                          \
             func->Call(parser->handler_, 1, &binary));                  \
         if (ret.IsEmpty()) {                                            \
@@ -492,7 +494,7 @@ namespace
         Persistent<Object> handler_;
         bool got_exception_;
         http_parser impl_;
-        BinaryBg* binary_ptr_;
+        const BinaryBg* binary_ptr_;
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ExecCb, const Arguments&);
     };
@@ -618,17 +620,17 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, HTTPParserBg, ExecCb,
 {
     static http_parser_settings settings(CreateSettings());
     CheckArgsLength(args, 1);
-    binary_ptr_ = BinaryBg::GetJSClass().Cast(args[0]);
+    binary_ptr_ = CastToBinary(args[0]);
     if (!binary_ptr_)
         throw Error(Error::TYPE, "Binary required");
     got_exception_ = false;
-    const char* data = binary_ptr_->GetData();
-    size_t size = binary_ptr_->GetSize();
-    size_t parsed = http_parser_execute(&impl_, &settings, data, size);
+    Binarizator binarizator(*binary_ptr_);
+    size_t parsed = http_parser_execute(
+        &impl_, &settings, binarizator.GetData(), binarizator.GetSize());
     binary_ptr_ = 0;
     if (got_exception_)
         return Handle<v8::Value>();
-    if (parsed != size)
+    if (parsed != binarizator.GetSize())
         throw Error(Error::VALUE, "Parse error");
     return Undefined();
 }
@@ -705,6 +707,7 @@ void CoreBg::Init(Handle<Object> core) const
         Set(core, "owner", String::New(place_.owner_name.c_str()));
     }
     Set(core, "db", InitDB());
+    Set(core, "binary", InitBinary());
 }
 
 

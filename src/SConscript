@@ -22,6 +22,7 @@ js_sources = [
     'js-common.cc',
     'js-file.cc',
     'js-db.cc',
+    'js-binary.cc',
     ]
 
 common_objects, js_objects = [

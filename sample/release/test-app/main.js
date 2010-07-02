@@ -3,7 +3,7 @@
 
 Script = _core.Script;
 Proxy = _core.Proxy;
-Binary = _core.Binary;
+Binary = _core.binary.Binary;
 Binary.prototype.toString = Binary.prototype._toString;
 HTTPParser = _core.HTTPParser;
 db = _core.db;
