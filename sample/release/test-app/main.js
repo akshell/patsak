@@ -2,7 +2,7 @@
 // (c) 2009-2010 by Anton Korenyushkin
 
 Script = _core.Script;
-Proxy = _core.Proxy;
+Proxy = _core.proxy.Proxy;
 Binary = _core.binary.Binary;
 Binary.prototype.toString = Binary.prototype._toString;
 HTTPParser = _core.HTTPParser;
