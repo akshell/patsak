@@ -222,7 +222,6 @@ def _make_dirs():
     if os.path.exists(TMP_PATH):
         shutil.rmtree(TMP_PATH)
     os.makedirs(os.path.join(MEDIA_PATH, 'release', APP_NAME));
-    os.makedirs(os.path.join(MEDIA_PATH, 'release', 'another-app'));
     os.makedirs(os.path.join(MEDIA_PATH, 'spots', APP_NAME, USER_NAME))
 
 
