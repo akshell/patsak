@@ -36,8 +36,7 @@ namespace ak
         Program(const Place& place,
                 const std::string& app_code_path,
                 const std::string& release_code_path,
-                const std::string& app_media_path,
-                const std::string& release_media_path,
+                const std::string& media_path,
                 DB& db);
 
         ~Program();

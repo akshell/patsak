@@ -2,6 +2,7 @@
 // (c) 2009-2010 by Anton Korenyushkin
 
 #include "js-file.h"
+#include "js-common.h"
 #include "js-binary.h"
 #include "db.h"
 
@@ -140,8 +141,56 @@ void BaseFile::CheckOpen() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// FileBg definitions
+// FileBg
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    class FileBg : private BaseFile {
+    public:
+        DECLARE_JS_CLASS(FileBg);
+
+        FileBg(const std::string& path);
+
+    private:
+        size_t GetSize() const;
+
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetClosedCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetLengthCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+
+        DECLARE_JS_CALLBACK3(void, SetLengthCb,
+                             v8::Local<v8::String>,
+                             v8::Local<v8::Value>,
+                             const v8::AccessorInfo&) const;
+
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetPositionCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+
+        DECLARE_JS_CALLBACK3(void, SetPositionCb,
+                             v8::Local<v8::String>,
+                             v8::Local<v8::Value>,
+                             const v8::AccessorInfo&) const;
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CloseCb,
+                             const v8::Arguments&);
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, FlushCb,
+                             const v8::Arguments&) const;
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ReadCb,
+                             const v8::Arguments&) const;
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, WriteCb,
+                             const v8::Arguments&) const;
+    };
+}
+
 
 DEFINE_JS_CLASS(FileBg, "File", object_template, proto_template)
 {
@@ -273,163 +322,127 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, WriteCb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// FSBg definitions
+// InitFS
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    uint64_t CalcTotalSize(const string& path)
+    string media_path;
+
+
+    string ReadPath(Handle<v8::Value> value, bool can_be_root = true)
     {
-        struct stat st;
-        if (stat(path.c_str(), &st) == -1)
-            return 0;
-        uint64_t result = st.st_blocks * 512;
-        if (S_ISDIR(st.st_mode)) {
-            DIR* dir_ptr = opendir(path.c_str());
-            AK_ASSERT(dir_ptr);
-            while (struct dirent* dirent_ptr = readdir(dir_ptr)) {
-                string name(dirent_ptr->d_name);
-                if (name != "." && name != "..")
-                    result += CalcTotalSize(path + '/' + name);
-            }
-            closedir(dir_ptr);
+        string rel_path(Stringify(value));
+        int depth = GetPathDepth(rel_path);
+        if (depth < 0)
+            throw Error(Error::PATH,
+                        ("Path \"" + rel_path +
+                         "\" leads beyond the root directory"));
+        if (!can_be_root && !depth)
+            throw Error(Error::PATH, "Path \"" + rel_path + "\" is empty");
+        return media_path + '/' + rel_path;
+    }
+
+
+    string ReadPath(const Arguments& args)
+    {
+        CheckArgsLength(args, 1);
+        return ReadPath(args[0]);
+    }
+
+
+    DEFINE_JS_CALLBACK(OpenCb, args)
+    {
+        return JSNew<FileBg>(ReadPath(args));
+    }
+
+
+    DEFINE_JS_CALLBACK(ExistsCb, args)
+    {
+        return Boolean::New(GetStat(ReadPath(args), true).get());
+    }
+
+
+    DEFINE_JS_CALLBACK(IsDirCb, args)
+    {
+        auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args), true));
+        return Boolean::New(stat_ptr.get() && S_ISDIR(stat_ptr->st_mode));
+    }
+
+
+    DEFINE_JS_CALLBACK(IsFileCb, args)
+    {
+        auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args), true));
+        return Boolean::New(stat_ptr.get() && S_ISREG(stat_ptr->st_mode));
+    }
+
+
+    DEFINE_JS_CALLBACK(GetModDateCb, args)
+    {
+        return Date::New(
+            static_cast<double>(GetStat(ReadPath(args))->st_mtime) * 1000);
+    }
+
+
+    DEFINE_JS_CALLBACK(ListCb, args)
+    {
+        DIR* dir_ptr = opendir(ReadPath(args).c_str());
+        if (!dir_ptr)
+            throw MakeErrnoError();
+        Handle<Array> result(Array::New());
+        size_t i = 0;
+        while (struct dirent* dirent_ptr = readdir(dir_ptr)) {
+            string name(dirent_ptr->d_name);
+            if (name != "." && name != "..")
+                result->Set(Integer::New(i++), String::New(name.c_str()));
         }
+        closedir(dir_ptr);
         return result;
     }
-}
 
 
-DEFINE_JS_CLASS(FSBg, "FS", object_template, /*proto_template*/)
-{
-    FileBg::GetJSClass();
-    SetFunction(object_template, "open", OpenCb);
-    SetFunction(object_template, "exists", ExistsCb);
-    SetFunction(object_template, "isDir", IsDirCb);
-    SetFunction(object_template, "isFile", IsFileCb);
-    SetFunction(object_template, "getModDate", GetModDateCb);
-    SetFunction(object_template, "list", ListCb);
-    SetFunction(object_template, "createDir", CreateDirCb);
-    SetFunction(object_template, "remove", RemoveCb);
-    SetFunction(object_template, "rename", RenameCb);
-}
-
-
-FSBg::FSBg(const string& app_path, const string& release_path)
-    : app_path_(app_path)
-    , release_path_(release_path)
-{
-}
-
-
-FSBg::~FSBg()
-{
-}
-
-
-string FSBg::ReadPath(Handle<v8::Value> value, bool can_be_root) const
-{
-    string rel_path(Stringify(value));
-    int depth = GetPathDepth(rel_path);
-    if (depth < 0)
-        throw Error(Error::PATH,
-                    ("Path \"" + rel_path +
-                     "\" leads beyond the root directory"));
-    if (!can_be_root && !depth)
-        throw Error(Error::PATH, "Path \"" + rel_path + "\" is empty");
-    return app_path_ + '/' + rel_path;
-}
-
-
-string FSBg::ReadPath(const Arguments& args) const
-{
-    CheckArgsLength(args, 1);
-    return ReadPath(args[0]);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, OpenCb,
-                    const Arguments&, args) const
-{
-    return JSNew<FileBg>(ReadPath(args));
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ExistsCb,
-                    const Arguments&, args) const
-{
-    return Boolean::New(GetStat(ReadPath(args), true).get());
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsDirCb,
-                    const Arguments&, args) const
-{
-    auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args), true));
-    return Boolean::New(stat_ptr.get() && S_ISDIR(stat_ptr->st_mode));
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, IsFileCb,
-                    const Arguments&, args) const
-{
-    auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args), true));
-    return Boolean::New(stat_ptr.get() && S_ISREG(stat_ptr->st_mode));
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, GetModDateCb,
-                    const Arguments&, args) const
-{
-    return Date::New(
-        static_cast<double>(GetStat(ReadPath(args))->st_mtime) * 1000);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, ListCb,
-                    const Arguments&, args) const
-{
-    DIR* dir_ptr = opendir(ReadPath(args).c_str());
-    if (!dir_ptr)
-        throw MakeErrnoError();
-    Handle<Array> result(Array::New());
-    size_t i = 0;
-    while (struct dirent* dirent_ptr = readdir(dir_ptr)) {
-        string name(dirent_ptr->d_name);
-        if (name != "." && name != "..")
-            result->Set(Integer::New(i++), String::New(name.c_str()));
+    DEFINE_JS_CALLBACK(CreateDirCb, args)
+    {
+        CheckArgsLength(args, 1);
+        if (mkdir(ReadPath(args[0]).c_str(), 0755) == -1)
+            throw MakeErrnoError();
+        return Undefined();
     }
-    closedir(dir_ptr);
+
+
+    DEFINE_JS_CALLBACK(RemoveCb, args)
+    {
+        CheckArgsLength(args, 1);
+        if (remove(ReadPath(args[0], false).c_str()) == -1)
+            throw MakeErrnoError();
+        return Undefined();
+    }
+
+
+    DEFINE_JS_CALLBACK(RenameCb, args)
+    {
+        CheckArgsLength(args, 2);
+        string from_path(ReadPath(args[0], false));
+        string to_path(ReadPath(args[1], false));
+        if (rename(from_path.c_str(), to_path.c_str()) == -1)
+            throw MakeErrnoError();
+        return Undefined();
+    }
+}
+
+
+Handle<Object> ak::InitFS(const string& media_path)
+{
+    ::media_path = media_path;
+    Handle<Object> result(Object::New());
+    SetFunction(result, "open", OpenCb);
+    SetFunction(result, "exists", ExistsCb);
+    SetFunction(result, "isDir", IsDirCb);
+    SetFunction(result, "isFile", IsFileCb);
+    SetFunction(result, "getModDate", GetModDateCb);
+    SetFunction(result, "list", ListCb);
+    SetFunction(result, "createDir", CreateDirCb);
+    SetFunction(result, "remove", RemoveCb);
+    SetFunction(result, "rename", RenameCb);
     return result;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, CreateDirCb,
-                    const Arguments&, args)
-{
-    CheckArgsLength(args, 1);
-    if (mkdir(ReadPath(args[0]).c_str(), 0755) == -1)
-        throw MakeErrnoError();
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RemoveCb,
-                    const Arguments&, args)
-{
-    CheckArgsLength(args, 1);
-    if (remove(ReadPath(args[0], false).c_str()) == -1)
-        throw MakeErrnoError();
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, FSBg, RenameCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 2);
-    string from_path(ReadPath(args[0], false));
-    string to_path(ReadPath(args[1], false));
-    if (rename(from_path.c_str(), to_path.c_str()) == -1)
-        throw MakeErrnoError();
-    return Undefined();
 }

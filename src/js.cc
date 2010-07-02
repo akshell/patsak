@@ -2,6 +2,7 @@
 // (c) 2009-2010 by Anton Korenyushkin
 
 #include "js.h"
+#include "js-common.h"
 #include "js-db.h"
 #include "js-file.h"
 #include "js-binary.h"
@@ -354,16 +355,12 @@ namespace
     public:
         DECLARE_JS_CLASS(CoreBg);
 
-        CoreBg(const Place& place,
-               const CodeReader& code_reader,
-               FSBg& fs_bg);
-
+        CoreBg(const Place& place, const CodeReader& code_reader);
         void Init(Handle<Object> object) const;
 
     private:
         Place place_;
         const CodeReader& code_reader_;
-        FSBg& fs_bg_;
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, PrintCb,
                              const Arguments&) const;
@@ -391,16 +388,12 @@ DEFINE_JS_CLASS(CoreBg, "Core", object_template, /*proto_template*/)
     SetFunction(object_template, "readCode", ReadCodeCb);
     SetFunction(object_template, "getCodeModDate", GetCodeModDateCb);
     SetFunction(object_template, "hash", HashCb);
-    Set(object_template, "fs", FSBg::GetJSClass().GetObjectTemplate());
 }
 
 
-CoreBg::CoreBg(const Place& place,
-               const CodeReader& code_reader,
-               FSBg& fs_bg)
+CoreBg::CoreBg(const Place& place, const CodeReader& code_reader)
     : place_(place)
     , code_reader_(code_reader)
-    , fs_bg_(fs_bg)
 {
 }
 
@@ -413,11 +406,6 @@ void CoreBg::Init(Handle<Object> core) const
         Set(core, "spot", String::New(place_.spot_name.c_str()));
         Set(core, "owner", String::New(place_.owner_name.c_str()));
     }
-    Set(core, "db", InitDB());
-    Set(core, "binary", InitBinary());
-    Set(core, "proxy", InitProxy());
-    Set(core, "script", InitScript());
-    Set(core, "socket", InitSocket());
 }
 
 
@@ -565,8 +553,7 @@ public:
     Impl(const Place& place,
          const string& app_code_path,
          const string& release_code_path,
-         const string& app_media_path,
-         const string& release_media_path,
+         const string& media_path,
          DB& db);
 
     ~Impl();
@@ -579,7 +566,6 @@ private:
     bool initialized_;
     DB& db_;
     CodeReader code_reader_;
-    FSBg fs_bg_;
     CoreBg core_bg_;
     GlobalBg global_bg_;
     Persistent<Context> context_;
@@ -605,14 +591,12 @@ private:
 Program::Impl::Impl(const Place& place,
                     const string& app_code_path,
                     const string& release_code_path,
-                    const string& app_media_path,
-                    const string& release_media_path,
+                    const string& media_path,
                     DB& db)
     : initialized_(false)
     , db_(db)
     , code_reader_(app_code_path, release_code_path)
-    , fs_bg_(app_media_path, release_media_path)
-    , core_bg_(place, code_reader_, fs_bg_)
+    , core_bg_(place, code_reader_)
 {
     V8::SetFatalErrorHandler(HandleFatalError);
 
@@ -629,10 +613,15 @@ Program::Impl::Impl(const Place& place,
     global_proto->SetInternalField(0, External::New(&global_bg_));
     SetInternal(global_proto, "_core", &core_bg_);
     core_ = Persistent<Object>::New(Get(global_proto, "_core")->ToObject());
-    SetInternal(core_, "fs", &fs_bg_);
 
     Context::Scope context_scope(context_);
     core_bg_.Init(core_);
+    Set(core_, "db", InitDB());
+    Set(core_, "fs", InitFS(media_path));
+    Set(core_, "binary", InitBinary());
+    Set(core_, "proxy", InitProxy());
+    Set(core_, "script", InitScript());
+    Set(core_, "socket", InitSocket());
 
     // Run init.js script
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
@@ -777,14 +766,12 @@ void Program::Impl::SetInternal(Handle<Object> object,
 Program::Program(const Place& place,
                  const string& app_code_path,
                  const string& release_code_path,
-                 const string& app_media_path,
-                 const string& release_media_path,
+                 const string& media_path,
                  DB& db)
     : pimpl_(new Impl(place,
                       app_code_path,
                       release_code_path,
-                      app_media_path,
-                      release_media_path,
+                      media_path,
                       db))
 {
 }

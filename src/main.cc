@@ -210,7 +210,6 @@ int main(int argc, char** argv)
                     code_path + path_suffix,
                     code_path + "/release/",
                     media_path + path_suffix,
-                    media_path + "/release/",
                     db);
 
     if (eval) {
