@@ -1,8 +1,8 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-#ifndef JS_FILE_H
-#define JS_FILE_H
+#ifndef JS_FS_H
+#define JS_FS_H
 
 #include "common.h"
 
@@ -39,4 +39,4 @@ namespace ak
     v8::Handle<v8::Object> InitFS(const std::string& media_path);
 }
 
-#endif // JS_FILE_H
+#endif // JS_FS_H

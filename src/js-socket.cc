@@ -3,7 +3,7 @@
 
 #include "js-socket.h"
 #include "js-common.h"
-#include "js-file.h"
+#include "js-fs.h"
 #include "js-binary.h"
 
 #include <sys/socket.h>

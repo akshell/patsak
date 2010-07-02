@@ -1,7 +1,7 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-#include "js-file.h"
+#include "js-fs.h"
 #include "js-common.h"
 #include "js-binary.h"
 #include "db.h"

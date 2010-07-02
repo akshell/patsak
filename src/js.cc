@@ -4,7 +4,7 @@
 #include "js.h"
 #include "js-common.h"
 #include "js-db.h"
-#include "js-file.h"
+#include "js-fs.h"
 #include "js-binary.h"
 #include "js-proxy.h"
 #include "js-script.h"
