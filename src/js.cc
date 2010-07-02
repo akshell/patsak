@@ -7,6 +7,7 @@
 #include "js-binary.h"
 #include "js-proxy.h"
 #include "js-script.h"
+#include "js-socket.h"
 #include "db.h"
 
 #include <boost/foreach.hpp>
@@ -416,6 +417,7 @@ void CoreBg::Init(Handle<Object> core) const
     Set(core, "binary", InitBinary());
     Set(core, "proxy", InitProxy());
     Set(core, "script", InitScript());
+    Set(core, "socket", InitSocket());
 }
 
 
@@ -665,10 +667,8 @@ void Program::Impl::Process(int sock_fd)
 {
     HandleScope handle_scope;
     Context::Scope context_scope(context_);
-    SocketBg* socket_ptr(new SocketBg(sock_fd));
-    Handle<v8::Value> arg(SocketBg::GetJSClass().Instantiate(socket_ptr));
-    Call(core_, "main", arg);
-    socket_ptr->Close();
+    SocketScope socket_scope(sock_fd);
+    Call(core_, "main", socket_scope.GetSocket());
 }
 
 

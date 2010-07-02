@@ -5,6 +5,7 @@ Script = _core.script.Script;
 Proxy = _core.proxy.Proxy;
 Binary = _core.binary.Binary;
 Binary.prototype.toString = Binary.prototype._toString;
+connect = _core.socket.connect;
 HTTPParser = _core.HTTPParser;
 db = _core.db;
 fs = _core.fs;
@@ -1412,9 +1413,9 @@ var fileTestSuite = {
   },
 
   testConnect: function () {
-    assertThrow(SocketError, "fs.connect('bad host', 'http')");
-    assertThrow(SocketError, "fs.connect('localhost', '666')");
-    var socket = fs.connect('example.com', 'http');
+    assertThrow(SocketError, "connect('bad host', 'http')");
+    assertThrow(SocketError, "connect('localhost', '666')");
+    var socket = connect('example.com', 'http');
     var request = 'GET / HTTP/1.0\r\n\r\n';
     assertSame(socket._send(request), request.length);
     var response = socket._receive(15);
@@ -1426,8 +1427,8 @@ var fileTestSuite = {
     // Socket quota test. Slow to run.
 //     var sockets = [];
 //     for (var i = 0; i < 100; ++i)
-//       sockets.push(fs.connect('example.com', '80'));
-//     assertThrow(QuotaError, "fs.connect('example.com', '80')");
+//       sockets.push(connect('example.com', '80'));
+//     assertThrow(QuotaError, "connect('example.com', '80')");
   }
 };
 

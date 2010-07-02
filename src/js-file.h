@@ -80,35 +80,6 @@ namespace ak
     };
 
 
-    class SocketBg : private BaseFile {
-    public:
-        DECLARE_JS_CLASS(SocketBg);
-
-        SocketBg(int fd);
-        SocketBg(const std::string& host, const std::string& service);
-        void Close();
-
-    private:
-        static const size_t MAX_OPEN_COUNT;
-        static size_t open_count;
-
-        static int Connect(const std::string& host, const std::string& service);
-
-        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetClosedCb,
-                             v8::Local<v8::String>,
-                             const v8::AccessorInfo&) const;
-
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, CloseCb,
-                             const v8::Arguments&);
-
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ReceiveCb,
-                             const v8::Arguments&) const;
-
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, SendCb,
-                             const v8::Arguments&) const;
-    };
-
-
     class FSBg {
     public:
         DECLARE_JS_CLASS(FSBg);
@@ -150,9 +121,6 @@ namespace ak
                              const v8::Arguments&);
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, RenameCb,
-                             const v8::Arguments&) const;
-
-        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ConnectCb,
                              const v8::Arguments&) const;
     };
 }
