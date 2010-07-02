@@ -682,7 +682,6 @@ DEFINE_JS_CLASS(CoreBg, "Core", object_template, /*proto_template*/)
     SetFunction(object_template, "readCode", ReadCodeCb);
     SetFunction(object_template, "getCodeModDate", GetCodeModDateCb);
     SetFunction(object_template, "hash", HashCb);
-    Set(object_template, "db", DBBg::GetJSClass().GetObjectTemplate());
     Set(object_template, "fs", FSBg::GetJSClass().GetObjectTemplate());
 }
 
@@ -705,6 +704,7 @@ void CoreBg::Init(Handle<Object> core) const
         Set(core, "spot", String::New(place_.spot_name.c_str()));
         Set(core, "owner", String::New(place_.owner_name.c_str()));
     }
+    Set(core, "db", InitDB());
 }
 
 
@@ -866,7 +866,6 @@ private:
     bool initialized_;
     DB& db_;
     CodeReader code_reader_;
-    DBBg db_bg_;
     FSBg fs_bg_;
     CoreBg core_bg_;
     GlobalBg global_bg_;
@@ -899,7 +898,6 @@ Program::Impl::Impl(const Place& place,
     : initialized_(false)
     , db_(db)
     , code_reader_(app_code_path, release_code_path)
-    , db_bg_()
     , fs_bg_(app_media_path, release_media_path)
     , core_bg_(place, code_reader_, fs_bg_)
 {
@@ -918,18 +916,10 @@ Program::Impl::Impl(const Place& place,
     global_proto->SetInternalField(0, External::New(&global_bg_));
     SetInternal(global_proto, "_core", &core_bg_);
     core_ = Persistent<Object>::New(Get(global_proto, "_core")->ToObject());
-    SetInternal(core_, "db", &db_bg_);
     SetInternal(core_, "fs", &fs_bg_);
 
     Context::Scope context_scope(context_);
     core_bg_.Init(core_);
-    db_bg_.Init(Get(core_, "db")->ToObject());
-
-    Handle<Object> json(Get(context_->Global(), "JSON")->ToObject());
-    stringify_json_func = Persistent<Function>::New(
-        Handle<Function>::Cast(Get(json, "stringify")));
-    parse_json_func = Persistent<Function>::New(
-        Handle<Function>::Cast(Get(json, "parse")));
 
     // Run init.js script
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
@@ -1034,7 +1024,7 @@ bool Program::Impl::Run(Handle<Object> object,
         Binarizator binarizator(value);
         Write(out_fd, binarizator.GetData(), binarizator.GetSize());
     }
-    if (!db_bg_.WasRolledBack())
+    if (!RolledBack())
         access.Commit();
     return true;
 }

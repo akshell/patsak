@@ -45,18 +45,24 @@ namespace ak
     v8::Handle<v8::Value> Get(v8::Handle<v8::Object> object,
                               const std::string& name);
 
-    void SetFunction(v8::Handle<v8::Template> template_,
-                     const std::string& name,
-                     v8::InvocationCallback callback);
-
 
     template <typename OwnerT, typename PropT>
     void Set(v8::Handle<OwnerT> owner,
              const std::string& name,
              v8::Handle<PropT> prop,
-             v8::PropertyAttribute attribs = v8::None) {
+             v8::PropertyAttribute attribs = v8::None)
+    {
         owner->Set(v8::String::New(name.c_str()), prop, attribs);
     }
+
+
+    void SetFunction(v8::Handle<v8::ObjectTemplate> object_template,
+                     const std::string& name,
+                     v8::InvocationCallback callback);
+
+    void SetFunction(v8::Handle<v8::Object> object,
+                     const std::string& name,
+                     v8::InvocationCallback callback);
 
 
     struct Prop {
@@ -327,6 +333,19 @@ namespace ak
     ak::CallbackGuard callback_guard__;             \
     if (ak::TimedOut())                             \
         return T()
+
+
+#define DEFINE_JS_CALLBACK(name, args)                      \
+    v8::Handle<v8::Value> name##Impl(const Arguments&);     \
+    v8::Handle<v8::Value> name(const Arguments& arguments)  \
+    {                                                       \
+        JS_CALLBACK_GUARD(v8::Handle<v8::Value>);           \
+        try {                                               \
+            return name##Impl(arguments);                   \
+        } JS_CATCH(v8::Handle<v8::Value>);                  \
+    }                                                       \
+    v8::Handle<v8::Value> name##Impl(const Arguments& args)
+
 
 
 #define DEFINE_JS_CALLBACK1(T, cls, name, T1, arg1)                     \

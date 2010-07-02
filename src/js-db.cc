@@ -2,6 +2,7 @@
 // (c) 2009-2010 by Anton Korenyushkin
 
 #include "js-db.h"
+#include "js-common.h"
 #include "db.h"
 
 #include <boost/foreach.hpp>
@@ -19,8 +20,11 @@ using boost::shared_ptr;
 // JSON functions
 ////////////////////////////////////////////////////////////////////////////////
 
-Persistent<Function> ak::stringify_json_func;
-Persistent<Function> ak::parse_json_func;
+namespace
+{
+    Persistent<Function> stringify_json_func;
+    Persistent<Function> parse_json_func;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Draft::Impl
@@ -501,383 +505,365 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, CheckCb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DBBg definitions
+// InitDB and RolledBack
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_JS_CLASS(DBBg, "DB", object_template, /*proto_template*/)
+namespace
 {
-    TypeBg::GetJSClass();
-    SetFunction(object_template, "rollback", RollBackCb);
-    SetFunction(object_template, "query", QueryCb);
-    SetFunction(object_template, "count", CountCb);
-    SetFunction(object_template, "create", CreateCb);
-    SetFunction(object_template, "drop", DropCb);
-    SetFunction(object_template, "list", ListCb);
-    SetFunction(object_template, "getHeader", GetHeaderCb);
-    SetFunction(object_template, "getInteger", GetIntegerCb);
-    SetFunction(object_template, "getSerial", GetSerialCb);
-    SetFunction(object_template, "getDefault", GetDefaultCb);
-    SetFunction(object_template, "getUnique", GetUniqueCb);
-    SetFunction(object_template, "getForeign", GetForeignCb);
-    SetFunction(object_template, "insert", InsertCb);
-    SetFunction(object_template, "del", DelCb);
-    SetFunction(object_template, "update", UpdateCb);
-    SetFunction(object_template, "addAttrs", AddAttrsCb);
-    SetFunction(object_template, "dropAttrs", DropAttrsCb);
-    SetFunction(object_template, "addDefault", AddDefaultCb);
-    SetFunction(object_template, "dropDefault", DropDefaultCb);
-    SetFunction(object_template, "addConstrs", AddConstrsCb);
-    SetFunction(object_template, "dropAllConstrs", DropAllConstrsCb);
-}
+    bool rolled_back = false;
 
 
-DBBg::DBBg()
-    : rolled_back_(false)
-{
-}
-
-
-void DBBg::Init(v8::Handle<v8::Object> object) const
-{
-    Set(object, "number", JSNew<TypeBg>(Type::NUMBER));
-    Set(object, "string", JSNew<TypeBg>(Type::STRING));
-    Set(object, "bool", JSNew<TypeBg>(Type::BOOL));
-    Set(object, "date", JSNew<TypeBg>(Type::DATE));
-    Set(object, "json", JSNew<TypeBg>(Type::JSON));
-}
-
-
-bool DBBg::WasRolledBack()
-{
-    bool result = rolled_back_;
-    rolled_back_ = false;
-    return result;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, RollBackCb,
-                    const Arguments&, /*args*/)
-{
-    rolled_back_ = true;
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, QueryCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 6);
-    Handle<Array> by_values(GetArray(args[2]));
-    Strings by_strs;
-    by_strs.reserve(by_values->Length());
-    for (size_t i = 0; i < by_values->Length(); ++i)
-        by_strs.push_back(Stringify(by_values->Get(Integer::New(i))));
-    const QueryResult& query_result(
-        access_ptr->Query(Stringify(args[0]),
-                          ReadParams(args[1]),
-                          by_strs,
-                          ReadParams(args[3]),
-                          args[4]->Uint32Value(),
-                          (args[5]->IsUndefined() || args[5]->IsNull()
-                           ? MINUS_ONE
-                           : args[5]->Uint32Value())));
-    size_t result_length = query_result.tuples.size();
-    const Header& header(query_result.header);
-    Handle<Array> result(Array::New(result_length));
-    for (size_t tuple_idx = 0; tuple_idx < result_length; ++tuple_idx) {
-        Handle<Object> item(Object::New());
-        const Values& values(query_result.tuples[tuple_idx]);
-        AK_ASSERT_EQUAL(values.size(), header.size());
-        for (size_t attr_idx = 0; attr_idx < header.size(); ++attr_idx)
-            Set(item,
-                header[attr_idx].GetName(),
-                MakeV8Value(values[attr_idx]));
-        result->Set(Integer::New(tuple_idx), item);
+    DEFINE_JS_CALLBACK(RollBackCb, /*args*/)
+    {
+        rolled_back = true;
+        return Undefined();
     }
-    return result;
-}
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CountCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 2);
-    return Integer::New(
-        access_ptr->Count(Stringify(args[0]), ReadParams(args[1])));
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, CreateCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 5);
-    if (!args[1]->IsObject())
-        throw Error(Error::TYPE, "Header must be an object");
-    RichHeader rich_header;
-    UniqueKeySet unique_key_set;
-    ForeignKeySet foreign_key_set;
-    Strings checks;
-    PropEnumerator prop_enumerator(args[1]->ToObject());
-    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
-        Prop prop(prop_enumerator.GetProp(i));
-        string name(Stringify(prop.key));
-        const TypeBg& type_bg(GetBg<TypeBg>(prop.value));
-        rich_header.add_sure(RichAttr(name,
-                                      type_bg.GetType(),
-                                      type_bg.GetTrait(),
-                                      type_bg.GetDefaultPtr()));
-        type_bg.RetrieveConstrs(name, unique_key_set, foreign_key_set, checks);
+    DEFINE_JS_CALLBACK(QueryCb, args)
+    {
+        CheckArgsLength(args, 6);
+        Handle<Array> by_values(GetArray(args[2]));
+        Strings by_strs;
+        by_strs.reserve(by_values->Length());
+        for (size_t i = 0; i < by_values->Length(); ++i)
+            by_strs.push_back(Stringify(by_values->Get(Integer::New(i))));
+        const QueryResult& query_result(
+            access_ptr->Query(Stringify(args[0]),
+                              ReadParams(args[1]),
+                              by_strs,
+                              ReadParams(args[3]),
+                              args[4]->Uint32Value(),
+                              (args[5]->IsUndefined() || args[5]->IsNull()
+                               ? MINUS_ONE
+                               : args[5]->Uint32Value())));
+        size_t result_length = query_result.tuples.size();
+        const Header& header(query_result.header);
+        Handle<Array> result(Array::New(result_length));
+        for (size_t tuple_idx = 0; tuple_idx < result_length; ++tuple_idx) {
+            Handle<Object> item(Object::New());
+            const Values& values(query_result.tuples[tuple_idx]);
+            AK_ASSERT_EQUAL(values.size(), header.size());
+            for (size_t attr_idx = 0; attr_idx < header.size(); ++attr_idx)
+                Set(item,
+                    header[attr_idx].GetName(),
+                    MakeV8Value(values[attr_idx]));
+            result->Set(Integer::New(tuple_idx), item);
+        }
+        return result;
     }
-    ReadUniqueKeys(args[2], unique_key_set);
-    ReadForeignKeySet(args[3], foreign_key_set);
-    ReadChecks(args[4], checks);
-    access_ptr->Create(Stringify(args[0]),
-                       rich_header,
-                       unique_key_set,
-                       foreign_key_set,
-                       checks);
-    return Undefined();
-
-}
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    access_ptr->Drop(ReadStringSet(args[0]));
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, ListCb,
-                    const Arguments&, /*args*/) const
-{
-    StringSet rel_var_name_set(access_ptr->GetNames());
-    Handle<Array> result(Array::New(rel_var_name_set.size()));
-    for (size_t i = 0; i < rel_var_name_set.size(); ++i)
-        result->Set(Integer::New(i), String::New(rel_var_name_set[i].c_str()));
-    return result;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetHeaderCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    Handle<Object> result(Object::New());
-    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
-        Set(result, rich_attr.GetName(),
-            String::New(
-                rich_attr.GetType().GetName(rich_attr.GetTrait()).c_str()));
-    return result;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetIntegerCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    Handle<Array> result(Array::New());
-    int32_t i = 0;
-    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
-        if (rich_attr.GetTrait() == Type::INTEGER ||
-            rich_attr.GetTrait() == Type::SERIAL)
-            result->Set(Integer::New(i++),
-                        String::New(rich_attr.GetName().c_str()));
-    return result;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetSerialCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    Handle<Array> result(Array::New());
-    int32_t i = 0;
-    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
-        if (rich_attr.GetTrait() == Type::SERIAL)
-            result->Set(Integer::New(i++),
-                        String::New(rich_attr.GetName().c_str()));
-    return result;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetDefaultCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    Handle<Object> result(Object::New());
-    BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
-        if (rich_attr.GetDefaultPtr())
-            Set(result, rich_attr.GetName(),
-                MakeV8Value(*rich_attr.GetDefaultPtr()));
-    return result;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetUniqueCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    const UniqueKeySet& unique_key_set(
-        access_ptr->GetUniqueKeySet(Stringify(args[0])));
-    Handle<Array> result(Array::New(unique_key_set.size()));
-    for (size_t i = 0; i < unique_key_set.size(); ++i)
-        result->Set(Integer::New(i), MakeV8Array(unique_key_set[i]));
-    return result;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, GetForeignCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    const ForeignKeySet& foreign_key_set(
-        access_ptr->GetForeignKeySet(Stringify(args[0])));
-    Handle<Array> result(Array::New(foreign_key_set.size()));
-    for (size_t i = 0; i < foreign_key_set.size(); ++i) {
-        const ForeignKey& foreign_key(foreign_key_set[i]);
-        Handle<Array> item(Array::New(3));
-        item->Set(Integer::New(0), MakeV8Array(foreign_key.key_attr_names));
-        item->Set(Integer::New(1),
-                  String::New(foreign_key.ref_rel_var_name.c_str()));
-        item->Set(Integer::New(2), MakeV8Array(foreign_key.ref_attr_names));
-        result->Set(Integer::New(i), item);
+    DEFINE_JS_CALLBACK(CountCb, args)
+    {
+        CheckArgsLength(args, 2);
+        return Integer::New(
+            access_ptr->Count(Stringify(args[0]), ReadParams(args[1])));
     }
-    return result;
-}
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, InsertCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 2);
-    string name(Stringify(args[0]));
-    Values values(access_ptr->Insert(name, ReadDraftMap(args[1])));
-    const RichHeader& rich_header(access_ptr->GetRichHeader(name));
-    AK_ASSERT_EQUAL(values.size(), rich_header.size());
-    Handle<Object> result(Object::New());
-    for (size_t i = 0; i < values.size(); ++i)
-        Set(result, rich_header[i].GetName(), MakeV8Value(values[i]));
-    return result;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DelCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 3);
-    size_t rows_number = access_ptr->Delete(
-        Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]));
-    return Number::New(static_cast<double>(rows_number));
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, UpdateCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 5);
-    if (!args[3]->IsObject())
-        throw Error(Error::TYPE, "Update needs an object");
-    StringMap expr_map;
-    PropEnumerator prop_enumerator(args[3]->ToObject());
-    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
-        Prop prop(prop_enumerator.GetProp(i));
-        expr_map.insert(StringMap::value_type(Stringify(prop.key),
-                                              Stringify(prop.value)));
-    }
-    size_t rows_number = access_ptr->Update(
-        Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]),
-        expr_map, ReadParams(args[4]));
-    return Number::New(static_cast<double>(rows_number));
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, AddAttrsCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 2);
-    if (!args[1]->IsObject())
-        throw Error(Error::TYPE, "Attributes must be described by an object");
-    PropEnumerator prop_enumerator(args[1]->ToObject());
-    RichHeader rich_attrs;
-    rich_attrs.reserve(prop_enumerator.GetSize());
-    for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
-        Prop prop(prop_enumerator.GetProp(i));
-        Handle<Array> descr(GetArray(prop.value));
-        if (descr->Length() != 2)
-            throw Error(Error::VALUE,
-                        "Each attribute must be described by a 2-item array");
-        const TypeBg* type_ptr =
-            TypeBg::GetJSClass().Cast(descr->Get(Integer::New(0)));
-        if (!type_ptr)
-            throw Error(Error::TYPE,
-                        "First description item must be a db.Type object");
-        if (type_ptr->GetTrait() == Type::SERIAL)
-            throw Error(Error::NOT_IMPLEMENTED,
-                        "Adding of serial attributes is not implemented");
-        ak::Value value(
-            CreateDraft(descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
-        rich_attrs.add_sure(RichAttr(Stringify(prop.key),
-                                     type_ptr->GetType(),
-                                     type_ptr->GetTrait(),
-                                     &value));
-    }
-    access_ptr->AddAttrs(Stringify(args[0]), rich_attrs);
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropAttrsCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 2);
-    access_ptr->DropAttrs(Stringify(args[0]), ReadStringSet(args[1]));
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, AddDefaultCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 2);
-    access_ptr->AddDefault(Stringify(args[0]), ReadDraftMap(args[1]));
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropDefaultCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 2);
-    access_ptr->DropDefault(Stringify(args[0]), ReadStringSet(args[1]));
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, AddConstrsCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 4);
-    UniqueKeySet unique_key_set;
-    ForeignKeySet foreign_key_set;
-    Strings checks;
-    ReadUniqueKeys(args[1], unique_key_set);
-    ReadForeignKeySet(args[2], foreign_key_set);
-    ReadChecks(args[3], checks);
-    access_ptr->AddConstrs(Stringify(args[0]),
+    DEFINE_JS_CALLBACK(CreateCb, args)
+    {
+        CheckArgsLength(args, 5);
+        if (!args[1]->IsObject())
+            throw Error(Error::TYPE, "Header must be an object");
+        RichHeader rich_header;
+        UniqueKeySet unique_key_set;
+        ForeignKeySet foreign_key_set;
+        Strings checks;
+        PropEnumerator prop_enumerator(args[1]->ToObject());
+        for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
+            Prop prop(prop_enumerator.GetProp(i));
+            string name(Stringify(prop.key));
+            const TypeBg& type_bg(GetBg<TypeBg>(prop.value));
+            rich_header.add_sure(RichAttr(name,
+                                          type_bg.GetType(),
+                                          type_bg.GetTrait(),
+                                          type_bg.GetDefaultPtr()));
+            type_bg.RetrieveConstrs(name, unique_key_set, foreign_key_set, checks);
+        }
+        ReadUniqueKeys(args[2], unique_key_set);
+        ReadForeignKeySet(args[3], foreign_key_set);
+        ReadChecks(args[4], checks);
+        access_ptr->Create(Stringify(args[0]),
+                           rich_header,
                            unique_key_set,
                            foreign_key_set,
                            checks);
-    return Undefined();
+        return Undefined();
+
+    }
+
+
+    DEFINE_JS_CALLBACK(DropCb, args)
+    {
+        CheckArgsLength(args, 1);
+        access_ptr->Drop(ReadStringSet(args[0]));
+        return Undefined();
+    }
+
+
+    DEFINE_JS_CALLBACK(ListCb, /*args*/)
+    {
+        StringSet rel_var_name_set(access_ptr->GetNames());
+        Handle<Array> result(Array::New(rel_var_name_set.size()));
+        for (size_t i = 0; i < rel_var_name_set.size(); ++i)
+            result->Set(Integer::New(i), String::New(rel_var_name_set[i].c_str()));
+        return result;
+    }
+
+
+    DEFINE_JS_CALLBACK(GetHeaderCb, args)
+    {
+        CheckArgsLength(args, 1);
+        Handle<Object> result(Object::New());
+        BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
+            Set(result, rich_attr.GetName(),
+                String::New(
+                    rich_attr.GetType().GetName(rich_attr.GetTrait()).c_str()));
+        return result;
+    }
+
+
+    DEFINE_JS_CALLBACK(GetIntegerCb, args)
+    {
+        CheckArgsLength(args, 1);
+        Handle<Array> result(Array::New());
+        int32_t i = 0;
+        BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
+            if (rich_attr.GetTrait() == Type::INTEGER ||
+                rich_attr.GetTrait() == Type::SERIAL)
+                result->Set(Integer::New(i++),
+                            String::New(rich_attr.GetName().c_str()));
+        return result;
+    }
+
+
+    DEFINE_JS_CALLBACK(GetSerialCb, args)
+    {
+        CheckArgsLength(args, 1);
+        Handle<Array> result(Array::New());
+        int32_t i = 0;
+        BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
+            if (rich_attr.GetTrait() == Type::SERIAL)
+                result->Set(Integer::New(i++),
+                            String::New(rich_attr.GetName().c_str()));
+        return result;
+    }
+
+
+    DEFINE_JS_CALLBACK(GetDefaultCb, args)
+    {
+        CheckArgsLength(args, 1);
+        Handle<Object> result(Object::New());
+        BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
+            if (rich_attr.GetDefaultPtr())
+                Set(result, rich_attr.GetName(),
+                    MakeV8Value(*rich_attr.GetDefaultPtr()));
+        return result;
+    }
+
+
+    DEFINE_JS_CALLBACK(GetUniqueCb, args)
+    {
+        CheckArgsLength(args, 1);
+        const UniqueKeySet& unique_key_set(
+            access_ptr->GetUniqueKeySet(Stringify(args[0])));
+        Handle<Array> result(Array::New(unique_key_set.size()));
+        for (size_t i = 0; i < unique_key_set.size(); ++i)
+            result->Set(Integer::New(i), MakeV8Array(unique_key_set[i]));
+        return result;
+    }
+
+
+    DEFINE_JS_CALLBACK(GetForeignCb, args)
+    {
+        CheckArgsLength(args, 1);
+        const ForeignKeySet& foreign_key_set(
+            access_ptr->GetForeignKeySet(Stringify(args[0])));
+        Handle<Array> result(Array::New(foreign_key_set.size()));
+        for (size_t i = 0; i < foreign_key_set.size(); ++i) {
+            const ForeignKey& foreign_key(foreign_key_set[i]);
+            Handle<Array> item(Array::New(3));
+            item->Set(Integer::New(0), MakeV8Array(foreign_key.key_attr_names));
+            item->Set(Integer::New(1),
+                      String::New(foreign_key.ref_rel_var_name.c_str()));
+            item->Set(Integer::New(2), MakeV8Array(foreign_key.ref_attr_names));
+            result->Set(Integer::New(i), item);
+        }
+        return result;
+    }
+
+
+    DEFINE_JS_CALLBACK(InsertCb, args)
+    {
+        CheckArgsLength(args, 2);
+        string name(Stringify(args[0]));
+        Values values(access_ptr->Insert(name, ReadDraftMap(args[1])));
+        const RichHeader& rich_header(access_ptr->GetRichHeader(name));
+        AK_ASSERT_EQUAL(values.size(), rich_header.size());
+        Handle<Object> result(Object::New());
+        for (size_t i = 0; i < values.size(); ++i)
+            Set(result, rich_header[i].GetName(), MakeV8Value(values[i]));
+        return result;
+    }
+
+
+    DEFINE_JS_CALLBACK(DelCb, args)
+    {
+        CheckArgsLength(args, 3);
+        size_t rows_number = access_ptr->Delete(
+            Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]));
+        return Number::New(static_cast<double>(rows_number));
+    }
+
+
+    DEFINE_JS_CALLBACK(UpdateCb, args)
+    {
+        CheckArgsLength(args, 5);
+        if (!args[3]->IsObject())
+            throw Error(Error::TYPE, "Update needs an object");
+        StringMap expr_map;
+        PropEnumerator prop_enumerator(args[3]->ToObject());
+        for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
+            Prop prop(prop_enumerator.GetProp(i));
+            expr_map.insert(StringMap::value_type(Stringify(prop.key),
+                                                  Stringify(prop.value)));
+        }
+        size_t rows_number = access_ptr->Update(
+            Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]),
+            expr_map, ReadParams(args[4]));
+        return Number::New(static_cast<double>(rows_number));
+    }
+
+
+    DEFINE_JS_CALLBACK(AddAttrsCb, args)
+    {
+        CheckArgsLength(args, 2);
+        if (!args[1]->IsObject())
+            throw Error(Error::TYPE, "Attributes must be described by an object");
+        PropEnumerator prop_enumerator(args[1]->ToObject());
+        RichHeader rich_attrs;
+        rich_attrs.reserve(prop_enumerator.GetSize());
+        for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
+            Prop prop(prop_enumerator.GetProp(i));
+            Handle<Array> descr(GetArray(prop.value));
+            if (descr->Length() != 2)
+                throw Error(Error::VALUE,
+                            "Each attribute must be described by a 2-item array");
+            const TypeBg* type_ptr =
+                TypeBg::GetJSClass().Cast(descr->Get(Integer::New(0)));
+            if (!type_ptr)
+                throw Error(Error::TYPE,
+                            "First description item must be a db.Type object");
+            if (type_ptr->GetTrait() == Type::SERIAL)
+                throw Error(Error::NOT_IMPLEMENTED,
+                            "Adding of serial attributes is not implemented");
+            ak::Value value(
+                CreateDraft(descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
+            rich_attrs.add_sure(RichAttr(Stringify(prop.key),
+                                         type_ptr->GetType(),
+                                         type_ptr->GetTrait(),
+                                         &value));
+        }
+        access_ptr->AddAttrs(Stringify(args[0]), rich_attrs);
+        return Undefined();
+    }
+
+
+    DEFINE_JS_CALLBACK(DropAttrsCb, args)
+    {
+        CheckArgsLength(args, 2);
+        access_ptr->DropAttrs(Stringify(args[0]), ReadStringSet(args[1]));
+        return Undefined();
+    }
+
+
+    DEFINE_JS_CALLBACK(AddDefaultCb, args)
+    {
+        CheckArgsLength(args, 2);
+        access_ptr->AddDefault(Stringify(args[0]), ReadDraftMap(args[1]));
+        return Undefined();
+    }
+
+
+    DEFINE_JS_CALLBACK(DropDefaultCb, args)
+    {
+        CheckArgsLength(args, 2);
+        access_ptr->DropDefault(Stringify(args[0]), ReadStringSet(args[1]));
+        return Undefined();
+    }
+
+
+    DEFINE_JS_CALLBACK(AddConstrsCb, args)
+    {
+        CheckArgsLength(args, 4);
+        UniqueKeySet unique_key_set;
+        ForeignKeySet foreign_key_set;
+        Strings checks;
+        ReadUniqueKeys(args[1], unique_key_set);
+        ReadForeignKeySet(args[2], foreign_key_set);
+        ReadChecks(args[3], checks);
+        access_ptr->AddConstrs(Stringify(args[0]),
+                               unique_key_set,
+                               foreign_key_set,
+                               checks);
+        return Undefined();
+    }
+
+
+    DEFINE_JS_CALLBACK(DropAllConstrsCb, args)
+    {
+        CheckArgsLength(args, 1);
+        access_ptr->DropAllConstrs(Stringify(args[0]));
+        return Undefined();
+    }
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, DBBg, DropAllConstrsCb,
-                    const Arguments&, args) const
+bool ak::RolledBack()
 {
-    CheckArgsLength(args, 1);
-    access_ptr->DropAllConstrs(Stringify(args[0]));
-    return Undefined();
+    bool result = rolled_back;
+    rolled_back = false;
+    return result;
+}
+
+
+Handle<Object> ak::InitDB()
+{
+    Handle<Object> json(
+        Get(Context::GetCurrent()->Global(), "JSON")->ToObject());
+    stringify_json_func = Persistent<Function>::New(
+        Handle<Function>::Cast(Get(json, "stringify")));
+    parse_json_func = Persistent<Function>::New(
+        Handle<Function>::Cast(Get(json, "parse")));
+
+    Handle<Object> result(Object::New());
+    SetFunction(result, "rollback", RollBackCb);
+    SetFunction(result, "query", QueryCb);
+    SetFunction(result, "count", CountCb);
+    SetFunction(result, "create", CreateCb);
+    SetFunction(result, "drop", DropCb);
+    SetFunction(result, "list", ListCb);
+    SetFunction(result, "getHeader", GetHeaderCb);
+    SetFunction(result, "getInteger", GetIntegerCb);
+    SetFunction(result, "getSerial", GetSerialCb);
+    SetFunction(result, "getDefault", GetDefaultCb);
+    SetFunction(result, "getUnique", GetUniqueCb);
+    SetFunction(result, "getForeign", GetForeignCb);
+    SetFunction(result, "insert", InsertCb);
+    SetFunction(result, "del", DelCb);
+    SetFunction(result, "update", UpdateCb);
+    SetFunction(result, "addAttrs", AddAttrsCb);
+    SetFunction(result, "dropAttrs", DropAttrsCb);
+    SetFunction(result, "addDefault", AddDefaultCb);
+    SetFunction(result, "dropDefault", DropDefaultCb);
+    SetFunction(result, "addConstrs", AddConstrsCb);
+    SetFunction(result, "dropAllConstrs", DropAllConstrsCb);
+    Set(result, "number", JSNew<TypeBg>(Type::NUMBER));
+    Set(result, "string", JSNew<TypeBg>(Type::STRING));
+    Set(result, "bool", JSNew<TypeBg>(Type::BOOL));
+    Set(result, "date", JSNew<TypeBg>(Type::DATE));
+    Set(result, "json", JSNew<TypeBg>(Type::JSON));
+    return result;
 }
