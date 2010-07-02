@@ -6,7 +6,7 @@ Proxy = _core.proxy.Proxy;
 Binary = _core.binary.Binary;
 Binary.prototype.toString = Binary.prototype._toString;
 connect = _core.socket.connect;
-HTTPParser = _core.HTTPParser;
+HttpParser = _core.http.HttpParser;
 db = _core.db;
 fs = _core.fs;
 
@@ -422,11 +422,11 @@ var baseTestSuite = {
       []);
   },
 
-  testHTTPParser: function () {
-    assertSame(HTTPParser(), undefined);
-      assertThrow(ValueError, "new HTTPParser('bad', {})");
-    assertThrow(TypeError, "new HTTPParser('request', 42)");
-    assertThrow(TypeError, "new HTTPParser('request', {})._exec(42)");
+  testHttpParser: function () {
+    assertSame(HttpParser(), undefined);
+      assertThrow(ValueError, "new HttpParser('bad', {})");
+    assertThrow(TypeError, "new HttpParser('request', 42)");
+    assertThrow(TypeError, "new HttpParser('request', {})._exec(42)");
     [
       'DELETE',
       'GET',
@@ -446,7 +446,7 @@ var baseTestSuite = {
     ].forEach(
       function (method) {
         var parsed;
-        new HTTPParser(
+        new HttpParser(
           'request',
           {onHeadersComplete: function (info) { parsed = info.method; }})._exec(
             new Binary(method + ' / HTTP/1.0\r\n\r\n'));
@@ -461,7 +461,7 @@ var baseTestSuite = {
           function () {
             var handler = {};
             handler[name] = function () { throw new E(); };
-            new HTTPParser('request', handler)._exec(binary);
+            new HttpParser('request', handler)._exec(binary);
           });
         });
     var Handler = function () {
@@ -495,8 +495,8 @@ var baseTestSuite = {
         };
       });
     var handler = new Handler();
-    new HTTPParser('request', {})._exec(binary);
-    new HTTPParser('request', handler)._exec(binary);
+    new HttpParser('request', {})._exec(binary);
+    new HttpParser('request', handler)._exec(binary);
     assertEqual(
       handler.history,
       [
@@ -516,7 +516,7 @@ var baseTestSuite = {
         ['onMessageComplete']
       ]);
     handler = new Handler();
-    var parser = new HTTPParser('request', handler);
+    var parser = new HttpParser('request', handler);
     [
       'POST /path/script.cgi HTTP/1.1\r\nContent-Type: application/',
       'x-www-form-urlencoded\r\nContent-',
@@ -551,7 +551,7 @@ var baseTestSuite = {
       ]);
     assertThrow(ValueError, function () { parser._exec(new Binary('bla')); });
     handler = new Handler();
-    new HTTPParser('response', handler)._exec(
+    new HttpParser('response', handler)._exec(
       new Binary('HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nyo'));
     assertEqual(
       handler.history,

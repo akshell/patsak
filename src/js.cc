@@ -9,10 +9,10 @@
 #include "js-proxy.h"
 #include "js-script.h"
 #include "js-socket.h"
+#include "js-http.h"
 #include "db.h"
 
 #include <boost/foreach.hpp>
-#include <http_parser.h>
 
 #include <setjmp.h>
 
@@ -131,221 +131,6 @@ time_t CodeReader::DoGetModDate(const string& base_path,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTTPParserBg
-////////////////////////////////////////////////////////////////////////////////
-
-#define DEFINE_HTTP_CALLBACK(name)                                  \
-    static int On##name(http_parser *p) {                           \
-        HTTPParserBg* parser = static_cast<HTTPParserBg*>(p->data); \
-        Handle<v8::Value> value(Get(parser->handler_, "on" #name)); \
-        if (!value->IsFunction())                                   \
-            return 0;                                               \
-        Handle<Function> func(Handle<Function>::Cast(value));       \
-        Handle<v8::Value> ret(func->Call(parser->handler_, 0, 0));  \
-        if (ret.IsEmpty()) {                                        \
-            parser->got_exception_ = true;                          \
-            return -1;                                              \
-        } else {                                                    \
-            return 0;                                               \
-        }                                                           \
-    }
-
-
-#define DEFINE_HTTP_DATA_CALLBACK(name)                                 \
-    static int On##name(http_parser *p, const char *at, size_t size) {  \
-        HTTPParserBg* parser = static_cast<HTTPParserBg*>(p->data);     \
-        AK_ASSERT(parser->binary_ptr_);                                 \
-        Handle<v8::Value> value(Get(parser->handler_, "on" #name));     \
-        if (!value->IsFunction())                                       \
-            return 0;                                                   \
-        Handle<Function> func(Handle<Function>::Cast(value));           \
-        Binarizator binarizator(*parser->binary_ptr_);                  \
-        size_t start = at - binarizator.GetData();                      \
-        Handle<v8::Value> binary(                                       \
-            NewBinary(*parser->binary_ptr_, start, start + size));      \
-        Handle<v8::Value> ret(                                          \
-            func->Call(parser->handler_, 1, &binary));                  \
-        if (ret.IsEmpty()) {                                            \
-            parser->got_exception_ = true;                              \
-            return -1;                                                  \
-        } else {                                                        \
-            return 0;                                                   \
-        }                                                               \
-    }
-
-
-namespace
-{
-    class HTTPParserBg {
-    public:
-        DECLARE_JS_CLASS(HTTPParserBg);
-
-        HTTPParserBg(http_parser_type type, Handle<Object> handler);
-        ~HTTPParserBg();
-
-    private:
-        static Handle<v8::Value> ConstructorCb(const Arguments& args);
-
-        DEFINE_HTTP_CALLBACK(MessageBegin)
-        DEFINE_HTTP_CALLBACK(MessageComplete)
-
-        DEFINE_HTTP_DATA_CALLBACK(Path)
-        DEFINE_HTTP_DATA_CALLBACK(Url)
-        DEFINE_HTTP_DATA_CALLBACK(Fragment)
-        DEFINE_HTTP_DATA_CALLBACK(QueryString)
-        DEFINE_HTTP_DATA_CALLBACK(HeaderField)
-        DEFINE_HTTP_DATA_CALLBACK(HeaderValue)
-        DEFINE_HTTP_DATA_CALLBACK(Body)
-
-        static string GetMethodName(unsigned char method);
-        static int OnHeadersComplete(http_parser* p);
-        static http_parser_settings CreateSettings();
-
-        Persistent<Object> handler_;
-        bool got_exception_;
-        http_parser impl_;
-        const BinaryBg* binary_ptr_;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ExecCb, const Arguments&);
-    };
-}
-
-
-DEFINE_JS_CONSTRUCTOR(HTTPParserBg, "HTTPParser", ConstructorCb,
-                      /*object_template*/, proto_template)
-{
-    SetFunction(proto_template, "_exec", ExecCb);
-}
-
-
-Handle<v8::Value> HTTPParserBg::ConstructorCb(const Arguments& args)
-{
-    if (!args.IsConstructCall())
-        return Undefined();
-    try {
-        CheckArgsLength(args, 2);
-        string type_name(Stringify(args[0]));
-        http_parser_type type;
-        if (type_name == "request")
-            type = HTTP_REQUEST;
-        else if (type_name == "response")
-            type = HTTP_RESPONSE;
-        else
-            throw Error(Error::VALUE,
-                        "HTTPParser type must be 'request' or 'response'");
-        if (!args[1]->IsObject())
-            throw Error(Error::TYPE, "Object required");
-        HTTPParserBg::GetJSClass().Attach(
-            args.This(), new HTTPParserBg(type, args[1]->ToObject()));
-        return Handle<v8::Value>();
-    } JS_CATCH(Handle<v8::Value>);
-}
-
-
-HTTPParserBg::HTTPParserBg(http_parser_type type, Handle<Object> handler)
-    : handler_(Persistent<Object>::New(handler))
-{
-    http_parser_init(&impl_, type);
-    impl_.data = this;
-}
-
-
-HTTPParserBg::~HTTPParserBg()
-{
-    handler_.Dispose();
-}
-
-
-string HTTPParserBg::GetMethodName(unsigned char method)
-{
-    switch (method) {
-    case HTTP_DELETE:    return "DELETE";
-    case HTTP_GET:       return "GET";
-    case HTTP_HEAD:      return "HEAD";
-    case HTTP_POST:      return "POST";
-    case HTTP_PUT:       return "PUT";
-    case HTTP_CONNECT:   return "CONNECT";
-    case HTTP_OPTIONS:   return "OPTIONS";
-    case HTTP_TRACE:     return "TRACE";
-    case HTTP_COPY:      return "COPY";
-    case HTTP_LOCK:      return "LOCK";
-    case HTTP_MKCOL:     return "MKCOL";
-    case HTTP_MOVE:      return "MOVE";
-    case HTTP_PROPFIND:  return "PROPFIND";
-    case HTTP_PROPPATCH: return "PROPPATCH";
-    case HTTP_UNLOCK:    return "UNLOCK";
-    default:             return "UNKNOWN_METHOD";
-    }
-}
-
-
-int HTTPParserBg::OnHeadersComplete(http_parser* p)
-{
-    HTTPParserBg* parser = static_cast<HTTPParserBg*>(p->data);
-    Handle<v8::Value> value(Get(parser->handler_, "onHeadersComplete"));
-    if (!value->IsFunction())
-        return 0;
-    Handle<Function> func(Handle<Function>::Cast(value));
-    Handle<Object> object(Object::New());
-    if (p->type == HTTP_REQUEST)
-        Set(object,
-            "method",
-            String::NewSymbol(GetMethodName(p->method).c_str()));
-    else
-        Set(object, "status", Integer::New(p->status_code));
-    Set(object, "versionMajor", Integer::New(p->http_major));
-    Set(object, "versionMinor", Integer::New(p->http_minor));
-    Set(object, "shouldKeepAlive", Boolean::New(http_should_keep_alive(p)));
-    Set(object, "upgrade", Boolean::New(p->upgrade));
-    Handle<v8::Value> arg(object);
-    Handle<v8::Value> is_head_response(func->Call(parser->handler_, 1, &arg));
-    if (is_head_response.IsEmpty()) {
-        parser->got_exception_ = true;
-        return -1;
-    } else {
-        return is_head_response->IsTrue() ? 1 : 0;
-    }
-}
-
-
-http_parser_settings HTTPParserBg::CreateSettings()
-{
-    http_parser_settings settings;
-    settings.on_message_begin    = OnMessageBegin;
-    settings.on_message_complete = OnMessageComplete;
-    settings.on_path             = OnPath;
-    settings.on_url              = OnUrl;
-    settings.on_fragment         = OnFragment;
-    settings.on_query_string     = OnQueryString;
-    settings.on_header_field     = OnHeaderField;
-    settings.on_header_value     = OnHeaderValue;
-    settings.on_body             = OnBody;
-    settings.on_headers_complete = OnHeadersComplete;
-    return settings;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, HTTPParserBg, ExecCb,
-                    const Arguments&, args)
-{
-    static http_parser_settings settings(CreateSettings());
-    CheckArgsLength(args, 1);
-    binary_ptr_ = CastToBinary(args[0]);
-    if (!binary_ptr_)
-        throw Error(Error::TYPE, "Binary required");
-    got_exception_ = false;
-    Binarizator binarizator(*binary_ptr_);
-    size_t parsed = http_parser_execute(
-        &impl_, &settings, binarizator.GetData(), binarizator.GetSize());
-    binary_ptr_ = 0;
-    if (got_exception_)
-        return Handle<v8::Value>();
-    if (parsed != binarizator.GetSize())
-        throw Error(Error::VALUE, "Parse error");
-    return Undefined();
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // CoreBg
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -382,7 +167,6 @@ namespace
 
 DEFINE_JS_CLASS(CoreBg, "Core", object_template, /*proto_template*/)
 {
-    HTTPParserBg::GetJSClass();
     SetFunction(object_template, "print", PrintCb);
     SetFunction(object_template, "set", SetCb);
     SetFunction(object_template, "readCode", ReadCodeCb);
@@ -622,6 +406,7 @@ Program::Impl::Impl(const Place& place,
     Set(core_, "proxy", InitProxy());
     Set(core_, "script", InitScript());
     Set(core_, "socket", InitSocket());
+    Set(core_, "http", InitHTTP());
 
     // Run init.js script
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
