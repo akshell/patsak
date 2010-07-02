@@ -24,6 +24,7 @@ js_sources = [
     'js-db.cc',
     'js-binary.cc',
     'js-proxy.cc',
+    'js-script.cc',
     ]
 
 common_objects, js_objects = [

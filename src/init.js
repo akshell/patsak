@@ -119,7 +119,7 @@
         return cache[key];
       var path = version.concat(loc).join('/') + '.js';
       var code = app ? _core.readCode(app, path) : _core.readCode(path);
-      var func = new _core.Script(
+      var func = new _core.script.Script(
         '(function (require, exports, module) {\n' + code + '\n})',
         (app && app + ':') + path, -1)._run();
       var require = makeRequire(app, version, loc.slice(0, loc.length - 1));
