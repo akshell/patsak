@@ -19,6 +19,7 @@ COMMON_FLAGS = {
         'boost_program_options-mt',
         'boost_thread-mt',
         'http_parser',
+        'git2',
         ],
     'variables': vars,
     }

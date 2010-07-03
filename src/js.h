@@ -37,6 +37,8 @@ namespace ak
                 const std::string& app_code_path,
                 const std::string& release_code_path,
                 const std::string& media_path,
+                const std::string& git_path_prefix,
+                const std::string& git_path_suffix,
                 DB& db);
 
         ~Program();

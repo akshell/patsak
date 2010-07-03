@@ -23,7 +23,7 @@ namespace
 {
     void MakePathAbsolute(const string& base_path, string& path)
     {
-        if (path.empty() || path[0] != '/')
+        if (!path.empty() && path[0] != '/')
             path = base_path + '/' + path;
     }
 
@@ -65,12 +65,16 @@ int main(int argc, char** argv)
         ;
 
     string log_path, code_path, media_path;
+    string git_path_pattern;
     string db_name, user_name, password, schema_name, tablespace_name;
     po::options_description config_options("Config options");
     config_options.add_options()
         ("log-file,l", po::value<string>(&log_path), "log file")
         ("code-dir,c", po::value<string>(&code_path), "code directory")
         ("media-dir,m", po::value<string>(&media_path), "media directory")
+        ("git-pattern,g",
+         po::value<string>(&git_path_pattern),
+         "git path pattern")
         ("db-name,n", po::value<string>(&db_name), "database name")
         ("db-user,u", po::value<string>(&user_name), "database user")
         ("db-password,p", po::value<string>(&password), "database password")
@@ -182,6 +186,7 @@ int main(int argc, char** argv)
         MakePathAbsolute(curr_dir, socket_path);
         MakePathAbsolute(curr_dir, code_path);
         MakePathAbsolute(curr_dir, media_path);
+        MakePathAbsolute(curr_dir, git_path_pattern);
         free(curr_dir);
         pid_t pid = fork();
         AK_ASSERT(pid != -1);
@@ -206,10 +211,23 @@ int main(int argc, char** argv)
     BOOST_FOREACH(char& c, spaced_owner_name)
         if (c == '-')
             c = ' ';
+    string git_path_prefix, git_path_suffix;
+    if (!git_path_pattern.empty()) {
+        size_t pos = git_path_pattern.find("%s");
+        if (pos == string::npos) {
+            cerr << "Git path pattern must contain a %s placeholder\n";
+            return 1;
+        }
+        git_path_prefix = git_path_pattern.substr(0, pos);
+        git_path_suffix = git_path_pattern.substr(pos + 2);
+    }
+
     Program program(Place(app_name, spaced_owner_name, spot_name),
                     code_path + path_suffix,
                     code_path + "/release/",
                     media_path + path_suffix,
+                    git_path_prefix,
+                    git_path_suffix,
                     db);
 
     if (eval) {

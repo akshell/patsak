@@ -29,6 +29,7 @@ DB_PASSWORD  = 'test'
 DB_PARAMS    = 'user=%s password=%s dbname=%%s' % (DB_USER, DB_PASSWORD)
 TEST_PATH    = os.path.dirname(__file__)
 RELEASE_PATH = os.path.join(TEST_PATH, '../sample/release')
+CODE_PATH    = os.path.join(TEST_PATH, 'code')
 FUNCS_PATH   = os.path.join(TEST_PATH, '../src/funcs.sql')
 
 
@@ -58,6 +59,7 @@ class Test(unittest.TestCase):
         self._check_launch(['serve', 'socket'], 1)
         self._check_launch(['serve', 'socket', 'app', 'owner'], 1)
         self._check_launch(['--code-dir', '', 'serve', 'socket', 'app'], 1)
+        self._check_launch(['--git-pattern', 'bad', 'eval', '1', 'app'], 1)
         process = _popen([PATSAK_PATH,
                           '--config-file', CONFIG_PATH,
                           'serve', 'no/such/path',
@@ -233,9 +235,10 @@ db-user=%s
 db-password=%s
 code-dir=%s/../sample
 media-dir=%s
+git-pattern=%s/%%s/.git
 log-file=%s
 ''' % (DB_NAME, DB_USER, DB_PASSWORD,
-       os.path.abspath(TEST_PATH), MEDIA_PATH, LOG_PATH))
+       os.path.abspath(TEST_PATH), MEDIA_PATH, CODE_PATH, LOG_PATH))
 
 
 def main():

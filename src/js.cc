@@ -10,6 +10,7 @@
 #include "js-script.h"
 #include "js-socket.h"
 #include "js-http.h"
+#include "js-git.h"
 #include "db.h"
 
 #include <boost/foreach.hpp>
@@ -338,6 +339,8 @@ public:
          const string& app_code_path,
          const string& release_code_path,
          const string& media_path,
+         const string& git_path_prefix,
+         const string& git_path_suffix,
          DB& db);
 
     ~Impl();
@@ -376,6 +379,8 @@ Program::Impl::Impl(const Place& place,
                     const string& app_code_path,
                     const string& release_code_path,
                     const string& media_path,
+                    const string& git_path_prefix,
+                    const string& git_path_suffix,
                     DB& db)
     : initialized_(false)
     , db_(db)
@@ -407,6 +412,8 @@ Program::Impl::Impl(const Place& place,
     Set(core_, "script", InitScript());
     Set(core_, "socket", InitSocket());
     Set(core_, "http", InitHTTP());
+    if (!git_path_prefix.empty() || !git_path_suffix.empty())
+        Set(core_, "git", InitGit(git_path_prefix, git_path_suffix));
 
     // Run init.js script
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
@@ -552,11 +559,15 @@ Program::Program(const Place& place,
                  const string& app_code_path,
                  const string& release_code_path,
                  const string& media_path,
+                 const string& git_path_prefix,
+                 const string& git_path_suffix,
                  DB& db)
     : pimpl_(new Impl(place,
                       app_code_path,
                       release_code_path,
                       media_path,
+                      git_path_prefix,
+                      git_path_suffix,
                       db))
 {
 }
