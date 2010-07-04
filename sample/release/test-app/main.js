@@ -198,16 +198,9 @@ var baseTestSuite = {
         assert(require(name + '/index').pass);
       });
     var m = require('main/index');
-    assertEqual(items(module),
-                [
-                  ['exports', exports],
-                  ['id', 'main'],
-                  ['version', ''],
-                  ['app', 'test-app']
-                ]);
+    assertEqual(items(module), [['exports', exports], ['id', 'main']]);
     assertSame(require.main, module);
     assertSame(m.main, module);
-    assertThrow(UsageError, require);
   },
 
   testType: function () {

@@ -170,9 +170,6 @@ class Test(unittest.TestCase):
         self.assertEqual(process.wait(), 0);
 
         self.assertEqual(self._talk('HNDL\n1'), '')
-        self.assertEqual(self._talk('EVAL\npass'), 'OK\ntrue')
-        self.assertEqual(self._talk('EVAL\nowner + " " + spot'),
-                         'OK\ntest user test-spot')
         self.assertEqual(self._talk('EVAL\nfunction f() { f(); } f()'),
                          'ERROR\nRangeError: Maximum call stack size exceeded')
         self.assertEqual(self._talk('EVAL\ns="x"; for (;;) s+=s;'),
