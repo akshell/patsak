@@ -21,8 +21,6 @@ SOCKET_PATH  = os.path.join(TMP_PATH, 'socket')
 MEDIA_PATH   = os.path.join(TMP_PATH, 'media')
 CONFIG_PATH  = os.path.join(TMP_PATH, 'config')
 APP_NAME     = 'test-app'
-USER_NAME    = 'test-user'
-SPOT_NAME    = 'test-spot'
 DB_NAME      = 'test'
 DB_USER      = 'test'
 DB_PASSWORD  = 'test'
@@ -127,6 +125,8 @@ class Test(unittest.TestCase):
         self.assertEqual(self._talk('EVAL\nnew Binary(3)'), 'OK\n\0\0\0')
         self.assert_(
             'Uncaught 42\n    at main.js:' in self._talk('EVAL\nthrow42()'))
+        self.assertEqual(self._talk('EVAL\nfunction f() { f(); } f()'),
+                         'ERROR\nRangeError: Maximum call stack size exceeded')
 
         self.assert_(
             'Uncaught 1' in
@@ -161,21 +161,6 @@ class Test(unittest.TestCase):
         self.assertEqual(self._talk('STOP\n'), '')
         self.assertRaises(socket.error, self._connect)
 
-    def testSpotServer(self):
-        process = _popen([PATSAK_PATH,
-                          '--config-file', CONFIG_PATH,
-                          'serve', SOCKET_PATH,
-                          APP_NAME, USER_NAME, SPOT_NAME])
-        self.assertEqual(process.stdout.read(), 'READY\n')
-        self.assertEqual(process.wait(), 0);
-
-        self.assertEqual(self._talk('HNDL\n1'), '')
-        self.assertEqual(self._talk('EVAL\nfunction f() { f(); } f()'),
-                         'ERROR\nRangeError: Maximum call stack size exceeded')
-        self.assertEqual(self._talk('EVAL\ns="x"; for (;;) s+=s;'),
-                         'ERROR\n<Out of memory>')
-        self.assertRaises(socket.error, self._connect)
-
 
 def _create_schema(cursor, schema_name):
     cursor.execute('DROP SCHEMA IF EXISTS "%s" CASCADE' % schema_name)
@@ -200,7 +185,6 @@ def _create_db():
             not os.path.isdir(os.path.join(RELEASE_PATH, app_name))):
             continue
         _create_schema(cursor, ':' + app_name)
-    _create_schema(cursor, ':%s:%s:%s' % (APP_NAME, USER_NAME, SPOT_NAME))
     conn.commit()
     conn.close()
 
@@ -221,7 +205,6 @@ def _make_dirs():
     if os.path.exists(TMP_PATH):
         shutil.rmtree(TMP_PATH)
     os.makedirs(os.path.join(MEDIA_PATH, 'release', APP_NAME));
-    os.makedirs(os.path.join(MEDIA_PATH, 'spots', APP_NAME, USER_NAME))
 
 
 def _write_config():
