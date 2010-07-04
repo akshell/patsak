@@ -88,23 +88,16 @@ int main(int argc, char** argv)
 
     string command;
     string socket_path_or_expr;
-    string app_name, owner_name, spot_name;
     po::options_description hidden_options;
     hidden_options.add_options()
         ("command", po::value<string>(&command))
         ("socket-path-or-expr", po::value<string>(&socket_path_or_expr))
-        ("app", po::value<string>(&app_name))
-        ("owner", po::value<string>(&owner_name))
-        ("spot", po::value<string>(&spot_name))
         ;
 
     po::positional_options_description positional_options;
     positional_options
         .add("command", 1)
         .add("socket-path-or-expr", 1)
-        .add("app", 1)
-        .add("owner", 1)
-        .add("spot", 1)
         ;
 
     po::options_description cmdline_options;
@@ -138,10 +131,8 @@ int main(int argc, char** argv)
 
     if (vm.count("help") || command.empty()) {
         po::options_description visible_options(
-            string("Usage: ") + argv[0] +
-            " [options] serve PATH APP [OWNER SPOT]\n"
-            "       " + argv[0] +
-            " [options] eval  EXPR APP [OWNER SPOT]");
+            string("Usage: ") + argv[0] + " [options] serve PATH\n"
+            "       " + argv[0] + " [options] eval  EXPR");
         visible_options.add(generic_options).add(config_options);
         cout << visible_options << '\n';
         return !vm.count("help");
@@ -160,15 +151,6 @@ int main(int argc, char** argv)
         }
     } else {
         cerr << "Unknown command: " << command << '\n';
-        return 1;
-    }
-
-    if (app_name.empty()) {
-        cerr << "App name must be specified\n";
-        return 1;
-    }
-    if (!owner_name.empty() && spot_name.empty()) {
-        cerr << "Owner name and spot name must be specified together\n";
         return 1;
     }
 
@@ -203,14 +185,6 @@ int main(int argc, char** argv)
           schema_name,
           tablespace_name);
 
-    string path_suffix =
-        spot_name.empty()
-        ? "/release/" + app_name
-        : "/spots/" + app_name + '/' + owner_name + '/' + spot_name;
-    string spaced_owner_name(owner_name);
-    BOOST_FOREACH(char& c, spaced_owner_name)
-        if (c == '-')
-            c = ' ';
     string git_path_prefix, git_path_suffix;
     if (!git_path_pattern.empty()) {
         size_t pos = git_path_pattern.find("%s");
@@ -222,12 +196,8 @@ int main(int argc, char** argv)
         git_path_suffix = git_path_pattern.substr(pos + 2);
     }
 
-    Program program(Place(app_name, spaced_owner_name, spot_name),
-                    code_path + path_suffix,
-                    media_path + path_suffix,
-                    git_path_prefix,
-                    git_path_suffix,
-                    db);
+    Program program(
+        code_path, media_path, git_path_prefix, git_path_suffix, db);
 
     if (eval) {
         program.Eval(expr, STDOUT_FILENO);

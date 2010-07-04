@@ -15,28 +15,25 @@ import psycopg2
 import errno
 
 
-TMP_PATH     = '/tmp/patsak'
-LOG_PATH     = os.path.join(TMP_PATH, 'log')
-SOCKET_PATH  = os.path.join(TMP_PATH, 'socket')
-MEDIA_PATH   = os.path.join(TMP_PATH, 'media')
-CONFIG_PATH  = os.path.join(TMP_PATH, 'config')
-APP_NAME     = 'test-app'
 DB_NAME      = 'test'
 DB_USER      = 'test'
 DB_PASSWORD  = 'test'
-DB_PARAMS    = 'user=%s password=%s dbname=%%s' % (DB_USER, DB_PASSWORD)
+TMP_PATH     = '/tmp/patsak'
+SOCKET_PATH  = TMP_PATH + '/socket'
+MEDIA_PATH   = TMP_PATH + '/media'
+CONFIG_PATH  = TMP_PATH + '/config'
+LOG_PATH     = TMP_PATH + '/log'
 TEST_PATH    = os.path.dirname(__file__)
-RELEASE_PATH = os.path.join(TEST_PATH, '../sample/release')
-CODE_PATH    = os.path.join(TEST_PATH, 'code')
-FUNCS_PATH   = os.path.join(TEST_PATH, '../src/funcs.sql')
+CODE_PATH    = TEST_PATH + '/code'
+FUNCS_PATH   = TEST_PATH + '/../src/funcs.sql'
 
 
-def _popen(*args, **kwds):
-    kwds.update({'stdin': subprocess.PIPE,
-                 'stdout': subprocess.PIPE,
-                 'stderr': subprocess.PIPE,
-                 })
-    return subprocess.Popen(*args, **kwds)
+def _popen(cmd):
+    return subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE)
 
 
 class Test(unittest.TestCase):
@@ -51,23 +48,17 @@ class Test(unittest.TestCase):
     def testMain(self):
         self._check_launch([], 1)
         self._check_launch(['--unknown-option'], 1)
+        self._check_launch(['unknown-command'], 1)
         self._check_launch(['--help'])
         self._check_launch(['--rev'])
         self._check_launch(['serve'], 1)
-        self._check_launch(['serve', 'socket'], 1)
-        self._check_launch(['serve', 'socket', 'app', 'owner'], 1)
-        self._check_launch(['--code-dir', '', 'serve', 'socket', 'app'], 1)
-        self._check_launch(['--git-pattern', 'bad', 'eval', '1', 'app'], 1)
-        process = _popen([PATSAK_PATH,
-                          '--config-file', CONFIG_PATH,
-                          'serve', 'no/such/path',
-                          APP_NAME])
-        self.assertEqual(process.stdout.read(), '')
-        self.assertEqual(process.wait(), 0)
+        self._check_launch(['--code-dir', '', 'serve', 'socket'], 1)
+        self._check_launch(['--git-pattern', 'bad', 'eval', '1'], 1)
+        self._check_launch(['serve', 'bad/path'])
 
     def _eval(self, expr):
         process = _popen(
-            [PATSAK_PATH, '--config-file', CONFIG_PATH, 'eval', expr, APP_NAME])
+            [PATSAK_PATH, '--config-file', CONFIG_PATH, 'eval', expr])
         return process.stdout.read()[:-1]
 
     def testJS(self):
@@ -77,10 +68,12 @@ class Test(unittest.TestCase):
         self.assertEqual(self._eval('2+2\n3+3'), 'OK\n6')
         self.assertEqual(self._eval('s="x"; while(1) s+=s'),
                          'ERROR\n<Out of memory>')
-        self._check_launch(['eval', '2+2\n3+3', APP_NAME])
-
+        self._check_launch(['eval', '2+2\n3+3'])
         process = _popen(
-            [PATSAK_PATH, '--config-file', CONFIG_PATH, 'eval', '1', 'bad-app'])
+            [PATSAK_PATH,
+             '--config-file', CONFIG_PATH,
+             '--code-dir', CODE_PATH + '/bad',
+             'eval', '1'])
         self.assert_('SyntaxError' in process.stdout.read())
         self.assertEqual(process.wait(), 0)
 
@@ -105,13 +98,8 @@ class Test(unittest.TestCase):
             sock.close()
 
     def testReleaseServer(self):
-        os.mkdir(MEDIA_PATH + '/release/test-app/dir')
-        open(MEDIA_PATH + '/release/test-app/dir/file', 'w').write('hello')
-
-        process = _popen([PATSAK_PATH,
-                          '--config-file', CONFIG_PATH,
-                          'serve', SOCKET_PATH,
-                          APP_NAME])
+        process = _popen(
+            [PATSAK_PATH, '--config-file', CONFIG_PATH, 'serve', SOCKET_PATH])
         self.assertEqual(process.stdout.read(), 'READY\n')
         self.assertEqual(process.wait(), 0)
 
@@ -141,7 +129,7 @@ class Test(unittest.TestCase):
                          'OK\nfalse')
 
         # Timed out test. Long to run.
-#         self.assertEqual(self._talk('EVAL\nfor (;;) main();'),
+#         self.assertEqual(self._talk('EVAL\nfor (;;) test();'),
 #                          'ERROR\n<Timed out>')
 
         sock = self._connect()
@@ -156,41 +144,26 @@ class Test(unittest.TestCase):
         sock.send('EVAL\n')
         sock.close()
 
-        self.assertEqual(self._talk('EVAL\nthis.spot'), 'OK\nundefined')
-
         self.assertEqual(self._talk('STOP\n'), '')
         self.assertRaises(socket.error, self._connect)
 
 
-def _create_schema(cursor, schema_name):
-    cursor.execute('DROP SCHEMA IF EXISTS "%s" CASCADE' % schema_name)
-    cursor.execute('SELECT ak.create_schema(%s)', (schema_name,))
+def _connect_to_db(name):
+    return psycopg2.connect(
+        'user=%s password=%s dbname=%s' % (DB_USER, DB_PASSWORD, name))
 
 
-def _create_db():
-    conn = psycopg2.connect(DB_PARAMS % 'template1')
-    conn.set_isolation_level(0)
-    cursor = conn.cursor()
-    try:
-        cursor.execute('CREATE DATABASE "%s"' % DB_NAME)
-    except psycopg2.Error, error:
-        if error.pgcode != '42P04':
-            raise
-    conn.close()
-    conn = psycopg2.connect(DB_PARAMS % DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute(open(FUNCS_PATH).read())
-    for app_name in os.listdir(RELEASE_PATH):
-        if (app_name[0] == '.' or
-            not os.path.isdir(os.path.join(RELEASE_PATH, app_name))):
-            continue
-        _create_schema(cursor, ':' + app_name)
-    conn.commit()
-    conn.close()
+def main():
+    if len(sys.argv) != 2:
+        print 'Usage: ', sys.argv[0], ' dir'
+        sys.exit(1)
 
+    global PATSAK_PATH, TEST_PATSAK_PATH
+    PATSAK_PATH = os.path.join(sys.argv[1], 'patsak')
+    TEST_PATSAK_PATH = os.path.join(sys.argv[1], 'test-patsak')
+    suite = unittest.TestLoader().loadTestsFromTestCase(Test)
 
-def _drop_db():
-    conn = psycopg2.connect(DB_PARAMS % 'template1')
+    conn = _connect_to_db('template1')
     conn.set_isolation_level(0)
     cursor = conn.cursor()
     try:
@@ -198,41 +171,31 @@ def _drop_db():
     except psycopg2.ProgrammingError, error:
         if error.pgcode != '3D000':
             raise
+    cursor.execute('CREATE DATABASE "%s"' % DB_NAME)
+    conn.close()
+    conn = _connect_to_db(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(open(FUNCS_PATH).read())
+    conn.commit()
     conn.close()
 
+    try:
+        os.makedirs(MEDIA_PATH)
+    except OSError, error:
+        if error.errno != errno.EEXIST:
+            raise
 
-def _make_dirs():
-    if os.path.exists(TMP_PATH):
-        shutil.rmtree(TMP_PATH)
-    os.makedirs(os.path.join(MEDIA_PATH, 'release', APP_NAME));
-
-
-def _write_config():
     with open(CONFIG_PATH, 'w') as f:
         f.write('''
 db-name=%s
 db-user=%s
 db-password=%s
-code-dir=%s/../sample
+code-dir=%s/test
 media-dir=%s
 git-pattern=%s/%%s/.git
 log-file=%s
 ''' % (DB_NAME, DB_USER, DB_PASSWORD,
-       os.path.abspath(TEST_PATH), MEDIA_PATH, CODE_PATH, LOG_PATH))
-
-
-def main():
-    if len(sys.argv) != 2:
-        print 'Usage: ', sys.argv[0], ' dir'
-        sys.exit(1)
-    global PATSAK_PATH, TEST_PATSAK_PATH
-    PATSAK_PATH = os.path.join(sys.argv[1], 'patsak')
-    TEST_PATSAK_PATH = os.path.join(sys.argv[1], 'test-patsak')
-    suite = unittest.TestLoader().loadTestsFromTestCase(Test)
-    _drop_db()
-    _create_db()
-    _make_dirs()
-    _write_config()
+       CODE_PATH, MEDIA_PATH, CODE_PATH, LOG_PATH))
 
     unittest.TextTestRunner(verbosity=2).run(suite)
 

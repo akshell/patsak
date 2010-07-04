@@ -226,10 +226,6 @@ var baseTestSuite = {
     assertSame(obj.dontDelete, 3);
   },
 
-  testApp: function () {
-    assertSame(app, 'test-app');
-  },
-
   testReadCode: function () {
     assertSame(readCode('main/index.js'), 'exports.main = require.main;\n');
     assertThrow(PathError, readCode, '');
