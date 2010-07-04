@@ -224,7 +224,6 @@ int main(int argc, char** argv)
 
     Program program(Place(app_name, spaced_owner_name, spot_name),
                     code_path + path_suffix,
-                    code_path + "/release/",
                     media_path + path_suffix,
                     git_path_prefix,
                     git_path_suffix,

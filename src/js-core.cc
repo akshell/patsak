@@ -19,8 +19,7 @@ using namespace std;
 
 namespace
 {
-    string app_path;
-    string release_path;
+    string code_path;
 
 
     DEFINE_JS_CALLBACK(PrintCb, args)
@@ -59,48 +58,34 @@ namespace
     }
 
 
-    string GetFullPath(const Arguments& args)
+    string GetPath(const Arguments& args)
     {
         CheckArgsLength(args, 1);
-        string base_path, path;
-        if (args.Length() == 1) {
-            base_path = app_path;
-            path = Stringify(args[0]);
-        } else {
-            string app_name = Stringify(args[0]);
-            BOOST_FOREACH(char c, app_name)
-                if (!((c >= 'a' && c <= 'z') ||
-                      (c >= '0' && c <= '9') ||
-                      c == '-'))
-                    throw Error(Error::VALUE, "Invalid app name");
-            base_path = release_path + '/' + app_name;
-            path = Stringify(args[1]);
-        }
+        string path(Stringify(args[0]));
         if (GetPathDepth(path) <= 0)
             throw Error(Error::PATH, "Code path \"" + path + "\" is illegal");
-        return base_path + '/' + path;
+        return code_path + '/' + path;
     }
 
 
     DEFINE_JS_CALLBACK(ReadCodeCb, args)
     {
-        auto_ptr<Chars> data_ptr(ReadFile(GetFullPath(args)));
+        auto_ptr<Chars> data_ptr(ReadFile(GetPath(args)));
         return String::New(&data_ptr->front(), data_ptr->size());
     }
 
 
     DEFINE_JS_CALLBACK(GetCodeModDateCb, args)
     {
-        time_t date = GetStat(GetFullPath(args))->st_mtime;
+        time_t date = GetStat(GetPath(args))->st_mtime;
         return Date::New(static_cast<double>(date) * 1000);
     }
 }
 
 
-Handle<Object> ak::InitCore(const string& app_path, const string& release_path)
+Handle<Object> ak::InitCore(const string& code_path)
 {
-    ::app_path = app_path;
-    ::release_path = release_path;
+    ::code_path = code_path;
     Handle<Object> result(Object::New());
     SetFunction(result, "print", PrintCb);
     SetFunction(result, "set", SetCb);

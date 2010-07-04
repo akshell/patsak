@@ -96,8 +96,7 @@ namespace
 class Program::Impl {
 public:
     Impl(const Place& place,
-         const string& app_code_path,
-         const string& release_code_path,
+         const string& code_path,
          const string& media_path,
          const string& git_path_prefix,
          const string& git_path_suffix,
@@ -126,8 +125,7 @@ private:
 
 
 Program::Impl::Impl(const Place& place,
-                    const string& app_code_path,
-                    const string& release_code_path,
+                    const string& code_path,
                     const string& media_path,
                     const string& git_path_prefix,
                     const string& git_path_suffix,
@@ -153,7 +151,7 @@ Program::Impl::Impl(const Place& place,
         Set(global, "spot", String::New(place.spot_name.c_str()));
         Set(global, "owner", String::New(place.owner_name.c_str()));
     }
-    Set(global, "core", InitCore(app_code_path, release_code_path));
+    Set(global, "core", InitCore(code_path));
     Set(global, "db", InitDB());
     Set(global, "fs", InitFS(media_path));
     Set(global, "binary", InitBinary());
@@ -293,15 +291,13 @@ void Program::Impl::Call(const string& func_name,
 ////////////////////////////////////////////////////////////////////////////////
 
 Program::Program(const Place& place,
-                 const string& app_code_path,
-                 const string& release_code_path,
+                 const string& code_path,
                  const string& media_path,
                  const string& git_path_prefix,
                  const string& git_path_suffix,
                  DB& db)
     : pimpl_(new Impl(place,
-                      app_code_path,
-                      release_code_path,
+                      code_path,
                       media_path,
                       git_path_prefix,
                       git_path_suffix,
