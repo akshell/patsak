@@ -7,6 +7,9 @@
   // Errors
   //////////////////////////////////////////////////////////////////////////////
 
+  var global = this;
+
+
   Error.stackTraceLimit = 1000;
 
 
@@ -24,7 +27,7 @@
     };
     result.prototype.name = fullName;
     result.prototype.__proto__ = (parent || Error).prototype;
-    _core[fullName] = result;
+    global[fullName] = result;
     return result;
   }
 
@@ -33,7 +36,7 @@
   defineErrorClass('FS');
 
 
-  _core.errors = [
+  errors = [
     TypeError,
     RangeError,
 
@@ -47,23 +50,23 @@
     defineErrorClass('Socket'),
     defineErrorClass('Quota'),
 
-    _core.DBError,
-    defineErrorClass('RelVarExists', _core.DBError),
-    defineErrorClass('NoSuchRelVar', _core.DBError),
-    defineErrorClass('Constraint', _core.DBError),
-    defineErrorClass('Query', _core.DBError),
-    defineErrorClass('AttrExists', _core.DBError),
-    defineErrorClass('NoSuchAttr', _core.DBError),
-    defineErrorClass('AttrValueRequired', _core.DBError),
-    defineErrorClass('RelVarDependency', _core.DBError),
+    DBError,
+    defineErrorClass('RelVarExists', DBError),
+    defineErrorClass('NoSuchRelVar', DBError),
+    defineErrorClass('Constraint', DBError),
+    defineErrorClass('Query', DBError),
+    defineErrorClass('AttrExists', DBError),
+    defineErrorClass('NoSuchAttr', DBError),
+    defineErrorClass('AttrValueRequired', DBError),
+    defineErrorClass('RelVarDependency', DBError),
 
-    _core.FSError,
-    defineErrorClass('Path', _core.FSError),
-    defineErrorClass('EntryExists', _core.FSError),
-    defineErrorClass('NoSuchEntry', _core.FSError),
-    defineErrorClass('EntryIsDir', _core.FSError),
-    defineErrorClass('EntryIsNotDir', _core.FSError),
-    defineErrorClass('FileIsReadOnly', _core.FSError)
+    FSError,
+    defineErrorClass('Path', FSError),
+    defineErrorClass('EntryExists', FSError),
+    defineErrorClass('NoSuchEntry', FSError),
+    defineErrorClass('EntryIsDir', FSError),
+    defineErrorClass('EntryIsNotDir', FSError),
+    defineErrorClass('FileIsReadOnly', FSError)
   ];
 
   //////////////////////////////////////////////////////////////////////////////
@@ -80,7 +83,7 @@
         break;
       case '..':
         if (!result.length)
-          throw _core.PathError('Illegal code path: ' + path);
+          throw PathError('Illegal code path: ' + path);
         result.pop();
         break;
       default:
@@ -99,14 +102,14 @@
     return function () {
       var app, version, dir, loc;
       if (!arguments.length)
-        throw _core.UsageError('At least 1 argument required');
+        throw UsageError('At least 1 argument required');
       if (arguments.length == 1) {
         app = baseApp;
         version = baseVersion;
         loc = parsePath(arguments[0], baseDir);
       } else {
         app = arguments[0];
-        if (!_core.spot && app == _core.app)
+        if (!global.spot && app == global.app)
           app = '';
         version = parsePath(arguments[1]);
         if (arguments.length == 2)
@@ -118,8 +121,8 @@
       if (cache.hasOwnProperty(key))
         return cache[key];
       var path = version.concat(loc).join('/') + '.js';
-      var code = app ? _core.readCode(app, path) : _core.readCode(path);
-      var func = new _core.script.Script(
+      var code = app ? core.readCode(app, path) : core.readCode(path);
+      var func = new script.Script(
         '(function (require, exports, module) {\n' + code + '\n})',
         (app && app + ':') + path, -1)._run();
       var require = makeRequire(app, version, loc.slice(0, loc.length - 1));
@@ -132,15 +135,15 @@
       if (app) {
         module.app = app;
       } else {
-        module.app = _core.app;
-        if (_core.spot) {
-          module.owner = _core.owner;
-          module.spot = _core.spot;
+        module.app = global.app;
+        if (global.spot) {
+          module.owner = global.owner;
+          module.spot = global.spot;
         }
       }
       var oldMain = main;
       main = main || module;
-      _core.set(require, 'main', 5, main);
+      core.set(require, 'main', 5, main);
       try {
         func(require, exports, module);
       } catch (error) {

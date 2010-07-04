@@ -3,6 +3,7 @@
 
 #include "js.h"
 #include "js-common.h"
+#include "js-core.h"
 #include "js-db.h"
 #include "js-fs.h"
 #include "js-binary.h"
@@ -12,8 +13,6 @@
 #include "js-http.h"
 #include "js-git.h"
 #include "db.h"
-
-#include <boost/foreach.hpp>
 
 #include <setjmp.h>
 
@@ -36,245 +35,6 @@ namespace
     const int MAX_YOUNG_SPACE_SIZE =  2 * 1024 * 1024;
     const int MAX_OLD_SPACE_SIZE   = 32 * 1024 * 1024;
     const int STACK_LIMIT          =  2 * 1024 * 1024;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// CodeReader
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    // Class for read access to code files of current and other applications
-    class CodeReader {
-    public:
-        CodeReader(const string& app_path, const string& release_path);
-        auto_ptr<Chars> Read(const string& path) const;
-        auto_ptr<Chars> Read(const string& app_name, const string& path) const;
-        time_t GetModDate(const string& path) const;
-        time_t GetModDate(const string& app_name, const string& path) const;
-
-    private:
-        string app_path_;
-        string release_path_;
-
-        static void CheckAppName(const string& app_name);
-        static void CheckPath(const string& path);
-
-        auto_ptr<Chars> DoRead(const string& base_path,
-                               const string& path) const;
-
-        time_t DoGetModDate(const string& base_path, const string& path) const;
-    };
-}
-
-
-CodeReader::CodeReader(const string& app_path, const string& release_path)
-    : app_path_(app_path), release_path_(release_path)
-{
-}
-
-
-auto_ptr<Chars> CodeReader::Read(const string& path) const
-{
-    return DoRead(app_path_, path);
-}
-
-
-auto_ptr<Chars> CodeReader::Read(const string& app_name,
-                                 const string& path) const
-{
-    CheckAppName(app_name);
-    return DoRead(release_path_ + '/' + app_name, path);
-}
-
-
-time_t CodeReader::GetModDate(const string& path) const
-{
-    return DoGetModDate(app_path_, path);
-}
-
-
-time_t CodeReader::GetModDate(const string& app_name, const string& path) const
-{
-    CheckAppName(app_name);
-    return DoGetModDate(release_path_ + '/' + app_name, path);
-}
-
-
-void CodeReader::CheckAppName(const string& app_name)
-{
-    BOOST_FOREACH(char c, app_name)
-        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-'))
-            throw Error(Error::VALUE, "Illegal app name");
-}
-
-
-void CodeReader::CheckPath(const string& path)
-{
-    if (GetPathDepth(path) <= 0)
-        throw Error(Error::PATH, "Code path \"" + path + "\" is illegal");
-}
-
-
-auto_ptr<Chars> CodeReader::DoRead(const string& base_path,
-                                   const string& path) const
-{
-    CheckPath(path);
-    return ReadFile(base_path + '/' + path);
-}
-
-
-time_t CodeReader::DoGetModDate(const string& base_path,
-                                const string& path) const
-{
-    CheckPath(path);
-    return GetStat(base_path + '/' + path)->st_mtime;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// CoreBg
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class CoreBg {
-    public:
-        DECLARE_JS_CLASS(CoreBg);
-
-        CoreBg(const Place& place, const CodeReader& code_reader);
-        void Init(Handle<Object> object) const;
-
-    private:
-        Place place_;
-        const CodeReader& code_reader_;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, PrintCb,
-                             const Arguments&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, SetCb,
-                             const Arguments&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadCodeCb,
-                             const Arguments&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, GetCodeModDateCb,
-                             const Arguments&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, HashCb,
-                             const Arguments&) const;
-    };
-}
-
-
-DEFINE_JS_CLASS(CoreBg, "Core", object_template, /*proto_template*/)
-{
-    SetFunction(object_template, "print", PrintCb);
-    SetFunction(object_template, "set", SetCb);
-    SetFunction(object_template, "readCode", ReadCodeCb);
-    SetFunction(object_template, "getCodeModDate", GetCodeModDateCb);
-    SetFunction(object_template, "hash", HashCb);
-}
-
-
-CoreBg::CoreBg(const Place& place, const CodeReader& code_reader)
-    : place_(place)
-    , code_reader_(code_reader)
-{
-}
-
-
-void CoreBg::Init(Handle<Object> core) const
-{
-    JSClassBase::InitConstructors(core);
-    Set(core, "app", String::New(place_.app_name.c_str()));
-    if (!place_.spot_name.empty()) {
-        Set(core, "spot", String::New(place_.spot_name.c_str()));
-        Set(core, "owner", String::New(place_.owner_name.c_str()));
-    }
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, PrintCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    Log(Stringify(args[0]));
-    return Undefined();
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, SetCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 4);
-    if (!args[0]->IsObject())
-        throw Error(Error::TYPE, "Can't set property of non-object");
-    Handle<Object> object(args[0]->ToObject());
-    if (!args[2]->IsInt32())
-        throw Error(Error::TYPE, "Property attribute must be integer");
-    int32_t attributes = args[2]->Int32Value();
-    if (attributes < 0 || attributes >= 8)
-        throw Error(Error::VALUE,
-                    ("Property attribute must be a "
-                     "unsigned integer less than 8"));
-    object->Set(args[1], args[3], static_cast<PropertyAttribute>(attributes));
-    return object;
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, ReadCodeCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    auto_ptr<Chars> data_ptr(args.Length() == 1
-                             ? code_reader_.Read(Stringify(args[0]))
-                             : code_reader_.Read(Stringify(args[0]),
-                                                 Stringify(args[1])));
-    return String::New(&data_ptr->front(), data_ptr->size());
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, GetCodeModDateCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    time_t date = (args.Length() == 1
-                   ? code_reader_.GetModDate(Stringify(args[0]))
-                   : code_reader_.GetModDate(Stringify(args[0]),
-                                             Stringify(args[1])));
-    return Date::New(static_cast<double>(date) * 1000);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, CoreBg, HashCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    int hash = (args[0]->IsObject()
-                ? args[0]->ToObject()->GetIdentityHash()
-                : 0);
-    return Integer::New(hash);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// GlobalBg
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class GlobalBg {
-    public:
-        DECLARE_JS_CLASS(GlobalBg);
-        GlobalBg() {}
-    };
-}
-
-
-DEFINE_JS_CLASS(GlobalBg, "Global", object_template, /*proto_template*/)
-{
-    Set(object_template, "_core",
-        CoreBg::GetJSClass().GetObjectTemplate(),
-        ReadOnly | DontEnum | DontDelete);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,26 +112,16 @@ public:
 private:
     bool initialized_;
     DB& db_;
-    CodeReader code_reader_;
-    CoreBg core_bg_;
-    GlobalBg global_bg_;
     Persistent<Context> context_;
-    Persistent<Object> core_;
 
-    bool Run(Handle<Object> object,
-             Handle<Function> function,
+    bool Run(Handle<Function> function,
              Handle<v8::Value> arg,
              int out_fd,
              bool print_ok);
 
-    void Call(Handle<Object> object,
-              const string& func_name,
+    void Call(const string& func_name,
               Handle<v8::Value> arg,
               int out_fd = -1);
-
-    void SetInternal(Handle<Object> object,
-                     const string& field,
-                     void* ptr) const;
 };
 
 
@@ -384,8 +134,6 @@ Program::Impl::Impl(const Place& place,
                     DB& db)
     : initialized_(false)
     , db_(db)
-    , code_reader_(app_code_path, release_code_path)
-    , core_bg_(place, code_reader_)
 {
     V8::SetFatalErrorHandler(HandleFatalError);
 
@@ -397,23 +145,24 @@ Program::Impl::Impl(const Place& place,
     AK_ASSERT(ret);
 
     HandleScope handle_scope;
-    context_ = Context::New(NULL, GlobalBg::GetJSClass().GetObjectTemplate());
-    Handle<Object> global_proto(context_->Global()->GetPrototype()->ToObject());
-    global_proto->SetInternalField(0, External::New(&global_bg_));
-    SetInternal(global_proto, "_core", &core_bg_);
-    core_ = Persistent<Object>::New(Get(global_proto, "_core")->ToObject());
-
+    context_ = Context::New();
     Context::Scope context_scope(context_);
-    core_bg_.Init(core_);
-    Set(core_, "db", InitDB());
-    Set(core_, "fs", InitFS(media_path));
-    Set(core_, "binary", InitBinary());
-    Set(core_, "proxy", InitProxy());
-    Set(core_, "script", InitScript());
-    Set(core_, "socket", InitSocket());
-    Set(core_, "http", InitHTTP());
+    Handle<Object> global(context_->Global());
+    Set(global, "app", String::New(place.app_name.c_str()));
+    if (!place.spot_name.empty()) {
+        Set(global, "spot", String::New(place.spot_name.c_str()));
+        Set(global, "owner", String::New(place.owner_name.c_str()));
+    }
+    Set(global, "core", InitCore(app_code_path, release_code_path));
+    Set(global, "db", InitDB());
+    Set(global, "fs", InitFS(media_path));
+    Set(global, "binary", InitBinary());
+    Set(global, "proxy", InitProxy());
+    Set(global, "script", InitScript());
+    Set(global, "socket", InitSocket());
+    Set(global, "http", InitHTTP());
     if (!git_path_prefix.empty() || !git_path_suffix.empty())
-        Set(core_, "git", InitGit(git_path_prefix, git_path_suffix));
+        Set(global, "git", InitGit(git_path_prefix, git_path_suffix));
 
     // Run init.js script
     Handle<Script> script(Script::Compile(String::New(INIT_JS,
@@ -424,13 +173,12 @@ Program::Impl::Impl(const Place& place,
     AK_ASSERT(!init_ret.IsEmpty());
 
     js_error_classes = Persistent<Object>::New(
-        Get(core_, "errors")->ToObject()->Clone());
+        Get(global, "errors")->ToObject()->Clone());
 }
 
 
 Program::Impl::~Impl()
 {
-    core_.Dispose();
     context_.Dispose();
 }
 
@@ -440,7 +188,7 @@ void Program::Impl::Eval(const Chars& expr, int out_fd)
     HandleScope handle_scope;
     Context::Scope context_scope(context_);
     Handle<v8::Value> arg(String::New(&expr[0], expr.size()));
-    Call(context_->Global(), "eval", arg, out_fd);
+    Call("eval", arg, out_fd);
 }
 
 
@@ -449,7 +197,7 @@ void Program::Impl::Process(int sock_fd)
     HandleScope handle_scope;
     Context::Scope context_scope(context_);
     SocketScope socket_scope(sock_fd);
-    Call(core_, "main", socket_scope.GetSocket());
+    Call("main", socket_scope.GetSocket());
 }
 
 
@@ -459,8 +207,7 @@ bool Program::Impl::IsDead() const
 }
 
 
-bool Program::Impl::Run(Handle<Object> object,
-                        Handle<Function> function,
+bool Program::Impl::Run(Handle<Function> function,
                         Handle<v8::Value> arg,
                         int out_fd,
                         bool print_ok)
@@ -475,7 +222,7 @@ bool Program::Impl::Run(Handle<Object> object,
     Handle<v8::Value> value;
     {
         ExecutionGuard guard;
-        value = function->Call(object, 1, &arg);
+        value = function->Call(context_->Global(), 1, &arg);
     }
     access_ptr = 0;
     if (TimedOut()) {
@@ -522,8 +269,7 @@ bool Program::Impl::Run(Handle<Object> object,
 }
 
 
-void Program::Impl::Call(Handle<Object> object,
-                         const string& func_name,
+void Program::Impl::Call(const string& func_name,
                          Handle<v8::Value> arg,
                          int out_fd)
 {
@@ -531,24 +277,15 @@ void Program::Impl::Call(Handle<Object> object,
         Handle<Function> require_func(
             Handle<Function>::Cast(Get(context_->Global(), "require")));
         AK_ASSERT(!require_func.IsEmpty());
-        if (!Run(context_->Global(), require_func, String::New("main"),
-                 out_fd, false))
+        if (!Run(require_func, String::New("main"), out_fd, false))
             return;
         initialized_ = true;
     }
-    Handle<v8::Value> func_value(Get(object, func_name));
+    Handle<v8::Value> func_value(Get(context_->Global(), func_name));
     if (func_value.IsEmpty() || !func_value->IsFunction())
         Write(out_fd, "ERROR\n" + func_name + " is not a function");
     else
-        Run(object, Handle<Function>::Cast(func_value), arg, out_fd, true);
-}
-
-
-void Program::Impl::SetInternal(Handle<Object> object,
-                                const string& field,
-                                void* ptr) const
-{
-    Get(object, field)->ToObject()->SetInternalField(0, External::New(ptr));
+        Run(Handle<Function>::Cast(func_value), arg, out_fd, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

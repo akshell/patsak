@@ -1,15 +1,13 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-Script = _core.script.Script;
-Proxy = _core.proxy.Proxy;
-Binary = _core.binary.Binary;
+Script = script.Script;
+Proxy = proxy.Proxy;
+Binary = binary.Binary;
 Binary.prototype.toString = Binary.prototype._toString;
-connect = _core.socket.connect;
-HttpParser = _core.http.HttpParser;
-Repo = _core.git.Repo;
-db = _core.db;
-fs = _core.fs;
+connect = socket.connect;
+HttpParser = http.HttpParser;
+Repo = git.Repo;
 
 number = db.number;
 string = db.string;
@@ -22,22 +20,11 @@ DONT_ENUM   = 1 << 1;
 DONT_DELETE = 1 << 2;
 
 
-[
-  'print',
-  'readCode',
-  'getCodeModDate',
-  'set',
-  'hash'
-].forEach(
-  function (name) {
-    var func = _core[name];
-    this[name] = function () {
-      return func.apply(_core, arguments);
-    };
-  });
+for (var name in core)
+  this[name] = core[name];
 
 
-_core.errors.slice(2).forEach(
+errors.slice(2).forEach(
   function (error) {
     this[error.prototype.name] = error;
   });
@@ -234,13 +221,6 @@ var baseTestSuite = {
     assertSame(date.name, 'date');
   },
 
-  testConstructors: function () {
-    assert(global instanceof _core.Global);
-    assert(_core instanceof _core.Core);
-    assert(keys(_core).indexOf('Core') != -1);
-    assert(_core.hasOwnProperty('set'));
-  },
-
   testSet: function () {
     var obj = {};
     assertThrow(UsageError, set);
@@ -258,7 +238,7 @@ var baseTestSuite = {
   },
 
   testApp: function () {
-    assertSame(_core.app, 'test-app');
+    assertSame(app, 'test-app');
   },
 
   testReadCode: function () {
@@ -1497,12 +1477,12 @@ var fileTestSuite = {
 // Entry point
 ////////////////////////////////////////////////////////////////////////////////
 
-main = function () {
+test = function () {
   return runTestSuites([baseTestSuite, dbTestSuite, fileTestSuite]);
 };
 
 
-_core.main = function (socket) {
+main = function (socket) {
   for (;;) {
     var data = socket._receive(4096);
     if (!data.length)

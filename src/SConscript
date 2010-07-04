@@ -20,8 +20,9 @@ common_sources = [
 js_sources = [
     'js.cc',
     'js-common.cc',
-    'js-fs.cc',
+    'js-core.cc',
     'js-db.cc',
+    'js-fs.cc',
     'js-binary.cc',
     'js-proxy.cc',
     'js-script.cc',

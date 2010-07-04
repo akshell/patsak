@@ -123,7 +123,7 @@ class Test(unittest.TestCase):
         self.assertEqual(self._talk('UNKNOWN OPERATION'), '')
         self.assertEqual(self._talk('HNDL\nhello'), 'hello')
         self.assertEqual(self._talk('HNDL\nhello'), 'hello')
-        self.assertEqual(self._talk('EVAL\nmain()'), 'OK\n0')
+        self.assertEqual(self._talk('EVAL\ntest()'), 'OK\n0')
         self.assertEqual(self._talk('EVAL\nnew Binary(3)'), 'OK\n\0\0\0')
         self.assert_(
             'Uncaught 42\n    at main.js:' in self._talk('EVAL\nthrow42()'))
@@ -131,13 +131,13 @@ class Test(unittest.TestCase):
         self.assert_(
             'Uncaught 1' in
             self._talk(
-                'EVAL\n_core.db.create("xxx", {}, [], [], []); throw 1'))
+                'EVAL\ndb.create("xxx", {}, [], [], []); throw 1'))
         self.assertEqual(
             self._talk('EVAL\n'
-                       '_core.db.create("xxx", {}, [], [], []);'
-                       '_core.db.rollback()'),
+                       'db.create("xxx", {}, [], [], []);'
+                       'db.rollback()'),
             'OK\nundefined')
-        self.assertEqual(self._talk('EVAL\n"xxx" in _core.db.list()'),
+        self.assertEqual(self._talk('EVAL\n"xxx" in db.list()'),
                          'OK\nfalse')
 
         # Timed out test. Long to run.
@@ -156,7 +156,7 @@ class Test(unittest.TestCase):
         sock.send('EVAL\n')
         sock.close()
 
-        self.assertEqual(self._talk('EVAL\n_core.spot'), 'OK\nundefined')
+        self.assertEqual(self._talk('EVAL\nthis.spot'), 'OK\nundefined')
 
         self.assertEqual(self._talk('STOP\n'), '')
         self.assertRaises(socket.error, self._connect)
@@ -171,7 +171,7 @@ class Test(unittest.TestCase):
 
         self.assertEqual(self._talk('HNDL\n1'), '')
         self.assertEqual(self._talk('EVAL\npass'), 'OK\ntrue')
-        self.assertEqual(self._talk('EVAL\n_core.owner + " " + _core.spot'),
+        self.assertEqual(self._talk('EVAL\nowner + " " + spot'),
                          'OK\ntest user test-spot')
         self.assertEqual(self._talk('EVAL\nfunction f() { f(); } f()'),
                          'ERROR\nRangeError: Maximum call stack size exceeded')
