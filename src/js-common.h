@@ -11,7 +11,7 @@
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Stuff
+// Utils
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace v8
@@ -98,6 +98,27 @@ namespace ak
         v8::Handle<v8::Array> keys_;
         size_t size_;
     };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ExecutionGuard, CallbackGuard, and TimedOut
+////////////////////////////////////////////////////////////////////////////////
+
+namespace ak
+{
+    struct ExecutionGuard {
+        ExecutionGuard();
+        ~ExecutionGuard();
+    };
+
+
+    struct CallbackGuard {
+        CallbackGuard();
+        ~CallbackGuard();
+    };
+
+
+    bool TimedOut();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,21 +266,6 @@ namespace ak
                             js_class.GetName() + " object was expected");
         return *bg_ptr;
     }
-
-
-    struct ExecutionGuard {
-        ExecutionGuard();
-        ~ExecutionGuard();
-    };
-
-
-    struct CallbackGuard {
-        CallbackGuard();
-        ~CallbackGuard();
-    };
-
-
-    bool TimedOut();
 }
 
 

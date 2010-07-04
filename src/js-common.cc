@@ -16,7 +16,7 @@ using boost::lexical_cast;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Stuff
+// Utils
 ////////////////////////////////////////////////////////////////////////////////
 
 Access* ak::access_ptr;
@@ -84,6 +84,66 @@ void ak::SetFunction(Handle<Object> object,
         name,
         FunctionTemplate::New(callback)->GetFunction(),
         name[0] == '_' ? DontEnum : None);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ExecutionGuard, CallbackGuard, and TimedOut
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    bool handler_set = false;
+    bool timed_out   = false;
+    bool in_callback = false;
+
+
+    void HandleAlarm(int /*signal*/)
+    {
+        timed_out = true;
+        if (!in_callback)
+            V8::TerminateExecution();
+    }
+}
+
+
+ExecutionGuard::ExecutionGuard()
+{
+    if (!handler_set) {
+        struct sigaction action;
+        action.sa_handler = HandleAlarm;
+        sigemptyset(&action.sa_mask);
+        action.sa_flags = 0;
+        sigaction(SIGALRM, &action, 0);
+        handler_set = true;
+    }
+    timed_out = false;
+    in_callback = false;
+    alarm(10);
+}
+
+
+ExecutionGuard::~ExecutionGuard()
+{
+    alarm(0);
+}
+
+
+CallbackGuard::CallbackGuard()
+{
+    in_callback = true;
+}
+
+
+CallbackGuard::~CallbackGuard() {
+    in_callback = false;
+    if (timed_out)
+        v8::V8::TerminateExecution();
+}
+
+
+bool ak::TimedOut()
+{
+    return timed_out;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,65 +233,3 @@ vector<JSClassBase*>& JSClassBase::GetInstancePtrs()
     static vector<JSClassBase*> instance_ptrs;
     return instance_ptrs;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// ExecutionGuard, CallbackGuard, and TimedOut
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    bool handler_set = false;
-    bool timed_out   = false;
-    bool in_callback = false;
-
-
-    void HandleAlarm(int /*signal*/)
-    {
-        timed_out = true;
-        if (!in_callback)
-            V8::TerminateExecution();
-    }
-}
-
-
-ExecutionGuard::ExecutionGuard()
-{
-    if (!handler_set) {
-        struct sigaction action;
-        action.sa_handler = HandleAlarm;
-        sigemptyset(&action.sa_mask);
-        action.sa_flags = 0;
-        sigaction(SIGALRM, &action, 0);
-        handler_set = true;
-    }
-    timed_out = false;
-    in_callback = false;
-    alarm(10);
-}
-
-
-ExecutionGuard::~ExecutionGuard()
-{
-    alarm(0);
-}
-
-
-CallbackGuard::CallbackGuard()
-{
-    in_callback = true;
-}
-
-
-CallbackGuard::~CallbackGuard() {
-    in_callback = false;
-    if (timed_out)
-        v8::V8::TerminateExecution();
-}
-
-
-bool ak::TimedOut()
-{
-    return timed_out;
-}
-
-
