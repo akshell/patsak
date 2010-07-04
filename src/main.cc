@@ -130,21 +130,21 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    if (vm.count("help")) {
+    if (vm.count("rev")) {
+        // REVISION must be provided as a compiler option
+        cout << REVISION << '\n';
+        return 0;
+    }
+
+    if (vm.count("help") || command.empty()) {
         po::options_description visible_options(
             string("Usage: ") + argv[0] +
             " [options] serve PATH APP [OWNER SPOT]\n"
             "       " + argv[0] +
             " [options] eval  EXPR APP [OWNER SPOT]");
         visible_options.add(generic_options).add(config_options);
-        cout << visible_options << "\n";
-        return 0;
-    }
-
-    if (vm.count("rev")) {
-        // REVISION must be provided as a compiler option
-        cout << REVISION << '\n';
-        return 0;
+        cout << visible_options << '\n';
+        return !vm.count("help");
     }
 
     bool eval = command == "eval";
