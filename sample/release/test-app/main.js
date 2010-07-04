@@ -192,16 +192,12 @@ var baseTestSuite = {
       'nested',
       'relative',
       'transitive',
-      'error',
-      'module/./../module//a'
+      'error'
     ].forEach(
-      function (version) {
-        assert(require('lib', version).pass);
+      function (name) {
+        assert(require(name + '/index').pass);
       });
-    var m = require('subdir/index');
-    assertSame(require('test-app', '', 'subdir/../subdir//index'), m);
-    assertSame(require('test-app', 'subdir/.././subdir', './//./index'), m);
-    assertSame(require('test-app', 'subdir'), m);
+    var m = require('main/index');
     assertEqual(items(module),
                 [
                   ['exports', exports],
@@ -242,19 +238,19 @@ var baseTestSuite = {
   },
 
   testReadCode: function () {
-    assertSame(readCode('subdir/hi.txt'), 'russian привет\n');
+    assertSame(readCode('main/index.js'), 'exports.main = require.main;\n');
     assertSame(readCode('bad-app', 'main.js'), 'wuzzup!!!!!!!!\n');
     assertThrow(ValueError, readCode, 'illegal/name', 'main.js');
     assertThrow(PathError, readCode, 'test-app', '');
     assertThrow(PathError,
                 readCode, 'test-app', 'subdir/../../another-app/main.js');
-    assertThrow(EntryIsDirError, readCode, 'subdir');
+    assertThrow(EntryIsDirError, readCode, 'main');
     assertThrow(UsageError, readCode);
   },
 
   testGetCodeModDate: function () {
     assert(getCodeModDate('main.js') > new Date('01.01.2010'));
-    assert(getCodeModDate('lib', 'absolute/index.js') < new Date());
+    assert(getCodeModDate('bad-app', 'main.js') < new Date());
     assertThrow(NoSuchEntryError, getCodeModDate, 'no-such-file');
     assertThrow(NoSuchEntryError, getCodeModDate, 'lib', 'no-such-file');
     assertThrow(ValueError, getCodeModDate, 'illegal/name', 'file');
