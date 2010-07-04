@@ -21,10 +21,11 @@ using boost::noncopyable;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Lookuper
+// RVDef and Lookuper
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
+namespace
+{
     // Range var definition data
     struct RVDef {
         StringSet id_list;
@@ -33,6 +34,7 @@ namespace {
         RVDef(const StringSet& id_list, const Rel& rel)
             : id_list(id_list), rel(rel) {}
     };
+
 
     // Stack based range var lookuper
     class Lookuper {
@@ -52,6 +54,7 @@ namespace {
         RangeVar this_rv_;
     };
 }
+
 
 Lookuper::Lookuper()
     : stack_(1)
@@ -82,16 +85,10 @@ RangeVar Lookuper::Lookup(const string& name)
 {
     if (name.empty())
         return this_rv_;
-    // BOOST_REVERSE_FOREACH(const Scope& scope, scopes_) {
-    for (LookupStack::const_reverse_iterator itr = stack_.rbegin();
-         itr != stack_.rend();
-         ++itr) {
-        const RangeVars& rvs = *itr;
-        BOOST_FOREACH(const RangeVar& rv, rvs) {
+    BOOST_REVERSE_FOREACH(const RangeVars& rvs, stack_)
+        BOOST_FOREACH(const RangeVar& rv, rvs)
             if (rv.GetName() == name)
                 return rv;
-        }
-    }
     RangeVar result(name, Base(name));
     stack_[0].add_sure(result);
     return result;
@@ -106,20 +103,6 @@ void Lookuper::Reset()
 ////////////////////////////////////////////////////////////////////////////////
 // Parser
 ////////////////////////////////////////////////////////////////////////////////
-
-// Compile-time printers for size optimization
-template <int n>
-struct P;
-
-// P<sizeof(Expr)> p_expr;
-// P<sizeof(Rel)> p_rel;
-// P<sizeof(Select)> p_select;
-// P<sizeof(Liter)> p_liter;
-// P<sizeof(MultiField)> p_multi_field;
-// P<sizeof(string)> p_string;
-// P<sizeof(RangeVar)> p_rv;
-// P<sizeof(shared_ptr<int>)> p_sp;
-// P<sizeof(Proto)> p_proto;
 
 namespace
 {
@@ -248,7 +231,6 @@ namespace
     };
 }
 
-////////////////////////////////////////////////////////////////////////////////
 
 Parser& Parser::GetInstance()
 {
@@ -280,9 +262,6 @@ Expr Parser::ParseExpr(const string& str)
     return expr_wrapper.Get();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Parser constructor with grammar definition
-////////////////////////////////////////////////////////////////////////////////
 
 Parser::Parser()
 {
@@ -317,7 +296,6 @@ Parser::Parser()
                 id[checked_add(path_entry.val, arg1)])
         )[path_rule.val = arg1];
 
-    // rel grammar definition
     rel_rule
         = (
             rel = (
@@ -387,7 +365,6 @@ Parser::Parser()
 #define LITER(parser, type, value)                                      \
     parser[EXPR.val = construct_<Liter>(construct_<Value>(type, value))]
 
-    // expr grammar definition
     expr
         = (
 
@@ -547,7 +524,7 @@ Parser::Parser()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Entry points
+// ParseRel and ParseExpr
 ////////////////////////////////////////////////////////////////////////////////
 
 Rel ak::ParseRel(const string& str)
