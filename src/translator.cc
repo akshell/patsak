@@ -17,12 +17,16 @@ using boost::lexical_cast;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Constants
+// Globals
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
     const char* THIS_NAME = "@";
+
+    GetHeaderCallback get_header_cb = 0;
+    FollowReferenceCallback follow_reference_cb = 0;
+    QuoteCallback quote_cb = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,7 +113,7 @@ namespace
             ostringstream os_;
         };
 
-        Control(const DBViewer& db_viewer, const Drafts& params);
+        Control(const Drafts& params);
 
         const Header& LookupBind(const RangeVar& rv) const;
         Header TranslateRel(const Rel& rel);
@@ -119,20 +123,14 @@ namespace
                            Type needed_type = Type::DUMMY);
 
         Type PrintParam(size_t pos, Type needed_type = Type::DUMMY);
-        const Header& GetHeader(const string& rel_var_name) const;
 
-        DBViewer::RelVarAttrs
-        GetReference(const DBViewer::RelVarAttrs& key) const;
-
-        template <typename T>
-        Control& operator<<(const T& t);
+        template <typename T> Control& operator<<(const T& t);
         Control& operator<<(const PgLiter& pg_liter);
         operator ostream&() const;
 
     private:
         typedef vector<BindData> BindStack;
 
-        const DBViewer& db_viewer_;
         const Drafts& params_;
         BindStack bind_stack_;
         ostream* os_ptr_;
@@ -177,9 +175,8 @@ namespace
 // Control definitons
 ////////////////////////////////////////////////////////////////////////////////
 
-Control::Control(const DBViewer& db_viewer, const Drafts& params)
-    : db_viewer_(db_viewer)
-    , params_(params)
+Control::Control(const Drafts& params)
+    : params_(params)
     , os_ptr_(0)
 {
 }
@@ -233,25 +230,8 @@ Type Control::PrintParam(size_t pos, Type needed_type)
             Error::QUERY,
             "Position " + lexical_cast<string>(pos) + " is out of range");
     Value value(params_[pos - 1].Get(needed_type));
-    *this << db_viewer_.Quote(value.GetPgLiter());
+    *this << quote_cb(value.GetPgLiter());
     return value.GetType();
-}
-
-
-const Header& Control::GetHeader(const string& rel_var_name) const
-{
-    return db_viewer_.GetHeader(rel_var_name);
-}
-
-
-DBViewer::RelVarAttrs
-Control::GetReference(const DBViewer::RelVarAttrs& key) const
-{
-    if (key.rel_var_name == THIS_NAME)
-       throw Error(
-           Error::QUERY,
-           "Operator -> can not be used on fields of an order expr");
-    return db_viewer_.GetReference(key);
 }
 
 
@@ -272,7 +252,7 @@ Control& Control::operator<<(const T& t)
 
 Control& Control::operator<<(const PgLiter& pg_liter)
 {
-    return (*this) << db_viewer_.Quote(pg_liter);
+    return (*this) << quote_cb(pg_liter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -631,8 +611,8 @@ namespace
         const RangeVar& GetRangeVar() const;
         Type TranslateForeignField();
         Type TranslateSelfField() const;
-        string FollowReference(const string& rel_var_name,
-                               const StringSet& field_names);
+        string FollowReference(const string& key_rel_var_name,
+                               const StringSet& key_attr_names);
     };
 }
 
@@ -695,7 +675,7 @@ Type FieldTranslator::TranslateForeignField()
              << " FROM " << from_oss_.str()
              << " WHERE " << where_oss_.str()
              << ')';
-    return GetAttrType(control_.GetHeader(curr_rel_var_name), GetFieldName());
+    return GetAttrType(get_header_cb(curr_rel_var_name), GetFieldName());
 }
 
 
@@ -708,24 +688,30 @@ Type FieldTranslator::TranslateSelfField() const
 }
 
 
-string FieldTranslator::FollowReference(const string& rel_var_name,
-                                        const StringSet& attr_names)
+string FieldTranslator::FollowReference(const string& key_rel_var_name,
+                                        const StringSet& key_attr_names)
 {
-    DBViewer::RelVarAttrs key(rel_var_name, attr_names);
-    DBViewer::RelVarAttrs ref(control_.GetReference(key));
-    AK_ASSERT_EQUAL(ref.attr_names.size(), attr_names.size());
+    if (key_rel_var_name == THIS_NAME)
+       throw Error(
+           Error::QUERY,
+           "Operator -> can not be used on fields of an order expr");
+    string ref_rel_var_name;
+    StringSet ref_attr_names;
+    follow_reference_cb(key_rel_var_name, key_attr_names,
+                        ref_rel_var_name, ref_attr_names);
+    AK_ASSERT_EQUAL(ref_attr_names.size(), key_attr_names.size());
 
     print_from_sep_();
-    from_oss_ << Quoted(ref.rel_var_name);
-    for (size_t i = 0; i < attr_names.size(); ++i) {
+    from_oss_ << Quoted(ref_rel_var_name);
+    for (size_t i = 0; i < key_attr_names.size(); ++i) {
         print_where_sep_();
-        where_oss_ << Quoted(rel_var_name) << '.' << Quoted(attr_names[i])
-                   << " = "
-                   << Quoted(ref.rel_var_name)
-                   << '.' << Quoted(ref.attr_names[i]);
+        where_oss_
+            << Quoted(key_rel_var_name) << '.' << Quoted(key_attr_names[i])
+            << " = "
+            << Quoted(ref_rel_var_name) << '.' << Quoted(ref_attr_names[i]);
     }
 
-    return ref.rel_var_name;
+    return ref_rel_var_name;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -840,7 +826,7 @@ Type ExprTranslator::operator()(const Cond& cond) const
 Header RelTranslator::operator()(const Base& base) const
 {
     control_ << Quoted(base.name);
-    return control_.GetHeader(base.name);
+    return get_header_cb(base.name);
 }
 
 
@@ -891,23 +877,16 @@ Header RelTranslator::operator()(const Union& un) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Translator
+// API
 ////////////////////////////////////////////////////////////////////////////////
-
-Translator::Translator(const DBViewer& db_viewer)
-    : db_viewer_(db_viewer)
-{
-}
-
 
 namespace
 {
-    string DoTranslateQuery(const DBViewer& db_viewer,
-                            const string& query,
+    string DoTranslateQuery(const string& query,
                             const Drafts& params,
                             Header* header_ptr = 0)
     {
-        Control control(db_viewer, params);
+        Control control(params);
         Rel rel(ParseRel(query));
         string result;
         Control::StringScope string_scope(control, result);
@@ -918,14 +897,13 @@ namespace
     }
 
 
-    string DoTranslateExpr(const DBViewer& db_viewer,
-                           const string& base_name,
+    string DoTranslateExpr(const string& base_name,
                            const Header& base_header,
                            const string& expr_str,
                            const Drafts& params,
                            Type required_type = Type::DUMMY)
     {
-        Control control(db_viewer, params);
+        Control control(params);
         Expr expr(ParseExpr(expr_str));
         RangeVar rv(base_name, Base(base_name));
         Control::BindData bind_data;
@@ -941,28 +919,24 @@ namespace
 }
 
 
-string Translator::TranslateQuery(Header& header,
-                                  const string& query,
-                                  const Drafts& query_params,
-                                  const Strings& by_exprs,
-                                  const Drafts& by_params,
-                                  size_t start,
-                                  size_t length) const
+string ak::TranslateQuery(Header& header,
+                          const string& query,
+                          const Drafts& query_params,
+                          const Strings& by_exprs,
+                          const Drafts& by_params,
+                          size_t start,
+                          size_t length)
 {
     ostringstream oss;
     if (!by_exprs.empty())
         oss << "SELECT * FROM (";
-    oss << DoTranslateQuery(db_viewer_, query, query_params, &header);
+    oss << DoTranslateQuery(query, query_params, &header);
     if (!by_exprs.empty()) {
         oss << ") AS " << Quoted(THIS_NAME) << " ORDER BY ";
         OmitInvoker print_sep((SepPrinter(oss)));
         BOOST_FOREACH(const string& by_expr, by_exprs) {
             print_sep();
-            oss << DoTranslateExpr(db_viewer_,
-                                   THIS_NAME,
-                                   header,
-                                   by_expr,
-                                   by_params);
+            oss << DoTranslateExpr(THIS_NAME, header, by_expr, by_params);
         }
     }
     if (length != MINUS_ONE)
@@ -973,39 +947,36 @@ string Translator::TranslateQuery(Header& header,
 }
 
 
-string Translator::TranslateCount(const string& query_str,
-                                  const Drafts& params) const
+string ak::TranslateCount(const string& query_str, const Drafts& params)
 {
     return ("SELECT COUNT(*) FROM (" +
-            DoTranslateQuery(db_viewer_, query_str, params) +
+            DoTranslateQuery(query_str, params) +
             ") AS " + Quoted(THIS_NAME));
 }
 
 
-string Translator::TranslateUpdate(const string& rel_var_name,
-                                   const string& where,
-                                   const Drafts& where_params,
-                                   const StringMap& expr_map,
-                                   const Drafts& update_params) const
+string ak::TranslateUpdate(const string& rel_var_name,
+                           const string& where,
+                           const Drafts& where_params,
+                           const StringMap& expr_map,
+                           const Drafts& update_params)
 {
     if (expr_map.empty())
         throw Error(Error::VALUE, "Empty update field set");
     ostringstream oss;
     oss << "UPDATE " << Quoted(rel_var_name) << " SET ";
-    const Header& header(db_viewer_.GetHeader(rel_var_name));
+    const Header& header(get_header_cb(rel_var_name));
     OmitInvoker print_sep((SepPrinter(oss)));
     BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map) {
         print_sep();
         oss << Quoted(named_expr.first) << " = ";
-        oss << DoTranslateExpr(db_viewer_,
-                               rel_var_name,
+        oss << DoTranslateExpr(rel_var_name,
                                header,
                                named_expr.second,
                                update_params,
                                GetAttrType(header, named_expr.first));
     }
-    oss << " WHERE " << DoTranslateExpr(db_viewer_,
-                                        rel_var_name,
+    oss << " WHERE " << DoTranslateExpr(rel_var_name,
                                         header,
                                         where,
                                         where_params,
@@ -1014,30 +985,35 @@ string Translator::TranslateUpdate(const string& rel_var_name,
 }
 
 
-string Translator::TranslateDelete(const string& rel_var_name,
-                                   const string& where,
-                                   const Drafts& params) const
+string ak::TranslateDelete(const string& rel_var_name,
+                           const string& where,
+                           const Drafts& params)
 {
     return ("DELETE FROM " +
             Quoted(rel_var_name) +
             " WHERE " +
-            DoTranslateExpr(db_viewer_,
-                            rel_var_name,
-                            db_viewer_.GetHeader(rel_var_name),
+            DoTranslateExpr(rel_var_name,
+                            get_header_cb(rel_var_name),
                             where,
                             params,
                             Type::BOOL));
 }
 
 
-string Translator::TranslateExpr(const string& expr_str,
-                                 const string& rel_var_name,
-                                 const Header& rel_header) const
+string ak::TranslateExpr(const string& expr_str,
+                         const string& rel_var_name,
+                         const Header& rel_header)
 {
-    return DoTranslateExpr(db_viewer_,
-                           rel_var_name,
-                           rel_header,
-                           expr_str,
-                           Drafts(),
-                           Type::BOOL);
+    return DoTranslateExpr(
+        rel_var_name, rel_header, expr_str, Drafts(), Type::BOOL);
+}
+
+
+void ak::InitTranslator(GetHeaderCallback get_header_cb,
+                        FollowReferenceCallback follow_reference_cb,
+                        QuoteCallback quote_cb)
+{
+    ::get_header_cb = get_header_cb;
+    ::follow_reference_cb = follow_reference_cb;
+    ::quote_cb = quote_cb;
 }

@@ -9,64 +9,45 @@
 
 namespace ak
 {
-    // Database view provider. Translator accesses database through an instance
-    // of subclass of this type.
-    class DBViewer {
-    public:
-        struct RelVarAttrs {
-            std::string rel_var_name;
-            StringSet attr_names;
+    typedef const Header& (*GetHeaderCallback)(const std::string& rel_var_name);
 
-            RelVarAttrs(const std::string& rel_var_name,
-                         const StringSet& attr_names)
-                : rel_var_name(rel_var_name), attr_names(attr_names) {}
-        };
+    typedef void (*FollowReferenceCallback)(const std::string& key_rel_var_name,
+                                            const StringSet& key_attr_names,
+                                            std::string& ref_rel_var_name,
+                                            StringSet& ref_attr_names);
 
-        virtual ~DBViewer() {}
-
-        virtual
-        const Header& GetHeader(const std::string& rel_var_name) const = 0;
-
-        virtual
-        std::string Quote(const PgLiter& pg_liter) const = 0;
-
-        virtual
-        RelVarAttrs GetReference(const RelVarAttrs& key) const = 0;
-    };
+    typedef std::string (*QuoteCallback)(const PgLiter& pg_liter);
 
 
-    class Translator {
-    public:
-        explicit Translator(const DBViewer& db_viewer);
+    std::string TranslateQuery(Header& header,
+                               const std::string& query,
+                               const Drafts& query_params = Drafts(),
+                               const Strings& by_exprs = Strings(),
+                               const Drafts& by_params = Drafts(),
+                               size_t start = 0,
+                               size_t length = MINUS_ONE);
 
-        std::string TranslateQuery(Header& header,
-                                   const std::string& query,
-                                   const Drafts& query_params = Drafts(),
-                                   const Strings& by_exprs = Strings(),
-                                   const Drafts& by_params = Drafts(),
-                                   size_t start = 0,
-                                   size_t length = MINUS_ONE) const;
+    std::string TranslateCount(const std::string& query,
+                               const Drafts& params);
 
-        std::string TranslateCount(const std::string& query,
-                                   const Drafts& params) const;
+    std::string TranslateUpdate(const std::string& rel_var_name,
+                                const std::string& where,
+                                const Drafts& where_params,
+                                const StringMap& expr_map,
+                                const Drafts& expr_params);
 
-        std::string TranslateUpdate(const std::string& rel_var_name,
-                                    const std::string& where,
-                                    const Drafts& where_params,
-                                    const StringMap& expr_map,
-                                    const Drafts& expr_params) const;
+    std::string TranslateDelete(const std::string& rel_var_name,
+                                const std::string& where,
+                                const Drafts& params);
 
-        std::string TranslateDelete(const std::string& rel_var_name,
-                                    const std::string& where,
-                                    const Drafts& params) const;
+    std::string TranslateExpr(const std::string& expr,
+                              const std::string& rel_var_name,
+                              const Header& header);
 
-        std::string TranslateExpr(const std::string& expr,
-                                  const std::string& rel_var_name,
-                                  const Header& header) const;
 
-    private:
-        const DBViewer& db_viewer_;
-    };
+    void InitTranslator(GetHeaderCallback get_header_cb,
+                        FollowReferenceCallback follow_reference_cb,
+                        QuoteCallback quote_cb);
 }
 
 #endif // TRANSLATOR_H

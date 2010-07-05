@@ -162,7 +162,6 @@ namespace
         RelVar(pqxx::work& work, const string& name);
 
         RelVar(pqxx::work& work,
-               const Translator& translator,
                const DBMeta& meta,
                const string& name,
                const RichHeader& rich_header,
@@ -182,7 +181,6 @@ namespace
         void DropDefault(pqxx::work& work, const StringSet& attr_names);
 
         void AddConstrs(pqxx::work& work,
-                        const Translator& translator,
                         const DBMeta& meta,
                         const UniqueKeySet& unique_key_set,
                         const ForeignKeySet& foreign_key_set,
@@ -209,9 +207,7 @@ namespace
                              const DBMeta& meta,
                              const ForeignKey& foreign_key) const;
 
-        void PrintCheck(ostream& os,
-                        const Translator& translator,
-                        const string& check) const;
+        void PrintCheck(ostream& os, const string& check) const;
 
         void InitHeader();
     };
@@ -228,7 +224,6 @@ namespace
         const RelVars& GetAll() const;
 
         void Create(pqxx::work& work,
-                    const Translator& translator,
                     const string& rel_var_name,
                     const RichHeader& rich_header,
                     const UniqueKeySet& unique_key_set,
@@ -283,7 +278,6 @@ RelVar::RelVar(pqxx::work& work, const string& name)
 
 
 RelVar::RelVar(pqxx::work& work,
-               const Translator& translator,
                const DBMeta& meta,
                const string& name,
                const RichHeader& rich_header,
@@ -345,7 +339,7 @@ RelVar::RelVar(pqxx::work& work,
 
     BOOST_FOREACH(const string& check, checks) {
         print_sep();
-        PrintCheck(oss, translator, check);
+        PrintCheck(oss, check);
     }
 
     oss << ");";
@@ -522,11 +516,9 @@ void RelVar::PrintForeignKey(ostream& os,
 }
 
 
-void RelVar::PrintCheck(ostream& os,
-                        const Translator& translator,
-                        const string& check) const
+void RelVar::PrintCheck(ostream& os, const string& check) const
 {
-    os << "CHECK (" << translator.TranslateExpr(check, name_, header_) << ')';
+    os << "CHECK (" << TranslateExpr(check, name_, header_) << ')';
 }
 
 
@@ -739,7 +731,6 @@ void RelVar::DropDefault(pqxx::work& work, const StringSet& attr_names)
 
 
 void RelVar::AddConstrs(pqxx::work& work,
-                        const Translator& translator,
                         const DBMeta& meta,
                         const UniqueKeySet& unique_key_set,
                         const ForeignKeySet& foreign_key_set,
@@ -763,7 +754,7 @@ void RelVar::AddConstrs(pqxx::work& work,
     BOOST_FOREACH(const string& check, checks) {
         print_sep();
         oss << "ADD ";
-        PrintCheck(oss, translator, check);
+        PrintCheck(oss, check);
     }
     try {
         pqxx::subtransaction(work).exec(oss.str());
@@ -852,7 +843,6 @@ RelVar& DBMeta::Get(const string& rel_var_name)
 
 
 void DBMeta::Create(pqxx::work& work,
-                    const Translator& translator,
                     const string& rel_var_name,
                     const RichHeader& rich_header,
                     const UniqueKeySet& unique_key_set,
@@ -869,7 +859,6 @@ void DBMeta::Create(pqxx::work& work,
         throw Error(Error::REL_VAR_EXISTS,
                     "RelVar \"" + rel_var_name + "\" already exists");
     rel_vars_.push_back(RelVar(work,
-                               translator,
                                *this,
                                rel_var_name,
                                rich_header,
@@ -996,78 +985,51 @@ DBMeta& Manager::ChangeMeta()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DBViewerImpl
+// Translator callbacks
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    // Implementation of DBViewer providing access to database for translator
-    class DBViewerImpl : public DBViewer {
-    public:
-        DBViewerImpl(const Manager& manager, const Quoter& quoter);
-        virtual const Header& GetHeader(const string& rel_var_name) const;
-        virtual string Quote(const PgLiter& pg_liter) const;
-        virtual RelVarAttrs GetReference(const RelVarAttrs& key) const;
-
-    private:
-        const Manager& manager_;
-        Quoter quoter_;
-
-        Error MakeKeyError(const RelVarAttrs& key, const string& message) const;
-    };
-}
+    // TODO: refactor
+    const Manager* manager_ptr;
+    pqxx::connection* conn_ptr;
 
 
-DBViewerImpl::DBViewerImpl(const Manager& manager, const Quoter& quoter)
-    : manager_(manager), quoter_(quoter)
-{
-}
+    const Header& GetHeader(const string& rel_var_name)
+    {
+        return manager_ptr->GetMeta().Get(rel_var_name).GetHeader();
+    }
 
 
-const Header& DBViewerImpl::GetHeader(const string& rel_var_name) const
-{
-    return manager_.GetMeta().Get(rel_var_name).GetHeader();
-}
-
-
-string DBViewerImpl::Quote(const PgLiter& pg_liter) const
-{
-    return quoter_(pg_liter);
-}
-
-
-DBViewer::RelVarAttrs DBViewerImpl::GetReference(const RelVarAttrs& key) const
-{
-    const RelVar& rel_var(manager_.GetMeta().Get(key.rel_var_name));
-    const ForeignKey* foreign_key_ptr = 0;
-    BOOST_FOREACH(const ForeignKey& foreign_key, rel_var.GetForeignKeySet()) {
-        if (foreign_key.key_attr_names == key.attr_names) {
-            if (foreign_key_ptr)
-                throw MakeKeyError(key, "has multiple keys on attributes");
-            else
-                foreign_key_ptr = &foreign_key;
+    void FollowReference(const std::string& key_rel_var_name,
+                         const StringSet& key_attr_names,
+                         std::string& ref_rel_var_name,
+                         StringSet& ref_attr_names)
+    {
+        const RelVar& rel_var(manager_ptr->GetMeta().Get(key_rel_var_name));
+        const ForeignKey* foreign_key_ptr = 0;
+        BOOST_FOREACH(const ForeignKey& foreign_key,
+                      rel_var.GetForeignKeySet()) {
+            if (foreign_key.key_attr_names == key_attr_names) {
+                if (foreign_key_ptr)
+                    throw Error(Error::QUERY, "Multiple foreign keys");
+                else
+                    foreign_key_ptr = &foreign_key;
+            }
         }
+        if (!foreign_key_ptr)
+            throw Error(Error::QUERY, "Foreign key not found");
+        ref_rel_var_name = foreign_key_ptr->ref_rel_var_name;
+        ref_attr_names = foreign_key_ptr->ref_attr_names;
     }
-    if (foreign_key_ptr)
-        return RelVarAttrs(foreign_key_ptr->ref_rel_var_name,
-                           foreign_key_ptr->ref_attr_names);
-    else
-        throw MakeKeyError(key, "doesn't have a key with attributes");
-}
 
 
-Error DBViewerImpl::MakeKeyError(const RelVarAttrs& key,
-                                 const string& message) const
-{
-    ostringstream oss;
-    oss << "RelVar \"" << key.rel_var_name << "\" " << message << ' ';
-    OmitInvoker print_sep((SepPrinter(oss)));
-    BOOST_FOREACH(const string& attr_name, key.attr_names) {
-        print_sep();
-        oss << attr_name;
+    string Quote(const PgLiter& pg_liter)
+    {
+        return Quoter(*conn_ptr)(pg_liter);
     }
-    return Error(Error::QUERY, oss.str());
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // DB::Impl
@@ -1081,13 +1043,10 @@ public:
 
     pqxx::connection& GetConnection();
     Manager& GetManager();
-    const Translator& GetTranslator() const;
 
 private:
     pqxx::connection conn_;
     Manager manager_;
-    DBViewerImpl db_viewer_;
-    Translator translator_;
 };
 
 
@@ -1096,8 +1055,6 @@ DB::Impl::Impl(const string& opt,
                const string& tablespace_name)
     : conn_(opt)
     , manager_(schema_name)
-    , db_viewer_(manager_, Quoter(conn_))
-    , translator_(db_viewer_)
 {
     static const format cmd("SET search_path TO %1%, pg_catalog;"
                             "SET default_tablespace TO %2%;");
@@ -1107,6 +1064,9 @@ DB::Impl::Impl(const string& opt,
                % conn_.quote(schema_name)
                % conn_.quote(tablespace_name)).str());
     work.commit();
+    manager_ptr = &manager_;
+    conn_ptr = &conn_;
+    InitTranslator(GetHeader, FollowReference, Quote);
 }
 
 
@@ -1119,12 +1079,6 @@ pqxx::connection& DB::Impl::GetConnection()
 Manager& DB::Impl::GetManager()
 {
     return manager_;
-}
-
-
-const Translator& DB::Impl::GetTranslator() const
-{
-    return translator_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1238,13 +1192,8 @@ void Access::Create(const string& name,
                     const ForeignKeySet& foreign_key_set,
                     const Strings& checks)
 {
-    db_impl_.GetManager().ChangeMeta().Create(*work_ptr_,
-                                              db_impl_.GetTranslator(),
-                                              name,
-                                              rich_header,
-                                              unique_key_set,
-                                              foreign_key_set,
-                                              checks);
+    db_impl_.GetManager().ChangeMeta().Create(
+        *work_ptr_, name, rich_header, unique_key_set, foreign_key_set, checks);
 }
 
 
@@ -1262,13 +1211,9 @@ QueryResult Access::Query(const string& query,
                           size_t length) const
 {
     Header header;
-    string sql(db_impl_.GetTranslator().TranslateQuery(header,
-                                                       query,
-                                                       query_params,
-                                                       by_exprs,
-                                                       by_params,
-                                                       start,
-                                                       length));
+    string sql(
+        TranslateQuery(
+            header, query, query_params, by_exprs, by_params, start, length));
     pqxx::result pqxx_result(work_ptr_->exec(sql));
     QueryResult result(header, vector<Values>());
     if (header.empty()) {
@@ -1285,7 +1230,7 @@ QueryResult Access::Query(const string& query,
 
 size_t Access::Count(const string& query, const Drafts& params) const
 {
-    string sql(db_impl_.GetTranslator().TranslateCount(query, params));
+    string sql(TranslateCount(query, params));
     pqxx::result pqxx_result(work_ptr_->exec(sql));
     AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
     AK_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
@@ -1306,11 +1251,9 @@ size_t Access::Update(const string& rel_var_name,
         // FIXME it's wrong estimation for expressions
         size += named_expr.second.size();
     }
-    string sql(db_impl_.GetTranslator().TranslateUpdate(rel_var_name,
-                                                        where,
-                                                        where_params,
-                                                        expr_map,
-                                                        expr_params));
+    string sql(
+        TranslateUpdate(
+            rel_var_name, where, where_params, expr_map, expr_params));
     size_t result;
     try {
         result = pqxx::subtransaction(*work_ptr_).exec(sql).affected_rows();
@@ -1329,9 +1272,7 @@ size_t Access::Delete(const string& rel_var_name,
                       const string& where,
                       const Drafts& params)
 {
-    string sql(db_impl_.GetTranslator().TranslateDelete(rel_var_name,
-                                                        where,
-                                                        params));
+    string sql(TranslateDelete(rel_var_name, where, params));
     try {
         return pqxx::subtransaction(*work_ptr_).exec(sql).affected_rows();
     } catch (const pqxx::integrity_constraint_violation& err) {
@@ -1457,12 +1398,8 @@ void Access::AddConstrs(const string& rel_var_name,
 {
     DBMeta& meta(db_impl_.GetManager().ChangeMeta());
     RelVar& rel_var(meta.Get(rel_var_name));
-    rel_var.AddConstrs(*work_ptr_,
-                       db_impl_.GetTranslator(),
-                       meta,
-                       unique_key_set,
-                       foreign_key_set,
-                       checks);
+    rel_var.AddConstrs(
+        *work_ptr_, meta, unique_key_set, foreign_key_set, checks);
 }
 
 

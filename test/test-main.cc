@@ -964,60 +964,11 @@ BOOST_FIXTURE_TEST_CASE(db_test, DBFixture)
 
 namespace
 {
-    class TestDBViewer : public DBViewer {
-    public:
-        TestDBViewer(DBFixture& db_fixture)
-            : db_fixture_(db_fixture)
-            , conn_("dbname=test user=test password=test") {}
-
-        virtual const Header& GetHeader(const string& rel_var_name) const {
-            headers_.push_back(Header());
-            Header& header(headers_.back());
-            const RichHeader&
-                rich_header(db_fixture_.GetRelVarRichHeader(rel_var_name));
-            header.reserve(rich_header.size());
-            BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-                header.add_sure(Attr(rich_attr.GetName(), rich_attr.GetType()));
-            return header;
-        }
-
-        virtual string Quote(const PgLiter& pg_liter) const {
-            return (pg_liter.quote_me
-                    ? conn_.quote(pg_liter.str)
-                    : pg_liter.str);
-        }
-
-        virtual RelVarAttrs GetReference(const RelVarAttrs& key) const {
-            BOOST_FOREACH(const ForeignKey& foreign_key,
-                          db_fixture_.GetForeignKeySet(key.rel_var_name)) {
-                if (foreign_key.key_attr_names == key.attr_names)
-                    return RelVarAttrs(foreign_key.ref_rel_var_name,
-                                       foreign_key.ref_attr_names);
-            }
-            BOOST_FAIL("Reference was not found");
-            throw 1; // NEVER REACHED
-        }
-
-    private:
-        DBFixture& db_fixture_;
-        mutable pqxx::connection conn_;
-        mutable vector<Header> headers_;
-    };
-
-
-    class TranslateFunctor {
-    public:
-        TranslateFunctor(Translator& translator)
-            : translator_(translator) {}
-
-        string operator()(const string& query) const {
-            Header header;
-            return translator_.TranslateQuery(header, query);
-        }
-
-    private:
-        Translator& translator_;
-    };
+    string DoTranslateQuery(const string& query)
+    {
+        Header header;
+        return TranslateQuery(header, query);
+    }
 }
 
 
@@ -1027,23 +978,20 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
     LoadRelVarFromFile("Post");
     LoadRelVarFromFile("Comment");
 
-    TestDBViewer db_viewer(*this);
-    Translator translator(db_viewer);
-    TranslateFunctor translate_functor(translator);
-    TestFileStr("test/translator.test", translate_functor);
+    TestFileStr("test/translator.test", DoTranslateQuery);
 
-    BOOST_CHECK_THROW(translate_functor("User where Post.id"), Error);
-    BOOST_CHECK_THROW(translate_functor("{smth: $0}"), Error);
-    BOOST_CHECK_THROW(translate_functor("{smth: $1}"), Error);
-    BOOST_CHECK_THROW(translate_functor("union(User, Post)"), Error);
-    BOOST_CHECK_THROW(translate_functor("{User.id, Post.id}"), Error);
-    BOOST_CHECK_THROW(translate_functor("User where User[id, name]"), Error);
+    BOOST_CHECK_THROW(DoTranslateQuery("User where Post.id"), Error);
+    BOOST_CHECK_THROW(DoTranslateQuery("{smth: $0}"), Error);
+    BOOST_CHECK_THROW(DoTranslateQuery("{smth: $1}"), Error);
+    BOOST_CHECK_THROW(DoTranslateQuery("union(User, Post)"), Error);
+    BOOST_CHECK_THROW(DoTranslateQuery("{User.id, Post.id}"), Error);
+    BOOST_CHECK_THROW(DoTranslateQuery("User where User[id, name]"), Error);
     //May be the following should work...
-    BOOST_CHECK_THROW(translate_functor(
+    BOOST_CHECK_THROW(DoTranslateQuery(
                           "for (x in Comment.author) x.author->name"),
                       Error);
-    BOOST_CHECK_THROW(translate_functor("{n: User.name} where id % 2"), Error);
-    BOOST_CHECK_THROW(translate_functor(
+    BOOST_CHECK_THROW(DoTranslateQuery("{n: User.name} where id % 2"), Error);
+    BOOST_CHECK_THROW(DoTranslateQuery(
                           "{Post.text, Comment.text} where title == \"111\""),
                       Error);
 
@@ -1053,7 +1001,7 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
     params.push_back(CreateDraft(Value(Type::NUMBER, 23)));
     Header header;
     BOOST_CHECK_EQUAL(
-        translator.TranslateQuery(header, "{name: $1, age: $2}", params),
+        TranslateQuery(header, "{name: $1, age: $2}", params),
         "SELECT DISTINCT 'anton' AS \"name\", 23 AS \"age\"");
     BOOST_CHECK_EQUAL(
         lexical_cast<string>(header),
@@ -1066,31 +1014,28 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
     by_params.push_back(CreateDraft(Value(Type::NUMBER, 42)));
     by_params.push_back(CreateDraft(Value(Type::STRING, "abc")));
     BOOST_CHECK_EQUAL(
-        translator.TranslateQuery(header, "User", Drafts(),
-                                  by_exprs, by_params, 3, 4),
+        TranslateQuery(header, "User", Drafts(), by_exprs, by_params, 3, 4),
         "SELECT * FROM (SELECT DISTINCT \"User\".* FROM \"User\") AS \"@\" "
         "ORDER BY (\"@\".\"id\" % 42), (\"@\".\"name\" || 'abc') "
         "LIMIT 4 OFFSET 3");
     BOOST_CHECK_EQUAL(
-        translator.TranslateQuery(header, "User", Drafts(),
-                                  Strings(), Drafts(), 5),
+        TranslateQuery(header, "User", Drafts(), Strings(), Drafts(), 5),
         "SELECT DISTINCT \"User\".* FROM \"User\" OFFSET 5");
     BOOST_CHECK_EQUAL(
-        translator.TranslateQuery(header, "User", Drafts(),
-                                  Strings(), Drafts(), 0, 6),
+        TranslateQuery(header, "User", Drafts(), Strings(), Drafts(), 0, 6),
         "SELECT DISTINCT \"User\".* FROM \"User\" LIMIT 6");
 
     params.clear();
     params.push_back(CreateDraft(Value(Type::NUMBER, 2)));
     BOOST_CHECK_EQUAL(
-        translator.TranslateCount("User where id % $ == 0", params),
+        TranslateCount("User where id % $ == 0", params),
         "SELECT COUNT(*) FROM ("
         "SELECT DISTINCT \"User\".* "
         "FROM \"User\" "
         "WHERE ((\"User\".\"id\" % 2) = 0)) AS \"@\"");
 
     BOOST_CHECK_EQUAL(
-        translator.TranslateDelete("User","id % $ == 0", params),
+        TranslateDelete("User","id % $ == 0", params),
         "DELETE FROM \"User\" WHERE ((\"User\".\"id\" % 2) = 0)");
 
     StringMap expr_map;
@@ -1099,8 +1044,7 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
     Drafts expr_params;
     expr_params.push_back(CreateDraft(Value(Type::STRING, "abc")));
     BOOST_CHECK_EQUAL(
-        translator.TranslateUpdate(
-            "User", "id % $ == 0", params, expr_map, expr_params),
+        TranslateUpdate("User", "id % $ == 0", params, expr_map, expr_params),
         "UPDATE \"User\" SET "
         "\"flooder\" = "
         "((\"User\".\"id\" = 0) OR NOT \"User\".\"flooder\"), "
