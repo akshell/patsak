@@ -108,17 +108,11 @@ ak::Value Draft::Get(Type type) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Utilities
+// Utils
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    const RichHeader& GetRichHeader(Handle<v8::Value> name)
-    {
-        return access_ptr->GetRichHeader(Stringify(name));
-    }
-
-
     Draft CreateDraft(Handle<v8::Value> value)
     {
         return Draft(new Draft::Impl(value));
@@ -530,16 +524,16 @@ namespace
             by_strs.push_back(Stringify(by_values->Get(Integer::New(i))));
         Header header;
         vector<Values> tuples;
-        access_ptr->Query(header,
-                          tuples,
-                          Stringify(args[0]),
-                          ReadParams(args[1]),
-                          by_strs,
-                          ReadParams(args[3]),
-                          args[4]->Uint32Value(),
-                          (args[5]->IsUndefined() || args[5]->IsNull()
-                           ? MINUS_ONE
-                           : args[5]->Uint32Value()));
+        Query(header,
+              tuples,
+              Stringify(args[0]),
+              ReadParams(args[1]),
+              by_strs,
+              ReadParams(args[3]),
+              args[4]->Uint32Value(),
+              (args[5]->IsUndefined() || args[5]->IsNull()
+               ? MINUS_ONE
+               : args[5]->Uint32Value()));
         Handle<Array> result(Array::New(tuples.size()));
         for (size_t tuple_idx = 0; tuple_idx < tuples.size(); ++tuple_idx) {
             Handle<Object> item(Object::New());
@@ -558,8 +552,7 @@ namespace
     DEFINE_JS_CALLBACK(CountCb, args)
     {
         CheckArgsLength(args, 2);
-        return Integer::New(
-            access_ptr->Count(Stringify(args[0]), ReadParams(args[1])));
+        return Integer::New(Count(Stringify(args[0]), ReadParams(args[1])));
     }
 
 
@@ -581,16 +574,17 @@ namespace
                                           type_bg.GetType(),
                                           type_bg.GetTrait(),
                                           type_bg.GetDefaultPtr()));
-            type_bg.RetrieveConstrs(name, unique_key_set, foreign_key_set, checks);
+            type_bg.RetrieveConstrs(
+                name, unique_key_set, foreign_key_set, checks);
         }
         ReadUniqueKeys(args[2], unique_key_set);
         ReadForeignKeySet(args[3], foreign_key_set);
         ReadChecks(args[4], checks);
-        access_ptr->Create(Stringify(args[0]),
-                           rich_header,
-                           unique_key_set,
-                           foreign_key_set,
-                           checks);
+        CreateRelVar(Stringify(args[0]),
+                     rich_header,
+                     unique_key_set,
+                     foreign_key_set,
+                     checks);
         return Undefined();
 
     }
@@ -599,17 +593,18 @@ namespace
     DEFINE_JS_CALLBACK(DropCb, args)
     {
         CheckArgsLength(args, 1);
-        access_ptr->Drop(ReadStringSet(args[0]));
+        DropRelVars(ReadStringSet(args[0]));
         return Undefined();
     }
 
 
     DEFINE_JS_CALLBACK(ListCb, /*args*/)
     {
-        StringSet rel_var_name_set(access_ptr->GetNames());
+        StringSet rel_var_name_set(GetRelVarNames());
         Handle<Array> result(Array::New(rel_var_name_set.size()));
         for (size_t i = 0; i < rel_var_name_set.size(); ++i)
-            result->Set(Integer::New(i), String::New(rel_var_name_set[i].c_str()));
+            result->Set(Integer::New(i),
+                        String::New(rel_var_name_set[i].c_str()));
         return result;
     }
 
@@ -618,7 +613,8 @@ namespace
     {
         CheckArgsLength(args, 1);
         Handle<Object> result(Object::New());
-        BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
+        BOOST_FOREACH(const RichAttr& rich_attr,
+                      GetRichHeader(Stringify(args[0])))
             Set(result, rich_attr.GetName(),
                 String::New(
                     rich_attr.GetType().GetName(rich_attr.GetTrait()).c_str()));
@@ -631,7 +627,8 @@ namespace
         CheckArgsLength(args, 1);
         Handle<Array> result(Array::New());
         int32_t i = 0;
-        BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
+        BOOST_FOREACH(const RichAttr& rich_attr,
+                      GetRichHeader(Stringify(args[0])))
             if (rich_attr.GetTrait() == Type::INTEGER ||
                 rich_attr.GetTrait() == Type::SERIAL)
                 result->Set(Integer::New(i++),
@@ -645,7 +642,8 @@ namespace
         CheckArgsLength(args, 1);
         Handle<Array> result(Array::New());
         int32_t i = 0;
-        BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
+        BOOST_FOREACH(const RichAttr& rich_attr,
+                      GetRichHeader(Stringify(args[0])))
             if (rich_attr.GetTrait() == Type::SERIAL)
                 result->Set(Integer::New(i++),
                             String::New(rich_attr.GetName().c_str()));
@@ -657,7 +655,8 @@ namespace
     {
         CheckArgsLength(args, 1);
         Handle<Object> result(Object::New());
-        BOOST_FOREACH(const RichAttr& rich_attr, GetRichHeader(args[0]))
+        BOOST_FOREACH(const RichAttr& rich_attr,
+                      GetRichHeader(Stringify(args[0])))
             if (rich_attr.GetDefaultPtr())
                 Set(result, rich_attr.GetName(),
                     MakeV8Value(*rich_attr.GetDefaultPtr()));
@@ -668,8 +667,7 @@ namespace
     DEFINE_JS_CALLBACK(GetUniqueCb, args)
     {
         CheckArgsLength(args, 1);
-        const UniqueKeySet& unique_key_set(
-            access_ptr->GetUniqueKeySet(Stringify(args[0])));
+        const UniqueKeySet& unique_key_set(GetUniqueKeySet(Stringify(args[0])));
         Handle<Array> result(Array::New(unique_key_set.size()));
         for (size_t i = 0; i < unique_key_set.size(); ++i)
             result->Set(Integer::New(i), MakeV8Array(unique_key_set[i]));
@@ -681,7 +679,7 @@ namespace
     {
         CheckArgsLength(args, 1);
         const ForeignKeySet& foreign_key_set(
-            access_ptr->GetForeignKeySet(Stringify(args[0])));
+            GetForeignKeySet(Stringify(args[0])));
         Handle<Array> result(Array::New(foreign_key_set.size()));
         for (size_t i = 0; i < foreign_key_set.size(); ++i) {
             const ForeignKey& foreign_key(foreign_key_set[i]);
@@ -700,8 +698,8 @@ namespace
     {
         CheckArgsLength(args, 2);
         string name(Stringify(args[0]));
-        Values values(access_ptr->Insert(name, ReadDraftMap(args[1])));
-        const RichHeader& rich_header(access_ptr->GetRichHeader(name));
+        Values values(Insert(name, ReadDraftMap(args[1])));
+        const RichHeader& rich_header(GetRichHeader(name));
         AK_ASSERT_EQUAL(values.size(), rich_header.size());
         Handle<Object> result(Object::New());
         for (size_t i = 0; i < values.size(); ++i)
@@ -713,7 +711,7 @@ namespace
     DEFINE_JS_CALLBACK(DelCb, args)
     {
         CheckArgsLength(args, 3);
-        size_t rows_number = access_ptr->Delete(
+        size_t rows_number = Delete(
             Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]));
         return Number::New(static_cast<double>(rows_number));
     }
@@ -731,7 +729,7 @@ namespace
             expr_map.insert(StringMap::value_type(Stringify(prop.key),
                                                   Stringify(prop.value)));
         }
-        size_t rows_number = access_ptr->Update(
+        size_t rows_number = Update(
             Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]),
             expr_map, ReadParams(args[4]));
         return Number::New(static_cast<double>(rows_number));
@@ -742,7 +740,8 @@ namespace
     {
         CheckArgsLength(args, 2);
         if (!args[1]->IsObject())
-            throw Error(Error::TYPE, "Attributes must be described by an object");
+            throw Error(Error::TYPE,
+                        "Attributes must be described by an object");
         PropEnumerator prop_enumerator(args[1]->ToObject());
         RichHeader rich_attrs;
         rich_attrs.reserve(prop_enumerator.GetSize());
@@ -750,8 +749,9 @@ namespace
             Prop prop(prop_enumerator.GetProp(i));
             Handle<Array> descr(GetArray(prop.value));
             if (descr->Length() != 2)
-                throw Error(Error::VALUE,
-                            "Each attribute must be described by a 2-item array");
+                throw Error(
+                    Error::VALUE,
+                    "Each attribute must be described by a 2-item array");
             const TypeBg* type_ptr =
                 TypeBg::GetJSClass().Cast(descr->Get(Integer::New(0)));
             if (!type_ptr)
@@ -761,13 +761,14 @@ namespace
                 throw Error(Error::NOT_IMPLEMENTED,
                             "Adding of serial attributes is not implemented");
             ak::Value value(
-                CreateDraft(descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
+                CreateDraft(
+                    descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
             rich_attrs.add_sure(RichAttr(Stringify(prop.key),
                                          type_ptr->GetType(),
                                          type_ptr->GetTrait(),
                                          &value));
         }
-        access_ptr->AddAttrs(Stringify(args[0]), rich_attrs);
+        AddAttrs(Stringify(args[0]), rich_attrs);
         return Undefined();
     }
 
@@ -775,7 +776,7 @@ namespace
     DEFINE_JS_CALLBACK(DropAttrsCb, args)
     {
         CheckArgsLength(args, 2);
-        access_ptr->DropAttrs(Stringify(args[0]), ReadStringSet(args[1]));
+        DropAttrs(Stringify(args[0]), ReadStringSet(args[1]));
         return Undefined();
     }
 
@@ -783,7 +784,7 @@ namespace
     DEFINE_JS_CALLBACK(AddDefaultCb, args)
     {
         CheckArgsLength(args, 2);
-        access_ptr->AddDefault(Stringify(args[0]), ReadDraftMap(args[1]));
+        AddDefault(Stringify(args[0]), ReadDraftMap(args[1]));
         return Undefined();
     }
 
@@ -791,7 +792,7 @@ namespace
     DEFINE_JS_CALLBACK(DropDefaultCb, args)
     {
         CheckArgsLength(args, 2);
-        access_ptr->DropDefault(Stringify(args[0]), ReadStringSet(args[1]));
+        DropDefault(Stringify(args[0]), ReadStringSet(args[1]));
         return Undefined();
     }
 
@@ -805,10 +806,7 @@ namespace
         ReadUniqueKeys(args[1], unique_key_set);
         ReadForeignKeySet(args[2], foreign_key_set);
         ReadChecks(args[3], checks);
-        access_ptr->AddConstrs(Stringify(args[0]),
-                               unique_key_set,
-                               foreign_key_set,
-                               checks);
+        AddConstrs(Stringify(args[0]), unique_key_set, foreign_key_set, checks);
         return Undefined();
     }
 
@@ -816,7 +814,7 @@ namespace
     DEFINE_JS_CALLBACK(DropAllConstrsCb, args)
     {
         CheckArgsLength(args, 1);
-        access_ptr->DropAllConstrs(Stringify(args[0]));
+        DropAllConstrs(Stringify(args[0]));
         return Undefined();
     }
 }

@@ -98,8 +98,7 @@ public:
     Impl(const string& code_path,
          const string& media_path,
          const string& git_path_prefix,
-         const string& git_path_suffix,
-         DB& db);
+         const string& git_path_suffix);
 
     ~Impl();
 
@@ -109,7 +108,6 @@ public:
 
 private:
     bool initialized_;
-    DB& db_;
     Persistent<Context> context_;
 
     bool Run(Handle<Function> function,
@@ -126,10 +124,8 @@ private:
 Program::Impl::Impl(const string& code_path,
                     const string& media_path,
                     const string& git_path_prefix,
-                    const string& git_path_suffix,
-                    DB& db)
+                    const string& git_path_suffix)
     : initialized_(false)
-    , db_(db)
 {
     V8::SetFatalErrorHandler(HandleFatalError);
 
@@ -207,23 +203,17 @@ bool Program::Impl::Run(Handle<Function> function,
         Write(out_fd, "ERROR\n<Out of memory>");
         return false;
     }
-    Access access(db_);
-    access_ptr = &access;
     TryCatch try_catch;
     Handle<v8::Value> value;
     {
         ExecutionGuard guard;
         value = function->Call(context_->Global(), 1, &arg);
     }
-    access_ptr = 0;
-    if (TimedOut()) {
-        Write(out_fd, "ERROR\n<Timed out>");
-        return false;
-    }
-    if (try_catch.HasCaught() || value.IsEmpty()) {
-        // I don't know the difference in these conditions but together
-        // they handle all cases
-        if (out_fd != -1) {
+    if (value.IsEmpty()) {
+        RollBack();
+        if (TimedOut()) {
+            Write(out_fd, "ERROR\n<Timed out>");
+        } else if (out_fd != -1) {
             ostringstream oss;
             oss << "ERROR\n";
             Handle<v8::Value> stack_trace(try_catch.StackTrace());
@@ -249,13 +239,15 @@ bool Program::Impl::Run(Handle<Function> function,
         }
         return false;
     }
+    if (RolledBack())
+        RollBack();
+    else
+        Commit();
     if (out_fd != -1 && print_ok) {
         Write(out_fd, "OK\n");
         Binarizator binarizator(value);
         Write(out_fd, binarizator.GetData(), binarizator.GetSize());
     }
-    if (!RolledBack())
-        access.Commit();
     return true;
 }
 
@@ -286,10 +278,8 @@ void Program::Impl::Call(const string& func_name,
 Program::Program(const string& code_path,
                  const string& media_path,
                  const string& git_path_prefix,
-                 const string& git_path_suffix,
-                 DB& db)
-    : pimpl_(
-        new Impl(code_path, media_path, git_path_prefix, git_path_suffix, db))
+                 const string& git_path_suffix)
+    : pimpl_(new Impl(code_path, media_path, git_path_prefix, git_path_suffix))
 {
 }
 

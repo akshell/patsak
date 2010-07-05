@@ -27,10 +27,6 @@ namespace v8
 
 namespace ak
 {
-    class Access;
-    extern Access* access_ptr;
-
-
     extern v8::Persistent<v8::Object> js_error_classes;
 
 

@@ -40,29 +40,7 @@ namespace ak
     typedef orset<StringSet> UniqueKeySet;
 
     ////////////////////////////////////////////////////////////////////////////
-    // DB
-    ////////////////////////////////////////////////////////////////////////////
-
-    class Access;
-
-
-    class DB {
-    public:
-        DB(const std::string& opt,
-           const std::string& schema_name,
-           const std::string& tablespace_name);
-
-        ~DB();
-
-    private:
-        class Impl;
-        friend class Access;
-
-        boost::scoped_ptr<Impl> pimpl_;
-    };
-
-    ////////////////////////////////////////////////////////////////////////////
-    // Access
+    // RichAttr and RichHeader
     ////////////////////////////////////////////////////////////////////////////
 
     class RichAttr {
@@ -89,82 +67,71 @@ namespace ak
     typedef orset<RichAttr, ByNameComparator<RichAttr>, ByNameFinder<RichAttr> >
     RichHeader;
 
+    ////////////////////////////////////////////////////////////////////////////
+    // API
+    ////////////////////////////////////////////////////////////////////////////
 
-    class Access {
-    public:
-        explicit Access(DB& db);
-        ~Access();
+    void Commit();
+    void RollBack();
+    StringSet GetRelVarNames();
+    const RichHeader& GetRichHeader(const std::string& rel_var_name);
+    const UniqueKeySet& GetUniqueKeySet(const std::string& rel_var_name);
+    const ForeignKeySet& GetForeignKeySet(const std::string& rel_var_name);
 
-        void Commit();
+    void CreateRelVar(const std::string& name,
+                      const RichHeader& rich_header,
+                      const UniqueKeySet& unique_key_set,
+                      const ForeignKeySet& foreign_keys,
+                      const Strings& checks);
 
-        StringSet GetNames() const;
+    void DropRelVars(const StringSet& rel_var_names);
 
-        const RichHeader& GetRichHeader(const std::string& rel_var_name) const;
+    void Query(Header& header,
+               std::vector<Values>& tuples,
+               const std::string& query,
+               const Drafts& query_params = Drafts(),
+               const Strings& by_exprs = Strings(),
+               const Drafts& by_params = Drafts(),
+               size_t start = 0,
+               size_t length = MINUS_ONE);
 
-        const UniqueKeySet&
-        GetUniqueKeySet(const std::string& rel_var_name) const;
+    size_t Count(const std::string& query, const Drafts& params = Drafts());
 
-        const ForeignKeySet&
-        GetForeignKeySet(const std::string& rel_var_name) const;
+    size_t Update(const std::string& rel_var_name,
+                  const std::string& where,
+                  const Drafts& where_params,
+                  const StringMap& expr_map,
+                  const Drafts& expr_params = Drafts());
 
-        void Create(const std::string& name,
-                    const RichHeader& rich_header,
+    size_t Delete(const std::string& rel_var_name,
+                  const std::string& where,
+                  const Drafts& params = Drafts());
+
+    Values Insert(const std::string& rel_var_name,
+                  const DraftMap& draft_map);
+
+    void AddAttrs(const std::string& rel_var_name,
+                  const RichHeader& rich_attrs);
+
+    void DropAttrs(const std::string& rel_var_name,
+                   const StringSet& attr_names);
+
+    void AddDefault(const std::string& rel_var_name,
+                    const DraftMap& draft_map);
+
+    void DropDefault(const std::string& rel_var_name,
+                     const StringSet& attr_names);
+
+    void AddConstrs(const std::string& rel_var_name,
                     const UniqueKeySet& unique_key_set,
-                    const ForeignKeySet& foreign_keys,
+                    const ForeignKeySet& foreign_key_set,
                     const Strings& checks);
 
-        void Drop(const StringSet& rel_var_names);
+    void DropAllConstrs(const std::string& rel_var_name);
 
-        void Query(Header& header,
-                   std::vector<Values>& tuples,
-                   const std::string& query,
-                   const Drafts& query_params = Drafts(),
-                   const Strings& by_exprs = Strings(),
-                   const Drafts& by_params = Drafts(),
-                   size_t start = 0,
-                   size_t length = MINUS_ONE) const;
-
-        size_t Count(const std::string& query,
-                     const Drafts& params = Drafts()) const;
-
-        size_t Update(const std::string& rel_var_name,
-                      const std::string& where,
-                      const Drafts& where_params,
-                      const StringMap& expr_map,
-                      const Drafts& expr_params = Drafts());
-
-        size_t Delete(const std::string& rel_var_name,
-                      const std::string& where,
-                      const Drafts& params = Drafts());
-
-        Values Insert(const std::string& rel_var_name,
-                      const DraftMap& draft_map);
-
-        void AddAttrs(const std::string& rel_var_name,
-                      const RichHeader& rich_attrs);
-
-        void DropAttrs(const std::string& rel_var_name,
-                       const StringSet& attr_names);
-
-        void AddDefault(const std::string& rel_var_name,
-                        const DraftMap& draft_map);
-
-        void DropDefault(const std::string& rel_var_name,
-                         const StringSet& attr_names);
-
-        void AddConstrs(const std::string& rel_var_name,
-                        const UniqueKeySet& unique_key_set,
-                        const ForeignKeySet& foreign_key_set,
-                        const Strings& checks);
-
-        void DropAllConstrs(const std::string& rel_var_name);
-
-    private:
-        class WorkWrapper;
-
-        DB::Impl& db_impl_;
-        boost::scoped_ptr<WorkWrapper> work_ptr_;
-    };
+    void InitDatabase(const std::string& options,
+                      const std::string& schema_name,
+                      const std::string& tablespace_name);
 }
 
 #endif // DB_H

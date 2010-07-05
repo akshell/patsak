@@ -1,9 +1,6 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-#define BOOST_TEST_MAIN
-
-
 #include "../src/parser.h"
 #include "../src/db.h"
 #include "../src/translator.h"
@@ -810,132 +807,71 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DBFixture
+// DB test
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    class DBFixture : private noncopyable {
-    public:
-        DB db;
-
-        DBFixture();
-        void LoadRelVarFromFile(const string& rel_var_name);
-        void LoadRelVarFromString(const string& rel_var_name,
-                                  const string& str);
-        Table Query(const string& query);
-        Table DumpRelVar(const string& rel_var_name);
-        void CreateRelVar(const string& rel_var_name, const Table& table);
-        StringSet GetRelVarNames();
-        const RichHeader& GetRelVarRichHeader(const string& rel_var_name);
-        void DeleteRelVars(const StringSet& rel_var_names);
-        const ForeignKeySet& GetForeignKeySet(const string& rel_var_name);
-    };
-}
-
-
-DBFixture::DBFixture()
-    : db("dbname=test user=test password=test", "public", "pg_default")
-{
-    DeleteRelVars(GetRelVarNames());
-    BOOST_REQUIRE(GetRelVarNames().empty());
-}
-
-
-void DBFixture::LoadRelVarFromFile(const string& rel_var_name)
-{
-    CreateRelVar(rel_var_name,
-                 ReadTableFromFile("test/" + rel_var_name + ".table"));
-}
-
-
-void DBFixture::LoadRelVarFromString(const string& rel_var_name,
-                                     const string& str)
-{
-    CreateRelVar(rel_var_name, ReadTableFromString(str));
-}
-
-
-Table DBFixture::Query(const string& query)
-{
-    Access access(db);
-    Header header;
-    vector<Values> tuples;
-    access.Query(header, tuples, query);
-    Table result(header);
-    BOOST_FOREACH(const Values& values, tuples)
-        result.AddRow(values);
-    return result;
-}
-
-
-Table DBFixture::DumpRelVar(const string& rel_var_name)
-{
-    Table result(Query(rel_var_name));
-    Access access(db);
-    result.SetRichHeader(access.GetRichHeader(rel_var_name));
-    result.SetUniqueKeys(access.GetUniqueKeySet(rel_var_name));
-    result.SetForeignKeySet(access.GetForeignKeySet(rel_var_name));
-    return result;
-}
-
-
-void DBFixture::CreateRelVar(const string& rel_var_name, const Table& table)
-{
-    Access access(db);
-    const RichHeader& rich_header(table.GetRichHeader());
-    access.Create(rel_var_name,
-                  rich_header,
-                  table.GetUniqueKeySet(),
-                  table.GetForeignKeySet(),
-                  table.GetChecks());
-    BOOST_FOREACH(const Values& values, table.GetValuesSet()) {
-        assert(values.size() == rich_header.size());
-        DraftMap draft_map;
-        for (size_t i = 0; i < rich_header.size(); ++i)
-            draft_map.insert(DraftMap::value_type(rich_header[i].GetName(),
-                                                  CreateDraft(values[i])));
-        access.Insert(rel_var_name, draft_map);
+    Table DumpRel(const string& query)
+    {
+        Header header;
+        vector<Values> tuples;
+        Query(header, tuples, query);
+        Table result(header);
+        BOOST_FOREACH(const Values& values, tuples)
+            result.AddRow(values);
+        return result;
     }
-    access.Commit();
-    BOOST_CHECK(DumpRelVar(rel_var_name) == table);
+
+
+    Table DumpRelVar(const string& rel_var_name)
+    {
+        Table result(DumpRel(rel_var_name));
+        result.SetRichHeader(GetRichHeader(rel_var_name));
+        result.SetUniqueKeys(GetUniqueKeySet(rel_var_name));
+        result.SetForeignKeySet(GetForeignKeySet(rel_var_name));
+        return result;
+    }
+
+
+    void LoadRelVar(const string& rel_var_name, const Table& table)
+    {
+        const RichHeader& rich_header(table.GetRichHeader());
+        CreateRelVar(rel_var_name,
+                     rich_header,
+                     table.GetUniqueKeySet(),
+                     table.GetForeignKeySet(),
+                     table.GetChecks());
+        BOOST_FOREACH(const Values& values, table.GetValuesSet()) {
+            assert(values.size() == rich_header.size());
+            DraftMap draft_map;
+            for (size_t i = 0; i < rich_header.size(); ++i)
+                draft_map.insert(DraftMap::value_type(rich_header[i].GetName(),
+                                                      CreateDraft(values[i])));
+            Insert(rel_var_name, draft_map);
+        }
+        Commit();
+        BOOST_CHECK(DumpRelVar(rel_var_name) == table);
+    }
+
+
+    void LoadRelVarFromFile(const string& rel_var_name)
+    {
+        LoadRelVar(rel_var_name,
+                   ReadTableFromFile("test/" + rel_var_name + ".table"));
+    }
+
+
+    void LoadRelVarFromString(const string& rel_var_name, const string& str)
+    {
+        LoadRelVar(rel_var_name, ReadTableFromString(str));
+    }
 }
 
 
-StringSet DBFixture::GetRelVarNames()
+BOOST_AUTO_TEST_CASE(db_test)
 {
-    Access access(db);
-    return access.GetNames();
-}
-
-
-const RichHeader& DBFixture::GetRelVarRichHeader(const string& rel_var_name)
-{
-    Access access(db);
-    return access.GetRichHeader(rel_var_name);
-}
-
-
-void DBFixture::DeleteRelVars(const StringSet& rel_var_names)
-{
-    Access access(db);
-    access.Drop(rel_var_names);
-    access.Commit();
-}
-
-
-const ForeignKeySet& DBFixture::GetForeignKeySet(const string& rel_var_name)
-{
-    Access access(db);
-    return access.GetForeignKeySet(rel_var_name);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// DB test
-////////////////////////////////////////////////////////////////////////////////
-
-BOOST_FIXTURE_TEST_CASE(db_test, DBFixture)
-{
+    DropRelVars(GetRelVarNames());
     LoadRelVarFromFile("User");
     LoadRelVarFromFile("Post");
     LoadRelVarFromFile("Comment");
@@ -948,15 +884,19 @@ BOOST_FIXTURE_TEST_CASE(db_test, DBFixture)
     row.push_back(Value(Type::DATE, "2009-03-04 17:41:05.915"));
     row.push_back(Value(Type::JSON, "{}"));
     table.AddRow(row);
-    CreateRelVar("Test", table);
+    LoadRelVar("Test", table);
 
     StringSet rel_var_names(GetRelVarNames());
 
-    DeleteRelVars(StringSet());
-    StringSet user_n_post;
-    user_n_post.add_sure("User");
-    user_n_post.add_sure("Post");
-    BOOST_REQUIRE_THROW(DeleteRelVars(user_n_post), Error);
+    DropRelVars(StringSet());
+    StringSet user_and_post;
+    user_and_post.add_sure("User");
+    user_and_post.add_sure("Post");
+    BOOST_REQUIRE_THROW(DropRelVars(user_and_post), Error);
+
+    Commit();
+    DropRelVars(GetRelVarNames());
+    RollBack();
     BOOST_REQUIRE(GetRelVarNames() == rel_var_names);
 }
 
@@ -974,8 +914,9 @@ namespace
 }
 
 
-BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
+BOOST_AUTO_TEST_CASE(translator_test)
 {
+    DropRelVars(GetRelVarNames());
     LoadRelVarFromFile("User");
     LoadRelVarFromFile("Post");
     LoadRelVarFromFile("Comment");
@@ -1059,29 +1000,38 @@ BOOST_FIXTURE_TEST_CASE(translator_test, DBFixture)
 // Query tests
 ////////////////////////////////////////////////////////////////////////////////
 
-BOOST_FIXTURE_TEST_CASE(query_test, DBFixture)
+BOOST_AUTO_TEST_CASE(query_test)
 {
+    DropRelVars(GetRelVarNames());
     LoadRelVarFromFile("s");
     LoadRelVarFromFile("p");
     LoadRelVarFromFile("sp");
 
-    FileTester<Table>("test/query.test",
-                      bind(&DBFixture::Query, this, _1),
-                      &ReadTableFromString)();
+    FileTester<Table>("test/query.test", &DumpRel, &ReadTableFromString)();
 
     LoadRelVarFromString("str", "val\nstring\n---\n'test\\\"");
-    BOOST_CHECK(Query("str").GetValuesSet().at(0).at(0) ==
+    BOOST_CHECK(DumpRel("str").GetValuesSet().at(0).at(0) ==
                 Value(Type::STRING, "'test\\\""));
 
     LoadRelVarFromString("num", "val\nnumber\n---\n125.3");
-    BOOST_CHECK(Query("num").GetValuesSet().at(0).at(0) ==
+    BOOST_CHECK(DumpRel("num").GetValuesSet().at(0).at(0) ==
                 Value(Type::NUMBER, 125.3));
 
     LoadRelVarFromString("bool", "val\nbool\n---\ntrue\nfalse");
 
-    BOOST_CHECK_THROW(Query("sp[sid, pid]->sname"), Error);
+    BOOST_CHECK_THROW(DumpRel("sp[sid, pid]->sname"), Error);
 
     LoadRelVarFromString("s_p_ref",
                          "id\nnumber\nfk id - s - sid\nfk id - p - pid\n---");
-    BOOST_CHECK_THROW(Query("s_p_ref.id->city"), Error);
+    BOOST_CHECK_THROW(DumpRel("s_p_ref.id->city"), Error);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// init_unit_test_suite
+////////////////////////////////////////////////////////////////////////////////
+
+boost::unit_test::test_suite* init_unit_test_suite(int, char**)
+{
+    InitDatabase("dbname=test user=test password=test", "public", "pg_default");
+    return 0;
 }

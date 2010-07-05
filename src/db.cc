@@ -112,44 +112,42 @@ void RichAttr::SetDefaultPtr(const Value* default_ptr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// RelVar and DBMeta declarations
+// RelVar and Meta declarations
 ///////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    class DBMeta;
+    class Meta;
 
 
     class RelVar {
     public:
-        RelVar(pqxx::work& work, const string& name);
+        RelVar(const string& name);
 
-        RelVar(pqxx::work& work,
-               const DBMeta& meta,
+        RelVar(const Meta& meta,
                const string& name,
                const RichHeader& rich_header,
                const UniqueKeySet& unique_key_set,
                const ForeignKeySet& foreign_key_set,
                const Strings& checks);
 
-        void LoadConstrs(pqxx::work& work, const DBMeta& meta);
+        void LoadConstrs(const Meta& meta);
         string GetName() const;
         const RichHeader& GetRichHeader() const;
         const Header& GetHeader() const;
         const UniqueKeySet& GetUniqueKeySet() const;
         const ForeignKeySet& GetForeignKeySet() const;
-        void AddAttrs(pqxx::work& work, const RichHeader& attrs);
-        void DropAttrs(pqxx::work& work, const StringSet& attr_names);
-        void AddDefault(pqxx::work& work, const DraftMap& draft_map);
-        void DropDefault(pqxx::work& work, const StringSet& attr_names);
+        void AddAttrs(const RichHeader& attrs);
+        void DropAttrs(const StringSet& attr_names);
+        void AddDefault(const DraftMap& draft_map);
+        void DropDefault(const StringSet& attr_names);
 
-        void AddConstrs(pqxx::work& work,
-                        const DBMeta& meta,
+        void AddConstrs(const Meta& meta,
                         const UniqueKeySet& unique_key_set,
                         const ForeignKeySet& foreign_key_set,
                         const Strings& checks);
 
-        void DropAllConstrs(pqxx::work& work);
+        void DropAllConstrs();
 
     private:
         string name_;
@@ -167,7 +165,7 @@ namespace
         void PrintUniqueKey(ostream& os, const StringSet& unique_key) const;
 
         void PrintForeignKey(ostream& os,
-                             const DBMeta& meta,
+                             const Meta& meta,
                              const ForeignKey& foreign_key) const;
 
         void PrintCheck(ostream& os, const string& check) const;
@@ -179,21 +177,20 @@ namespace
     typedef vector<RelVar> RelVars;
 
 
-    class DBMeta {
+    class Meta {
     public:
-        DBMeta(pqxx::work& work, const string& schema_name);
+        Meta(const string& schema_name);
         const RelVar& Get(const string& rel_var_name) const;
         RelVar& Get(const string& rel_var_name);
         const RelVars& GetAll() const;
 
-        void Create(pqxx::work& work,
-                    const string& rel_var_name,
+        void Create(const string& rel_var_name,
                     const RichHeader& rich_header,
                     const UniqueKeySet& unique_key_set,
                     const ForeignKeySet& foreign_key_set,
                     const Strings& checks);
 
-        void Drop(pqxx::work& work, const StringSet& rel_var_names);
+        void Drop(const StringSet& rel_var_names);
 
     private:
         RelVars rel_vars_;
@@ -201,17 +198,21 @@ namespace
         size_t GetIdx(const string& rel_var_name) const; // never throws
         size_t GetIdxChecked(const string& rel_var_name) const;
     };
+
+
+    pqxx::result Exec(const string& sql);
+    pqxx::result ExecSafely(const string& sql);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // RelVar definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-RelVar::RelVar(pqxx::work& work, const string& name)
+RelVar::RelVar(const string& name)
     : name_(name)
 {
     static const format query("SELECT * FROM ak.describe_table('\"%1%\"');");
-    pqxx::result pqxx_result = work.exec((format(query) % name_).str());
+    pqxx::result pqxx_result = Exec((format(query) % name_).str());
     rich_header_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
         AK_ASSERT_EQUAL(tuple.size(), 3U);
@@ -240,8 +241,7 @@ RelVar::RelVar(pqxx::work& work, const string& name)
 }
 
 
-RelVar::RelVar(pqxx::work& work,
-               const DBMeta& meta,
+RelVar::RelVar(const Meta& meta,
                const string& name,
                const RichHeader& rich_header,
                const UniqueKeySet& unique_key_set,
@@ -313,13 +313,13 @@ RelVar::RelVar(pqxx::work& work,
         if (rich_attr.GetTrait() == Type::SERIAL)
             oss << (format(alter_sequence_cmd) % name % rich_attr.GetName());
 
-    work.exec(oss.str());
+    Exec(oss.str());
 }
 
 
-void RelVar::LoadConstrs(pqxx::work& work, const DBMeta& meta) {
+void RelVar::LoadConstrs(const Meta& meta) {
     static const format query("SELECT * FROM ak.describe_constrs('\"%1%\"')");
-    pqxx::result pqxx_result = work.exec((format(query) % name_).str());
+    pqxx::result pqxx_result = Exec((format(query) % name_).str());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
         AK_ASSERT_EQUAL(tuple.size(), 4U);
         AK_ASSERT(!tuple[0].is_null() && !tuple[1].is_null());
@@ -427,7 +427,7 @@ void RelVar::PrintUniqueKey(ostream& os, const StringSet& unique_key) const
 
 
 void RelVar::PrintForeignKey(ostream& os,
-                             const DBMeta& meta,
+                             const Meta& meta,
                              const ForeignKey& foreign_key) const
 {
     if (foreign_key.key_attr_names.size() !=
@@ -523,7 +523,7 @@ void RelVar::InitHeader()
 }
 
 
-void RelVar::AddAttrs(pqxx::work& work, const RichHeader& rich_attrs)
+void RelVar::AddAttrs(const RichHeader& rich_attrs)
 {
     if (rich_attrs.empty())
         return;
@@ -567,7 +567,7 @@ void RelVar::AddAttrs(pqxx::work& work, const RichHeader& rich_attrs)
         }
         oss << ")";
     }
-    work.exec(oss.str());
+    Exec(oss.str());
     BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
         rich_header_.add_sure(RichAttr(rich_attr.GetName(),
                                        rich_attr.GetType(),
@@ -579,7 +579,7 @@ void RelVar::AddAttrs(pqxx::work& work, const RichHeader& rich_attrs)
 }
 
 
-void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
+void RelVar::DropAttrs(const StringSet& attr_names)
 {
     if (attr_names.empty())
         return;
@@ -630,7 +630,7 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
         oss << ')';
     }
     try {
-        pqxx::subtransaction(work).exec(oss.str());
+        ExecSafely(oss.str());
     } catch (const pqxx::unique_violation& err) {
         throw Error(Error::CONSTRAINT,
                     ("Cannot drop attributes because "
@@ -648,7 +648,7 @@ void RelVar::DropAttrs(pqxx::work& work, const StringSet& attr_names)
 }
 
 
-void RelVar::AddDefault(pqxx::work& work, const DraftMap& draft_map)
+void RelVar::AddDefault(const DraftMap& draft_map)
 {
     if (draft_map.empty())
         return;
@@ -664,12 +664,12 @@ void RelVar::AddDefault(pqxx::work& work, const DraftMap& draft_map)
         oss << "ALTER " << Quoted(named_draft.first)
             << " SET DEFAULT " <<  value.GetPgLiter();
     }
-    work.exec(oss.str());
+    Exec(oss.str());
     rich_header_ = new_rich_header;
 }
 
 
-void RelVar::DropDefault(pqxx::work& work, const StringSet& attr_names)
+void RelVar::DropDefault(const StringSet& attr_names)
 {
     if (attr_names.empty())
         return;
@@ -687,14 +687,13 @@ void RelVar::DropDefault(pqxx::work& work, const StringSet& attr_names)
         print_sep();
         oss << "ALTER " << Quoted(attr_name) << " DROP DEFAULT";
     }
-    work.exec(oss.str());
+    Exec(oss.str());
     BOOST_FOREACH(RichAttr* rich_attr_ptr, rich_attr_ptrs)
         rich_attr_ptr->SetDefaultPtr(0);
 }
 
 
-void RelVar::AddConstrs(pqxx::work& work,
-                        const DBMeta& meta,
+void RelVar::AddConstrs(const Meta& meta,
                         const UniqueKeySet& unique_key_set,
                         const ForeignKeySet& foreign_key_set,
                         const Strings& checks)
@@ -720,7 +719,7 @@ void RelVar::AddConstrs(pqxx::work& work,
         PrintCheck(oss, check);
     }
     try {
-        pqxx::subtransaction(work).exec(oss.str());
+        ExecSafely(oss.str());
     } catch (const pqxx::unique_violation& err) {
         throw Error(Error::CONSTRAINT,
                     "Unique constraint cannot be added");
@@ -738,7 +737,7 @@ void RelVar::AddConstrs(pqxx::work& work,
 }
 
 
-void RelVar::DropAllConstrs(pqxx::work& work)
+void RelVar::DropAllConstrs()
 {
     if (rich_header_.empty())
         return;
@@ -755,7 +754,7 @@ void RelVar::DropAllConstrs(pqxx::work& work)
     }
     oss << ')';
     try {
-        pqxx::subtransaction(work).exec(oss.str());
+        ExecSafely(oss.str());
     } catch (const pqxx::sql_error& err) {
         throw (string(err.what()).substr(0, 13) == "ERROR:  index"
                ? Error(Error::QUOTA, "Unique string is too long")
@@ -769,48 +768,47 @@ void RelVar::DropAllConstrs(pqxx::work& work)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DBMeta definitions
+// Meta definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-DBMeta::DBMeta(pqxx::work& work, const string& schema_name)
+Meta::Meta(const string& schema_name)
 {
     static const format query("SELECT * FROM ak.get_schema_tables('%1%');");
-    pqxx::result pqxx_result = work.exec((format(query) % schema_name).str());
+    pqxx::result pqxx_result = Exec((format(query) % schema_name).str());
     rel_vars_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
         AK_ASSERT_EQUAL(tuple.size(), 1U);
         AK_ASSERT(!tuple[0].is_null());
-        rel_vars_.push_back(RelVar(work, tuple[0].c_str()));
+        rel_vars_.push_back(RelVar(tuple[0].c_str()));
     }
     BOOST_FOREACH(RelVar& rel_var, rel_vars_)
-        rel_var.LoadConstrs(work, *this);
+        rel_var.LoadConstrs(*this);
 }
 
 
-const RelVars& DBMeta::GetAll() const
+const RelVars& Meta::GetAll() const
 {
     return rel_vars_;
 }
 
 
-const RelVar& DBMeta::Get(const string& rel_var_name) const
+const RelVar& Meta::Get(const string& rel_var_name) const
 {
     return rel_vars_[GetIdxChecked(rel_var_name)];
 }
 
 
-RelVar& DBMeta::Get(const string& rel_var_name)
+RelVar& Meta::Get(const string& rel_var_name)
 {
     return rel_vars_[GetIdxChecked(rel_var_name)];
 }
 
 
-void DBMeta::Create(pqxx::work& work,
-                    const string& rel_var_name,
-                    const RichHeader& rich_header,
-                    const UniqueKeySet& unique_key_set,
-                    const ForeignKeySet& foreign_key_set,
-                    const Strings& checks)
+void Meta::Create(const string& rel_var_name,
+                  const RichHeader& rich_header,
+                  const UniqueKeySet& unique_key_set,
+                  const ForeignKeySet& foreign_key_set,
+                  const Strings& checks)
 {
     if (rel_vars_.size() >= MAX_REL_VAR_NUMBER) {
         static const string message(
@@ -821,8 +819,7 @@ void DBMeta::Create(pqxx::work& work,
     if (GetIdx(rel_var_name) != MINUS_ONE)
         throw Error(Error::REL_VAR_EXISTS,
                     "RelVar \"" + rel_var_name + "\" already exists");
-    rel_vars_.push_back(RelVar(work,
-                               *this,
+    rel_vars_.push_back(RelVar(*this,
                                rel_var_name,
                                rich_header,
                                unique_key_set,
@@ -831,7 +828,7 @@ void DBMeta::Create(pqxx::work& work,
 }
 
 
-void DBMeta::Drop(pqxx::work& work, const StringSet& rel_var_names)
+void Meta::Drop(const StringSet& rel_var_names)
 {
     if (rel_var_names.empty())
         return;
@@ -867,14 +864,14 @@ void DBMeta::Drop(pqxx::work& work, const StringSet& rel_var_names)
         oss << Quoted(rel_var_name);
     }
     oss << " CASCADE";
-    work.exec(oss.str());
+    Exec(oss.str());
     sort(indexes.begin(), indexes.end());
     BOOST_REVERSE_FOREACH(size_t index, indexes)
         rel_vars_.erase(rel_vars_.begin() + index);
 }
 
 
-size_t DBMeta::GetIdx(const string& rel_var_name) const
+size_t Meta::GetIdx(const string& rel_var_name) const
 {
     for (size_t i = 0; i < rel_vars_.size(); ++i)
         if (rel_vars_[i].GetName() == rel_var_name)
@@ -883,7 +880,7 @@ size_t DBMeta::GetIdx(const string& rel_var_name) const
 }
 
 
-size_t DBMeta::GetIdxChecked(const string& rel_var_name) const
+size_t Meta::GetIdxChecked(const string& rel_var_name) const
 {
     size_t idx = GetIdx(rel_var_name);
     if (idx == MINUS_ONE)
@@ -893,80 +890,143 @@ size_t DBMeta::GetIdxChecked(const string& rel_var_name) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Manager
+// DB
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    class Manager {
+    class DB {
     public:
-        Manager(const string& schema_name);
-        void LoadMeta(pqxx::work& work);
-        void CommitHappened();
-        const DBMeta& GetMeta() const;
-        DBMeta& ChangeMeta();
+        DB(const string& options,
+           const string& schema_name,
+           const string& tablespace_name);
+
+        const Meta& GetMeta();
+        Meta& ChangeMeta();
+        string Quote(const string& str);
+        pqxx::result Exec(const string& sql);
+        pqxx::result ExecSafely(const string& sql);
+        void Commit();
+        void RollBack();
 
     private:
-        boost::scoped_ptr<DBMeta> meta_;
+        pqxx::connection conn_;
         string schema_name_;
-        bool consistent_;
+        boost::scoped_ptr<Meta> meta_ptr_;
+        bool meta_changed_;
+        boost::scoped_ptr<pqxx::work> work_ptr_;
+
+        pqxx::work& GetWork();
     };
 }
 
-Manager::Manager(const string& schema_name)
-    : schema_name_(schema_name)
-    , consistent_(false)
+
+DB::DB(const string& options,
+       const string& schema_name,
+       const string& tablespace_name)
+    : conn_(options)
+    , schema_name_(schema_name)
 {
+    static const format cmd("SET search_path TO %1%, pg_catalog;"
+                            "SET default_tablespace TO %2%;");
+    conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
+    Exec((format(cmd) % Quote(schema_name) % Quote(tablespace_name)).str());
+    Commit();
 }
 
 
-void Manager::LoadMeta(pqxx::work& work)
+const Meta& DB::GetMeta()
 {
-    if (!consistent_) {
-        meta_.reset(new DBMeta(work, schema_name_));
-        consistent_ = true;
+    if (!meta_ptr_) {
+        meta_changed_ = false;
+        meta_ptr_.reset(new Meta(schema_name_));
     }
+    return *meta_ptr_;
 }
 
 
-void Manager::CommitHappened()
+Meta& DB::ChangeMeta()
 {
-    consistent_ = true;
+    meta_changed_ = true;
+    if (!meta_ptr_)
+        meta_ptr_.reset(new Meta(schema_name_));
+    return *meta_ptr_;
 }
 
 
-const DBMeta& Manager::GetMeta() const
+string DB::Quote(const string& str)
 {
-    return *meta_;
+    return conn_.quote(str);
 }
 
 
-DBMeta& Manager::ChangeMeta()
+pqxx::work& DB::GetWork()
 {
-    consistent_ = false;
-    return *meta_;
+    if (!work_ptr_)
+        work_ptr_.reset(new pqxx::work(conn_));
+    return *work_ptr_;
+}
+
+
+pqxx::result DB::Exec(const string& sql)
+{
+    return GetWork().exec(sql);
+}
+
+
+pqxx::result DB::ExecSafely(const string& sql)
+{
+    return pqxx::subtransaction(GetWork()).exec(sql);
+}
+
+
+void DB::Commit()
+{
+    if (work_ptr_) {
+        work_ptr_->commit();
+        work_ptr_.reset();
+    }
+    meta_changed_ = false;
+}
+
+
+void DB::RollBack()
+{
+    work_ptr_.reset();
+    if (meta_changed_)
+        meta_ptr_.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Callbacks
+// db_ptr and callbacks
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    // TODO: refactor
-    const Manager* manager_ptr;
-    pqxx::connection* conn_ptr;
+    DB* db_ptr = 0;
+
+
+    pqxx::result Exec(const string& sql)
+    {
+        return db_ptr->Exec(sql);
+    }
+
+
+    pqxx::result ExecSafely(const string& sql)
+    {
+        return db_ptr->ExecSafely(sql);
+    }
 
 
     string Quote(const string& str)
     {
-        return conn_ptr->quote(str);
+        return db_ptr->Quote(str);
     }
 
 
     const Header& GetHeader(const string& rel_var_name)
     {
-        return manager_ptr->GetMeta().Get(rel_var_name).GetHeader();
+        return db_ptr->GetMeta().Get(rel_var_name).GetHeader();
     }
 
 
@@ -975,7 +1035,7 @@ namespace
                          std::string& ref_rel_var_name,
                          StringSet& ref_attr_names)
     {
-        const RelVar& rel_var(manager_ptr->GetMeta().Get(key_rel_var_name));
+        const RelVar& rel_var(db_ptr->GetMeta().Get(key_rel_var_name));
         const ForeignKey* foreign_key_ptr = 0;
         BOOST_FOREACH(const ForeignKey& foreign_key,
                       rel_var.GetForeignKeySet()) {
@@ -993,76 +1053,8 @@ namespace
     }
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
-// DB::Impl
-////////////////////////////////////////////////////////////////////////////////
-
-class DB::Impl {
-public:
-    Impl(const string& opt,
-         const string& schema_name,
-         const string& tablespace_name);
-
-    pqxx::connection& GetConnection();
-    Manager& GetManager();
-
-private:
-    pqxx::connection conn_;
-    Manager manager_;
-};
-
-
-DB::Impl::Impl(const string& opt,
-               const string& schema_name,
-               const string& tablespace_name)
-    : conn_(opt)
-    , manager_(schema_name)
-{
-    static const format cmd("SET search_path TO %1%, pg_catalog;"
-                            "SET default_tablespace TO %2%;");
-    conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
-    pqxx::work work(conn_);
-    work.exec((format(cmd)
-               % conn_.quote(schema_name)
-               % conn_.quote(tablespace_name)).str());
-    work.commit();
-    manager_ptr = &manager_;
-    conn_ptr = &conn_;
-    InitCommon(Quote);
-    InitTranslator(GetHeader, FollowReference);
-}
-
-
-pqxx::connection& DB::Impl::GetConnection()
-{
-    return conn_;
-}
-
-
-Manager& DB::Impl::GetManager()
-{
-    return manager_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// DB definitions
-////////////////////////////////////////////////////////////////////////////////
-
-DB::DB(const string& opt,
-       const string& schema_name,
-       const string& tablespace_name)
-{
-    pimpl_.reset(new Impl(opt, schema_name, tablespace_name));
-}
-
-
-DB::~DB()
-{
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Access definitions
+// API
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
@@ -1088,41 +1080,21 @@ namespace
 }
 
 
-class Access::WorkWrapper {
-public:
-    explicit WorkWrapper(pqxx::connection& conn) : work_(conn) {}
-    operator pqxx::work&()                 { return work_;             }
-    void commit()                          { work_.commit();           }
-    pqxx::result exec(const string& query) { return work_.exec(query); }
-
-private:
-    pqxx::work work_;
-};
-
-
-Access::Access(DB& db)
-    : db_impl_(*db.pimpl_)
-    , work_ptr_(new WorkWrapper(db_impl_.GetConnection()))
+void ak::Commit()
 {
-    db_impl_.GetManager().LoadMeta(*work_ptr_);
+    db_ptr->Commit();
 }
 
 
-Access::~Access()
+void ak::RollBack()
 {
+    db_ptr->RollBack();
 }
 
 
-void Access::Commit()
+StringSet ak::GetRelVarNames()
 {
-    work_ptr_->commit();
-    db_impl_.GetManager().CommitHappened();
-}
-
-
-StringSet Access::GetNames() const
-{
-    const RelVars& rel_vars(db_impl_.GetManager().GetMeta().GetAll());
+    const RelVars& rel_vars(db_ptr->GetMeta().GetAll());
     StringSet result;
     result.reserve(rel_vars.size());
     BOOST_FOREACH(const RelVar& rel_var, rel_vars)
@@ -1131,54 +1103,54 @@ StringSet Access::GetNames() const
 }
 
 
-const RichHeader& Access::GetRichHeader(const string& rel_var_name) const
+const RichHeader& ak::GetRichHeader(const string& rel_var_name)
 {
-    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetRichHeader();
+    return db_ptr->GetMeta().Get(rel_var_name).GetRichHeader();
 }
 
 
-const UniqueKeySet& Access::GetUniqueKeySet(const string& rel_var_name) const
+const UniqueKeySet& ak::GetUniqueKeySet(const string& rel_var_name)
 {
-    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetUniqueKeySet();
+    return db_ptr->GetMeta().Get(rel_var_name).GetUniqueKeySet();
 }
 
 
-const ForeignKeySet& Access::GetForeignKeySet(const string& rel_var_name) const
+const ForeignKeySet& ak::GetForeignKeySet(const string& rel_var_name)
 {
-    return db_impl_.GetManager().GetMeta().Get(rel_var_name).GetForeignKeySet();
+    return db_ptr->GetMeta().Get(rel_var_name).GetForeignKeySet();
 }
 
 
-void Access::Create(const string& name,
-                    const RichHeader& rich_header,
-                    const UniqueKeySet& unique_key_set,
-                    const ForeignKeySet& foreign_key_set,
-                    const Strings& checks)
+void ak::CreateRelVar(const string& name,
+                      const RichHeader& rich_header,
+                      const UniqueKeySet& unique_key_set,
+                      const ForeignKeySet& foreign_key_set,
+                      const Strings& checks)
 {
-    db_impl_.GetManager().ChangeMeta().Create(
-        *work_ptr_, name, rich_header, unique_key_set, foreign_key_set, checks);
+    db_ptr->ChangeMeta().Create(
+        name, rich_header, unique_key_set, foreign_key_set, checks);
 }
 
 
-void Access::Drop(const StringSet& rel_var_names)
+void ak::DropRelVars(const StringSet& rel_var_names)
 {
-    db_impl_.GetManager().ChangeMeta().Drop(*work_ptr_, rel_var_names);
+    db_ptr->ChangeMeta().Drop(rel_var_names);
 }
 
 
-void Access::Query(Header& header,
-                   vector<Values>& tuples,
-                   const string& query,
-                   const Drafts& query_params,
-                   const Strings& by_exprs,
-                   const Drafts& by_params,
-                   size_t start,
-                   size_t length) const
+void ak::Query(Header& header,
+               vector<Values>& tuples,
+               const string& query,
+               const Drafts& query_params,
+               const Strings& by_exprs,
+               const Drafts& by_params,
+               size_t start,
+               size_t length)
 {
     string sql(
         TranslateQuery(
             header, query, query_params, by_exprs, by_params, start, length));
-    pqxx::result pqxx_result(work_ptr_->exec(sql));
+    pqxx::result pqxx_result(Exec(sql));
     tuples.clear();
     if (header.empty()) {
         if (!pqxx_result.empty())
@@ -1191,21 +1163,21 @@ void Access::Query(Header& header,
 }
 
 
-size_t Access::Count(const string& query, const Drafts& params) const
+size_t ak::Count(const string& query, const Drafts& params)
 {
     string sql(TranslateCount(query, params));
-    pqxx::result pqxx_result(work_ptr_->exec(sql));
+    pqxx::result pqxx_result(Exec(sql));
     AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
     AK_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
     return pqxx_result[0][0].as<size_t>();
 }
 
 
-size_t Access::Update(const string& rel_var_name,
-                      const string& where,
-                      const Drafts& where_params,
-                      const StringMap& expr_map,
-                      const Drafts& expr_params)
+size_t ak::Update(const string& rel_var_name,
+                  const string& where,
+                  const Drafts& where_params,
+                  const StringMap& expr_map,
+                  const Drafts& expr_params)
 {
     const RichHeader& rich_header(GetRichHeader(rel_var_name));
     uint64_t size = 0;
@@ -1217,9 +1189,8 @@ size_t Access::Update(const string& rel_var_name,
     string sql(
         TranslateUpdate(
             rel_var_name, where, where_params, expr_map, expr_params));
-    size_t result;
-    try {
-        result = pqxx::subtransaction(*work_ptr_).exec(sql).affected_rows();
+    try{
+        return ExecSafely(sql).affected_rows();
     } catch (const pqxx::integrity_constraint_violation& err) {
         throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::data_exception& err) {
@@ -1227,17 +1198,16 @@ size_t Access::Update(const string& rel_var_name,
     } catch (const pqxx::sql_error& err) {
         throw Error(Error::DB, err.what());
     }
-    return result;
 }
 
 
-size_t Access::Delete(const string& rel_var_name,
-                      const string& where,
-                      const Drafts& params)
+size_t ak::Delete(const string& rel_var_name,
+                  const string& where,
+                  const Drafts& params)
 {
     string sql(TranslateDelete(rel_var_name, where, params));
     try {
-        return pqxx::subtransaction(*work_ptr_).exec(sql).affected_rows();
+        return ExecSafely(sql).affected_rows();
     } catch (const pqxx::integrity_constraint_violation& err) {
         throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::sql_error& err) {
@@ -1246,7 +1216,7 @@ size_t Access::Delete(const string& rel_var_name,
 }
 
 
-Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
+Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
 {
     static const format empty_cmd("SELECT ak.insert_into_empty('%1%');");
     static const format cmd(
@@ -1254,14 +1224,14 @@ Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
     static const format default_cmd(
         "INSERT INTO \"%1%\" DEFAULT VALUES RETURNING *;");
 
-    const RelVar& rel_var(db_impl_.GetManager().GetMeta().Get(rel_var_name));
+    const RelVar& rel_var(db_ptr->GetMeta().Get(rel_var_name));
     const RichHeader& rich_header(rel_var.GetRichHeader());
-    string sql_str;
+    string sql;
     uint64_t size = 0;
     if (rich_header.empty()) {
         if (!draft_map.empty())
             rich_header.find(draft_map.begin()->first); // throws
-        sql_str = (format(empty_cmd) % rel_var_name).str();
+        sql = (format(empty_cmd) % rel_var_name).str();
     } else {
         if (!draft_map.empty()) {
             BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map)
@@ -1287,13 +1257,13 @@ Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
                     values_oss << value.GetPgLiter();
                 }
             }
-            sql_str = (format(cmd)
-                       % rel_var_name
-                       % names_oss.str()
-                       % values_oss.str()).str();
+            sql = (format(cmd)
+                   % rel_var_name
+                   % names_oss.str()
+                   % values_oss.str()).str();
             size += values_oss.str().size();
         } else {
-            sql_str = (format(default_cmd) % rel_var_name).str();
+            sql = (format(default_cmd) % rel_var_name).str();
         }
         BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
             const Value* default_ptr = rich_attr.GetDefaultPtr();
@@ -1306,7 +1276,7 @@ Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
     }
     pqxx::result pqxx_result;
     try {
-        pqxx_result = pqxx::subtransaction(*work_ptr_).exec(sql_str);
+        pqxx_result = ExecSafely(sql);
     } catch (const pqxx::integrity_constraint_violation& err) {
         throw Error(Error::CONSTRAINT, err.what());
     } catch (const pqxx::data_exception& err) {
@@ -1323,50 +1293,56 @@ Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
 }
 
 
-void Access::AddAttrs(const string& rel_var_name, const RichHeader& rich_attrs)
+void ak::AddAttrs(const string& rel_var_name, const RichHeader& rich_attrs)
 {
-    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
-    rel_var.AddAttrs(*work_ptr_, rich_attrs);
+    db_ptr->ChangeMeta().Get(rel_var_name).AddAttrs(rich_attrs);
 }
 
 
-void Access::DropAttrs(const string& rel_var_name,
-                       const StringSet& attr_names)
+void ak::DropAttrs(const string& rel_var_name,
+                   const StringSet& attr_names)
 {
-    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
-    rel_var.DropAttrs(*work_ptr_, attr_names);
+    db_ptr->ChangeMeta().Get(rel_var_name).DropAttrs(attr_names);
 }
 
 
-void Access::AddDefault(const string& rel_var_name, const DraftMap& draft_map)
+void ak::AddDefault(const string& rel_var_name, const DraftMap& draft_map)
 {
-    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
-    rel_var.AddDefault(*work_ptr_, draft_map);
+    db_ptr->ChangeMeta().Get(rel_var_name).AddDefault(draft_map);
 }
 
 
-void Access::DropDefault(const string& rel_var_name,
-                         const StringSet& attr_names)
+void ak::DropDefault(const string& rel_var_name,
+                     const StringSet& attr_names)
 {
-    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
-    rel_var.DropDefault(*work_ptr_, attr_names);
+    db_ptr->ChangeMeta().Get(rel_var_name).DropDefault(attr_names);
 }
 
 
-void Access::AddConstrs(const string& rel_var_name,
-                        const UniqueKeySet& unique_key_set,
-                        const ForeignKeySet& foreign_key_set,
-                        const Strings& checks)
+void ak::AddConstrs(const string& rel_var_name,
+                    const UniqueKeySet& unique_key_set,
+                    const ForeignKeySet& foreign_key_set,
+                    const Strings& checks)
 {
-    DBMeta& meta(db_impl_.GetManager().ChangeMeta());
-    RelVar& rel_var(meta.Get(rel_var_name));
-    rel_var.AddConstrs(
-        *work_ptr_, meta, unique_key_set, foreign_key_set, checks);
+    Meta& meta(db_ptr->ChangeMeta());
+    meta.Get(rel_var_name).AddConstrs(
+        meta, unique_key_set, foreign_key_set, checks);
 }
 
 
-void Access::DropAllConstrs(const string& rel_var_name)
+void ak::DropAllConstrs(const string& rel_var_name)
 {
-    RelVar& rel_var(db_impl_.GetManager().ChangeMeta().Get(rel_var_name));
-    rel_var.DropAllConstrs(*work_ptr_);
+    db_ptr->ChangeMeta().Get(rel_var_name).DropAllConstrs();
+}
+
+
+void ak::InitDatabase(const string& options,
+                      const string& schema_name,
+                      const string& tablespace_name)
+{
+    AK_ASSERT(!db_ptr);
+    static DB db(options, schema_name, tablespace_name);
+    db_ptr = &db;
+    InitCommon(Quote);
+    InitTranslator(GetHeader, FollowReference);
 }

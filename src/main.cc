@@ -181,9 +181,10 @@ int main(int argc, char** argv)
         AK_ASSERT(ret == 0);
     }
 
-    DB db("user=" + user_name + " password=" + password + " dbname=" + db_name,
-          schema_name,
-          tablespace_name);
+    InitDatabase(
+        "user=" + user_name + " password=" + password + " dbname=" + db_name,
+        schema_name,
+        tablespace_name);
 
     string git_path_prefix, git_path_suffix;
     if (!git_path_pattern.empty()) {
@@ -196,8 +197,7 @@ int main(int argc, char** argv)
         git_path_suffix = git_path_pattern.substr(pos + 2);
     }
 
-    Program program(
-        code_path, media_path, git_path_prefix, git_path_suffix, db);
+    Program program(code_path, media_path, git_path_prefix, git_path_suffix);
 
     if (eval) {
         program.Eval(expr, STDOUT_FILENO);

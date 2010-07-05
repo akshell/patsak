@@ -19,7 +19,6 @@ using boost::lexical_cast;
 // Utils
 ////////////////////////////////////////////////////////////////////////////////
 
-Access* ak::access_ptr;
 Persistent<Object> ak::js_error_classes;
 
 
