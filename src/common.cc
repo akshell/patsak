@@ -234,7 +234,7 @@ class Value::Impl {
 public:
     virtual ~Impl();
     virtual Type GetType() const = 0;
-    virtual PgLiter GetPgLiter() const = 0;
+    virtual string GetPgLiter() const = 0;
     virtual bool Get(double& d, string& s) const = 0;
 };
 
@@ -246,6 +246,9 @@ Value::Impl::~Impl()
 
 namespace
 {
+    QuoteCallback quote_cb = 0;
+
+
     class NumberValue : public Value::Impl {
     public:
         NumberValue(double repr)
@@ -255,15 +258,14 @@ namespace
             return Type::NUMBER;
         }
 
-        virtual PgLiter GetPgLiter() const {
-            return PgLiter((repr_ != repr_
-                            ? "'NaN'::float8"
-                            : repr_ == numeric_limits<double>::infinity()
-                            ? "'Infinity'::float8"
-                            : repr_ == -numeric_limits<double>::infinity()
-                            ? "'-Infinity'::float8"
-                            : lexical_cast<string>(repr_)),
-                           false);
+        virtual string GetPgLiter() const {
+            return (repr_ != repr_
+                    ? "'NaN'::float8"
+                    : repr_ == numeric_limits<double>::infinity()
+                    ? "'Infinity'::float8"
+                    : repr_ == -numeric_limits<double>::infinity()
+                    ? "'-Infinity'::float8"
+                    : lexical_cast<string>(repr_));
         }
 
         virtual bool Get(double& d, string& /*s*/) const {
@@ -285,8 +287,8 @@ namespace
             return Type::STRING;
         }
 
-        virtual PgLiter GetPgLiter() const {
-            return PgLiter(repr_, true);
+        virtual string GetPgLiter() const {
+            return quote_cb(repr_);
         }
 
         virtual bool Get(double& /*d*/, string& s) const {
@@ -308,8 +310,8 @@ namespace
             return Type::BOOL;
         }
 
-        virtual PgLiter GetPgLiter() const {
-            return PgLiter(repr_ ? "true" : "false", false);
+        virtual string GetPgLiter() const {
+            return repr_ ? "true" : "false";
         }
 
         virtual bool Get(double& d, string& /*s*/) const {
@@ -336,10 +338,10 @@ namespace
             return Type::DATE;
         }
 
-        virtual PgLiter GetPgLiter() const {
+        virtual string GetPgLiter() const {
             ostringstream oss;
             oss << '\'' << repr_ << "'::" + GetType().GetPgName();
-            return PgLiter(oss.str(), false);
+            return oss.str();
         }
 
         virtual bool Get(double& d, string& /*s*/) const {
@@ -452,7 +454,7 @@ Type Value::GetType() const
 }
 
 
-PgLiter Value::GetPgLiter() const
+string Value::GetPgLiter() const
 {
     return pimpl_->GetPgLiter();
 }
@@ -478,4 +480,13 @@ ostream& ak::operator<<(ostream& os, const Header& header)
     }
     os << '}';
     return os;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// InitCommon
+////////////////////////////////////////////////////////////////////////////////
+
+void ak::InitCommon(QuoteCallback quote_cb)
+{
+    ::quote_cb = quote_cb;
 }

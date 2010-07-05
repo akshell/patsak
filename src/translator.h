@@ -9,16 +9,6 @@
 
 namespace ak
 {
-    typedef const Header& (*GetHeaderCallback)(const std::string& rel_var_name);
-
-    typedef void (*FollowReferenceCallback)(const std::string& key_rel_var_name,
-                                            const StringSet& key_attr_names,
-                                            std::string& ref_rel_var_name,
-                                            StringSet& ref_attr_names);
-
-    typedef std::string (*QuoteCallback)(const PgLiter& pg_liter);
-
-
     std::string TranslateQuery(Header& header,
                                const std::string& query,
                                const Drafts& query_params = Drafts(),
@@ -45,9 +35,15 @@ namespace ak
                               const Header& header);
 
 
+    typedef const Header& (*GetHeaderCallback)(const std::string& rel_var_name);
+
+    typedef void (*FollowReferenceCallback)(const std::string& key_rel_var_name,
+                                            const StringSet& key_attr_names,
+                                            std::string& ref_rel_var_name,
+                                            StringSet& ref_attr_names);
+
     void InitTranslator(GetHeaderCallback get_header_cb,
-                        FollowReferenceCallback follow_reference_cb,
-                        QuoteCallback quote_cb);
+                        FollowReferenceCallback follow_reference_cb);
 }
 
 #endif // TRANSLATOR_H

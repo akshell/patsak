@@ -26,7 +26,6 @@ namespace
 
     GetHeaderCallback get_header_cb = 0;
     FollowReferenceCallback follow_reference_cb = 0;
-    QuoteCallback quote_cb = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,9 +123,8 @@ namespace
 
         Type PrintParam(size_t pos, Type needed_type = Type::DUMMY);
 
-        template <typename T> Control& operator<<(const T& t);
-        Control& operator<<(const PgLiter& pg_liter);
         operator ostream&() const;
+        template <typename T> Control& operator<<(const T& t);
 
     private:
         typedef vector<BindData> BindStack;
@@ -230,7 +228,7 @@ Type Control::PrintParam(size_t pos, Type needed_type)
             Error::QUERY,
             "Position " + lexical_cast<string>(pos) + " is out of range");
     Value value(params_[pos - 1].Get(needed_type));
-    *this << quote_cb(value.GetPgLiter());
+    *this << value.GetPgLiter();
     return value.GetType();
 }
 
@@ -247,12 +245,6 @@ Control& Control::operator<<(const T& t)
 {
     static_cast<ostream&>(*this) << t;
     return *this;
-}
-
-
-Control& Control::operator<<(const PgLiter& pg_liter)
-{
-    return (*this) << quote_cb(pg_liter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1010,10 +1002,8 @@ string ak::TranslateExpr(const string& expr_str,
 
 
 void ak::InitTranslator(GetHeaderCallback get_header_cb,
-                        FollowReferenceCallback follow_reference_cb,
-                        QuoteCallback quote_cb)
+                        FollowReferenceCallback follow_reference_cb)
 {
     ::get_header_cb = get_header_cb;
     ::follow_reference_cb = follow_reference_cb;
-    ::quote_cb = quote_cb;
 }

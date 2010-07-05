@@ -55,44 +55,7 @@ namespace boost
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Quoter
-///////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class Quoter {
-    public:
-        explicit Quoter(pqxx::connection& conn)
-            : conn_(conn) {}
-
-        explicit Quoter(const pqxx::transaction_base& work)
-            : conn_(work.conn()) {}
-
-        string operator()(const PgLiter& pg_liter) const {
-            return pg_liter.quote_me ? conn_.quote(pg_liter.str) : pg_liter.str;
-        }
-
-        string operator()(const Value& value) const {
-            return (*this)(value.GetPgLiter());
-        }
-
-        Strings operator()(const Values& values) const {
-            Strings result;
-            result.reserve(values.size());
-            for (Values::const_iterator itr = values.begin();
-                 itr != values.end();
-                 ++itr)
-                result.push_back((*this)(*itr));
-            return result;
-        }
-
-    private:
-        pqxx::connection_base& conn_;
-    };
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// RichAttr
+// RichAttr definitions
 ///////////////////////////////////////////////////////////////////////////////
 
 RichAttr::RichAttr(const string& name,
@@ -320,7 +283,7 @@ RelVar::RelVar(pqxx::work& work,
             << " NOT NULL";
         const Value* default_ptr(rich_attr.GetDefaultPtr());
         if (default_ptr)
-            oss << " DEFAULT " << Quoter(work)(default_ptr->GetPgLiter());
+            oss << " DEFAULT " << default_ptr->GetPgLiter();
         else if (rich_attr.GetTrait() == Type::SERIAL)
             oss << " DEFAULT nextval('\""
                 << name << '@' << rich_attr.GetName()
@@ -584,7 +547,7 @@ void RelVar::AddAttrs(pqxx::work& work, const RichHeader& rich_attrs)
     BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
         print_sep();
         oss << Quoted(rich_attr.GetName()) << " = "
-            << Quoter(work)(rich_attr.GetDefaultPtr()->GetPgLiter());
+            << rich_attr.GetDefaultPtr()->GetPgLiter();
     }
     oss << "; ALTER TABLE " << Quoted(name_) << ' ';
     print_sep = OmitInvoker(SepPrinter(oss));
@@ -699,7 +662,7 @@ void RelVar::AddDefault(pqxx::work& work, const DraftMap& draft_map)
         new_rich_attr.SetDefaultPtr(&value);
         print_sep();
         oss << "ALTER " << Quoted(named_draft.first)
-            << " SET DEFAULT " <<  Quoter(work)(value.GetPgLiter());
+            << " SET DEFAULT " <<  value.GetPgLiter();
     }
     work.exec(oss.str());
     rich_header_ = new_rich_header;
@@ -985,7 +948,7 @@ DBMeta& Manager::ChangeMeta()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Translator callbacks
+// Callbacks
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
@@ -993,6 +956,12 @@ namespace
     // TODO: refactor
     const Manager* manager_ptr;
     pqxx::connection* conn_ptr;
+
+
+    string Quote(const string& str)
+    {
+        return conn_ptr->quote(str);
+    }
 
 
     const Header& GetHeader(const string& rel_var_name)
@@ -1021,12 +990,6 @@ namespace
             throw Error(Error::QUERY, "Foreign key not found");
         ref_rel_var_name = foreign_key_ptr->ref_rel_var_name;
         ref_attr_names = foreign_key_ptr->ref_attr_names;
-    }
-
-
-    string Quote(const PgLiter& pg_liter)
-    {
-        return Quoter(*conn_ptr)(pg_liter);
     }
 }
 
@@ -1066,7 +1029,8 @@ DB::Impl::Impl(const string& opt,
     work.commit();
     manager_ptr = &manager_;
     conn_ptr = &conn_;
-    InitTranslator(GetHeader, FollowReference, Quote);
+    InitCommon(Quote);
+    InitTranslator(GetHeader, FollowReference);
 }
 
 
@@ -1130,7 +1094,6 @@ public:
     operator pqxx::work&()                 { return work_;             }
     void commit()                          { work_.commit();           }
     pqxx::result exec(const string& query) { return work_.exec(query); }
-    string quote(const string& str) const  { return work_.quote(str);  }
 
 private:
     pqxx::work work_;
@@ -1306,7 +1269,6 @@ Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
             ostringstream names_oss, values_oss;
             OmitInvoker print_names_sep((SepPrinter(names_oss)));
             OmitInvoker print_values_sep((SepPrinter(values_oss)));
-            Quoter quoter(db_impl_.GetConnection());
             BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
                 DraftMap::const_iterator itr(
                     draft_map.find(rich_attr.GetName()));
@@ -1322,7 +1284,7 @@ Values Access::Insert(const string& rel_var_name, const DraftMap& draft_map)
                     names_oss << Quoted(rich_attr.GetName());
                     print_values_sep();
                     Value value(itr->second.Get(rich_attr.GetType()));
-                    values_oss << quoter(value.GetPgLiter());
+                    values_oss << value.GetPgLiter();
                 }
             }
             sql_str = (format(cmd)

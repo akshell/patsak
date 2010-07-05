@@ -108,19 +108,6 @@ namespace ak
     };
 
     ////////////////////////////////////////////////////////////////////////////
-    // PgLiter
-    ////////////////////////////////////////////////////////////////////////////
-
-    class PgLiter {
-    public:
-        std::string str;
-        bool quote_me;
-
-        explicit PgLiter(const std::string& str, bool quote_it)
-            : str(str), quote_me(quote_it) {}
-    };
-
-    ////////////////////////////////////////////////////////////////////////////
     // Value
     ////////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +123,7 @@ namespace ak
         ~Value();
 
         Type GetType() const;
-        PgLiter GetPgLiter() const;
+        std::string GetPgLiter() const;
         bool Get(double& d, std::string& s) const;
 
     private:
@@ -278,6 +265,14 @@ namespace ak
     typedef std::vector<char> Chars;
 
     const size_t MINUS_ONE = static_cast<size_t>(-1);
+
+    ////////////////////////////////////////////////////////////////////////////
+    // InitCommon
+    ////////////////////////////////////////////////////////////////////////////
+
+    typedef std::string (*QuoteCallback)(const std::string& str);
+
+    void InitCommon(QuoteCallback quote_cb);
 }
 
 #endif // COMMON_H
