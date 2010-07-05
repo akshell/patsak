@@ -90,15 +90,6 @@ namespace ak
     RichHeader;
 
 
-    struct QueryResult {
-        Header header;
-        std::vector<Values> tuples;
-
-        QueryResult(const Header& header, const std::vector<Values>& tuples)
-            : header(header), tuples(tuples) {}
-    };
-
-
     class Access {
     public:
         explicit Access(DB& db);
@@ -124,12 +115,14 @@ namespace ak
 
         void Drop(const StringSet& rel_var_names);
 
-        QueryResult Query(const std::string& query,
-                          const Drafts& query_params = Drafts(),
-                          const Strings& by_exprs = Strings(),
-                          const Drafts& by_params = Drafts(),
-                          size_t start = 0,
-                          size_t length = MINUS_ONE) const;
+        void Query(Header& header,
+                   std::vector<Values>& tuples,
+                   const std::string& query,
+                   const Drafts& query_params = Drafts(),
+                   const Strings& by_exprs = Strings(),
+                   const Drafts& by_params = Drafts(),
+                   size_t start = 0,
+                   size_t length = MINUS_ONE) const;
 
         size_t Count(const std::string& query,
                      const Drafts& params = Drafts()) const;

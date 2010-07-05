@@ -1166,28 +1166,28 @@ void Access::Drop(const StringSet& rel_var_names)
 }
 
 
-QueryResult Access::Query(const string& query,
-                          const Drafts& query_params,
-                          const Strings& by_exprs,
-                          const Drafts& by_params,
-                          size_t start,
-                          size_t length) const
+void Access::Query(Header& header,
+                   vector<Values>& tuples,
+                   const string& query,
+                   const Drafts& query_params,
+                   const Strings& by_exprs,
+                   const Drafts& by_params,
+                   size_t start,
+                   size_t length) const
 {
-    Header header;
     string sql(
         TranslateQuery(
             header, query, query_params, by_exprs, by_params, start, length));
     pqxx::result pqxx_result(work_ptr_->exec(sql));
-    QueryResult result(header, vector<Values>());
+    tuples.clear();
     if (header.empty()) {
         if (!pqxx_result.empty())
-            result.tuples.push_back(Values());
+            tuples.push_back(Values());
     } else {
-        result.tuples.reserve(pqxx_result.size());
+        tuples.reserve(pqxx_result.size());
         BOOST_FOREACH(const pqxx::result::tuple& pqxx_tuple, pqxx_result)
-            result.tuples.push_back(GetTupleValues(pqxx_tuple, result.header));
+            tuples.push_back(GetTupleValues(pqxx_tuple, header));
     }
-    return result;
 }
 
 

@@ -859,9 +859,11 @@ void DBFixture::LoadRelVarFromString(const string& rel_var_name,
 Table DBFixture::Query(const string& query)
 {
     Access access(db);
-    QueryResult query_result(access.Query(query));
-    Table result(query_result.header);
-    BOOST_FOREACH(const Values& values, query_result.tuples)
+    Header header;
+    vector<Values> tuples;
+    access.Query(header, tuples, query);
+    Table result(header);
+    BOOST_FOREACH(const Values& values, tuples)
         result.AddRow(values);
     return result;
 }

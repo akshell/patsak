@@ -528,21 +528,22 @@ namespace
         by_strs.reserve(by_values->Length());
         for (size_t i = 0; i < by_values->Length(); ++i)
             by_strs.push_back(Stringify(by_values->Get(Integer::New(i))));
-        const QueryResult& query_result(
-            access_ptr->Query(Stringify(args[0]),
-                              ReadParams(args[1]),
-                              by_strs,
-                              ReadParams(args[3]),
-                              args[4]->Uint32Value(),
-                              (args[5]->IsUndefined() || args[5]->IsNull()
-                               ? MINUS_ONE
-                               : args[5]->Uint32Value())));
-        size_t result_length = query_result.tuples.size();
-        const Header& header(query_result.header);
-        Handle<Array> result(Array::New(result_length));
-        for (size_t tuple_idx = 0; tuple_idx < result_length; ++tuple_idx) {
+        Header header;
+        vector<Values> tuples;
+        access_ptr->Query(header,
+                          tuples,
+                          Stringify(args[0]),
+                          ReadParams(args[1]),
+                          by_strs,
+                          ReadParams(args[3]),
+                          args[4]->Uint32Value(),
+                          (args[5]->IsUndefined() || args[5]->IsNull()
+                           ? MINUS_ONE
+                           : args[5]->Uint32Value()));
+        Handle<Array> result(Array::New(tuples.size()));
+        for (size_t tuple_idx = 0; tuple_idx < tuples.size(); ++tuple_idx) {
             Handle<Object> item(Object::New());
-            const Values& values(query_result.tuples[tuple_idx]);
+            const Values& values(tuples[tuple_idx]);
             AK_ASSERT_EQUAL(values.size(), header.size());
             for (size_t attr_idx = 0; attr_idx < header.size(); ++attr_idx)
                 Set(item,
