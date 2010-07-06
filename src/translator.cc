@@ -834,8 +834,16 @@ Header RelTranslator::operator()(const Union& un) const
     Header left_header = control_.TranslateRel(un.left);
     control_ << " UNION ";
     Header right_header = control_.TranslateRel(un.right);
-    if (left_header != right_header)
-        throw Error(Error::QUERY, "Union headers don't match");
+    if (left_header.size() != right_header.size())
+        throw Error(Error::QUERY, "Union headers have different sizes");
+    BOOST_FOREACH(const Attr& left_attr, left_header) {
+        const Attr* right_attr_ptr = right_header.find_ptr(left_attr.GetName());
+        if (!(right_attr_ptr &&
+              (left_attr.GetType() == right_attr_ptr->GetType() ||
+               (left_attr.GetType().IsNumeric() &&
+                right_attr_ptr->GetType().IsNumeric()))))
+            throw Error(Error::QUERY, "Union headers don't match");
+    }
     return left_header;
 }
 

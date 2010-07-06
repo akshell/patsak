@@ -924,6 +924,7 @@ BOOST_AUTO_TEST_CASE(translator_test)
     BOOST_CHECK_THROW(DoTranslateQuery("{smth: $0}"), Error);
     BOOST_CHECK_THROW(DoTranslateQuery("{smth: $1}"), Error);
     BOOST_CHECK_THROW(DoTranslateQuery("union(User, Post)"), Error);
+    BOOST_CHECK_THROW(DoTranslateQuery("union(User.id, User.name)"), Error);
     BOOST_CHECK_THROW(DoTranslateQuery("{User.id, Post.id}"), Error);
     BOOST_CHECK_THROW(DoTranslateQuery("User where User[id, name]"), Error);
     //May be the following should work...

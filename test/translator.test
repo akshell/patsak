@@ -26,6 +26,14 @@ SELECT DISTINCT "Post"."id" FROM "Post"
 *)
 
 *(
+union({n: User.id}, {n: User.age})
+**
+SELECT DISTINCT "User"."id" AS "n" FROM "User"
+UNION
+SELECT DISTINCT "User"."age" AS "n" FROM "User"
+*)
+
+*(
 User where forall (Post) true
 **
 SELECT DISTINCT "User".* FROM "User"
