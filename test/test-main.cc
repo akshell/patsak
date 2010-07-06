@@ -402,9 +402,7 @@ namespace ak
 
     bool operator==(const RichAttr& lhs, const RichAttr& rhs)
     {
-        if (lhs.GetName() != rhs.GetName() ||
-            lhs.GetType() != rhs.GetType() ||
-            lhs.GetTrait() != rhs.GetTrait())
+        if (lhs.GetName() != rhs.GetName() || lhs.GetType() != rhs.GetType())
             return false;
         if (!lhs.GetDefaultPtr() && !rhs.GetDefaultPtr())
             return true;
@@ -603,6 +601,10 @@ void Table::ReadHeader(istream& is)
         Type type;
         if (type_str == "number") {
             type = Type::NUMBER;
+        } else if (type_str == "int") {
+            type = Type::INT;
+        } else if (type_str == "serial") {
+            type = Type::SERIAL;
         } else if (type_str == "string") {
             type = Type::STRING;
         } else if (type_str == "bool") {
@@ -620,7 +622,7 @@ void Table::ReadHeader(istream& is)
 
 Value Table::ReadValue(istream& is, Type type)
 {
-    if (type == Type::NUMBER) {
+    if (type.IsNumeric()) {
         double d;
         is >> d;
         return Value(type, d);
@@ -700,7 +702,6 @@ void Table::ReadMetaData(istream& is)
             Value value(ReadValue(line_iss, rich_attr.GetType()));
             rich_attr = RichAttr(rich_attr.GetName(),
                                  rich_attr.GetType(),
-                                 rich_attr.GetTrait(),
                                  &value);
         } else if (constr_name == "int" || constr_name == "serial") {
             string field_name;
@@ -708,9 +709,6 @@ void Table::ReadMetaData(istream& is)
             RichAttr& rich_attr(rich_header_.find(field_name));
             rich_attr = RichAttr(rich_attr.GetName(),
                                  rich_attr.GetType(),
-                                 constr_name == "int"
-                                 ? Type::INTEGER
-                                 : Type::SERIAL,
                                  rich_attr.GetDefaultPtr());
         } else {
             BOOST_FAIL("Unknown constraint: " + constr_name);
@@ -791,9 +789,8 @@ Draft::~Draft()
 }
 
 
-Value Draft::Get(Type type) const
+Value Draft::Get(Type /*type*/) const
 {
-    AK_ASSERT(type == Type::DUMMY || type == pimpl_->value.GetType());
     return pimpl_->value;
 }
 

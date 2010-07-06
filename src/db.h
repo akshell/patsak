@@ -47,19 +47,16 @@ namespace ak
     public:
         RichAttr(const std::string& name,
                  Type type,
-                 Type::Trait trait = Type::COMMON,
                  const Value* default_ptr = 0);
 
         const Attr& GetAttr() const;
         const std::string& GetName() const;
         Type GetType() const;
-        Type::Trait GetTrait() const;
         const Value* GetDefaultPtr() const;
         void SetDefaultPtr(const Value* default_ptr);
 
     private:
         Attr attr_;
-        Type::Trait trait_;
         boost::shared_ptr<Value> default_ptr_;
     };
 

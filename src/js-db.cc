@@ -55,7 +55,7 @@ Draft::Impl::~Impl()
 
 ak::Value Draft::Impl::Get(Type type) const
 {
-    if (type == Type::NUMBER)
+    if (type.IsNumeric())
         return ak::Value(type, v8_value_->NumberValue());
     if (type == Type::STRING)
         return ak::Value(type, Stringify(v8_value_));
@@ -311,7 +311,6 @@ namespace
         TypeBg(Type type);
 
         Type GetType() const;
-        Type::Trait GetTrait() const;
         const ak::Value* GetDefaultPtr() const;
         void RetrieveConstrs(const string& attr_name,
                              UniqueKeySet& unique_key_set,
@@ -323,28 +322,19 @@ namespace
         typedef vector<AddedConstrPtr> AddedConstrPtrs;
 
         Type type_;
-        Type::Trait trait_;
         shared_ptr<ak::Value> default_ptr_;
         AddedConstrPtrs ac_ptrs_;
 
         friend Handle<Object> JSNew<TypeBg>(Type,
-                                            Type::Trait,
                                             shared_ptr<ak::Value>,
                                             AddedConstrPtrs);
 
         TypeBg(Type type,
-               Type::Trait trait,
                shared_ptr<ak::Value> default_ptr,
                const AddedConstrPtrs& ac_ptrs);
 
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetNameCb,
                              Local<String>, const AccessorInfo&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, IntegerCb,
-                             const Arguments&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, SerialCb,
-                             const Arguments&) const;
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, DefaultCb,
                              const Arguments&) const;
@@ -366,8 +356,6 @@ namespace
 DEFINE_JS_CLASS(TypeBg, "Type", object_template, proto_template)
 {
     object_template->SetAccessor(String::NewSymbol("name"), GetNameCb);
-    SetFunction(proto_template, "_integer", IntegerCb);
-    SetFunction(proto_template, "_serial", SerialCb);
     SetFunction(proto_template, "_default", DefaultCb);
     SetFunction(proto_template, "_unique", UniqueCb);
     SetFunction(proto_template, "_foreign", ForeignCb);
@@ -376,17 +364,15 @@ DEFINE_JS_CLASS(TypeBg, "Type", object_template, proto_template)
 
 
 TypeBg::TypeBg(Type type)
-    : type_(type), trait_(Type::COMMON)
+    : type_(type)
 {
 }
 
 
 TypeBg::TypeBg(Type type,
-               Type::Trait trait,
                shared_ptr<ak::Value> default_ptr,
                const AddedConstrPtrs& ac_ptrs)
     : type_(type)
-    , trait_(trait)
     , default_ptr_(default_ptr)
     , ac_ptrs_(ac_ptrs)
 {
@@ -396,12 +382,6 @@ TypeBg::TypeBg(Type type,
 Type TypeBg::GetType() const
 {
     return type_;
-}
-
-
-Type::Trait TypeBg::GetTrait() const
-{
-    return trait_;
 }
 
 
@@ -431,35 +411,15 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, TypeBg, GetNameCb,
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, IntegerCb,
-                    const Arguments&, /*args*/) const
-{
-    if (trait_ != Type::COMMON)
-        throw Error(Error::USAGE, "Trait redefinition");
-    return JSNew<TypeBg>(type_, Type::INTEGER, default_ptr_, ac_ptrs_);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, SerialCb,
-                    const Arguments&, /*args*/) const
-{
-    if (trait_ != Type::COMMON)
-        throw Error(Error::USAGE, "Trait redefinition");
-    if (default_ptr_)
-        throw Error(Error::USAGE, "Default and serial are incompatible");
-    return JSNew<TypeBg>(type_, Type::SERIAL, default_ptr_, ac_ptrs_);
-}
-
-
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, DefaultCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    if (trait_ == Type::SERIAL)
+    if (type_ == Type::SERIAL)
         throw Error(Error::USAGE, "Default and serial are incompatible");
     shared_ptr<ak::Value> default_ptr(
         new ak::Value(CreateDraft(args[0]).Get(type_)));
-    return JSNew<TypeBg>(type_, trait_, default_ptr, ac_ptrs_);
+    return JSNew<TypeBg>(type_, default_ptr, ac_ptrs_);
 }
 
 
@@ -468,7 +428,7 @@ Handle<v8::Value> TypeBg::NewWithAddedConstr(AddedConstrPtr ac_ptr) const
     AK_ASSERT(ac_ptr.get());
     AddedConstrPtrs new_ac_ptrs(ac_ptrs_);
     new_ac_ptrs.push_back(ac_ptr);
-    return JSNew<TypeBg>(type_, trait_, default_ptr_, new_ac_ptrs);
+    return JSNew<TypeBg>(type_, default_ptr_, new_ac_ptrs);
 
 }
 
@@ -570,10 +530,8 @@ namespace
             Prop prop(prop_enumerator.GetProp(i));
             string name(Stringify(prop.key));
             const TypeBg& type_bg(GetBg<TypeBg>(prop.value));
-            rich_header.add_sure(RichAttr(name,
-                                          type_bg.GetType(),
-                                          type_bg.GetTrait(),
-                                          type_bg.GetDefaultPtr()));
+            rich_header.add_sure(
+                RichAttr(name, type_bg.GetType(), type_bg.GetDefaultPtr()));
             type_bg.RetrieveConstrs(
                 name, unique_key_set, foreign_key_set, checks);
         }
@@ -616,37 +574,7 @@ namespace
         BOOST_FOREACH(const RichAttr& rich_attr,
                       GetRichHeader(Stringify(args[0])))
             Set(result, rich_attr.GetName(),
-                String::New(
-                    rich_attr.GetType().GetName(rich_attr.GetTrait()).c_str()));
-        return result;
-    }
-
-
-    DEFINE_JS_CALLBACK(GetIntegerCb, args)
-    {
-        CheckArgsLength(args, 1);
-        Handle<Array> result(Array::New());
-        int32_t i = 0;
-        BOOST_FOREACH(const RichAttr& rich_attr,
-                      GetRichHeader(Stringify(args[0])))
-            if (rich_attr.GetTrait() == Type::INTEGER ||
-                rich_attr.GetTrait() == Type::SERIAL)
-                result->Set(Integer::New(i++),
-                            String::New(rich_attr.GetName().c_str()));
-        return result;
-    }
-
-
-    DEFINE_JS_CALLBACK(GetSerialCb, args)
-    {
-        CheckArgsLength(args, 1);
-        Handle<Array> result(Array::New());
-        int32_t i = 0;
-        BOOST_FOREACH(const RichAttr& rich_attr,
-                      GetRichHeader(Stringify(args[0])))
-            if (rich_attr.GetTrait() == Type::SERIAL)
-                result->Set(Integer::New(i++),
-                            String::New(rich_attr.GetName().c_str()));
+                String::New(rich_attr.GetType().GetName().c_str()));
         return result;
     }
 
@@ -757,16 +685,14 @@ namespace
             if (!type_ptr)
                 throw Error(Error::TYPE,
                             "First description item must be a db.Type object");
-            if (type_ptr->GetTrait() == Type::SERIAL)
+            if (type_ptr->GetType() == Type::SERIAL)
                 throw Error(Error::NOT_IMPLEMENTED,
                             "Adding of serial attributes is not implemented");
             ak::Value value(
                 CreateDraft(
                     descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
-            rich_attrs.add_sure(RichAttr(Stringify(prop.key),
-                                         type_ptr->GetType(),
-                                         type_ptr->GetTrait(),
-                                         &value));
+            rich_attrs.add_sure(
+                RichAttr(Stringify(prop.key), type_ptr->GetType(), &value));
         }
         AddAttrs(Stringify(args[0]), rich_attrs);
         return Undefined();
@@ -845,8 +771,6 @@ Handle<Object> ak::InitDB()
     SetFunction(result, "drop", DropCb);
     SetFunction(result, "list", ListCb);
     SetFunction(result, "getHeader", GetHeaderCb);
-    SetFunction(result, "getInteger", GetIntegerCb);
-    SetFunction(result, "getSerial", GetSerialCb);
     SetFunction(result, "getDefault", GetDefaultCb);
     SetFunction(result, "getUnique", GetUniqueCb);
     SetFunction(result, "getForeign", GetForeignCb);
@@ -860,6 +784,8 @@ Handle<Object> ak::InitDB()
     SetFunction(result, "addConstrs", AddConstrsCb);
     SetFunction(result, "dropAllConstrs", DropAllConstrsCb);
     Set(result, "number", JSNew<TypeBg>(Type::NUMBER));
+    Set(result, "int", JSNew<TypeBg>(Type::INT));
+    Set(result, "serial", JSNew<TypeBg>(Type::SERIAL));
     Set(result, "string", JSNew<TypeBg>(Type::STRING));
     Set(result, "bool", JSNew<TypeBg>(Type::BOOL));
     Set(result, "date", JSNew<TypeBg>(Type::DATE));

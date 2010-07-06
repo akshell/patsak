@@ -29,44 +29,20 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Casted
+// Cast
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    // Class for casting expressions to a particular type if necessary and
-    // outputing them.
-    class Casted {
-    public:
-        Casted(Type from_type, Type to_type, const string& expr);
-        friend ostream& operator<<(ostream& os, const Casted& casted);
-
-    private:
-        string cast_func_;
-        string expr_;
-    };
-
-
-    ostream& operator<<(ostream& os, const Casted& casted)
+    string Cast(const string& expr_str, Type from_type, Type to_type)
     {
-        if (casted.cast_func_.empty())
-            os << casted.expr_;
-        else
-            os << casted.cast_func_ << '(' << casted.expr_ << ')';
-        return os;
+        string cast_func(to_type.GetCastFunc(from_type));
+        return cast_func.empty() ? expr_str : cast_func + '(' + expr_str + ')';
     }
 }
 
-
-Casted::Casted(Type from_type, Type to_type, const string& expr)
-    : cast_func_(from_type == to_type ? "" : to_type.GetCastFunc())
-    , expr_(expr)
-{
-}
-
-
 ////////////////////////////////////////////////////////////////////////////////
-// Control, RelTranslator and ExprTranslator Declarations
+// Control, RelTranslator, and ExprTranslator declarations
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
@@ -214,7 +190,7 @@ Type Control::TranslateExpr(const Expr& expr,
         StringScope string_scope(*this, expr_str);
         type = TranslateExpr(expr, this_rv_ptr);
     }
-    *this << Casted(type, needed_type, expr_str);
+    *this << Cast(expr_str, type, needed_type);
     return needed_type;
 }
 
@@ -767,9 +743,9 @@ Type ExprTranslator::operator()(const Binary& binary) const
         right_type = apply_visitor(*this, binary.right);
     }
     Type common_type = binary.op.GetCommonType(left_type, right_type);
-    control_ << '(' << Casted(left_type, common_type, left_str)
+    control_ << '(' << Cast(left_str, left_type, common_type)
              << ' ' << binary.op.GetPgName(common_type)
-             << ' ' << Casted(right_type, common_type, right_str)
+             << ' ' << Cast(right_str, right_type, common_type)
              << ')';
     return binary.op.GetResultType(common_type);
 }
@@ -805,8 +781,8 @@ Type ExprTranslator::operator()(const Cond& cond) const
     else
         common_type = Type::NUMBER;
 
-    control_ << " THEN " << Casted(yes_type, common_type, yes_str)
-             << " ELSE " << Casted(no_type, common_type, no_str)
+    control_ << " THEN " << Cast(yes_str, yes_type, common_type)
+             << " ELSE " << Cast(no_str, no_type, common_type)
              << " END)";
     return common_type;
 }

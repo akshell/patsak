@@ -24,8 +24,10 @@ using namespace boost::gregorian;
 
 Type::Type(const string& pg_name)
 {
-    if (pg_name == "float8" || pg_name == "int4") {
+    if (pg_name == "float8") {
         tag_ = NUMBER;
+    } else if (pg_name == "int4") {
+        tag_ = INT;
     } else if (pg_name == "text") {
         tag_ = STRING;
     } else if (pg_name == "bool") {
@@ -38,46 +40,33 @@ Type::Type(const string& pg_name)
     }
 }
 
-bool Type::TraitsAreCompatible(Trait lhs, Trait rhs)
-{
-    return ((lhs == COMMON && rhs == COMMON) ||
-            (lhs != COMMON && rhs != COMMON));
-}
 
-
-bool Type::IsApplicable(Trait trait) const
-{
-    return trait == COMMON || tag_ == NUMBER;
-}
-
-
-string Type::GetPgName(Trait trait) const
+string Type::GetPgName() const
 {
     static const char* pg_names[] =
-        {"float8", "text", "bool", "timestamp(3)", "ak.json"};
-
-    AK_ASSERT(tag_ < DUMMY && IsApplicable(trait));
-    if (trait == COMMON)
-        return pg_names[tag_];
-    return "int4";
+        {"float8", "int4", "int4", "text", "bool", "timestamp(3)", "ak.json"};
+    AK_ASSERT(tag_ < DUMMY);
+    return pg_names[tag_];
 }
 
 
-string Type::GetName(Trait trait) const
+string Type::GetName() const
 {
-    static const char* names[] = {"number", "string", "bool", "date", "json"};
-
-    AK_ASSERT(tag_ < DUMMY && IsApplicable(trait));
-    if (trait == COMMON)
-        return names[tag_];
-    return trait == INTEGER ? "integer" : "serial";
+    static const char* names[] =
+        {"number", "int", "serial", "string", "bool", "date", "json"};
+    AK_ASSERT(tag_ < DUMMY);
+    return names[tag_];
 }
 
 
-string Type::GetCastFunc() const
+string Type::GetCastFunc(Type from) const
 {
+    if (tag_ == from.tag_ || (IsNumeric() && from.IsNumeric()))
+        return "";
     if (tag_ == DATE || tag_ == JSON)
         throw Error(Error::TYPE, "Cannot coerce any type to " + GetName());
+    if  (IsNumeric())
+        return "ak.to_number";
     return "ak.to_" + GetName();
 }
 
@@ -126,7 +115,6 @@ string BinaryOp::GetName() const
         "&&", // LOG_AND
         "||"  // LOG_OR
     };
-
     return names[tag_];
 }
 
@@ -135,7 +123,6 @@ Type BinaryOp::GetCommonType(Type left_type, Type right_type) const
 {
     if (IsLogical(tag_))
         return Type::BOOL;
-
     if (IsComparison(tag_)) {
         if (left_type == right_type)
             return left_type;
@@ -144,11 +131,9 @@ Type BinaryOp::GetCommonType(Type left_type, Type right_type) const
             return Type::STRING;
         return Type::NUMBER;
     }
-
-    if (tag_ == SUM && (left_type == Type::STRING ||
-                        right_type == Type::STRING))
+    if (tag_ == SUM &&
+        (left_type == Type::STRING || right_type == Type::STRING))
         return Type::STRING;
-
     return Type::NUMBER;
 }
 
@@ -164,21 +149,20 @@ Type BinaryOp::GetResultType(Type common_type) const
 string BinaryOp::GetPgName(Type common_type) const
 {
     static const char* pg_names[] = {
-        "+", // SUM,
-        "-", // SUB
-        "*", // MUL
-        "/", // DIV
-        "%", // MOD
-        "<", // LT
-        ">", // GT
-        "<=", // LE
-        ">=", // GE
-        "=", // EQ
-        "<>", // NE
+        "+",   // SUM,
+        "-",   // SUB
+        "*",   // MUL
+        "/",   // DIV
+        "%",   // MOD
+        "<",   // LT
+        ">",   // GT
+        "<=",  // LE
+        ">=",  // GE
+        "=",   // EQ
+        "<>",  // NE
         "AND", // LOG_AND
-        "OR"  // LOG_OR
+        "OR"   // LOG_OR
     };
-
     if (tag_ == SUM && common_type == Type::STRING)
         return "||";
     return pg_names[tag_];
@@ -377,7 +361,7 @@ namespace
 {
     Value::Impl* CreateValueImplByDouble(Type type, double d)
     {
-        if (type == Type::NUMBER) {
+        if (type.IsNumeric()) {
             return new NumberValue(d);
         } else {
             AK_ASSERT(type == Type::DATE);
@@ -392,7 +376,7 @@ namespace
     {
         if (type == Type::STRING) {
             return new StringValue(s);
-        } else if (type == Type::NUMBER) {
+        } else if (type.IsNumeric()) {
             return new NumberValue(
                 s.substr(0, 5) == "'NaN'"
                 ? numeric_limits<double>::quiet_NaN()

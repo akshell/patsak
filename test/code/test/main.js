@@ -10,6 +10,8 @@ HttpParser = http.HttpParser;
 Repo = git.Repo;
 
 number = db.number;
+int = db.int;
+serial = db.serial;
 string = db.string;
 bool = db.bool;
 date = db.date;
@@ -606,7 +608,7 @@ var dbTestSuite = {
     create(
       'User',
       {
-        id: number._serial()._unique(),
+        id: serial._unique(),
         name: string._unique(),
         age: number,
         flooder: bool._default('yo!')
@@ -614,19 +616,19 @@ var dbTestSuite = {
     create(
       'Post',
       {
-        id: number._serial()._unique(),
+        id: serial._unique(),
         title: string,
         text: string,
-        author: number._integer()._foreign('User', 'id')
+        author: int._foreign('User', 'id')
       },
       {unique: [['title', 'author']]});
     create(
       'Comment',
       {
-        id: number._serial()._unique(),
+        id: serial._unique(),
         text: string,
-        author: number._integer()._foreign('User', 'id'),
-        post: number._integer()._foreign('Post', 'id')
+        author: int._foreign('User', 'id'),
+        post: int._foreign('Post', 'id')
       });
 
     db.insert('User', {name: 'anton', age: 22, flooder: 15});
@@ -785,7 +787,7 @@ var dbTestSuite = {
     assertEqual(query('Empty').map(items), [[]]);
     assertThrow(ConstraintError, "db.insert('Empty', {})");
     db.del('Empty', 'true', []);
-    create('Num', {n: number, i: number._integer()._default(3.14)});
+    create('Num', {n: number, i: int._default(3.14)});
     assertSame(db.insert('Num', {n: 0}).i, 3);
     assertSame(db.insert('Num', {n: 1.5, i: 1.5}).i, 2);
     assertSame(db.insert('Num', {n: Infinity}).n, Infinity);
@@ -798,11 +800,22 @@ var dbTestSuite = {
   },
 
   testGetHeader: function () {
-    assertEqual(items(db.getHeader('User')).sort(),
-                 [['age', 'number'],
-                  ['flooder', 'bool'],
-                  ['id', 'serial'],
-                  ['name', 'string']]);
+    assertEqual(
+      items(db.getHeader('User')),
+      [
+        ['id', 'serial'],
+        ['name', 'string'],
+        ['age', 'number'],
+        ['flooder', 'bool']
+      ]);
+    assertEqual(
+      items(db.getHeader('Post')),
+      [
+        ['id', 'serial'],
+        ['title', 'string'],
+        ['text', 'string'],
+        ['author', 'int']
+      ]);
   },
 
   testBy: function () {
@@ -969,24 +982,6 @@ var dbTestSuite = {
     db.drop(['def']);
   },
 
-  testIntegerSerial: function () {
-    assertThrow(UsageError, "number._serial()._default(42)");
-    assertThrow(UsageError, "number._default(42)._serial()");
-    assertThrow(UsageError, "number._serial()._integer()");
-    assertThrow(UsageError, "number._serial()._serial()");
-    assertThrow(UsageError, "number._integer()._integer()");
-    assertEqual(db.getInteger('Comment').sort(), ['author', 'id', 'post']);
-    create('rv',
-           {
-             x: number._serial(),
-             y: number._serial(),
-             z: number._integer()
-           });
-    assertEqual(db.getInteger('rv').sort(), ['x', 'y', 'z']);
-    assertEqual(db.getSerial('rv').sort(), ['x', 'y']);
-    db.drop(['rv']);
-  },
-
   testUnique: function () {
     create('rv',
            {a: number, b: string, c: bool},
@@ -1000,9 +995,9 @@ var dbTestSuite = {
     create('rv',
            {
              title: string,
-             author: number._integer(),
-             id: number._serial(),
-             ref: number._integer()
+             author: int,
+             id: serial,
+             ref: int
            },
            {
              foreign: [
@@ -1042,8 +1037,8 @@ var dbTestSuite = {
     assertThrow(ValueError, "db.addAttrs('X', {x: []})");
     assertThrow(TypeError, "db.addAttrs('X', {x: [1, 2]})");
     assertThrow(NotImplementedError,
-                "db.addAttrs('X', {id: [number._serial(), 0]})");
-    create('X', {id: number._serial()});
+                "db.addAttrs('X', {id: [serial, 0]})");
+    create('X', {id: serial});
     db.insert('X', {});
     db.insert('X', {});
     var d = new Date();
@@ -1052,7 +1047,7 @@ var dbTestSuite = {
       'X',
       {
         n: [number, 4.2],
-        i: [number._integer(), 0.1],
+        i: [int, 0.1],
         s: [string, 'yo'],
         d: [date, d]
       });

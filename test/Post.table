@@ -1,9 +1,7 @@
 id      title   text    author
-number  string  string  number
+serial  string  string  int
 
 unique id
 fk author - User - id
 unique title author
-serial id
-int author
 ---

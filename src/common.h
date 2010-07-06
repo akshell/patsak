@@ -76,6 +76,8 @@ namespace ak
     public:
         enum Tag {
             NUMBER,
+            INT,
+            SERIAL,
             STRING,
             BOOL,
             DATE,
@@ -83,21 +85,16 @@ namespace ak
             DUMMY
         };
 
-        enum Trait {
-            COMMON,
-            INTEGER,
-            SERIAL
-        };
-
-        static bool TraitsAreCompatible(Trait lhs, Trait rhs);
-
         Type(Tag tag) : tag_(tag) {} // implicit
         Type()        : tag_(DUMMY) {}
         Type(const std::string& pg_name);
-        bool IsApplicable(Trait trait) const;
-        std::string GetPgName(Trait trait = COMMON) const;
-        std::string GetName(Trait trait = COMMON) const;
-        std::string GetCastFunc() const;
+        std::string GetPgName() const;
+        std::string GetName() const;
+        std::string GetCastFunc(Type from) const;
+
+        bool IsNumeric() const {
+            return tag_ == NUMBER || tag_ == INT || tag_ == SERIAL;
+        }
 
         bool operator<(Type other) const {
             return tag_ < other.tag_;

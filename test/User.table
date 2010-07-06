@@ -1,12 +1,10 @@
 id      name    age     flooder  reg_date
-number  string  number  bool     date
+serial  string  number  bool     date
 
 unique id
 unique name
 default flooder false
 default age 15
 default reg_date 2009-03-06 13:40:52.458
-serial id
-int age
 ---
 0       Petya   11      true 2009-01-01 11:11:11.11

@@ -60,13 +60,10 @@ namespace boost
 
 RichAttr::RichAttr(const string& name,
                    Type type,
-                   Type::Trait trait,
                    const Value* default_ptr)
     : attr_(name, type)
-    , trait_(trait)
 {
-    AK_ASSERT(GetType().IsApplicable(trait_));
-    AK_ASSERT(!(trait_ == Type::SERIAL && default_ptr));
+    AK_ASSERT(!(type == Type::SERIAL && default_ptr));
     SetDefaultPtr(default_ptr);
 }
 
@@ -89,12 +86,6 @@ Type RichAttr::GetType() const
 }
 
 
-Type::Trait RichAttr::GetTrait() const
-{
-    return trait_;
-}
-
-
 const Value* RichAttr::GetDefaultPtr() const
 {
     return default_ptr_.get();
@@ -103,12 +94,7 @@ const Value* RichAttr::GetDefaultPtr() const
 
 void RichAttr::SetDefaultPtr(const Value* default_ptr)
 {
-    if (default_ptr) {
-        AK_ASSERT(default_ptr->GetType() == GetType());
-        default_ptr_.reset(new Value(*default_ptr));
-    } else {
-        default_ptr_.reset();
-    }
+    default_ptr_.reset(default_ptr ? new Value(*default_ptr) : 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,23 +205,17 @@ RelVar::RelVar(const string& name)
         AK_ASSERT(!tuple[0].is_null() && ! tuple[1].is_null());
         string name(tuple[0].c_str());
         Type type(tuple[1].c_str());
-        Type::Trait trait = Type::COMMON;
         auto_ptr<Value> default_ptr;
-        if (string(tuple[1].c_str()) == "int4") {
-            AK_ASSERT(type == Type::NUMBER);
-            trait = Type::INTEGER;
-        }
         if (!tuple[2].is_null()) {
             string default_str(tuple[2].c_str());
             if (default_str.substr(0, 8) == "nextval(") {
-                AK_ASSERT(type == Type::NUMBER);
-                AK_ASSERT(trait == Type::INTEGER);
-                trait = Type::SERIAL;
+                AK_ASSERT(type == Type::INT);
+                type = Type::SERIAL;
             } else {
                 default_ptr.reset(new Value(type, default_str));
             }
         }
-        rich_header_.add_sure(RichAttr(name, type, trait, default_ptr.get()));
+        rich_header_.add_sure(RichAttr(name, type, default_ptr.get()));
     }
     InitHeader();
 }
@@ -270,7 +250,7 @@ RelVar::RelVar(const Meta& meta,
     static const format create_sequence_cmd(
         "CREATE SEQUENCE \"%1%@%2%\" MINVALUE 0 START 0;");
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-        if (rich_attr.GetTrait() == Type::SERIAL)
+        if (rich_attr.GetType() == Type::SERIAL)
             oss << (format(create_sequence_cmd) % name % rich_attr.GetName());
 
     oss << "CREATE TABLE \"" << name << "\" (";
@@ -279,12 +259,11 @@ RelVar::RelVar(const Meta& meta,
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
         print_sep();
         oss << Quoted(rich_attr.GetName()) << ' '
-            << rich_attr.GetType().GetPgName(rich_attr.GetTrait())
-            << " NOT NULL";
+            << rich_attr.GetType().GetPgName() << " NOT NULL";
         const Value* default_ptr(rich_attr.GetDefaultPtr());
         if (default_ptr)
             oss << " DEFAULT " << default_ptr->GetPgLiter();
-        else if (rich_attr.GetTrait() == Type::SERIAL)
+        else if (rich_attr.GetType() == Type::SERIAL)
             oss << " DEFAULT nextval('\""
                 << name << '@' << rich_attr.GetName()
                 << "\"')";
@@ -310,7 +289,7 @@ RelVar::RelVar(const Meta& meta,
     static const format alter_sequence_cmd(
         "ALTER SEQUENCE \"%1%@%2%\" OWNED BY \"%1%\".\"%2%\";");
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-        if (rich_attr.GetTrait() == Type::SERIAL)
+        if (rich_attr.GetType() == Type::SERIAL)
             oss << (format(alter_sequence_cmd) % name % rich_attr.GetName());
 
     Exec(oss.str());
@@ -447,19 +426,18 @@ void RelVar::PrintForeignKey(ostream& os,
         RichAttr ref_rich_attr(ref_rich_header.find(ref_attr_name));
         Type key_attr_type(key_rich_attr.GetType());
         Type ref_attr_type(ref_rich_attr.GetType());
-        Type::Trait key_attr_trait(key_rich_attr.GetTrait());
-        Type::Trait ref_attr_trait(ref_rich_attr.GetTrait());
-        if (key_attr_type != ref_attr_type ||
-            !Type::TraitsAreCompatible(key_attr_trait, ref_attr_trait))
+        if (key_attr_type != ref_attr_type &&
+            !((key_attr_type == Type::INT && ref_attr_type == Type::SERIAL) ||
+              (ref_attr_type == Type::INT && key_attr_type == Type::SERIAL)))
             throw Error(Error::USAGE,
                         ("Foreign key attribite type mismatch: \"" +
                          name_ + '.' +
                          key_attr_name + "\" is " +
-                         key_attr_type.GetName(key_attr_trait) +
+                         key_attr_type.GetName() +
                          ", \"" +
                          foreign_key.ref_rel_var_name + '.' +
                          ref_attr_name + "\" is " +
-                         ref_attr_type.GetName(ref_attr_trait)));
+                         ref_attr_type.GetName()));
     }
     bool unique_found = false;
     BOOST_FOREACH(const StringSet& unique_key,
@@ -540,7 +518,7 @@ void RelVar::AddAttrs(const RichHeader& rich_attrs)
                             "Attribute \"" + attr_name + "\" already exists");
         print_sep();
         oss << "ADD " << Quoted(attr_name) << ' '
-            << rich_attr.GetType().GetPgName(rich_attr.GetTrait());
+            << rich_attr.GetType().GetPgName();
     }
     oss << "; UPDATE " << Quoted(name_) << " SET ";
     print_sep = OmitInvoker(SepPrinter(oss));
@@ -569,9 +547,8 @@ void RelVar::AddAttrs(const RichHeader& rich_attrs)
     }
     Exec(oss.str());
     BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
-        rich_header_.add_sure(RichAttr(rich_attr.GetName(),
-                                       rich_attr.GetType(),
-                                       rich_attr.GetTrait()));
+        rich_header_.add_sure(
+            RichAttr(rich_attr.GetName(), rich_attr.GetType()));
         header_.add_sure(rich_attr.GetAttr());
     }
     if (!unique_key.empty())
@@ -1243,7 +1220,7 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
                 DraftMap::const_iterator itr(
                     draft_map.find(rich_attr.GetName()));
                 if (itr == draft_map.end()) {
-                    if (rich_attr.GetTrait() != Type::SERIAL &&
+                    if (rich_attr.GetType() != Type::SERIAL &&
                         !rich_attr.GetDefaultPtr())
                         throw Error(Error::ATTR_VALUE_REQUIRED,
                                     ("Value of attribute \"" +
