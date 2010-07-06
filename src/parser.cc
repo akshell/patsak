@@ -7,6 +7,7 @@
 #include <boost/spirit/include/classic.hpp>
 #include <boost/spirit/include/phoenix1.hpp>
 #include <boost/foreach.hpp>
+#include <boost/optional.hpp>
 
 
 using namespace std;
@@ -101,6 +102,20 @@ void Lookuper::Reset()
 
 namespace
 {
+    template <typename T>
+    class Wrapper {
+    public:
+        Wrapper(const T& value) : optional_(value) {}
+        Wrapper() {}
+        const T& Get() const { return optional_.get(); }
+        operator const T&() const { return Get(); }
+        Wrapper& operator=(const T& value) { optional_ = value; return *this; }
+
+    private:
+        boost::optional<T> optional_;
+    };
+
+
     // Lazy function struct for addition of unique values to orset
     struct CheckedAdd {
         template <typename ContT, typename ItemT>
