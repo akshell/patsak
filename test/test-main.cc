@@ -943,9 +943,11 @@ BOOST_AUTO_TEST_CASE(translator_test)
     BOOST_CHECK_EQUAL(
         TranslateQuery(header, "{name: $1, age: $2}", params),
         "SELECT DISTINCT 'anton' AS \"name\", 23 AS \"age\"");
-    BOOST_CHECK_EQUAL(
-        lexical_cast<string>(header),
-        "{\"name\": \"string\", \"age\": \"number\"}");
+    BOOST_CHECK_EQUAL(header.size(), 2);
+    BOOST_CHECK_EQUAL(header[0].GetName(), "name");
+    BOOST_CHECK(header[0].GetType() == Type::STRING);
+    BOOST_CHECK_EQUAL(header[1].GetName(), "age");
+    BOOST_CHECK(header[1].GetType() == Type::NUMBER);
 
     Strings by_exprs;
     by_exprs.push_back("id % $1");

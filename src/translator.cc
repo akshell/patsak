@@ -835,12 +835,7 @@ Header RelTranslator::operator()(const Union& un) const
     control_ << " UNION ";
     Header right_header = control_.TranslateRel(un.right);
     if (left_header != right_header)
-        throw Error(Error::QUERY,
-                    ("Union headers " +
-                     lexical_cast<string>(left_header) +
-                     " and " +
-                     lexical_cast<string>(right_header) +
-                     " does not match"));
+        throw Error(Error::QUERY, "Union headers don't match");
     return left_header;
 }
 
