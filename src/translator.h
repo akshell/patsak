@@ -9,6 +9,31 @@
 
 namespace ak
 {
+    class Separator {
+    public:
+        Separator(const std::string& value = ", ")
+            : value_(value), fresh_(true) {}
+
+        void Print(std::ostream& os) {
+            if (fresh_)
+                fresh_ = false;
+            else
+                os << value_;
+        }
+
+    private:
+        std::string value_;
+        bool fresh_;
+    };
+
+
+    inline std::ostream& operator<<(std::ostream& os, Separator& sep)
+    {
+        sep.Print(os);
+        return os;
+    }
+
+
     std::string TranslateQuery(Header& header,
                                const std::string& query,
                                const Drafts& query_params = Drafts(),

@@ -3,7 +3,6 @@
 
 #include "translator.h"
 #include "parser.h"
-#include "utils.h"
 
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
@@ -99,8 +98,8 @@ namespace
 
         Type PrintParam(size_t pos, Type needed_type = Type::DUMMY);
 
-        operator ostream&() const;
         template <typename T> Control& operator<<(const T& t);
+        template <typename T> Control& operator<<(T& t);
 
     private:
         typedef vector<BindData> BindStack;
@@ -209,17 +208,20 @@ Type Control::PrintParam(size_t pos, Type needed_type)
 }
 
 
-Control::operator ostream&() const
+template <typename T>
+Control& Control::operator<<(const T& t)
 {
     AK_ASSERT(os_ptr_);
-    return *os_ptr_;
+    *os_ptr_ << t;
+    return *this;
 }
 
 
 template <typename T>
-Control& Control::operator<<(const T& t)
+Control& Control::operator<<(T& t)
 {
-    static_cast<ostream&>(*this) << t;
+    AK_ASSERT(os_ptr_);
+    *os_ptr_ << t;
     return *this;
 }
 
@@ -416,10 +418,10 @@ void ProtoTranslator::operator()(const RangeVar& rv)
 void ProtoTranslator::operator()(const MultiField& multi_field)
 {
     AK_ASSERT(!multi_field.rv.GetName().empty());
-    OmitInvoker print_sep((SepPrinter(control_)));
+    Separator sep;
     if (multi_field.IsForeign()) {
         BOOST_FOREACH(const string& field_name, multi_field.path.back()) {
-            print_sep();
+            control_ << sep;
             MultiField::Path unipath(multi_field.path.begin(),
                                      multi_field.path.end() - 1);
             StringSet unipath_tail;
@@ -431,8 +433,7 @@ void ProtoTranslator::operator()(const MultiField& multi_field)
     } else {
         const Header& rv_header(control_.LookupBind(multi_field.rv));
         BOOST_FOREACH(const string& field_name, multi_field.path.back()) {
-            print_sep();
-            control_ << '"' << multi_field.rv.GetName()
+            control_ << sep << '"' << multi_field.rv.GetName()
                      << "\".\"" << field_name << '"';
             AddAttr(Attr(field_name, rv_header.find(field_name).GetType()));
         }
@@ -508,9 +509,9 @@ Control::BindData SelectBuilder::BuildFrom(const RangeVarSet& rvs) const
     Control::BindData bind_data;
     bind_data.reserve(rvs.size());
     control_ << " FROM ";
-    OmitInvoker print_sep((SepPrinter(control_)));
+    Separator sep;
     BOOST_FOREACH(const RangeVar& rv, rvs) {
-        print_sep();
+        control_ << sep;
         const Base* base_ptr = boost::get<Base>(&rv.GetRel());
         if (!base_ptr)
             control_ << '(';
@@ -528,9 +529,9 @@ Control::BindData SelectBuilder::BuildFrom(const RangeVarSet& rvs) const
 Header SelectBuilder::BuildHeader(const Select::Protos& protos) const
 {
     ProtoTranslator proto_translator(control_);
-    OmitInvoker print_sep((SepPrinter(control_)));
+    Separator sep;
     BOOST_FOREACH(const Proto& proto, protos) {
-        print_sep();
+        control_ << sep;
         apply_visitor(proto_translator, proto);
     }
     return proto_translator.GetResult();
@@ -571,7 +572,7 @@ namespace
         const MultiField& multi_field_;
         const RangeVar* this_rv_ptr_;
         ostringstream from_oss_, where_oss_;
-        OmitInvoker print_from_sep_, print_where_sep_;
+        Separator from_sep_, where_sep_;
 
         string GetFieldName() const;
         const RangeVar& GetRangeVar() const;
@@ -589,8 +590,7 @@ FieldTranslator::FieldTranslator(Control& control,
     : control_(control)
     , multi_field_(multi_field)
     , this_rv_ptr_(this_rv_ptr)
-    , print_from_sep_(SepPrinter(from_oss_))
-    , print_where_sep_(SepPrinter(where_oss_, " AND "))
+    , where_sep_(" AND ")
 {
     if (multi_field_.IsMulti())
         throw Error(Error::QUERY, "Multifield used as an expression");
@@ -666,14 +666,12 @@ string FieldTranslator::FollowReference(const string& key_rel_var_name,
                         ref_rel_var_name, ref_attr_names);
     AK_ASSERT_EQUAL(ref_attr_names.size(), key_attr_names.size());
 
-    print_from_sep_();
-    from_oss_ << '"' << ref_rel_var_name << '"';
-    for (size_t i = 0; i < key_attr_names.size(); ++i) {
-        print_where_sep_();
-        where_oss_ << '"' << key_rel_var_name << "\".\"" << key_attr_names[i]
+    from_oss_ << from_sep_ << '"' << ref_rel_var_name << '"';
+    for (size_t i = 0; i < key_attr_names.size(); ++i)
+        where_oss_ << where_sep_
+                   << '"' << key_rel_var_name << "\".\"" << key_attr_names[i]
                    << "\" = \""
                    << ref_rel_var_name << "\".\"" << ref_attr_names[i] << '"';
-    }
 
     return ref_rel_var_name;
 }
@@ -900,11 +898,10 @@ string ak::TranslateQuery(Header& header,
     oss << DoTranslateQuery(query, query_params, &header);
     if (!by_exprs.empty()) {
         oss << ") AS \"" << THIS_NAME << "\" ORDER BY ";
-        OmitInvoker print_sep((SepPrinter(oss)));
-        BOOST_FOREACH(const string& by_expr, by_exprs) {
-            print_sep();
-            oss << DoTranslateExpr(THIS_NAME, header, by_expr, by_params);
-        }
+        Separator sep;
+        BOOST_FOREACH(const string& by_expr, by_exprs)
+            oss << sep
+                << DoTranslateExpr(THIS_NAME, header, by_expr, by_params);
     }
     if (length != MINUS_ONE)
         oss << " LIMIT " << length;
@@ -933,16 +930,14 @@ string ak::TranslateUpdate(const string& rel_var_name,
     ostringstream oss;
     oss << "UPDATE \"" << rel_var_name << "\" SET ";
     const Header& header(get_header_cb(rel_var_name));
-    OmitInvoker print_sep((SepPrinter(oss)));
-    BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map) {
-        print_sep();
-        oss << '"' << named_expr.first << "\" = ";
-        oss << DoTranslateExpr(rel_var_name,
+    Separator sep;
+    BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map)
+        oss << sep << '"' << named_expr.first << "\" = "
+            << DoTranslateExpr(rel_var_name,
                                header,
                                named_expr.second,
                                update_params,
                                header.find(named_expr.first).GetType());
-    }
     oss << " WHERE " << DoTranslateExpr(rel_var_name,
                                         header,
                                         where,

@@ -2,7 +2,6 @@
 // (c) 2008-2010 by Anton Korenyushkin
 
 #include "parser.h"
-#include "utils.h"
 
 #include <boost/spirit/include/classic.hpp>
 #include <boost/spirit/include/phoenix1.hpp>

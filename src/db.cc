@@ -3,7 +3,6 @@
 
 #include "db.h"
 #include "translator.h"
-#include "utils.h"
 
 #include <pqxx/pqxx>
 #include <boost/format.hpp>
@@ -254,11 +253,10 @@ RelVar::RelVar(const Meta& meta,
             oss << (format(create_sequence_cmd) % name % rich_attr.GetName());
 
     oss << "CREATE TABLE \"" << name << "\" (";
-    OmitInvoker print_sep((SepPrinter(oss)));
+    Separator sep;
 
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
-        print_sep();
-        oss << '"' << rich_attr.GetName() << "\" "
+        oss << sep << '"' << rich_attr.GetName() << "\" "
             << rich_attr.GetType().GetPgName() << " NOT NULL";
         const Value* default_ptr(rich_attr.GetDefaultPtr());
         if (default_ptr)
@@ -270,17 +268,17 @@ RelVar::RelVar(const Meta& meta,
     }
 
     BOOST_FOREACH(const StringSet& unique_key, unique_key_set_) {
-        print_sep();
+        oss << sep;
         PrintUniqueKey(oss, unique_key);
     }
 
     BOOST_FOREACH(const ForeignKey& foreign_key, foreign_key_set) {
-        print_sep();
+        oss << sep;
         PrintForeignKey(oss, meta, foreign_key);
     }
 
     BOOST_FOREACH(const string& check, checks) {
-        print_sep();
+        oss << sep;
         PrintCheck(oss, check);
     }
 
@@ -365,12 +363,10 @@ void RelVar::CheckAttrNumber(size_t number)
 
 
 void RelVar::PrintAttrNames(ostream& os, const StringSet& names) {
-    OmitInvoker print_sep((SepPrinter(os)));
+    Separator sep;
     os << '(';
-    BOOST_FOREACH(const string& name, names) {
-        print_sep();
-        os << '"' << name << '"';
-    }
+    BOOST_FOREACH(const string& name, names)
+        os << sep << '"' << name << '"';
     os << ')';
 }
 
@@ -508,7 +504,7 @@ void RelVar::AddAttrs(const RichHeader& rich_attrs)
     CheckAttrNumber(rich_header_.size() + rich_attrs.size());
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
-    OmitInvoker print_sep((SepPrinter(oss)));
+    Separator sep;
     BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
         string attr_name(rich_attr.GetName());
         CheckName(attr_name);
@@ -516,32 +512,26 @@ void RelVar::AddAttrs(const RichHeader& rich_attrs)
             if (old_rich_attr.GetName() == attr_name)
                 throw Error(Error::ATTR_EXISTS,
                             "Attribute \"" + attr_name + "\" already exists");
-        print_sep();
-        oss << "ADD \"" << attr_name << "\" "
+        oss << sep << "ADD \"" << attr_name << "\" "
             << rich_attr.GetType().GetPgName();
     }
     oss << "; UPDATE \"" << name_ << "\" SET ";
-    print_sep = OmitInvoker(SepPrinter(oss));
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
-        print_sep();
-        oss << '"' << rich_attr.GetName() << "\" = "
+    sep = Separator();
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs)
+        oss << sep << '"' << rich_attr.GetName() << "\" = "
             << rich_attr.GetDefaultPtr()->GetPgLiter();
-    }
     oss << "; ALTER TABLE \"" << name_ << "\" ";
-    print_sep = OmitInvoker(SepPrinter(oss));
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
-        print_sep();
-        oss << "ALTER \"" << rich_attr.GetName() << "\" SET NOT NULL";
-    }
+    sep = Separator();
+    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs)
+        oss << sep << "ALTER \"" << rich_attr.GetName() << "\" SET NOT NULL";
     StringSet unique_key;
     if (rich_header_.empty()) {
         oss << ", ADD UNIQUE (";
-        OmitInvoker print_sep((SepPrinter(oss)));
+        Separator sep;
         BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
             string attr_name(rich_attr.GetName());
             unique_key.add_sure(attr_name);
-            print_sep();
-            oss << '"' << attr_name << '"';
+            oss << sep <<'"' << attr_name << '"';
         }
         oss << ')';
     }
@@ -588,20 +578,17 @@ void RelVar::DropAttrs(const StringSet& attr_names)
             "Attribute \"" + remaining_attr_names[0] + "\" does not exist");
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
-    OmitInvoker print_sep((SepPrinter(oss)));
-    BOOST_FOREACH(const string& attr_name, attr_names) {
-        print_sep();
-        oss << "DROP \"" << attr_name << '"';
-    }
+    Separator sep;
+    BOOST_FOREACH(const string& attr_name, attr_names)
+        oss << sep << "DROP \"" << attr_name << '"';
     if (new_unique_key_set.empty() && !new_rich_header.empty()) {
         oss << ", ADD UNIQUE (";
         StringSet unique_key;
-        OmitInvoker print_sep((SepPrinter(oss)));
+        Separator sep;
         BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_header) {
             string new_attr_name(new_rich_attr.GetName());
             unique_key.add_sure(new_attr_name);
-            print_sep();
-            oss << '"' << new_attr_name << '"';
+            oss << sep << '"' << new_attr_name << '"';
         }
         new_unique_key_set.add_sure(unique_key);
         oss << ')';
@@ -632,13 +619,12 @@ void RelVar::AddDefault(const DraftMap& draft_map)
     RichHeader new_rich_header(rich_header_);
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
-    OmitInvoker print_sep((SepPrinter(oss)));
+    Separator sep;
     BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map) {
         RichAttr& new_rich_attr(new_rich_header.find(named_draft.first));
         const Value& value(named_draft.second.Get(new_rich_attr.GetType()));
         new_rich_attr.SetDefaultPtr(&value);
-        print_sep();
-        oss << "ALTER \"" << named_draft.first
+        oss << sep << "ALTER \"" << named_draft.first
             << "\" SET DEFAULT " <<  value.GetPgLiter();
     }
     Exec(oss.str());
@@ -654,15 +640,14 @@ void RelVar::DropDefault(const StringSet& attr_names)
     rich_attr_ptrs.reserve(attr_names.size());
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
-    OmitInvoker print_sep((SepPrinter(oss)));
+    Separator sep;
     BOOST_FOREACH(const string& attr_name, attr_names) {
         RichAttr& rich_attr(rich_header_.find(attr_name));
         if (!rich_attr.GetDefaultPtr())
             throw Error(Error::DB,
                         "Attribute \"" + attr_name + "\" has no default value");
         rich_attr_ptrs.push_back(&rich_attr);
-        print_sep();
-        oss << "ALTER \"" << attr_name << "\" DROP DEFAULT";
+        oss << sep << "ALTER \"" << attr_name << "\" DROP DEFAULT";
     }
     Exec(oss.str());
     BOOST_FOREACH(RichAttr* rich_attr_ptr, rich_attr_ptrs)
@@ -679,20 +664,17 @@ void RelVar::AddConstrs(const Meta& meta,
         return;
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
-    OmitInvoker print_sep((SepPrinter(oss)));
+    Separator sep;
     BOOST_FOREACH(const StringSet& unique_key, unique_key_set) {
-        print_sep();
-        oss << "ADD ";
+        oss << sep << "ADD ";
         PrintUniqueKey(oss, unique_key);
     }
     BOOST_FOREACH(const ForeignKey& foreign_key, foreign_key_set) {
-        print_sep();
-        oss << "ADD ";
+        oss << sep << "ADD ";
         PrintForeignKey(oss, meta, foreign_key);
     }
     BOOST_FOREACH(const string& check, checks) {
-        print_sep();
-        oss << "ADD ";
+        oss << sep << "ADD ";
         PrintCheck(oss, check);
     }
     try {
@@ -722,12 +704,11 @@ void RelVar::DropAllConstrs()
     oss << "SELECT ak.drop_all_constrs('" << name_ << "'); "
         << "ALTER TABLE \"" << name_ << "\" ADD UNIQUE (";
     StringSet unique_key;
-    OmitInvoker print_sep((SepPrinter(oss)));
+    Separator sep;
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header_) {
         string attr_name(rich_attr.GetName());
         unique_key.add_sure(attr_name);
-        print_sep();
-        oss << '"' << attr_name << '"';
+        oss << sep << '"' << attr_name << '"';
     }
     oss << ')';
     try {
@@ -835,11 +816,9 @@ void Meta::Drop(const StringSet& rel_var_names)
                      rel_var_names[index_itr - indexes.begin()] + '"'));
     ostringstream oss;
     oss << "DROP TABLE ";
-    OmitInvoker print_sep((SepPrinter(oss)));
-    BOOST_FOREACH(const string& rel_var_name, rel_var_names) {
-        print_sep();
-        oss << '"' << rel_var_name << '"';
-    }
+    Separator sep;
+    BOOST_FOREACH(const string& rel_var_name, rel_var_names)
+        oss << sep << '"' << rel_var_name << '"';
     oss << " CASCADE";
     Exec(oss.str());
     sort(indexes.begin(), indexes.end());
@@ -1214,8 +1193,7 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
             BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map)
                 rich_header.find(named_draft.first);
             ostringstream names_oss, values_oss;
-            OmitInvoker print_names_sep((SepPrinter(names_oss)));
-            OmitInvoker print_values_sep((SepPrinter(values_oss)));
+            Separator names_sep, values_sep;
             BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
                 DraftMap::const_iterator itr(
                     draft_map.find(rich_attr.GetName()));
@@ -1227,11 +1205,9 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
                                      rich_attr.GetName() +
                                      "\" must be supplied"));
                 } else {
-                    print_names_sep();
-                    names_oss << '"' << rich_attr.GetName() << '"';
-                    print_values_sep();
+                    names_oss << names_sep << '"' << rich_attr.GetName() << '"';
                     Value value(itr->second.Get(rich_attr.GetType()));
-                    values_oss << value.GetPgLiter();
+                    values_oss << values_sep << value.GetPgLiter();
                 }
             }
             sql = (format(cmd)

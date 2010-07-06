@@ -1,8 +1,7 @@
 
 // (c) 2008-2010 by Anton Korenyushkin
 
-#include "error.h"
-#include "utils.h"
+#include "common.h"
 
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
