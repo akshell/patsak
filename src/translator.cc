@@ -409,7 +409,7 @@ void ProtoTranslator::operator()(const RangeVar& rv)
     BOOST_FOREACH(const Attr& attr, rv_header)
         AddAttr(attr);
 
-    control_ << Quoted(rv.GetName()) << ".*";
+    control_ << '"' << rv.GetName() << "\".*";
 }
 
 
@@ -432,10 +432,8 @@ void ProtoTranslator::operator()(const MultiField& multi_field)
         const Header& rv_header(control_.LookupBind(multi_field.rv));
         BOOST_FOREACH(const string& field_name, multi_field.path.back()) {
             print_sep();
-            control_ << Quoted(multi_field.rv.GetName())
-                     << '.'
-                     << Quoted(field_name);
-
+            control_ << '"' << multi_field.rv.GetName()
+                     << "\".\"" << field_name << '"';
             AddAttr(Attr(field_name, rv_header.find(field_name).GetType()));
         }
     }
@@ -445,7 +443,7 @@ void ProtoTranslator::operator()(const MultiField& multi_field)
 void ProtoTranslator::operator()(const NamedExpr& ne)
 {
     Type type = control_.TranslateExpr(ne.expr, 0);
-    control_ << " AS " << Quoted(ne.name);
+    control_ << " AS \"" << ne.name << '"';
     AddAttr(Attr(ne.name, type));
 }
 
@@ -521,7 +519,7 @@ Control::BindData SelectBuilder::BuildFrom(const RangeVarSet& rvs) const
         if (base_ptr)
             AK_ASSERT_EQUAL(base_ptr->name, rv.GetName());
         else
-            control_ << ") AS " << Quoted(rv.GetName());
+            control_ << ") AS \"" << rv.GetName() << '"';
     }
     return bind_data;
 }
@@ -638,9 +636,9 @@ Type FieldTranslator::TranslateForeignField()
          itr != multi_field_.path.end() - 1;
          ++itr)
         curr_rel_var_name = FollowReference(curr_rel_var_name, *itr);
-    control_ << "(SELECT "
-             << Quoted(curr_rel_var_name) << '.' << Quoted(GetFieldName())
-             << " FROM " << from_oss_.str()
+    control_ << "(SELECT \""
+             << curr_rel_var_name << "\".\"" << GetFieldName()
+             << "\" FROM " << from_oss_.str()
              << " WHERE " << where_oss_.str()
              << ')';
     return get_header_cb(curr_rel_var_name).find(GetFieldName()).GetType();
@@ -649,9 +647,8 @@ Type FieldTranslator::TranslateForeignField()
 
 Type FieldTranslator::TranslateSelfField() const
 {
-    control_ << Quoted(GetRangeVar().GetName())
-             << '.'
-             << Quoted(GetFieldName());
+    control_ << '"' << GetRangeVar().GetName()
+             << "\".\"" << GetFieldName() << '"';
     return control_.LookupBind(GetRangeVar()).find(GetFieldName()).GetType();
 }
 
@@ -670,13 +667,12 @@ string FieldTranslator::FollowReference(const string& key_rel_var_name,
     AK_ASSERT_EQUAL(ref_attr_names.size(), key_attr_names.size());
 
     print_from_sep_();
-    from_oss_ << Quoted(ref_rel_var_name);
+    from_oss_ << '"' << ref_rel_var_name << '"';
     for (size_t i = 0; i < key_attr_names.size(); ++i) {
         print_where_sep_();
-        where_oss_
-            << Quoted(key_rel_var_name) << '.' << Quoted(key_attr_names[i])
-            << " = "
-            << Quoted(ref_rel_var_name) << '.' << Quoted(ref_attr_names[i]);
+        where_oss_ << '"' << key_rel_var_name << "\".\"" << key_attr_names[i]
+                   << "\" = \""
+                   << ref_rel_var_name << "\".\"" << ref_attr_names[i] << '"';
     }
 
     return ref_rel_var_name;
@@ -793,7 +789,7 @@ Type ExprTranslator::operator()(const Cond& cond) const
 
 Header RelTranslator::operator()(const Base& base) const
 {
-    control_ << Quoted(base.name);
+    control_ << '"' << base.name << '"';
     return get_header_cb(base.name);
 }
 
@@ -903,7 +899,7 @@ string ak::TranslateQuery(Header& header,
         oss << "SELECT * FROM (";
     oss << DoTranslateQuery(query, query_params, &header);
     if (!by_exprs.empty()) {
-        oss << ") AS " << Quoted(THIS_NAME) << " ORDER BY ";
+        oss << ") AS \"" << THIS_NAME << "\" ORDER BY ";
         OmitInvoker print_sep((SepPrinter(oss)));
         BOOST_FOREACH(const string& by_expr, by_exprs) {
             print_sep();
@@ -922,7 +918,7 @@ string ak::TranslateCount(const string& query_str, const Drafts& params)
 {
     return ("SELECT COUNT(*) FROM (" +
             DoTranslateQuery(query_str, params) +
-            ") AS " + Quoted(THIS_NAME));
+            ") AS \"" + THIS_NAME + '"');
 }
 
 
@@ -935,12 +931,12 @@ string ak::TranslateUpdate(const string& rel_var_name,
     if (expr_map.empty())
         throw Error(Error::VALUE, "Empty update field set");
     ostringstream oss;
-    oss << "UPDATE " << Quoted(rel_var_name) << " SET ";
+    oss << "UPDATE \"" << rel_var_name << "\" SET ";
     const Header& header(get_header_cb(rel_var_name));
     OmitInvoker print_sep((SepPrinter(oss)));
     BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map) {
         print_sep();
-        oss << Quoted(named_expr.first) << " = ";
+        oss << '"' << named_expr.first << "\" = ";
         oss << DoTranslateExpr(rel_var_name,
                                header,
                                named_expr.second,
@@ -960,9 +956,7 @@ string ak::TranslateDelete(const string& rel_var_name,
                            const string& where,
                            const Drafts& params)
 {
-    return ("DELETE FROM " +
-            Quoted(rel_var_name) +
-            " WHERE " +
+    return ("DELETE FROM \"" + rel_var_name + "\" WHERE " +
             DoTranslateExpr(rel_var_name,
                             get_header_cb(rel_var_name),
                             where,

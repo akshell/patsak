@@ -46,11 +46,6 @@ namespace ak
         std::ostream& os_;
         std::string sep_;
     };
-
-
-    inline std::string Quoted(const std::string& str) {
-        return '"' + str + '"';
-    }
 }
 
 #endif // UTILS_H
