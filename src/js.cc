@@ -23,7 +23,7 @@ using namespace v8;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Constants
+// API
 ////////////////////////////////////////////////////////////////////////////////
 
 // File generated from init.js script by xxd -i, INIT_JS is defined here
@@ -35,14 +35,20 @@ namespace
     const int MAX_YOUNG_SPACE_SIZE =  2 * 1024 * 1024;
     const int MAX_OLD_SPACE_SIZE   = 32 * 1024 * 1024;
     const int STACK_LIMIT          =  2 * 1024 * 1024;
-}
 
-////////////////////////////////////////////////////////////////////////////////
-// Utils
-////////////////////////////////////////////////////////////////////////////////
+    bool initialized = false;
+    Persistent<Context> context;
+    jmp_buf environment;
 
-namespace
-{
+
+    void HandleFatalError(const char* location, const char* message)
+    {
+        if (string(message) != "Allocation failed - process out of memory")
+            Fail(string("Fatal error in ") + location + ": " + message);
+        longjmp(environment, 1);
+    }
+
+
     // Uses the address of a local variable to determine the stack top now.
     // Given a size, returns an address that is that far from the current
     // top of stack.
@@ -55,17 +61,6 @@ namespace
         // a very low address.
         if (answer > &size) return reinterpret_cast<uint32_t*>(sizeof(size));
         return answer;
-    }
-
-
-    jmp_buf environment;
-
-
-    void HandleFatalError(const char* location, const char* message)
-    {
-        if (string(message) != "Allocation failed - process out of memory")
-            Fail(string("Fatal error in ") + location + ": " + message);
-        longjmp(environment, 1);
     }
 
 
@@ -87,46 +82,120 @@ namespace
     {
         Write(fd, str.c_str(), str.size());
     }
-}
 
-////////////////////////////////////////////////////////////////////////////////
-// Program::Impl
-////////////////////////////////////////////////////////////////////////////////
 
-class Program::Impl {
-public:
-    Impl(const string& code_path,
-         const string& media_path,
-         const string& git_path_prefix,
-         const string& git_path_suffix);
-
-    ~Impl();
-
-    void Process(int sock_fd);
-    void Eval(const Chars& expr, int out_fd);
-    bool IsDead() const;
-
-private:
-    bool initialized_;
-    Persistent<Context> context_;
 
     bool Run(Handle<Function> function,
              Handle<v8::Value> arg,
              int out_fd,
-             bool print_ok);
+             bool print_ok)
+    {
+        if (setjmp(environment)) {
+            Write(out_fd, "ERROR\n<Out of memory>");
+            return false;
+        }
+        TryCatch try_catch;
+        Handle<v8::Value> value;
+        {
+            ExecutionGuard guard;
+            value = function->Call(context->Global(), 1, &arg);
+        }
+        if (value.IsEmpty()) {
+            RollBack();
+            if (TimedOut()) {
+                Write(out_fd, "ERROR\n<Timed out>");
+            } else if (out_fd != -1) {
+                ostringstream oss;
+                oss << "ERROR\n";
+                Handle<v8::Value> stack_trace(try_catch.StackTrace());
+                if (!stack_trace.IsEmpty()) {
+                    oss << Stringify(stack_trace);
+                } else {
+                    Handle<Message> message(try_catch.Message());
+                    if (!message.IsEmpty()) {
+                        oss << Stringify(message->Get()) << "\n    at ";
+                        Handle<v8::Value> resource_name(
+                            message->GetScriptResourceName());
+                        if (!resource_name->IsUndefined())
+                            oss << Stringify(resource_name) << ':';
+                        oss << message->GetLineNumber() << ':'
+                            << message->GetStartColumn();
+                    } else {
+                        Handle<v8::Value> exception(try_catch.Exception());
+                        AK_ASSERT(!exception.IsEmpty());
+                        oss << Stringify(exception);
+                    }
+                }
+                Write(out_fd, oss.str());
+            }
+            return false;
+        }
+        if (RolledBack())
+            RollBack();
+        else
+            Commit();
+        if (out_fd != -1 && print_ok) {
+            Write(out_fd, "OK\n");
+            Binarizator binarizator(value);
+            Write(out_fd, binarizator.GetData(), binarizator.GetSize());
+        }
+        return true;
+    }
 
-    void Call(const string& func_name,
-              Handle<v8::Value> arg,
-              int out_fd = -1);
-};
+
+    void Call(const string& func_name, Handle<v8::Value> arg, int out_fd = -1)
+    {
+        if (!initialized) {
+            Handle<Function> require_func(
+                Handle<Function>::Cast(Get(context->Global(), "require")));
+            AK_ASSERT(!require_func.IsEmpty());
+            if (!Run(require_func, String::New("main"), out_fd, false))
+                return;
+            initialized = true;
+        }
+        Handle<v8::Value> func_value(Get(context->Global(), func_name));
+        if (func_value.IsEmpty() || !func_value->IsFunction())
+            Write(out_fd, "ERROR\n" + func_name + " is not a function");
+        else
+            Run(Handle<Function>::Cast(func_value), arg, out_fd, true);
+    }
+}
 
 
-Program::Impl::Impl(const string& code_path,
-                    const string& media_path,
-                    const string& git_path_prefix,
-                    const string& git_path_suffix)
-    : initialized_(false)
+void ak::HandleRequest(int sock_fd)
 {
+    HandleScope handle_scope;
+    Context::Scope context_scope(context);
+    SocketScope socket_scope(sock_fd);
+    Call("main", socket_scope.GetSocket());
+}
+
+
+void ak::EvalExpr(const Chars& expr, int out_fd)
+{
+    HandleScope handle_scope;
+    Context::Scope context_scope(context);
+    Handle<v8::Value> arg(String::New(&expr[0], expr.size()));
+    Call("eval", arg, out_fd);
+}
+
+
+bool ak::ProgramIsDead()
+{
+    return V8::IsDead();
+}
+
+
+void ak::InitJS(const string& code_path,
+                const string& media_path,
+                const string& git_path_prefix,
+                const string& git_path_suffix,
+                const string& db_options,
+                const string& schema_name,
+                const string& tablespace_name)
+{
+    InitDatabase(db_options, schema_name, tablespace_name);
+
     V8::SetFatalErrorHandler(HandleFatalError);
 
     ResourceConstraints rc;
@@ -137,9 +206,9 @@ Program::Impl::Impl(const string& code_path,
     AK_ASSERT(ret);
 
     HandleScope handle_scope;
-    context_ = Context::New();
-    Context::Scope context_scope(context_);
-    Handle<Object> global(context_->Global());
+    context = Context::New();
+    Context::Scope context_scope(context);
+    Handle<Object> global(context->Global());
     Set(global, "core", InitCore(code_path));
     Set(global, "db", InitDB());
     Set(global, "fs", InitFS(media_path));
@@ -152,156 +221,13 @@ Program::Impl::Impl(const string& code_path,
         Set(global, "git", InitGit(git_path_prefix, git_path_suffix));
 
     // Run init.js script
-    Handle<Script> script(Script::Compile(String::New(INIT_JS,
-                                                      sizeof(INIT_JS)),
-                                          String::New("native init.js")));
+    Handle<Script> script(
+        Script::Compile(String::New(INIT_JS, sizeof(INIT_JS)),
+                        String::New("native init.js")));
     AK_ASSERT(!script.IsEmpty());
     Handle<v8::Value> init_ret(script->Run());
     AK_ASSERT(!init_ret.IsEmpty());
 
     js_error_classes = Persistent<Object>::New(
         Get(global, "errors")->ToObject()->Clone());
-}
-
-
-Program::Impl::~Impl()
-{
-    context_.Dispose();
-}
-
-
-void Program::Impl::Eval(const Chars& expr, int out_fd)
-{
-    HandleScope handle_scope;
-    Context::Scope context_scope(context_);
-    Handle<v8::Value> arg(String::New(&expr[0], expr.size()));
-    Call("eval", arg, out_fd);
-}
-
-
-void Program::Impl::Process(int sock_fd)
-{
-    HandleScope handle_scope;
-    Context::Scope context_scope(context_);
-    SocketScope socket_scope(sock_fd);
-    Call("main", socket_scope.GetSocket());
-}
-
-
-bool Program::Impl::IsDead() const
-{
-    return V8::IsDead();
-}
-
-
-bool Program::Impl::Run(Handle<Function> function,
-                        Handle<v8::Value> arg,
-                        int out_fd,
-                        bool print_ok)
-{
-    if (setjmp(environment)) {
-        Write(out_fd, "ERROR\n<Out of memory>");
-        return false;
-    }
-    TryCatch try_catch;
-    Handle<v8::Value> value;
-    {
-        ExecutionGuard guard;
-        value = function->Call(context_->Global(), 1, &arg);
-    }
-    if (value.IsEmpty()) {
-        RollBack();
-        if (TimedOut()) {
-            Write(out_fd, "ERROR\n<Timed out>");
-        } else if (out_fd != -1) {
-            ostringstream oss;
-            oss << "ERROR\n";
-            Handle<v8::Value> stack_trace(try_catch.StackTrace());
-            if (!stack_trace.IsEmpty()) {
-                oss << Stringify(stack_trace);
-            } else {
-                Handle<Message> message(try_catch.Message());
-                if (!message.IsEmpty()) {
-                    oss << Stringify(message->Get()) << "\n    at ";
-                    Handle<v8::Value> resource_name(
-                        message->GetScriptResourceName());
-                    if (!resource_name->IsUndefined())
-                        oss << Stringify(resource_name) << ':';
-                    oss << message->GetLineNumber() << ':'
-                        << message->GetStartColumn();
-                } else {
-                    Handle<v8::Value> exception(try_catch.Exception());
-                    AK_ASSERT(!exception.IsEmpty());
-                    oss << Stringify(exception);
-                }
-            }
-            Write(out_fd, oss.str());
-        }
-        return false;
-    }
-    if (RolledBack())
-        RollBack();
-    else
-        Commit();
-    if (out_fd != -1 && print_ok) {
-        Write(out_fd, "OK\n");
-        Binarizator binarizator(value);
-        Write(out_fd, binarizator.GetData(), binarizator.GetSize());
-    }
-    return true;
-}
-
-
-void Program::Impl::Call(const string& func_name,
-                         Handle<v8::Value> arg,
-                         int out_fd)
-{
-    if (!initialized_) {
-        Handle<Function> require_func(
-            Handle<Function>::Cast(Get(context_->Global(), "require")));
-        AK_ASSERT(!require_func.IsEmpty());
-        if (!Run(require_func, String::New("main"), out_fd, false))
-            return;
-        initialized_ = true;
-    }
-    Handle<v8::Value> func_value(Get(context_->Global(), func_name));
-    if (func_value.IsEmpty() || !func_value->IsFunction())
-        Write(out_fd, "ERROR\n" + func_name + " is not a function");
-    else
-        Run(Handle<Function>::Cast(func_value), arg, out_fd, true);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Program
-////////////////////////////////////////////////////////////////////////////////
-
-Program::Program(const string& code_path,
-                 const string& media_path,
-                 const string& git_path_prefix,
-                 const string& git_path_suffix)
-    : pimpl_(new Impl(code_path, media_path, git_path_prefix, git_path_suffix))
-{
-}
-
-
-Program::~Program()
-{
-}
-
-
-void Program::Process(int fd)
-{
-    return pimpl_->Process(fd);
-}
-
-
-void Program::Eval(const Chars& expr, int fd)
-{
-    return pimpl_->Eval(expr, fd);
-}
-
-
-bool Program::IsDead() const
-{
-    return pimpl_->IsDead();
 }

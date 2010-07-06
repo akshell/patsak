@@ -6,28 +6,20 @@
 
 #include "common.h"
 
-#include <boost/scoped_ptr.hpp>
-
 
 namespace ak
 {
-    class Program {
-    public:
-        Program(const std::string& code_path,
+    void HandleRequest(int sock_fd);
+    void EvalExpr(const Chars& expr, int out_fd);
+    bool ProgramIsDead();
+
+    void InitJS(const std::string& code_path,
                 const std::string& media_path,
                 const std::string& git_path_prefix,
-                const std::string& git_path_suffix);
-
-        ~Program();
-
-        void Process(int sock_fd);
-        void Eval(const Chars& expr, int out_fd);
-        bool IsDead() const;
-
-    private:
-        class Impl;
-        boost::scoped_ptr<Impl> pimpl_;
-    };
+                const std::string& git_path_suffix,
+                const std::string& db_options,
+                const std::string& schema_name,
+                const std::string& tablespace_name);
 }
 
 #endif // JS_H

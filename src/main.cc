@@ -2,7 +2,6 @@
 // (c) 2009-2010 by Anton Korenyushkin
 
 #include "js.h"
-#include "db.h"
 
 #include <boost/program_options.hpp>
 #include <boost/foreach.hpp>
@@ -23,7 +22,7 @@ namespace
 {
     void MakePathAbsolute(const string& base_path, string& path)
     {
-        if (!path.empty() && path[0] != '/')
+        if (path.empty() || path[0] != '/')
             path = base_path + '/' + path;
     }
 
@@ -161,6 +160,17 @@ int main(int argc, char** argv)
     RequireOption("db-user", user_name);
     RequireOption("db-password", password);
 
+    string git_path_prefix, git_path_suffix;
+    if (!git_path_pattern.empty()) {
+        size_t pos = git_path_pattern.find("%s");
+        if (pos == string::npos) {
+            cerr << "Git path pattern must contain a %s placeholder\n";
+            return 1;
+        }
+        git_path_prefix = git_path_pattern.substr(0, pos);
+        git_path_suffix = git_path_pattern.substr(pos + 2);
+    }
+
     if (!eval) {
         char* curr_dir = get_current_dir_name();
         AK_ASSERT(curr_dir);
@@ -168,7 +178,8 @@ int main(int argc, char** argv)
         MakePathAbsolute(curr_dir, socket_path);
         MakePathAbsolute(curr_dir, code_path);
         MakePathAbsolute(curr_dir, media_path);
-        MakePathAbsolute(curr_dir, git_path_pattern);
+        if (!git_path_pattern.empty())
+            MakePathAbsolute(curr_dir, git_path_prefix);
         free(curr_dir);
         pid_t pid = fork();
         AK_ASSERT(pid != -1);
@@ -181,26 +192,16 @@ int main(int argc, char** argv)
         AK_ASSERT(ret == 0);
     }
 
-    InitDatabase(
-        "user=" + user_name + " password=" + password + " dbname=" + db_name,
-        schema_name,
-        tablespace_name);
-
-    string git_path_prefix, git_path_suffix;
-    if (!git_path_pattern.empty()) {
-        size_t pos = git_path_pattern.find("%s");
-        if (pos == string::npos) {
-            cerr << "Git path pattern must contain a %s placeholder\n";
-            return 1;
-        }
-        git_path_prefix = git_path_pattern.substr(0, pos);
-        git_path_suffix = git_path_pattern.substr(pos + 2);
-    }
-
-    Program program(code_path, media_path, git_path_prefix, git_path_suffix);
+    InitJS(code_path,
+           media_path,
+           git_path_prefix,
+           git_path_suffix,
+           "user=" + user_name + " password=" + password + " dbname=" + db_name,
+           schema_name,
+           tablespace_name);
 
     if (eval) {
-        program.Eval(expr, STDOUT_FILENO);
+        EvalExpr(expr, STDOUT_FILENO);
         cout << '\n';
         return 0;
     }
@@ -241,7 +242,7 @@ int main(int argc, char** argv)
             break;
         }
         if (op == "HNDL\n") {
-            program.Process(conn_fd); // closes the socket
+            HandleRequest(conn_fd); // closes the socket
             continue;
         }
         if (op == "EVAL\n") {
@@ -256,11 +257,11 @@ int main(int argc, char** argv)
             } while (received == CHUNK_SIZE);
             if (received != -1) {
                 data.resize(size);
-                program.Eval(data, conn_fd);
+                EvalExpr(data, conn_fd);
             }
         }
         close(conn_fd);
-    } while (!program.IsDead());
+    } while (!ProgramIsDead());
 
     close(listen_fd);
 
