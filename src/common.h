@@ -221,14 +221,6 @@ namespace ak
 
     typedef orset<Attr, ByNameComparator<Attr>, ByNameFinder<Attr> > Header;
 
-
-    // Get type of an attribute in a header. Throw error if attribute
-    // with such name does not exist
-    inline Type GetAttrType(const Header& header, const std::string& attr_name)
-    {
-        return header.find(attr_name).GetType();
-    }
-
     ////////////////////////////////////////////////////////////////////////////
     // Draft
     ////////////////////////////////////////////////////////////////////////////

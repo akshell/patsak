@@ -436,7 +436,7 @@ void ProtoTranslator::operator()(const MultiField& multi_field)
                      << '.'
                      << Quoted(field_name);
 
-            AddAttr(Attr(field_name, GetAttrType(rv_header, field_name)));
+            AddAttr(Attr(field_name, rv_header.find(field_name).GetType()));
         }
     }
 }
@@ -643,7 +643,7 @@ Type FieldTranslator::TranslateForeignField()
              << " FROM " << from_oss_.str()
              << " WHERE " << where_oss_.str()
              << ')';
-    return GetAttrType(get_header_cb(curr_rel_var_name), GetFieldName());
+    return get_header_cb(curr_rel_var_name).find(GetFieldName()).GetType();
 }
 
 
@@ -652,7 +652,7 @@ Type FieldTranslator::TranslateSelfField() const
     control_ << Quoted(GetRangeVar().GetName())
              << '.'
              << Quoted(GetFieldName());
-    return GetAttrType(control_.LookupBind(GetRangeVar()), GetFieldName());
+    return control_.LookupBind(GetRangeVar()).find(GetFieldName()).GetType();
 }
 
 
@@ -937,7 +937,7 @@ string ak::TranslateUpdate(const string& rel_var_name,
                                header,
                                named_expr.second,
                                update_params,
-                               GetAttrType(header, named_expr.first));
+                               header.find(named_expr.first).GetType());
     }
     oss << " WHERE " << DoTranslateExpr(rel_var_name,
                                         header,
