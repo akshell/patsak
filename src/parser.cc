@@ -10,14 +10,9 @@
 
 
 using namespace std;
+using namespace ak;
 using namespace boost::spirit::classic;
 using namespace phoenix;
-using namespace ak;
-using boost::shared_ptr;
-using boost::variant;
-using boost::static_visitor;
-using boost::apply_visitor;
-using boost::noncopyable;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,7 +180,7 @@ namespace
 #undef CLOSURE3
 
 
-    class Parser : public noncopyable {
+    class Parser : public boost::noncopyable {
     public:
         Rel ParseRel(const string& str);
         Expr ParseExpr(const string& str);
