@@ -197,9 +197,9 @@ RelVar::RelVar(const Meta& meta,
 
     static const format create_sequence_cmd(
         "CREATE SEQUENCE \"%1%@%2%\" MINVALUE 0 START 0;");
-    BOOST_FOREACH(const DefAttr& def_attr, def_header)
-        if (def_attr.type == Type::SERIAL)
-            oss << (format(create_sequence_cmd) % name % def_attr.name);
+    BOOST_FOREACH(const Attr& attr, header_)
+        if (attr.type == Type::SERIAL)
+            oss << (format(create_sequence_cmd) % name % attr.name);
 
     oss << "CREATE TABLE \"" << name << "\" (";
     Separator sep;
@@ -234,9 +234,9 @@ RelVar::RelVar(const Meta& meta,
 
     static const format alter_sequence_cmd(
         "ALTER SEQUENCE \"%1%@%2%\" OWNED BY \"%1%\".\"%2%\";");
-    BOOST_FOREACH(const DefAttr& def_attr, def_header)
-        if (def_attr.type == Type::SERIAL)
-            oss << (format(alter_sequence_cmd) % name % def_attr.name);
+    BOOST_FOREACH(const Attr& attr, header_)
+        if (attr.type == Type::SERIAL)
+            oss << (format(alter_sequence_cmd) % name % attr.name);
 
     Exec(oss.str());
 }
@@ -328,7 +328,7 @@ StringSet RelVar::ReadAttrNames(const string& pg_array) const
         size_t index;
         iss >> index;
         AK_ASSERT(!iss.fail());
-        result.add_sure(def_header_[index - 1].name);
+        result.add_sure(header_[index - 1].name);
         if (iss.eof())
             return result;
         char comma;
@@ -343,7 +343,7 @@ void RelVar::PrintUniqueKey(ostream& os, const StringSet& unique_key) const
     if (unique_key.empty())
         throw Error(Error::VALUE, "Empty unique attribute set");
     BOOST_FOREACH(const string& attr_name, unique_key)
-        def_header_.find(attr_name);
+        header_.find(attr_name);
     os << "UNIQUE ";
     PrintAttrNames(os, unique_key);
 }
@@ -362,26 +362,22 @@ void RelVar::PrintForeignKey(ostream& os,
     const RelVar& ref_rel_var(foreign_key.ref_rel_var_name == name_
                               ? *this
                               : meta.Get(foreign_key.ref_rel_var_name));
-    const DefHeader& ref_def_header(ref_rel_var.GetDefHeader());
+    const Header& ref_header(ref_rel_var.GetHeader());
     for (size_t i = 0; i < foreign_key.key_attr_names.size(); ++i) {
-        string key_attr_name = foreign_key.key_attr_names[i];
-        string ref_attr_name = foreign_key.ref_attr_names[i];
-        DefAttr key_def_attr(def_header_.find(key_attr_name));
-        DefAttr ref_def_attr(ref_def_header.find(ref_attr_name));
-        Type key_attr_type(key_def_attr.type);
-        Type ref_attr_type(ref_def_attr.type);
-        if (key_attr_type != ref_attr_type &&
-            !((key_attr_type == Type::INT && ref_attr_type == Type::SERIAL) ||
-              (ref_attr_type == Type::INT && key_attr_type == Type::SERIAL)))
+        Attr key_attr(header_.find(foreign_key.key_attr_names[i]));
+        Attr ref_attr(ref_header.find(foreign_key.ref_attr_names[i]));
+        if (key_attr.type != ref_attr.type &&
+            !((key_attr.type == Type::INT && ref_attr.type == Type::SERIAL) ||
+              (ref_attr.type == Type::INT && key_attr.type == Type::SERIAL)))
             throw Error(Error::USAGE,
                         ("Foreign key attribite type mismatch: \"" +
                          name_ + '.' +
-                         key_attr_name + "\" is " +
-                         key_attr_type.GetName() +
+                         key_attr.name + "\" is " +
+                         key_attr.type.GetName() +
                          ", \"" +
                          foreign_key.ref_rel_var_name + '.' +
-                         ref_attr_name + "\" is " +
-                         ref_attr_type.GetName()));
+                         ref_attr.name + "\" is " +
+                         ref_attr.type.GetName()));
     }
     bool unique_found = false;
     BOOST_FOREACH(const StringSet& unique_key,
@@ -449,7 +445,7 @@ void RelVar::AddAttrs(const DefHeader& def_attrs)
 {
     if (def_attrs.empty())
         return;
-    CheckAttrNumber(def_header_.size() + def_attrs.size());
+    CheckAttrNumber(header_.size() + def_attrs.size());
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
     Separator sep;
@@ -473,7 +469,7 @@ void RelVar::AddAttrs(const DefHeader& def_attrs)
     BOOST_FOREACH(const DefAttr& def_attr, def_attrs)
         oss << sep << "ALTER \"" << def_attr.name << "\" SET NOT NULL";
     StringSet unique_key;
-    if (def_header_.empty()) {
+    if (header_.empty()) {
         oss << ", ADD UNIQUE (";
         Separator sep;
         BOOST_FOREACH(const DefAttr& def_attr, def_attrs) {
@@ -485,8 +481,7 @@ void RelVar::AddAttrs(const DefHeader& def_attrs)
     }
     Exec(oss.str());
     BOOST_FOREACH(const DefAttr& def_attr, def_attrs) {
-        def_header_.add_sure(
-            DefAttr(def_attr.name, def_attr.type));
+        def_header_.add_sure(DefAttr(def_attr.name, def_attr.type));
         header_.add_sure(def_attr);
     }
     if (!unique_key.empty())
@@ -646,17 +641,16 @@ void RelVar::AddConstrs(const Meta& meta,
 
 void RelVar::DropAllConstrs()
 {
-    if (def_header_.empty())
+    if (header_.empty())
         return;
     ostringstream oss;
     oss << "SELECT ak.drop_all_constrs('" << name_ << "'); "
         << "ALTER TABLE \"" << name_ << "\" ADD UNIQUE (";
     StringSet unique_key;
     Separator sep;
-    BOOST_FOREACH(const DefAttr& def_attr, def_header_) {
-        string attr_name(def_attr.name);
-        unique_key.add_sure(attr_name);
-        oss << sep << '"' << attr_name << '"';
+    BOOST_FOREACH(const Attr& attr, header_) {
+        unique_key.add_sure(attr.name);
+        oss << sep << '"' << attr.name << '"';
     }
     oss << ')';
     try {
@@ -928,12 +922,6 @@ namespace
     }
 
 
-    const Header& GetHeader(const string& rel_var_name)
-    {
-        return db_ptr->GetMeta().Get(rel_var_name).GetHeader();
-    }
-
-
     void FollowReference(const std::string& key_rel_var_name,
                          const StringSet& key_attr_names,
                          std::string& ref_rel_var_name,
@@ -1004,6 +992,12 @@ StringSet ak::GetRelVarNames()
     BOOST_FOREACH(const RelVar& rel_var, rel_vars)
         result.add_sure(rel_var.GetName());
     return result;
+}
+
+
+const Header& ak::GetHeader(const string& rel_var_name)
+{
+    return db_ptr->GetMeta().Get(rel_var_name).GetHeader();
 }
 
 
@@ -1083,10 +1077,10 @@ size_t ak::Update(const string& rel_var_name,
                   const StringMap& expr_map,
                   const Drafts& expr_params)
 {
-    const DefHeader& def_header(GetDefHeader(rel_var_name));
+    const Header& header(GetHeader(rel_var_name));
     uint64_t size = 0;
     BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map) {
-        def_header.find(named_expr.first);
+        header.find(named_expr.first);
         // FIXME it's wrong estimation for expressions
         size += named_expr.second.size();
     }

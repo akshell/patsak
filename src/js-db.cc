@@ -573,10 +573,8 @@ namespace
     {
         CheckArgsLength(args, 1);
         Handle<Object> result(Object::New());
-        BOOST_FOREACH(const DefAttr& def_attr,
-                      GetDefHeader(Stringify(args[0])))
-            Set(result, def_attr.name,
-                String::New(def_attr.type.GetName().c_str()));
+        BOOST_FOREACH(const Attr& attr, GetHeader(Stringify(args[0])))
+            Set(result, attr.name, String::New(attr.type.GetName().c_str()));
         return result;
     }
 
@@ -585,8 +583,7 @@ namespace
     {
         CheckArgsLength(args, 1);
         Handle<Object> result(Object::New());
-        BOOST_FOREACH(const DefAttr& def_attr,
-                      GetDefHeader(Stringify(args[0])))
+        BOOST_FOREACH(const DefAttr& def_attr, GetDefHeader(Stringify(args[0])))
             if (def_attr.def_ptr)
                 Set(result, def_attr.name, MakeV8Value(*def_attr.def_ptr));
         return result;
@@ -628,11 +625,11 @@ namespace
         CheckArgsLength(args, 2);
         string name(Stringify(args[0]));
         Values values(Insert(name, ReadDraftMap(args[1])));
-        const DefHeader& def_header(GetDefHeader(name));
-        AK_ASSERT_EQUAL(values.size(), def_header.size());
+        const Header& header(GetHeader(name));
+        AK_ASSERT_EQUAL(values.size(), header.size());
         Handle<Object> result(Object::New());
         for (size_t i = 0; i < values.size(); ++i)
-            Set(result, def_header[i].name, MakeV8Value(values[i]));
+            Set(result, header[i].name, MakeV8Value(values[i]));
         return result;
     }
 

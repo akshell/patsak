@@ -60,6 +60,7 @@ namespace ak
     void Commit();
     void RollBack();
     StringSet GetRelVarNames();
+    const Header& GetHeader(const std::string& rel_var_name);
     const DefHeader& GetDefHeader(const std::string& rel_var_name);
     const UniqueKeySet& GetUniqueKeySet(const std::string& rel_var_name);
     const ForeignKeySet& GetForeignKeySet(const std::string& rel_var_name);
