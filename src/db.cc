@@ -7,13 +7,11 @@
 #include <pqxx/pqxx>
 #include <boost/format.hpp>
 #include <boost/foreach.hpp>
-#include <boost/scoped_ptr.hpp>
 
 
 using namespace std;
 using namespace ak;
 using boost::format;
-using boost::scoped_ptr;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -864,9 +862,9 @@ namespace
     private:
         pqxx::connection conn_;
         string schema_name_;
-        scoped_ptr<Meta> meta_ptr_;
+        auto_ptr<Meta> meta_ptr_;
         bool meta_changed_;
-        scoped_ptr<pqxx::work> work_ptr_;
+        auto_ptr<pqxx::work> work_ptr_;
 
         pqxx::work& GetWork();
     };
@@ -889,7 +887,7 @@ DB::DB(const string& options,
 
 const Meta& DB::GetMeta()
 {
-    if (!meta_ptr_) {
+    if (!meta_ptr_.get()) {
         meta_changed_ = false;
         meta_ptr_.reset(new Meta(schema_name_));
     }
@@ -900,7 +898,7 @@ const Meta& DB::GetMeta()
 Meta& DB::ChangeMeta()
 {
     meta_changed_ = true;
-    if (!meta_ptr_)
+    if (!meta_ptr_.get())
         meta_ptr_.reset(new Meta(schema_name_));
     return *meta_ptr_;
 }
@@ -914,7 +912,7 @@ string DB::Quote(const string& str)
 
 pqxx::work& DB::GetWork()
 {
-    if (!work_ptr_)
+    if (!work_ptr_.get())
         work_ptr_.reset(new pqxx::work(conn_));
     return *work_ptr_;
 }
@@ -934,7 +932,7 @@ pqxx::result DB::ExecSafely(const string& sql)
 
 void DB::Commit()
 {
-    if (work_ptr_) {
+    if (work_ptr_.get()) {
         work_ptr_->commit();
         work_ptr_.reset();
     }
