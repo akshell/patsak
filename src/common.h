@@ -105,7 +105,7 @@ namespace ak
     };
 
     ////////////////////////////////////////////////////////////////////////////
-    // Value
+    // Value and ValuePtr
     ////////////////////////////////////////////////////////////////////////////
 
     class Value: private boost::equality_comparable<Value> {
@@ -123,8 +123,30 @@ namespace ak
         std::string GetPgLiter() const;
         bool Get(double& d, std::string& s) const;
 
-    private:
+    protected:
         boost::shared_ptr<Impl> pimpl_;
+
+        Value() {}
+    };
+
+
+    class ValuePtr : public Value {
+    public:
+        ValuePtr() {}
+        ValuePtr(Value value) : Value(value) {}
+
+        const Value* operator->() const {
+            return pimpl_ ? this : 0;
+        }
+
+        Value operator*() const {
+            AK_ASSERT(pimpl_);
+            return *this;
+        }
+
+        operator boost::shared_ptr<Impl>::unspecified_bool_type() const {
+            return pimpl_;
+        }
     };
 
     ////////////////////////////////////////////////////////////////////////////
@@ -181,18 +203,11 @@ namespace ak
     // Header
     ////////////////////////////////////////////////////////////////////////////
 
-    class Attr : private boost::equality_comparable<Attr> {
-    public:
-        Attr(const std::string& name, Type type)
-            : name_(name), type_(type) {}
+    struct Attr : private boost::equality_comparable<Attr> {
+        std::string name;
+        Type type;
 
-        const std::string& GetName() const { return name_; }
-
-        Type GetType() const { return type_; }
-
-    private:
-        std::string name_;
-        Type type_;
+        Attr(const std::string& name, Type type) : name(name), type(type) {}
     };
 
 
@@ -200,7 +215,7 @@ namespace ak
     class ByNameComparator : public std::binary_function<T, T, bool> {
     public:
         bool operator()(const T& lhs, const T& rhs) const {
-            return lhs.GetName() == rhs.GetName();
+            return lhs.name == rhs.name;
         }
     };
 
@@ -209,7 +224,7 @@ namespace ak
     class ByNameFinder : public std::binary_function<T, std::string, bool> {
     public:
         bool operator()(const T& item, const std::string& name) const {
-            return item.GetName() == name;
+            return item.name == name;
         }
 
         void not_found(const std::string& name) const {

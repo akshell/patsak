@@ -40,21 +40,13 @@ namespace ak
     // RichAttr and RichHeader
     ////////////////////////////////////////////////////////////////////////////
 
-    class RichAttr {
-    public:
+    struct RichAttr : public Attr {
+        ValuePtr default_ptr;
+
         RichAttr(const std::string& name,
                  Type type,
-                 const Value* default_ptr = 0);
-
-        const Attr& GetAttr() const;
-        const std::string& GetName() const;
-        Type GetType() const;
-        const Value* GetDefaultPtr() const;
-        void SetDefaultPtr(const Value* default_ptr);
-
-    private:
-        Attr attr_;
-        boost::shared_ptr<Value> default_ptr_;
+                 ValuePtr default_ptr = ValuePtr())
+            : Attr(name, type), default_ptr(default_ptr) {}
     };
 
 

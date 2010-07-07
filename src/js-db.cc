@@ -501,7 +501,7 @@ namespace
             AK_ASSERT_EQUAL(values.size(), header.size());
             for (size_t attr_idx = 0; attr_idx < header.size(); ++attr_idx)
                 Set(item,
-                    header[attr_idx].GetName(),
+                    header[attr_idx].name,
                     MakeV8Value(values[attr_idx]));
             result->Set(Integer::New(tuple_idx), item);
         }
@@ -530,8 +530,10 @@ namespace
             Prop prop(prop_enumerator.GetProp(i));
             string name(Stringify(prop.key));
             const TypeBg& type_bg(GetBg<TypeBg>(prop.value));
-            rich_header.add_sure(
-                RichAttr(name, type_bg.GetType(), type_bg.GetDefaultPtr()));
+            ValuePtr value_ptr;
+            if (type_bg.GetDefaultPtr())
+                value_ptr = *type_bg.GetDefaultPtr();
+            rich_header.add_sure(RichAttr(name, type_bg.GetType(), value_ptr));
             type_bg.RetrieveConstrs(
                 name, unique_key_set, foreign_key_set, checks);
         }
@@ -573,8 +575,8 @@ namespace
         Handle<Object> result(Object::New());
         BOOST_FOREACH(const RichAttr& rich_attr,
                       GetRichHeader(Stringify(args[0])))
-            Set(result, rich_attr.GetName(),
-                String::New(rich_attr.GetType().GetName().c_str()));
+            Set(result, rich_attr.name,
+                String::New(rich_attr.type.GetName().c_str()));
         return result;
     }
 
@@ -585,9 +587,9 @@ namespace
         Handle<Object> result(Object::New());
         BOOST_FOREACH(const RichAttr& rich_attr,
                       GetRichHeader(Stringify(args[0])))
-            if (rich_attr.GetDefaultPtr())
-                Set(result, rich_attr.GetName(),
-                    MakeV8Value(*rich_attr.GetDefaultPtr()));
+            if (rich_attr.default_ptr)
+                Set(result, rich_attr.name,
+                    MakeV8Value(*rich_attr.default_ptr));
         return result;
     }
 
@@ -631,7 +633,7 @@ namespace
         AK_ASSERT_EQUAL(values.size(), rich_header.size());
         Handle<Object> result(Object::New());
         for (size_t i = 0; i < values.size(); ++i)
-            Set(result, rich_header[i].GetName(), MakeV8Value(values[i]));
+            Set(result, rich_header[i].name, MakeV8Value(values[i]));
         return result;
     }
 
@@ -692,7 +694,7 @@ namespace
                 CreateDraft(
                     descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
             rich_attrs.add_sure(
-                RichAttr(Stringify(prop.key), type_ptr->GetType(), &value));
+                RichAttr(Stringify(prop.key), type_ptr->GetType(), value));
         }
         AddAttrs(Stringify(args[0]), rich_attrs);
         return Undefined();

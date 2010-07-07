@@ -403,13 +403,13 @@ namespace ak
 
     bool operator==(const RichAttr& lhs, const RichAttr& rhs)
     {
-        if (lhs.GetName() != rhs.GetName() || lhs.GetType() != rhs.GetType())
+        if (lhs.name != rhs.name || lhs.type != rhs.type)
             return false;
-        if (!lhs.GetDefaultPtr() && !rhs.GetDefaultPtr())
+        if (!lhs.default_ptr && !rhs.default_ptr)
             return true;
-        if (!lhs.GetDefaultPtr() || !rhs.GetDefaultPtr())
+        if (!lhs.default_ptr || !rhs.default_ptr)
             return false;
-        return *lhs.GetDefaultPtr() == *rhs.GetDefaultPtr();
+        return *lhs.default_ptr == *rhs.default_ptr;
     }
 }
 
@@ -502,7 +502,7 @@ Table::Table(const Header& header)
 {
     rich_header_.reserve(header.size());
     BOOST_FOREACH(const Attr& attr, header)
-        rich_header_.add_sure(RichAttr(attr.GetName(), attr.GetType()));
+        rich_header_.add_sure(RichAttr(attr.name, attr.type));
     AddAllUniqueKey();
 }
 
@@ -700,17 +700,14 @@ void Table::ReadMetaData(istream& is)
             string field_name;
             line_iss >> field_name;
             RichAttr& rich_attr(rich_header_.find(field_name));
-            Value value(ReadValue(line_iss, rich_attr.GetType()));
-            rich_attr = RichAttr(rich_attr.GetName(),
-                                 rich_attr.GetType(),
-                                 &value);
+            Value value(ReadValue(line_iss, rich_attr.type));
+            rich_attr = RichAttr(rich_attr.name, rich_attr.type, value);
         } else if (constr_name == "int" || constr_name == "serial") {
             string field_name;
             line_iss >> field_name;
             RichAttr& rich_attr(rich_header_.find(field_name));
-            rich_attr = RichAttr(rich_attr.GetName(),
-                                 rich_attr.GetType(),
-                                 rich_attr.GetDefaultPtr());
+            rich_attr = RichAttr(
+                rich_attr.name, rich_attr.type, rich_attr.default_ptr);
         } else {
             BOOST_FAIL("Unknown constraint: " + constr_name);
         }
@@ -730,7 +727,7 @@ void Table::ReadValuesSet(istream& is)
         Values values;
         values.reserve(rich_header_.size());
         BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-            values.push_back(ReadValue(iss, rich_attr.GetType()));
+            values.push_back(ReadValue(iss, rich_attr.type));
         values_set_.add_sure(values);
     }
 }
@@ -739,10 +736,10 @@ void Table::ReadValuesSet(istream& is)
 void Table::PrintHeader(ostream& os) const
 {
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-        os << rich_attr.GetName() << ' ';
+        os << rich_attr.name << ' ';
     os << '\n';
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-        os << rich_attr.GetType().GetName() << ' ';
+        os << rich_attr.type.GetName() << ' ';
     os << '\n';
 }
 
@@ -764,7 +761,7 @@ void Table::AddAllUniqueKey()
     StringSet all_unique_key;
     all_unique_key.reserve(rich_header_.size());
     BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-        all_unique_key.add_sure(rich_attr.GetName());
+        all_unique_key.add_sure(rich_attr.name);
     unique_key_set_.add_unsure(all_unique_key);
 }
 
@@ -844,7 +841,7 @@ namespace
             assert(values.size() == rich_header.size());
             DraftMap draft_map;
             for (size_t i = 0; i < rich_header.size(); ++i)
-                draft_map.insert(DraftMap::value_type(rich_header[i].GetName(),
+                draft_map.insert(DraftMap::value_type(rich_header[i].name,
                                                       CreateDraft(values[i])));
             Insert(rel_var_name, draft_map);
         }
@@ -946,10 +943,10 @@ BOOST_AUTO_TEST_CASE(translator_test)
         TranslateQuery(header, "{name: $1, age: $2}", params),
         "SELECT DISTINCT 'anton' AS \"name\", 23 AS \"age\"");
     BOOST_CHECK_EQUAL(header.size(), 2);
-    BOOST_CHECK_EQUAL(header[0].GetName(), "name");
-    BOOST_CHECK(header[0].GetType() == Type::STRING);
-    BOOST_CHECK_EQUAL(header[1].GetName(), "age");
-    BOOST_CHECK(header[1].GetType() == Type::NUMBER);
+    BOOST_CHECK_EQUAL(header[0].name, "name");
+    BOOST_CHECK(header[0].type == Type::STRING);
+    BOOST_CHECK_EQUAL(header[1].name, "age");
+    BOOST_CHECK(header[1].type == Type::NUMBER);
 
     Strings by_exprs;
     by_exprs.push_back("id % $1");

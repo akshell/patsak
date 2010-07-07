@@ -441,7 +441,7 @@ void ProtoTranslator::operator()(const MultiField& multi_field)
         BOOST_FOREACH(const string& field_name, multi_field.path.back()) {
             control_ << sep << '"' << multi_field.rv.GetName()
                      << "\".\"" << field_name << '"';
-            AddAttr(Attr(field_name, rv_header.find(field_name).GetType()));
+            AddAttr(Attr(field_name, rv_header.find(field_name).type));
         }
     }
 }
@@ -466,7 +466,7 @@ void ProtoTranslator::AddAttr(const Attr& attr)
     if (!header_.add_unsure(attr))
         throw Error(
             Error::QUERY,
-            "Attribute with name \"" + attr.GetName() +"\" appeared twice");
+            "Attribute with name \"" + attr.name +"\" appeared twice");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -647,7 +647,7 @@ Type FieldTranslator::TranslateForeignField()
              << "\" FROM " << from_oss_.str()
              << " WHERE " << where_oss_.str()
              << ')';
-    return get_header_cb(curr_rel_var_name).find(GetFieldName()).GetType();
+    return get_header_cb(curr_rel_var_name).find(GetFieldName()).type;
 }
 
 
@@ -655,7 +655,7 @@ Type FieldTranslator::TranslateSelfField() const
 {
     control_ << '"' << GetRangeVar().GetName()
              << "\".\"" << GetFieldName() << '"';
-    return control_.LookupBind(GetRangeVar()).find(GetFieldName()).GetType();
+    return control_.LookupBind(GetRangeVar()).find(GetFieldName()).type;
 }
 
 
@@ -842,11 +842,11 @@ Header RelTranslator::operator()(const Union& un) const
     if (left_header.size() != right_header.size())
         throw Error(Error::QUERY, "Union headers have different sizes");
     BOOST_FOREACH(const Attr& left_attr, left_header) {
-        const Attr* right_attr_ptr = right_header.find_ptr(left_attr.GetName());
+        const Attr* right_attr_ptr = right_header.find_ptr(left_attr.name);
         if (!(right_attr_ptr &&
-              (left_attr.GetType() == right_attr_ptr->GetType() ||
-               (left_attr.GetType().IsNumeric() &&
-                right_attr_ptr->GetType().IsNumeric()))))
+              (left_attr.type == right_attr_ptr->type ||
+               (left_attr.type.IsNumeric() &&
+                right_attr_ptr->type.IsNumeric()))))
             throw Error(Error::QUERY, "Union headers don't match");
     }
     return left_header;
@@ -948,7 +948,7 @@ string ak::TranslateUpdate(const string& rel_var_name,
                                header,
                                named_expr.second,
                                update_params,
-                               header.find(named_expr.first).GetType());
+                               header.find(named_expr.first).type);
     oss << " WHERE " << DoTranslateExpr(rel_var_name,
                                         header,
                                         where,
