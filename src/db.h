@@ -40,18 +40,18 @@ namespace ak
     // RichAttr and RichHeader
     ////////////////////////////////////////////////////////////////////////////
 
-    struct RichAttr : public Attr {
-        ValuePtr default_ptr;
+    struct DefAttr : public Attr {
+        ValuePtr def_ptr;
 
-        RichAttr(const std::string& name,
-                 Type type,
-                 ValuePtr default_ptr = ValuePtr())
-            : Attr(name, type), default_ptr(default_ptr) {}
+        DefAttr(const std::string& name,
+                Type type,
+                ValuePtr def_ptr = ValuePtr())
+            : Attr(name, type), def_ptr(def_ptr) {}
     };
 
 
-    typedef orset<RichAttr, ByNameComparator<RichAttr>, ByNameFinder<RichAttr> >
-    RichHeader;
+    typedef orset<DefAttr, ByNameComparator<DefAttr>, ByNameFinder<DefAttr> >
+    DefHeader;
 
     ////////////////////////////////////////////////////////////////////////////
     // API
@@ -60,12 +60,12 @@ namespace ak
     void Commit();
     void RollBack();
     StringSet GetRelVarNames();
-    const RichHeader& GetRichHeader(const std::string& rel_var_name);
+    const DefHeader& GetDefHeader(const std::string& rel_var_name);
     const UniqueKeySet& GetUniqueKeySet(const std::string& rel_var_name);
     const ForeignKeySet& GetForeignKeySet(const std::string& rel_var_name);
 
     void CreateRelVar(const std::string& name,
-                      const RichHeader& rich_header,
+                      const DefHeader& def_header,
                       const UniqueKeySet& unique_key_set,
                       const ForeignKeySet& foreign_keys,
                       const Strings& checks);
@@ -97,7 +97,7 @@ namespace ak
                   const DraftMap& draft_map);
 
     void AddAttrs(const std::string& rel_var_name,
-                  const RichHeader& rich_attrs);
+                  const DefHeader& def_attrs);
 
     void DropAttrs(const std::string& rel_var_name,
                    const StringSet& attr_names);

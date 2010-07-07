@@ -401,15 +401,15 @@ namespace ak
     }
 
 
-    bool operator==(const RichAttr& lhs, const RichAttr& rhs)
+    bool operator==(const DefAttr& lhs, const DefAttr& rhs)
     {
         if (lhs.name != rhs.name || lhs.type != rhs.type)
             return false;
-        if (!lhs.default_ptr && !rhs.default_ptr)
+        if (!lhs.def_ptr && !rhs.def_ptr)
             return true;
-        if (!lhs.default_ptr || !rhs.default_ptr)
+        if (!lhs.def_ptr || !rhs.def_ptr)
             return false;
-        return *lhs.default_ptr == *rhs.default_ptr;
+        return *lhs.def_ptr == *rhs.def_ptr;
     }
 }
 
@@ -425,7 +425,7 @@ namespace
     // In-memory relation representation
     class Table {
     public:
-        Table(const RichHeader& rich_header,
+        Table(const DefHeader& def_header,
               const UniqueKeySet& unique_key_set = UniqueKeySet(),
               const ForeignKeySet& foreign_key_set = ForeignKeySet());
         Table(const Header& header);
@@ -435,19 +435,19 @@ namespace
         bool operator!=(const Table& other) const { return !(*this == other); }
         friend ostream& operator<<(ostream& os, const Table& table);
         const ValuesSet& GetValuesSet() const;
-        const RichHeader& GetRichHeader() const;
+        const DefHeader& GetDefHeader() const;
         const UniqueKeySet& GetUniqueKeySet() const;
         const ForeignKeySet& GetForeignKeySet() const;
         const Strings& GetChecks() const;
 
-        void SetRichHeader(const RichHeader& rich_header);
+        void SetDefHeader(const DefHeader& def_header);
         void SetUniqueKeys(const UniqueKeySet& unique_key_set);
         void SetChecks(const Strings& checks);
         void SetForeignKeySet(const ForeignKeySet& foreign_key_set);
         void AddRow(const Values& values);
 
     private:
-        RichHeader rich_header_;
+        DefHeader def_header_;
         UniqueKeySet unique_key_set_;
         ForeignKeySet foreign_key_set_;
         Strings checks_;
@@ -487,10 +487,10 @@ namespace
 }
 
 
-Table::Table(const RichHeader& rich_header,
+Table::Table(const DefHeader& def_header,
              const UniqueKeySet& unique_key_set,
              const ForeignKeySet& foreign_key_set)
-    : rich_header_(rich_header)
+    : def_header_(def_header)
     , unique_key_set_(unique_key_set)
     , foreign_key_set_(foreign_key_set)
 {
@@ -500,9 +500,9 @@ Table::Table(const RichHeader& rich_header,
 
 Table::Table(const Header& header)
 {
-    rich_header_.reserve(header.size());
+    def_header_.reserve(header.size());
     BOOST_FOREACH(const Attr& attr, header)
-        rich_header_.add_sure(RichAttr(attr.name, attr.type));
+        def_header_.add_sure(DefAttr(attr.name, attr.type));
     AddAllUniqueKey();
 }
 
@@ -518,7 +518,7 @@ Table::Table(istream& is)
 
 bool Table::operator==(const Table& other) const
 {
-    return (rich_header_ == other.rich_header_ &&
+    return (def_header_ == other.def_header_ &&
             unique_key_set_ == other.unique_key_set_ &&
             foreign_key_set_ == other.foreign_key_set_ &&
             values_set_ == other.values_set_);
@@ -531,9 +531,9 @@ const ValuesSet& Table::GetValuesSet() const
 }
 
 
-const RichHeader& Table::GetRichHeader() const
+const DefHeader& Table::GetDefHeader() const
 {
-    return rich_header_;
+    return def_header_;
 }
 
 
@@ -555,9 +555,9 @@ const Strings& Table::GetChecks() const
 }
 
 
-void Table::SetRichHeader(const RichHeader& rich_header)
+void Table::SetDefHeader(const DefHeader& def_header)
 {
-    rich_header_ = rich_header;
+    def_header_ = def_header;
 }
 
 
@@ -616,7 +616,7 @@ void Table::ReadHeader(istream& is)
             AK_ASSERT_EQUAL(type_str, "json");
             type = Type::JSON;
         }
-        rich_header_.add_sure(RichAttr(name, type));
+        def_header_.add_sure(DefAttr(name, type));
     }
 }
 
@@ -699,15 +699,15 @@ void Table::ReadMetaData(istream& is)
         } else if (constr_name == "default") {
             string field_name;
             line_iss >> field_name;
-            RichAttr& rich_attr(rich_header_.find(field_name));
-            Value value(ReadValue(line_iss, rich_attr.type));
-            rich_attr = RichAttr(rich_attr.name, rich_attr.type, value);
+            DefAttr& def_attr(def_header_.find(field_name));
+            Value value(ReadValue(line_iss, def_attr.type));
+            def_attr = DefAttr(def_attr.name, def_attr.type, value);
         } else if (constr_name == "int" || constr_name == "serial") {
             string field_name;
             line_iss >> field_name;
-            RichAttr& rich_attr(rich_header_.find(field_name));
-            rich_attr = RichAttr(
-                rich_attr.name, rich_attr.type, rich_attr.default_ptr);
+            DefAttr& def_attr(def_header_.find(field_name));
+            def_attr = DefAttr(
+                def_attr.name, def_attr.type, def_attr.def_ptr);
         } else {
             BOOST_FAIL("Unknown constraint: " + constr_name);
         }
@@ -725,9 +725,9 @@ void Table::ReadValuesSet(istream& is)
         istringstream iss(line);
         iss.exceptions (ios::failbit | ios::badbit);
         Values values;
-        values.reserve(rich_header_.size());
-        BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-            values.push_back(ReadValue(iss, rich_attr.type));
+        values.reserve(def_header_.size());
+        BOOST_FOREACH(const DefAttr& def_attr, def_header_)
+            values.push_back(ReadValue(iss, def_attr.type));
         values_set_.add_sure(values);
     }
 }
@@ -735,11 +735,11 @@ void Table::ReadValuesSet(istream& is)
 
 void Table::PrintHeader(ostream& os) const
 {
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-        os << rich_attr.name << ' ';
+    BOOST_FOREACH(const DefAttr& def_attr, def_header_)
+        os << def_attr.name << ' ';
     os << '\n';
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-        os << rich_attr.type.GetName() << ' ';
+    BOOST_FOREACH(const DefAttr& def_attr, def_header_)
+        os << def_attr.type.GetName() << ' ';
     os << '\n';
 }
 
@@ -756,12 +756,12 @@ void Table::PrintValuesSet(ostream& os) const
 
 void Table::AddAllUniqueKey()
 {
-    if (rich_header_.empty())
+    if (def_header_.empty())
         return;
     StringSet all_unique_key;
-    all_unique_key.reserve(rich_header_.size());
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-        all_unique_key.add_sure(rich_attr.name);
+    all_unique_key.reserve(def_header_.size());
+    BOOST_FOREACH(const DefAttr& def_attr, def_header_)
+        all_unique_key.add_sure(def_attr.name);
     unique_key_set_.add_unsure(all_unique_key);
 }
 
@@ -822,7 +822,7 @@ namespace
     Table DumpRelVar(const string& rel_var_name)
     {
         Table result(DumpRel(rel_var_name));
-        result.SetRichHeader(GetRichHeader(rel_var_name));
+        result.SetDefHeader(GetDefHeader(rel_var_name));
         result.SetUniqueKeys(GetUniqueKeySet(rel_var_name));
         result.SetForeignKeySet(GetForeignKeySet(rel_var_name));
         return result;
@@ -831,17 +831,17 @@ namespace
 
     void LoadRelVar(const string& rel_var_name, const Table& table)
     {
-        const RichHeader& rich_header(table.GetRichHeader());
+        const DefHeader& def_header(table.GetDefHeader());
         CreateRelVar(rel_var_name,
-                     rich_header,
+                     def_header,
                      table.GetUniqueKeySet(),
                      table.GetForeignKeySet(),
                      table.GetChecks());
         BOOST_FOREACH(const Values& values, table.GetValuesSet()) {
-            assert(values.size() == rich_header.size());
+            assert(values.size() == def_header.size());
             DraftMap draft_map;
-            for (size_t i = 0; i < rich_header.size(); ++i)
-                draft_map.insert(DraftMap::value_type(rich_header[i].name,
+            for (size_t i = 0; i < def_header.size(); ++i)
+                draft_map.insert(DraftMap::value_type(def_header[i].name,
                                                       CreateDraft(values[i])));
             Insert(rel_var_name, draft_map);
         }

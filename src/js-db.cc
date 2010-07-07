@@ -322,7 +322,7 @@ namespace
         typedef vector<AddedConstrPtr> AddedConstrPtrs;
 
         Type type_;
-        shared_ptr<ak::Value> default_ptr_;
+        shared_ptr<ak::Value> def_ptr_;
         AddedConstrPtrs ac_ptrs_;
 
         friend Handle<Object> JSNew<TypeBg>(Type,
@@ -330,7 +330,7 @@ namespace
                                             AddedConstrPtrs);
 
         TypeBg(Type type,
-               shared_ptr<ak::Value> default_ptr,
+               shared_ptr<ak::Value> def_ptr,
                const AddedConstrPtrs& ac_ptrs);
 
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetNameCb,
@@ -370,10 +370,10 @@ TypeBg::TypeBg(Type type)
 
 
 TypeBg::TypeBg(Type type,
-               shared_ptr<ak::Value> default_ptr,
+               shared_ptr<ak::Value> def_ptr,
                const AddedConstrPtrs& ac_ptrs)
     : type_(type)
-    , default_ptr_(default_ptr)
+    , def_ptr_(def_ptr)
     , ac_ptrs_(ac_ptrs)
 {
 }
@@ -387,7 +387,7 @@ Type TypeBg::GetType() const
 
 const ak::Value* TypeBg::GetDefaultPtr() const
 {
-    return default_ptr_.get();
+    return def_ptr_.get();
 }
 
 
@@ -417,9 +417,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, DefaultCb,
     CheckArgsLength(args, 1);
     if (type_ == Type::SERIAL)
         throw Error(Error::USAGE, "Default and serial are incompatible");
-    shared_ptr<ak::Value> default_ptr(
+    shared_ptr<ak::Value> def_ptr(
         new ak::Value(CreateDraft(args[0]).Get(type_)));
-    return JSNew<TypeBg>(type_, default_ptr, ac_ptrs_);
+    return JSNew<TypeBg>(type_, def_ptr, ac_ptrs_);
 }
 
 
@@ -428,7 +428,7 @@ Handle<v8::Value> TypeBg::NewWithAddedConstr(AddedConstrPtr ac_ptr) const
     AK_ASSERT(ac_ptr.get());
     AddedConstrPtrs new_ac_ptrs(ac_ptrs_);
     new_ac_ptrs.push_back(ac_ptr);
-    return JSNew<TypeBg>(type_, default_ptr_, new_ac_ptrs);
+    return JSNew<TypeBg>(type_, def_ptr_, new_ac_ptrs);
 
 }
 
@@ -521,7 +521,7 @@ namespace
         CheckArgsLength(args, 5);
         if (!args[1]->IsObject())
             throw Error(Error::TYPE, "Header must be an object");
-        RichHeader rich_header;
+        DefHeader def_header;
         UniqueKeySet unique_key_set;
         ForeignKeySet foreign_key_set;
         Strings checks;
@@ -533,7 +533,7 @@ namespace
             ValuePtr value_ptr;
             if (type_bg.GetDefaultPtr())
                 value_ptr = *type_bg.GetDefaultPtr();
-            rich_header.add_sure(RichAttr(name, type_bg.GetType(), value_ptr));
+            def_header.add_sure(DefAttr(name, type_bg.GetType(), value_ptr));
             type_bg.RetrieveConstrs(
                 name, unique_key_set, foreign_key_set, checks);
         }
@@ -541,7 +541,7 @@ namespace
         ReadForeignKeySet(args[3], foreign_key_set);
         ReadChecks(args[4], checks);
         CreateRelVar(Stringify(args[0]),
-                     rich_header,
+                     def_header,
                      unique_key_set,
                      foreign_key_set,
                      checks);
@@ -573,10 +573,10 @@ namespace
     {
         CheckArgsLength(args, 1);
         Handle<Object> result(Object::New());
-        BOOST_FOREACH(const RichAttr& rich_attr,
-                      GetRichHeader(Stringify(args[0])))
-            Set(result, rich_attr.name,
-                String::New(rich_attr.type.GetName().c_str()));
+        BOOST_FOREACH(const DefAttr& def_attr,
+                      GetDefHeader(Stringify(args[0])))
+            Set(result, def_attr.name,
+                String::New(def_attr.type.GetName().c_str()));
         return result;
     }
 
@@ -585,11 +585,10 @@ namespace
     {
         CheckArgsLength(args, 1);
         Handle<Object> result(Object::New());
-        BOOST_FOREACH(const RichAttr& rich_attr,
-                      GetRichHeader(Stringify(args[0])))
-            if (rich_attr.default_ptr)
-                Set(result, rich_attr.name,
-                    MakeV8Value(*rich_attr.default_ptr));
+        BOOST_FOREACH(const DefAttr& def_attr,
+                      GetDefHeader(Stringify(args[0])))
+            if (def_attr.def_ptr)
+                Set(result, def_attr.name, MakeV8Value(*def_attr.def_ptr));
         return result;
     }
 
@@ -629,11 +628,11 @@ namespace
         CheckArgsLength(args, 2);
         string name(Stringify(args[0]));
         Values values(Insert(name, ReadDraftMap(args[1])));
-        const RichHeader& rich_header(GetRichHeader(name));
-        AK_ASSERT_EQUAL(values.size(), rich_header.size());
+        const DefHeader& def_header(GetDefHeader(name));
+        AK_ASSERT_EQUAL(values.size(), def_header.size());
         Handle<Object> result(Object::New());
         for (size_t i = 0; i < values.size(); ++i)
-            Set(result, rich_header[i].name, MakeV8Value(values[i]));
+            Set(result, def_header[i].name, MakeV8Value(values[i]));
         return result;
     }
 
@@ -673,8 +672,8 @@ namespace
             throw Error(Error::TYPE,
                         "Attributes must be described by an object");
         PropEnumerator prop_enumerator(args[1]->ToObject());
-        RichHeader rich_attrs;
-        rich_attrs.reserve(prop_enumerator.GetSize());
+        DefHeader def_attrs;
+        def_attrs.reserve(prop_enumerator.GetSize());
         for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
             Prop prop(prop_enumerator.GetProp(i));
             Handle<Array> descr(GetArray(prop.value));
@@ -693,10 +692,10 @@ namespace
             ak::Value value(
                 CreateDraft(
                     descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
-            rich_attrs.add_sure(
-                RichAttr(Stringify(prop.key), type_ptr->GetType(), value));
+            def_attrs.add_sure(
+                DefAttr(Stringify(prop.key), type_ptr->GetType(), value));
         }
-        AddAttrs(Stringify(args[0]), rich_attrs);
+        AddAttrs(Stringify(args[0]), def_attrs);
         return Undefined();
     }
 

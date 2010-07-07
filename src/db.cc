@@ -62,18 +62,18 @@ namespace
 
         RelVar(const Meta& meta,
                const string& name,
-               const RichHeader& rich_header,
+               const DefHeader& def_header,
                const UniqueKeySet& unique_key_set,
                const ForeignKeySet& foreign_key_set,
                const Strings& checks);
 
         void LoadConstrs(const Meta& meta);
         string GetName() const;
-        const RichHeader& GetRichHeader() const;
+        const DefHeader& GetDefHeader() const;
         const Header& GetHeader() const;
         const UniqueKeySet& GetUniqueKeySet() const;
         const ForeignKeySet& GetForeignKeySet() const;
-        void AddAttrs(const RichHeader& attrs);
+        void AddAttrs(const DefHeader& attrs);
         void DropAttrs(const StringSet& attr_names);
         void AddDefault(const DraftMap& draft_map);
         void DropDefault(const StringSet& attr_names);
@@ -87,7 +87,7 @@ namespace
 
     private:
         string name_;
-        RichHeader rich_header_;
+        DefHeader def_header_;
         Header header_;
         UniqueKeySet unique_key_set_;
         ForeignKeySet foreign_key_set_;
@@ -121,7 +121,7 @@ namespace
         const RelVars& GetAll() const;
 
         void Create(const string& rel_var_name,
-                    const RichHeader& rich_header,
+                    const DefHeader& def_header,
                     const UniqueKeySet& unique_key_set,
                     const ForeignKeySet& foreign_key_set,
                     const Strings& checks);
@@ -149,23 +149,21 @@ RelVar::RelVar(const string& name)
 {
     static const format query("SELECT * FROM ak.describe_table('\"%1%\"');");
     pqxx::result pqxx_result = Exec((format(query) % name_).str());
-    rich_header_.reserve(pqxx_result.size());
+    def_header_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
         AK_ASSERT_EQUAL(tuple.size(), 3U);
         AK_ASSERT(!tuple[0].is_null() && ! tuple[1].is_null());
-        string name(tuple[0].c_str());
-        Type type(tuple[1].c_str());
-        ValuePtr default_ptr;
+        DefAttr def_attr(tuple[0].c_str(), Type(tuple[1].c_str()));
         if (!tuple[2].is_null()) {
-            string default_str(tuple[2].c_str());
-            if (default_str.substr(0, 8) == "nextval(") {
-                AK_ASSERT(type == Type::INT);
-                type = Type::SERIAL;
+            string def_str(tuple[2].c_str());
+            if (def_str.substr(0, 8) == "nextval(") {
+                AK_ASSERT(def_attr.type == Type::INT);
+                def_attr.type = Type::SERIAL;
             } else {
-                default_ptr = ValuePtr(Value(type, default_str));
+                def_attr.def_ptr = ValuePtr(Value(def_attr.type, def_str));
             }
         }
-        rich_header_.add_sure(RichAttr(name, type, default_ptr));
+        def_header_.add_sure(def_attr);
     }
     InitHeader();
 }
@@ -173,25 +171,25 @@ RelVar::RelVar(const string& name)
 
 RelVar::RelVar(const Meta& meta,
                const string& name,
-               const RichHeader& rich_header,
+               const DefHeader& def_header,
                const UniqueKeySet& unique_key_set,
                const ForeignKeySet& foreign_key_set,
                const Strings& checks)
     : name_(name)
-    , rich_header_(rich_header)
+    , def_header_(def_header)
     , unique_key_set_(unique_key_set)
     , foreign_key_set_(foreign_key_set)
 {
     CheckName(name);
-    CheckAttrNumber(rich_header.size());
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-        CheckName(rich_attr.name);
+    CheckAttrNumber(def_header.size());
+    BOOST_FOREACH(const DefAttr& def_attr, def_header)
+        CheckName(def_attr.name);
     InitHeader();
-    if (unique_key_set.empty() && !rich_header.empty()) {
+    if (unique_key_set.empty() && !def_header.empty()) {
         StringSet unique_key;
-        unique_key.reserve(rich_header.size());
-        BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-            unique_key.add_sure(rich_attr.name);
+        unique_key.reserve(def_header.size());
+        BOOST_FOREACH(const DefAttr& def_attr, def_header)
+            unique_key.add_sure(def_attr.name);
         unique_key_set_.add_sure(unique_key);
     }
 
@@ -199,21 +197,21 @@ RelVar::RelVar(const Meta& meta,
 
     static const format create_sequence_cmd(
         "CREATE SEQUENCE \"%1%@%2%\" MINVALUE 0 START 0;");
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-        if (rich_attr.type == Type::SERIAL)
-            oss << (format(create_sequence_cmd) % name % rich_attr.name);
+    BOOST_FOREACH(const DefAttr& def_attr, def_header)
+        if (def_attr.type == Type::SERIAL)
+            oss << (format(create_sequence_cmd) % name % def_attr.name);
 
     oss << "CREATE TABLE \"" << name << "\" (";
     Separator sep;
 
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
-        oss << sep << '"' << rich_attr.name << "\" "
-            << rich_attr.type.GetPgName() << " NOT NULL";
-        if (rich_attr.default_ptr)
-            oss << " DEFAULT " << rich_attr.default_ptr->GetPgLiter();
-        else if (rich_attr.type == Type::SERIAL)
+    BOOST_FOREACH(const DefAttr& def_attr, def_header) {
+        oss << sep << '"' << def_attr.name << "\" "
+            << def_attr.type.GetPgName() << " NOT NULL";
+        if (def_attr.def_ptr)
+            oss << " DEFAULT " << def_attr.def_ptr->GetPgLiter();
+        else if (def_attr.type == Type::SERIAL)
             oss << " DEFAULT nextval('\""
-                << name << '@' << rich_attr.name
+                << name << '@' << def_attr.name
                 << "\"')";
     }
 
@@ -236,9 +234,9 @@ RelVar::RelVar(const Meta& meta,
 
     static const format alter_sequence_cmd(
         "ALTER SEQUENCE \"%1%@%2%\" OWNED BY \"%1%\".\"%2%\";");
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header)
-        if (rich_attr.type == Type::SERIAL)
-            oss << (format(alter_sequence_cmd) % name % rich_attr.name);
+    BOOST_FOREACH(const DefAttr& def_attr, def_header)
+        if (def_attr.type == Type::SERIAL)
+            oss << (format(alter_sequence_cmd) % name % def_attr.name);
 
     Exec(oss.str());
 }
@@ -330,7 +328,7 @@ StringSet RelVar::ReadAttrNames(const string& pg_array) const
         size_t index;
         iss >> index;
         AK_ASSERT(!iss.fail());
-        result.add_sure(rich_header_[index - 1].name);
+        result.add_sure(def_header_[index - 1].name);
         if (iss.eof())
             return result;
         char comma;
@@ -345,7 +343,7 @@ void RelVar::PrintUniqueKey(ostream& os, const StringSet& unique_key) const
     if (unique_key.empty())
         throw Error(Error::VALUE, "Empty unique attribute set");
     BOOST_FOREACH(const string& attr_name, unique_key)
-        rich_header_.find(attr_name);
+        def_header_.find(attr_name);
     os << "UNIQUE ";
     PrintAttrNames(os, unique_key);
 }
@@ -364,14 +362,14 @@ void RelVar::PrintForeignKey(ostream& os,
     const RelVar& ref_rel_var(foreign_key.ref_rel_var_name == name_
                               ? *this
                               : meta.Get(foreign_key.ref_rel_var_name));
-    const RichHeader& ref_rich_header(ref_rel_var.GetRichHeader());
+    const DefHeader& ref_def_header(ref_rel_var.GetDefHeader());
     for (size_t i = 0; i < foreign_key.key_attr_names.size(); ++i) {
         string key_attr_name = foreign_key.key_attr_names[i];
         string ref_attr_name = foreign_key.ref_attr_names[i];
-        RichAttr key_rich_attr(rich_header_.find(key_attr_name));
-        RichAttr ref_rich_attr(ref_rich_header.find(ref_attr_name));
-        Type key_attr_type(key_rich_attr.type);
-        Type ref_attr_type(ref_rich_attr.type);
+        DefAttr key_def_attr(def_header_.find(key_attr_name));
+        DefAttr ref_def_attr(ref_def_header.find(ref_attr_name));
+        Type key_attr_type(key_def_attr.type);
+        Type ref_attr_type(ref_def_attr.type);
         if (key_attr_type != ref_attr_type &&
             !((key_attr_type == Type::INT && ref_attr_type == Type::SERIAL) ||
               (ref_attr_type == Type::INT && key_attr_type == Type::SERIAL)))
@@ -415,9 +413,9 @@ string RelVar::GetName() const
 }
 
 
-const RichHeader& RelVar::GetRichHeader() const
+const DefHeader& RelVar::GetDefHeader() const
 {
-    return rich_header_;
+    return def_header_;
 }
 
 
@@ -441,55 +439,55 @@ const ForeignKeySet& RelVar::GetForeignKeySet() const
 
 void RelVar::InitHeader()
 {
-    header_.reserve(rich_header_.size());
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header_)
-        header_.add_sure(rich_attr);
+    header_.reserve(def_header_.size());
+    BOOST_FOREACH(const DefAttr& def_attr, def_header_)
+        header_.add_sure(def_attr);
 }
 
 
-void RelVar::AddAttrs(const RichHeader& rich_attrs)
+void RelVar::AddAttrs(const DefHeader& def_attrs)
 {
-    if (rich_attrs.empty())
+    if (def_attrs.empty())
         return;
-    CheckAttrNumber(rich_header_.size() + rich_attrs.size());
+    CheckAttrNumber(def_header_.size() + def_attrs.size());
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
     Separator sep;
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
-        string attr_name(rich_attr.name);
+    BOOST_FOREACH(const DefAttr& def_attr, def_attrs) {
+        string attr_name(def_attr.name);
         CheckName(attr_name);
-        BOOST_FOREACH(const RichAttr& old_rich_attr, rich_header_)
-            if (old_rich_attr.name == attr_name)
+        BOOST_FOREACH(const DefAttr& old_def_attr, def_header_)
+            if (old_def_attr.name == attr_name)
                 throw Error(Error::ATTR_EXISTS,
                             "Attribute \"" + attr_name + "\" already exists");
         oss << sep << "ADD \"" << attr_name << "\" "
-            << rich_attr.type.GetPgName();
+            << def_attr.type.GetPgName();
     }
     oss << "; UPDATE \"" << name_ << "\" SET ";
     sep = Separator();
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs)
-        oss << sep << '"' << rich_attr.name << "\" = "
-            << rich_attr.default_ptr->GetPgLiter();
+    BOOST_FOREACH(const DefAttr& def_attr, def_attrs)
+        oss << sep << '"' << def_attr.name << "\" = "
+            << def_attr.def_ptr->GetPgLiter();
     oss << "; ALTER TABLE \"" << name_ << "\" ";
     sep = Separator();
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs)
-        oss << sep << "ALTER \"" << rich_attr.name << "\" SET NOT NULL";
+    BOOST_FOREACH(const DefAttr& def_attr, def_attrs)
+        oss << sep << "ALTER \"" << def_attr.name << "\" SET NOT NULL";
     StringSet unique_key;
-    if (rich_header_.empty()) {
+    if (def_header_.empty()) {
         oss << ", ADD UNIQUE (";
         Separator sep;
-        BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
-            string attr_name(rich_attr.name);
+        BOOST_FOREACH(const DefAttr& def_attr, def_attrs) {
+            string attr_name(def_attr.name);
             unique_key.add_sure(attr_name);
             oss << sep <<'"' << attr_name << '"';
         }
         oss << ')';
     }
     Exec(oss.str());
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_attrs) {
-        rich_header_.add_sure(
-            RichAttr(rich_attr.name, rich_attr.type));
-        header_.add_sure(rich_attr);
+    BOOST_FOREACH(const DefAttr& def_attr, def_attrs) {
+        def_header_.add_sure(
+            DefAttr(def_attr.name, def_attr.type));
+        header_.add_sure(def_attr);
     }
     if (!unique_key.empty())
         unique_key_set_.add_sure(unique_key);
@@ -509,18 +507,18 @@ void RelVar::DropAttrs(const StringSet& attr_names)
         if (!Intersect(foreign_key.key_attr_names, attr_names))
             new_foreign_key_set.add_sure(foreign_key);
     StringSet remaining_attr_names(attr_names);
-    RichHeader new_rich_header;
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header_) {
+    DefHeader new_def_header;
+    BOOST_FOREACH(const DefAttr& def_attr, def_header_) {
         bool found = false;
         for (size_t i = 0; i < remaining_attr_names.size(); ++i) {
-            if (remaining_attr_names[i] == rich_attr.name) {
+            if (remaining_attr_names[i] == def_attr.name) {
                 remaining_attr_names.erase(remaining_attr_names.begin() + i);
                 found = true;
                 break;
             }
         }
         if (!found)
-            new_rich_header.add_sure(rich_attr);
+            new_def_header.add_sure(def_attr);
     }
     if (!remaining_attr_names.empty())
         throw Error(
@@ -531,12 +529,12 @@ void RelVar::DropAttrs(const StringSet& attr_names)
     Separator sep;
     BOOST_FOREACH(const string& attr_name, attr_names)
         oss << sep << "DROP \"" << attr_name << '"';
-    if (new_unique_key_set.empty() && !new_rich_header.empty()) {
+    if (new_unique_key_set.empty() && !new_def_header.empty()) {
         oss << ", ADD UNIQUE (";
         StringSet unique_key;
         Separator sep;
-        BOOST_FOREACH(const RichAttr& new_rich_attr, new_rich_header) {
-            string new_attr_name(new_rich_attr.name);
+        BOOST_FOREACH(const DefAttr& new_def_attr, new_def_header) {
+            string new_attr_name(new_def_attr.name);
             unique_key.add_sure(new_attr_name);
             oss << sep << '"' << new_attr_name << '"';
         }
@@ -556,7 +554,7 @@ void RelVar::DropAttrs(const StringSet& attr_names)
     }
     unique_key_set_ = new_unique_key_set;
     foreign_key_set_ = new_foreign_key_set;
-    rich_header_ = new_rich_header;
+    def_header_ = new_def_header;
     header_.clear();
     InitHeader();
 }
@@ -566,19 +564,19 @@ void RelVar::AddDefault(const DraftMap& draft_map)
 {
     if (draft_map.empty())
         return;
-    RichHeader new_rich_header(rich_header_);
+    DefHeader new_def_header(def_header_);
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
     Separator sep;
     BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map) {
-        RichAttr& new_rich_attr(new_rich_header.find(named_draft.first));
-        Value value(named_draft.second.Get(new_rich_attr.type));
-        new_rich_attr.default_ptr = value;
+        DefAttr& new_def_attr(new_def_header.find(named_draft.first));
+        Value value(named_draft.second.Get(new_def_attr.type));
+        new_def_attr.def_ptr = value;
         oss << sep << "ALTER \"" << named_draft.first
             << "\" SET DEFAULT " <<  value.GetPgLiter();
     }
     Exec(oss.str());
-    rich_header_ = new_rich_header;
+    def_header_ = new_def_header;
 }
 
 
@@ -586,22 +584,22 @@ void RelVar::DropDefault(const StringSet& attr_names)
 {
     if (attr_names.empty())
         return;
-    vector<RichAttr*> rich_attr_ptrs;
-    rich_attr_ptrs.reserve(attr_names.size());
+    vector<DefAttr*> def_attr_ptrs;
+    def_attr_ptrs.reserve(attr_names.size());
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
     Separator sep;
     BOOST_FOREACH(const string& attr_name, attr_names) {
-        RichAttr& rich_attr(rich_header_.find(attr_name));
-        if (!rich_attr.default_ptr)
+        DefAttr& def_attr(def_header_.find(attr_name));
+        if (!def_attr.def_ptr)
             throw Error(Error::DB,
                         "Attribute \"" + attr_name + "\" has no default value");
-        rich_attr_ptrs.push_back(&rich_attr);
+        def_attr_ptrs.push_back(&def_attr);
         oss << sep << "ALTER \"" << attr_name << "\" DROP DEFAULT";
     }
     Exec(oss.str());
-    BOOST_FOREACH(RichAttr* rich_attr_ptr, rich_attr_ptrs)
-        rich_attr_ptr->default_ptr = ValuePtr();
+    BOOST_FOREACH(DefAttr* def_attr_ptr, def_attr_ptrs)
+        def_attr_ptr->def_ptr = ValuePtr();
 }
 
 
@@ -648,15 +646,15 @@ void RelVar::AddConstrs(const Meta& meta,
 
 void RelVar::DropAllConstrs()
 {
-    if (rich_header_.empty())
+    if (def_header_.empty())
         return;
     ostringstream oss;
     oss << "SELECT ak.drop_all_constrs('" << name_ << "'); "
         << "ALTER TABLE \"" << name_ << "\" ADD UNIQUE (";
     StringSet unique_key;
     Separator sep;
-    BOOST_FOREACH(const RichAttr& rich_attr, rich_header_) {
-        string attr_name(rich_attr.name);
+    BOOST_FOREACH(const DefAttr& def_attr, def_header_) {
+        string attr_name(def_attr.name);
         unique_key.add_sure(attr_name);
         oss << sep << '"' << attr_name << '"';
     }
@@ -713,7 +711,7 @@ RelVar& Meta::Get(const string& rel_var_name)
 
 
 void Meta::Create(const string& rel_var_name,
-                  const RichHeader& rich_header,
+                  const DefHeader& def_header,
                   const UniqueKeySet& unique_key_set,
                   const ForeignKeySet& foreign_key_set,
                   const Strings& checks)
@@ -729,7 +727,7 @@ void Meta::Create(const string& rel_var_name,
                     "RelVar \"" + rel_var_name + "\" already exists");
     rel_vars_.push_back(RelVar(*this,
                                rel_var_name,
-                               rich_header,
+                               def_header,
                                unique_key_set,
                                foreign_key_set,
                                checks));
@@ -1009,9 +1007,9 @@ StringSet ak::GetRelVarNames()
 }
 
 
-const RichHeader& ak::GetRichHeader(const string& rel_var_name)
+const DefHeader& ak::GetDefHeader(const string& rel_var_name)
 {
-    return db_ptr->GetMeta().Get(rel_var_name).GetRichHeader();
+    return db_ptr->GetMeta().Get(rel_var_name).GetDefHeader();
 }
 
 
@@ -1028,13 +1026,13 @@ const ForeignKeySet& ak::GetForeignKeySet(const string& rel_var_name)
 
 
 void ak::CreateRelVar(const string& name,
-                      const RichHeader& rich_header,
+                      const DefHeader& def_header,
                       const UniqueKeySet& unique_key_set,
                       const ForeignKeySet& foreign_key_set,
                       const Strings& checks)
 {
     db_ptr->ChangeMeta().Create(
-        name, rich_header, unique_key_set, foreign_key_set, checks);
+        name, def_header, unique_key_set, foreign_key_set, checks);
 }
 
 
@@ -1085,10 +1083,10 @@ size_t ak::Update(const string& rel_var_name,
                   const StringMap& expr_map,
                   const Drafts& expr_params)
 {
-    const RichHeader& rich_header(GetRichHeader(rel_var_name));
+    const DefHeader& def_header(GetDefHeader(rel_var_name));
     uint64_t size = 0;
     BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map) {
-        rich_header.find(named_expr.first);
+        def_header.find(named_expr.first);
         // FIXME it's wrong estimation for expressions
         size += named_expr.second.size();
     }
@@ -1127,36 +1125,35 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
     static const format empty_cmd("SELECT ak.insert_into_empty('%1%');");
     static const format cmd(
         "INSERT INTO \"%1%\" (%2%) VALUES (%3%) RETURNING *;");
-    static const format default_cmd(
+    static const format def_cmd(
         "INSERT INTO \"%1%\" DEFAULT VALUES RETURNING *;");
 
     const RelVar& rel_var(db_ptr->GetMeta().Get(rel_var_name));
-    const RichHeader& rich_header(rel_var.GetRichHeader());
+    const DefHeader& def_header(rel_var.GetDefHeader());
     string sql;
     uint64_t size = 0;
-    if (rich_header.empty()) {
+    if (def_header.empty()) {
         if (!draft_map.empty())
-            rich_header.find(draft_map.begin()->first); // throws
+            def_header.find(draft_map.begin()->first); // throws
         sql = (format(empty_cmd) % rel_var_name).str();
     } else {
         if (!draft_map.empty()) {
             BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map)
-                rich_header.find(named_draft.first);
+                def_header.find(named_draft.first);
             ostringstream names_oss, values_oss;
             Separator names_sep, values_sep;
-            BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
+            BOOST_FOREACH(const DefAttr& def_attr, def_header) {
                 DraftMap::const_iterator itr(
-                    draft_map.find(rich_attr.name));
+                    draft_map.find(def_attr.name));
                 if (itr == draft_map.end()) {
-                    if (rich_attr.type != Type::SERIAL &&
-                        !rich_attr.default_ptr)
+                    if (def_attr.type != Type::SERIAL && !def_attr.def_ptr)
                         throw Error(Error::ATTR_VALUE_REQUIRED,
                                     ("Value of attribute \"" +
-                                     rich_attr.name +
+                                     def_attr.name +
                                      "\" must be supplied"));
                 } else {
-                    names_oss << names_sep << '"' << rich_attr.name << '"';
-                    Value value(itr->second.Get(rich_attr.type));
+                    names_oss << names_sep << '"' << def_attr.name << '"';
+                    Value value(itr->second.Get(def_attr.type));
                     values_oss << values_sep << value.GetPgLiter();
                 }
             }
@@ -1166,13 +1163,13 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
                    % values_oss.str()).str();
             size += values_oss.str().size();
         } else {
-            sql = (format(default_cmd) % rel_var_name).str();
+            sql = (format(def_cmd) % rel_var_name).str();
         }
-        BOOST_FOREACH(const RichAttr& rich_attr, rich_header) {
-            if (rich_attr.default_ptr) {
+        BOOST_FOREACH(const DefAttr& def_attr, def_header) {
+            if (def_attr.def_ptr) {
                 double d;
                 string s;
-                size += rich_attr.default_ptr->Get(d, s) ? s.size() : 16;
+                size += def_attr.def_ptr->Get(d, s) ? s.size() : 16;
             }
         }
     }
@@ -1188,16 +1185,16 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
     } catch (const pqxx::sql_error& err) {
         throw Error(Error::DB, err.what());
     }
-    if (rich_header.empty())
+    if (def_header.empty())
         return Values();
     AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
     return GetTupleValues(pqxx_result[0], rel_var.GetHeader());
 }
 
 
-void ak::AddAttrs(const string& rel_var_name, const RichHeader& rich_attrs)
+void ak::AddAttrs(const string& rel_var_name, const DefHeader& def_attrs)
 {
-    db_ptr->ChangeMeta().Get(rel_var_name).AddAttrs(rich_attrs);
+    db_ptr->ChangeMeta().Get(rel_var_name).AddAttrs(def_attrs);
 }
 
 
