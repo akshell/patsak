@@ -34,16 +34,14 @@ namespace
     // Stack based range var lookuper
     class Lookuper {
     public:
-        typedef orset<RangeVar> RangeVars;
-
         Lookuper();
 
-        RangeVars EnterScope(const RVDef& rv_def);
+        RangeVarSet EnterScope(const RVDef& rv_def);
         void ExitScope();
         RangeVar Lookup(const string& name);
         void Reset();
     private:
-        typedef vector<RangeVars> LookupStack;
+        typedef vector<RangeVarSet> LookupStack;
 
         LookupStack stack_;
         RangeVar this_rv_;
@@ -59,13 +57,13 @@ Lookuper::Lookuper()
 
 
 // XXX: Deep copy of rel happens here. May be should be refactored.
-Lookuper::RangeVars Lookuper::EnterScope(const RVDef& rv_def)
+RangeVarSet Lookuper::EnterScope(const RVDef& rv_def)
 {
-    RangeVars rvs;
+    RangeVarSet rv_set;
     BOOST_FOREACH(const string& id, rv_def.id_list)
-        rvs.add_sure(RangeVar(id, rv_def.rel));
-    stack_.push_back(rvs);
-    return rvs;
+        rv_set.add_sure(RangeVar(id, rv_def.rel));
+    stack_.push_back(rv_set);
+    return rv_set;
 }
 
 
@@ -80,8 +78,8 @@ RangeVar Lookuper::Lookup(const string& name)
 {
     if (name.empty())
         return this_rv_;
-    BOOST_REVERSE_FOREACH(const RangeVars& rvs, stack_)
-        BOOST_FOREACH(const RangeVar& rv, rvs)
+    BOOST_REVERSE_FOREACH(const RangeVarSet& rv_set, stack_)
+        BOOST_FOREACH(const RangeVar& rv, rv_set)
             if (rv.GetName() == name)
                 return rv;
     RangeVar result(name, Base(name));
@@ -173,15 +171,14 @@ namespace
     CLOSURE1(PathEntryClosure, StringSet);
 
     CLOSURE1(RelClosure, Wrapper<Rel>);
-    CLOSURE3(SelectClosure, Wrapper<Rel>, Select::Protos, protos,
-             Wrapper<Expr>, expr);
-    CLOSURE1(ProtosClosure, Select::Protos);
+    CLOSURE3(SelectClosure, Wrapper<Rel>, Protos, protos, Wrapper<Expr>, expr);
+    CLOSURE1(ProtosClosure, Protos);
     CLOSURE1(ProtoClosure, Wrapper<Proto>);
     CLOSURE2(MultiFieldProtoClosure, Wrapper<Proto>, Wrapper<RangeVar>, rv);
     CLOSURE2(ExprProtoClosure, Wrapper<Proto>, string, name);
 
     CLOSURE1(ExprClosure, Wrapper<Expr>);
-    CLOSURE3(QuantClosure, Wrapper<Expr>, bool, flag, Quant::RangeVars, rvs);
+    CLOSURE3(QuantClosure, Wrapper<Expr>, bool, flag, RangeVarSet, rv_set);
     CLOSURE2(UnaryClosure, Wrapper<Expr>, Wrapper<UnaryOp>, op);
     CLOSURE2(BinaryClosure, Wrapper<Expr>, Wrapper<BinaryOp>, op);
     CLOSURE2(CondClosure, Wrapper<Expr>, Wrapper<Expr>, yes);
@@ -382,18 +379,18 @@ Parser::Parser()
             EXPR = (
                 ((keyword_p("forsome")[EXPR.flag = val(false)] |
                   keyword_p("forall")[EXPR.flag = val(true)]) >>
-                 ((rv_def[EXPR.rvs = enter_scope] >>
+                 ((rv_def[EXPR.rv_set = enter_scope] >>
                    quant_expr[
                        EXPR.val = construct_<Quant>(EXPR.flag,
-                                                    EXPR.rvs,
+                                                    EXPR.rv_set,
                                                     arg1),
                        exit_scope]) |
                   ('(' >> (
-                      id[checked_add(EXPR.rvs, lookup)] % ',') >>
+                      id[checked_add(EXPR.rv_set, lookup)] % ',') >>
                    ')' >>
                    quant_expr[
                        EXPR.val = construct_<Quant>(EXPR.flag,
-                                                    EXPR.rvs,
+                                                    EXPR.rv_set,
                                                     arg1)]))) |
                 SUBST(cond_expr)),
 

@@ -310,7 +310,7 @@ namespace ak
     {
         Bracer b(os, quant.flag ? "always" : "once");
         os << ' ' << quant.pred;
-        BOOST_FOREACH(const RangeVar& rv, quant.rvs)
+        BOOST_FOREACH(const RangeVar& rv, quant.rv_set)
             os << ' ' << rv;
         return os;
     }
@@ -356,13 +356,14 @@ BOOST_AUTO_TEST_CASE(orset_test)
     v.push_back(3);
     v.push_back(4);
     BOOST_CHECK(vector<int>(a.begin(), a.end()) == v);
-    orset<int> b(v.rbegin(), v.rend());
+    orset<int> b;
+    b.add_sure(4);
+    b.add_sure(3);
+    b.add_sure(2);
+    b.add_sure(1);
     BOOST_CHECK(a == b);
     BOOST_CHECK(vector<int>(a.begin(), a.end()) ==
                 vector<int>(b.rbegin(), b.rend()));
-    v.push_back(1);
-    v.push_back(4);
-    BOOST_CHECK(a == orset<int>(v.begin(), v.end(), false));
     b.add_sure(5);
     BOOST_CHECK(a != b);
     BOOST_CHECK_THROW(a.find(42), runtime_error);

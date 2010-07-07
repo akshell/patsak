@@ -112,8 +112,7 @@ namespace
 
     class RelTranslator : public static_visitor<Header> {
     public:
-        RelTranslator(Control& control)
-            : control_(control) {}
+        RelTranslator(Control& control);
 
         Header operator()(const Base& base) const;
         Header operator()(const Select& select) const;
@@ -265,14 +264,10 @@ Control::StringScope::~StringScope()
 
 namespace
 {
-    typedef orset<RangeVar> RangeVarSet;
-
-
     // Collect unbound rangevars from expression
     class ExprRangeVarCollector : public static_visitor<void> {
     public:
-        ExprRangeVarCollector(RangeVarSet& rvs)
-            : rvs_(rvs) {}
+        ExprRangeVarCollector(RangeVarSet& rv_set);
 
         void operator()(const Liter& liter) const;
         void operator()(const MultiField& multi_field) const;
@@ -283,9 +278,15 @@ namespace
         void operator()(const Cond& cond);
 
     private:
-        RangeVarSet& rvs_;
-        vector<const Quant::RangeVars*> quant_rvs_stack_;
+        RangeVarSet& rv_set_;
+        vector<const RangeVarSet*> quant_rv_set_stack_;
     };
+}
+
+
+ExprRangeVarCollector::ExprRangeVarCollector(RangeVarSet& rv_set)
+    : rv_set_(rv_set)
+{
 }
 
 
@@ -296,12 +297,12 @@ void ExprRangeVarCollector::operator()(const Liter& /*liter*/) const
 
 void ExprRangeVarCollector::operator()(const MultiField& multi_field) const
 {
-    BOOST_FOREACH(const Quant::RangeVars* rvs_ptr, quant_rvs_stack_) {
-        BOOST_FOREACH(const RangeVar& bound_rv, *rvs_ptr)
+    BOOST_FOREACH(const RangeVarSet* rv_set_ptr, quant_rv_set_stack_) {
+        BOOST_FOREACH(const RangeVar& bound_rv, *rv_set_ptr)
             if (bound_rv == multi_field.rv)
                 return;
     }
-    rvs_.add_unsure(multi_field.rv);
+    rv_set_.add_unsure(multi_field.rv);
 }
 
 
@@ -312,9 +313,9 @@ void ExprRangeVarCollector::operator()(const PosArg& /*pos_arg*/) const
 
 void ExprRangeVarCollector::operator()(const Quant& quant)
 {
-    quant_rvs_stack_.push_back(&quant.rvs);
+    quant_rv_set_stack_.push_back(&quant.rv_set);
     apply_visitor(*this, quant.pred);
-    quant_rvs_stack_.pop_back();
+    quant_rv_set_stack_.pop_back();
 }
 
 
@@ -347,34 +348,39 @@ namespace
     // Collect unbound rangevars from prototypes
     class ProtoRangeVarCollector : public static_visitor<void> {
     public:
-        ProtoRangeVarCollector(RangeVarSet& rvs)
-            : rvs_(rvs) {}
+        ProtoRangeVarCollector(RangeVarSet& rv_set);
 
         void operator()(const RangeVar& rv) const;
         void operator()(const MultiField& multi_field) const;
         void operator()(const NamedExpr& ne) const;
 
     private:
-        RangeVarSet& rvs_;
+        RangeVarSet& rv_set_;
     };
+}
+
+
+ProtoRangeVarCollector::ProtoRangeVarCollector(RangeVarSet& rv_set)
+    : rv_set_(rv_set)
+{
 }
 
 
 void ProtoRangeVarCollector::operator()(const RangeVar& rv) const
 {
-    rvs_.add_unsure(rv);
+    rv_set_.add_unsure(rv);
 }
 
 
 void ProtoRangeVarCollector::operator()(const MultiField& multi_field) const
 {
-    rvs_.add_unsure(multi_field.rv);
+    rv_set_.add_unsure(multi_field.rv);
 }
 
 
 void ProtoRangeVarCollector::operator()(const NamedExpr& ne) const
 {
-    ExprRangeVarCollector expr_rv_collector(rvs_);
+    ExprRangeVarCollector expr_rv_collector(rv_set_);
     apply_visitor(expr_rv_collector, ne.expr);
 }
 
@@ -473,9 +479,9 @@ namespace
     class SelectBuilder {
     public:
         SelectBuilder(Control& control);
-        RangeVarSet CollectRangeVars(const Select::Protos& protos) const;
-        Control::BindData BuildFrom(const RangeVarSet& rvs) const;
-        Header BuildHeader(const Select::Protos& protos) const;
+        RangeVarSet CollectRangeVars(const Protos& protos) const;
+        Control::BindData BuildFrom(const RangeVarSet& rv_set) const;
+        Header BuildHeader(const Protos& protos) const;
         void BuildWhere(const Expr& expr, const RangeVar* this_rv_ptr) const;
 
     private:
@@ -491,7 +497,7 @@ SelectBuilder::SelectBuilder(Control& control)
 }
 
 
-RangeVarSet SelectBuilder::CollectRangeVars(const Select::Protos& protos) const
+RangeVarSet SelectBuilder::CollectRangeVars(const Protos& protos) const
 {
     RangeVarSet result;
     ProtoRangeVarCollector proto_rv_collector(result);
@@ -501,16 +507,16 @@ RangeVarSet SelectBuilder::CollectRangeVars(const Select::Protos& protos) const
 }
 
 
-Control::BindData SelectBuilder::BuildFrom(const RangeVarSet& rvs) const
+Control::BindData SelectBuilder::BuildFrom(const RangeVarSet& rv_set) const
 {
-    if (rvs.empty())
+    if (rv_set.empty())
         return Control::BindData();
 
     Control::BindData bind_data;
-    bind_data.reserve(rvs.size());
+    bind_data.reserve(rv_set.size());
     control_ << " FROM ";
     Separator sep;
-    BOOST_FOREACH(const RangeVar& rv, rvs) {
+    BOOST_FOREACH(const RangeVar& rv, rv_set) {
         control_ << sep;
         const Base* base_ptr = boost::get<Base>(&rv.GetRel());
         if (!base_ptr)
@@ -526,7 +532,7 @@ Control::BindData SelectBuilder::BuildFrom(const RangeVarSet& rvs) const
 }
 
 
-Header SelectBuilder::BuildHeader(const Select::Protos& protos) const
+Header SelectBuilder::BuildHeader(const Protos& protos) const
 {
     ProtoTranslator proto_translator(control_);
     Separator sep;
@@ -707,16 +713,15 @@ Type ExprTranslator::operator()(const PosArg& pos_arg) const
 
 Type ExprTranslator::operator()(const Quant& quant) const
 {
-    AK_ASSERT(!quant.rvs.empty());
+    AK_ASSERT(!quant.rv_set.empty());
     string modificator(quant.flag ? "NOT " : "");
     control_ << '(' << modificator << "EXISTS (";
     SelectBuilder builder(control_);
     control_ << '1';
-    RangeVarSet rv_set(quant.rvs.begin(), quant.rvs.end());
-    Control::BindScope bind_scope(control_, builder.BuildFrom(rv_set));
+    Control::BindScope bind_scope(control_, builder.BuildFrom(quant.rv_set));
     control_ << " WHERE " << modificator;
-    const RangeVar* this_rv_ptr = (quant.rvs.size() == 1
-                                   ? &quant.rvs.front()
+    const RangeVar* this_rv_ptr = (quant.rv_set.size() == 1
+                                   ? &quant.rv_set.front()
                                    : 0);
     control_.TranslateExpr(quant.pred, this_rv_ptr, Type::BOOL);
     control_ << "))";
@@ -785,6 +790,12 @@ Type ExprTranslator::operator()(const Cond& cond) const
 // RelTranslator definitions
 ////////////////////////////////////////////////////////////////////////////////
 
+RelTranslator::RelTranslator(Control& control)
+    : control_(control)
+{
+}
+
+
 Header RelTranslator::operator()(const Base& base) const
 {
     control_ << '"' << base.name << '"';
@@ -800,12 +811,12 @@ Header RelTranslator::operator()(const Select& select) const
         builder.BuildWhere(select.expr, 0);
         return Header();
     }
-    RangeVarSet rvs = builder.CollectRangeVars(select.protos);
+    RangeVarSet rv_set = builder.CollectRangeVars(select.protos);
     string from_part;
     Control::BindData bind_data;
     {
         Control::StringScope string_scope(control_, from_part);
-        bind_data = builder.BuildFrom(rvs);
+        bind_data = builder.BuildFrom(rv_set);
     }
     Control::BindScope bind_scope(control_, bind_data);
     Header header = builder.BuildHeader(select.protos);

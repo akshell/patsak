@@ -69,6 +69,9 @@ namespace ak
         boost::shared_ptr<Impl> pimpl_;
     };
 
+
+    typedef orset<RangeVar> RangeVarSet;
+
     ////////////////////////////////////////////////////////////////////////////
     // Expr
     ////////////////////////////////////////////////////////////////////////////
@@ -127,14 +130,12 @@ namespace ak
 
 
     struct Quant {
-        typedef orset<RangeVar> RangeVars;
-
         bool flag;
-        RangeVars rvs;
+        RangeVarSet rv_set;
         Expr pred;
 
-        Quant(bool flag, const RangeVars& rvs, const Expr& pred)
-            : flag(flag), rvs(rvs), pred(pred) {}
+        Quant(bool flag, const RangeVarSet& rv_set, const Expr& pred)
+            : flag(flag), rv_set(rv_set), pred(pred) {}
     };
 
 
@@ -181,11 +182,10 @@ namespace ak
 
 
     typedef boost::variant<RangeVar, MultiField, NamedExpr> Proto;
+    typedef std::vector<Proto> Protos;
 
 
     struct Select {
-        typedef std::vector<Proto> Protos;
-
         Protos protos;
         Expr expr;
 

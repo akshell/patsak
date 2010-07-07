@@ -58,19 +58,6 @@ namespace ak
 
         orset() {}
 
-        template <typename ItrT>
-        orset(ItrT from, ItrT to, bool sure = true) {
-            while (from != to)
-                if (sure)
-                    add_sure(*from++);
-                else
-                    add_unsure(*from++);
-        }
-
-        void swap(orset& other) {
-            base::swap(other);
-        }
-
         bool contains(const T& val) const {
             return std::find_if(begin(),
                                 end(),
