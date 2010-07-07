@@ -6,18 +6,14 @@
 
 #include <pqxx/pqxx>
 #include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/foreach.hpp>
+#include <boost/scoped_ptr.hpp>
 
 
 using namespace std;
 using namespace ak;
 using boost::format;
 using boost::scoped_ptr;
-using boost::static_visitor;
-using boost::apply_visitor;
-using boost::lexical_cast;
-using boost::noncopyable;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -868,9 +864,9 @@ namespace
     private:
         pqxx::connection conn_;
         string schema_name_;
-        boost::scoped_ptr<Meta> meta_ptr_;
+        scoped_ptr<Meta> meta_ptr_;
         bool meta_changed_;
-        boost::scoped_ptr<pqxx::work> work_ptr_;
+        scoped_ptr<pqxx::work> work_ptr_;
 
         pqxx::work& GetWork();
     };

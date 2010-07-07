@@ -3,9 +3,6 @@
 
 #include "debug.h"
 
-#include <boost/lexical_cast.hpp>
-#include <boost/utility.hpp>
-#include <boost/scoped_ptr.hpp>
 #include <boost/date_time/local_time/local_time.hpp>
 
 #include <execinfo.h>
@@ -13,10 +10,6 @@
 
 using namespace std;
 using namespace ak;
-using boost::lexical_cast;
-using boost::noncopyable;
-using boost::scoped_ptr;
-using boost::posix_time::ptime;
 using boost::local_time::posix_time_zone;
 using boost::local_time::time_zone_ptr;
 using boost::local_time::local_sec_clock;

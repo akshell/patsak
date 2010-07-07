@@ -6,9 +6,6 @@
 
 #include "common.h"
 
-#include <boost/scoped_ptr.hpp>
-#include <boost/variant.hpp>
-
 
 namespace ak
 {
