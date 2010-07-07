@@ -1078,12 +1078,8 @@ size_t ak::Update(const string& rel_var_name,
                   const Drafts& expr_params)
 {
     const Header& header(GetHeader(rel_var_name));
-    uint64_t size = 0;
-    BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map) {
+    BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map)
         header.find(named_expr.first);
-        // FIXME it's wrong estimation for expressions
-        size += named_expr.second.size();
-    }
     string sql(
         TranslateUpdate(
             rel_var_name, where, where_params, expr_map, expr_params));
@@ -1125,47 +1121,36 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
     const RelVar& rel_var(db_ptr->GetMeta().Get(rel_var_name));
     const DefHeader& def_header(rel_var.GetDefHeader());
     string sql;
-    uint64_t size = 0;
     if (def_header.empty()) {
         if (!draft_map.empty())
             def_header.find(draft_map.begin()->first); // throws
         sql = (format(empty_cmd) % rel_var_name).str();
-    } else {
-        if (!draft_map.empty()) {
-            BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map)
-                def_header.find(named_draft.first);
-            ostringstream names_oss, values_oss;
-            Separator names_sep, values_sep;
-            BOOST_FOREACH(const DefAttr& def_attr, def_header) {
-                DraftMap::const_iterator itr(
-                    draft_map.find(def_attr.name));
-                if (itr == draft_map.end()) {
-                    if (def_attr.type != Type::SERIAL && !def_attr.def_ptr)
-                        throw Error(Error::ATTR_VALUE_REQUIRED,
-                                    ("Value of attribute \"" +
-                                     def_attr.name +
-                                     "\" must be supplied"));
-                } else {
-                    names_oss << names_sep << '"' << def_attr.name << '"';
-                    Value value(itr->second.Get(def_attr.type));
-                    values_oss << values_sep << value.GetPgLiter();
-                }
-            }
-            sql = (format(cmd)
-                   % rel_var_name
-                   % names_oss.str()
-                   % values_oss.str()).str();
-            size += values_oss.str().size();
-        } else {
-            sql = (format(def_cmd) % rel_var_name).str();
-        }
+    } else if (!draft_map.empty()) {
+        BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map)
+            def_header.find(named_draft.first);
+        ostringstream names_oss, values_oss;
+        Separator names_sep, values_sep;
         BOOST_FOREACH(const DefAttr& def_attr, def_header) {
-            if (def_attr.def_ptr) {
-                double d;
-                string s;
-                size += def_attr.def_ptr->Get(d, s) ? s.size() : 16;
+            DraftMap::const_iterator itr(
+                draft_map.find(def_attr.name));
+            if (itr == draft_map.end()) {
+                if (def_attr.type != Type::SERIAL && !def_attr.def_ptr)
+                    throw Error(Error::ATTR_VALUE_REQUIRED,
+                                ("Value of attribute \"" +
+                                 def_attr.name +
+                                 "\" must be supplied"));
+            } else {
+                names_oss << names_sep << '"' << def_attr.name << '"';
+                Value value(itr->second.Get(def_attr.type));
+                values_oss << values_sep << value.GetPgLiter();
             }
         }
+        sql = (format(cmd)
+               % rel_var_name
+               % names_oss.str()
+               % values_oss.str()).str();
+    } else {
+        sql = (format(def_cmd) % rel_var_name).str();
     }
     pqxx::result pqxx_result;
     try {
