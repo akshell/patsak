@@ -6,13 +6,11 @@
 #include "db.h"
 
 #include <boost/foreach.hpp>
-#include <boost/ref.hpp>
 
 
 using namespace std;
 using namespace ak;
 using namespace v8;
-using boost::ref;
 using boost::shared_ptr;
 
 
