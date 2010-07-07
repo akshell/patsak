@@ -616,7 +616,7 @@ void RelVar::AddDefault(const DraftMap& draft_map)
     Separator sep;
     BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map) {
         RichAttr& new_rich_attr(new_rich_header.find(named_draft.first));
-        const Value& value(named_draft.second.Get(new_rich_attr.GetType()));
+        Value value(named_draft.second.Get(new_rich_attr.GetType()));
         new_rich_attr.SetDefaultPtr(&value);
         oss << sep << "ALTER \"" << named_draft.first
             << "\" SET DEFAULT " <<  value.GetPgLiter();
