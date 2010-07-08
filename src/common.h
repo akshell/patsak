@@ -134,7 +134,7 @@ namespace ak
     class ValuePtr : public Value {
     public:
         ValuePtr() {}
-        ValuePtr(Value value) : Value(value) {}
+        ValuePtr(const Value& value) : Value(value) {}
 
         const Value* operator->() const {
             return pimpl_ ? this : 0;
@@ -262,7 +262,7 @@ namespace ak
     struct NamedDraft : public Named {
         Draft draft;
 
-        NamedDraft(const std::string& name, Draft draft)
+        NamedDraft(const std::string& name, const Draft& draft)
             : Named(name), draft(draft) {}
     };
 

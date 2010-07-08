@@ -362,8 +362,10 @@ void RelVar::PrintForeignKey(ostream& os,
                               : meta.Get(foreign_key.ref_rel_var_name));
     const Header& ref_header(ref_rel_var.GetHeader());
     for (size_t i = 0; i < foreign_key.key_attr_names.size(); ++i) {
-        Attr key_attr(GetAttr(header_, foreign_key.key_attr_names[i]));
-        Attr ref_attr(GetAttr(ref_header, foreign_key.ref_attr_names[i]));
+        const Attr& key_attr(
+            GetAttr(header_, foreign_key.key_attr_names[i]));
+        const Attr& ref_attr(
+            GetAttr(ref_header, foreign_key.ref_attr_names[i]));
         if (key_attr.type != ref_attr.type &&
             !((key_attr.type == Type::INT && ref_attr.type == Type::SERIAL) ||
               (ref_attr.type == Type::INT && key_attr.type == Type::SERIAL)))

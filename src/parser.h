@@ -83,7 +83,7 @@ namespace ak
     struct Liter {
         Value value;
 
-        explicit Liter(Value value) : value(value) {}
+        explicit Liter(const Value& value) : value(value) {}
     };
 
 

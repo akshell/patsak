@@ -45,7 +45,7 @@ namespace ak
 
         DefAttr(const std::string& name,
                 Type type,
-                ValuePtr default_ptr = ValuePtr())
+                const ValuePtr& default_ptr = ValuePtr())
             : Attr(name, type), default_ptr(default_ptr) {}
     };
 
@@ -56,7 +56,7 @@ namespace ak
     struct ValAttr : public Attr {
         Value value;
 
-        ValAttr(const std::string& name, Type type, Value value)
+        ValAttr(const std::string& name, Type type, const Value& value)
             : Attr(name, type), value(value) {}
     };
 

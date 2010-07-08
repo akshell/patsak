@@ -126,7 +126,7 @@ namespace
     }
 
 
-    Handle<v8::Value> MakeV8Value(ak::Value ak_value)
+    Handle<v8::Value> MakeV8Value(const ak::Value& ak_value)
     {
         Type type(ak_value.GetType());
         double d;
