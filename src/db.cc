@@ -159,7 +159,7 @@ RelVar::RelVar(const string& name)
                 AK_ASSERT(def_attr.type == Type::INT);
                 def_attr.type = Type::SERIAL;
             } else {
-                def_attr.def_ptr = ValuePtr(Value(def_attr.type, def_str));
+                def_attr.default_ptr = ValuePtr(Value(def_attr.type, def_str));
             }
         }
         def_header_.add(def_attr);
@@ -206,8 +206,8 @@ RelVar::RelVar(const Meta& meta,
     BOOST_FOREACH(const DefAttr& def_attr, def_header) {
         oss << sep << '"' << def_attr.name << "\" "
             << def_attr.type.GetPgName() << " NOT NULL";
-        if (def_attr.def_ptr)
-            oss << " DEFAULT " << def_attr.def_ptr->GetPgLiter();
+        if (def_attr.default_ptr)
+            oss << " DEFAULT " << def_attr.default_ptr->GetPgLiter();
         else if (def_attr.type == Type::SERIAL)
             oss << " DEFAULT nextval('\""
                 << name << '@' << def_attr.name
@@ -561,7 +561,7 @@ void RelVar::AddDefault(const DraftMap& draft_map)
     BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map) {
         const DefAttr& new_def_attr(GetAttr(new_def_header, named_draft.first));
         Value value(named_draft.second.Get(new_def_attr.type));
-        const_cast<DefAttr&>(new_def_attr).def_ptr = value;
+        const_cast<DefAttr&>(new_def_attr).default_ptr = value;
         oss << sep << "ALTER \"" << named_draft.first
             << "\" SET DEFAULT " <<  value.GetPgLiter();
     }
@@ -581,7 +581,7 @@ void RelVar::DropDefault(const StringSet& attr_names)
     Separator sep;
     BOOST_FOREACH(const string& attr_name, attr_names) {
         const DefAttr& def_attr(GetAttr(def_header_, attr_name));
-        if (!def_attr.def_ptr)
+        if (!def_attr.default_ptr)
             throw Error(Error::DB,
                         "Attribute \"" + attr_name + "\" has no default value");
         def_attr_ptrs.push_back(const_cast<DefAttr*>(&def_attr));
@@ -589,7 +589,7 @@ void RelVar::DropDefault(const StringSet& attr_names)
     }
     Exec(oss.str());
     BOOST_FOREACH(DefAttr* def_attr_ptr, def_attr_ptrs)
-        def_attr_ptr->def_ptr = ValuePtr();
+        def_attr_ptr->default_ptr = ValuePtr();
 }
 
 
@@ -1129,7 +1129,7 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
             DraftMap::const_iterator itr(
                 draft_map.find(def_attr.name));
             if (itr == draft_map.end()) {
-                if (def_attr.type != Type::SERIAL && !def_attr.def_ptr)
+                if (def_attr.type != Type::SERIAL && !def_attr.default_ptr)
                     throw Error(Error::ATTR_VALUE_REQUIRED,
                                 ("Value of attribute \"" +
                                  def_attr.name +

@@ -317,7 +317,7 @@ namespace
         typedef vector<AddedConstrPtr> AddedConstrPtrs;
 
         Type type_;
-        shared_ptr<ak::Value> def_ptr_;
+        shared_ptr<ak::Value> default_ptr_;
         AddedConstrPtrs ac_ptrs_;
 
         friend Handle<Object> JSNew<TypeBg>(Type,
@@ -325,7 +325,7 @@ namespace
                                             AddedConstrPtrs);
 
         TypeBg(Type type,
-               shared_ptr<ak::Value> def_ptr,
+               shared_ptr<ak::Value> default_ptr,
                const AddedConstrPtrs& ac_ptrs);
 
         DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetNameCb,
@@ -365,10 +365,10 @@ TypeBg::TypeBg(Type type)
 
 
 TypeBg::TypeBg(Type type,
-               shared_ptr<ak::Value> def_ptr,
+               shared_ptr<ak::Value> default_ptr,
                const AddedConstrPtrs& ac_ptrs)
     : type_(type)
-    , def_ptr_(def_ptr)
+    , default_ptr_(default_ptr)
     , ac_ptrs_(ac_ptrs)
 {
 }
@@ -382,7 +382,7 @@ Type TypeBg::GetType() const
 
 const ak::Value* TypeBg::GetDefaultPtr() const
 {
-    return def_ptr_.get();
+    return default_ptr_.get();
 }
 
 
@@ -412,9 +412,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, DefaultCb,
     CheckArgsLength(args, 1);
     if (type_ == Type::SERIAL)
         throw Error(Error::USAGE, "Default and serial are incompatible");
-    shared_ptr<ak::Value> def_ptr(
+    shared_ptr<ak::Value> default_ptr(
         new ak::Value(CreateDraft(args[0]).Get(type_)));
-    return JSNew<TypeBg>(type_, def_ptr, ac_ptrs_);
+    return JSNew<TypeBg>(type_, default_ptr, ac_ptrs_);
 }
 
 
@@ -423,7 +423,7 @@ Handle<v8::Value> TypeBg::NewWithAddedConstr(AddedConstrPtr ac_ptr) const
     AK_ASSERT(ac_ptr.get());
     AddedConstrPtrs new_ac_ptrs(ac_ptrs_);
     new_ac_ptrs.push_back(ac_ptr);
-    return JSNew<TypeBg>(type_, def_ptr_, new_ac_ptrs);
+    return JSNew<TypeBg>(type_, default_ptr_, new_ac_ptrs);
 
 }
 
@@ -579,8 +579,8 @@ namespace
         CheckArgsLength(args, 1);
         Handle<Object> result(Object::New());
         BOOST_FOREACH(const DefAttr& def_attr, GetDefHeader(Stringify(args[0])))
-            if (def_attr.def_ptr)
-                Set(result, def_attr.name, MakeV8Value(*def_attr.def_ptr));
+            if (def_attr.default_ptr)
+                Set(result, def_attr.name, MakeV8Value(*def_attr.default_ptr));
         return result;
     }
 

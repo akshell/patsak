@@ -403,11 +403,11 @@ namespace ak
     {
         if (lhs.name != rhs.name || lhs.type != rhs.type)
             return false;
-        if (!lhs.def_ptr && !rhs.def_ptr)
+        if (!lhs.default_ptr && !rhs.default_ptr)
             return true;
-        if (!lhs.def_ptr || !rhs.def_ptr)
+        if (!lhs.default_ptr || !rhs.default_ptr)
             return false;
-        return *lhs.def_ptr == *rhs.def_ptr;
+        return *lhs.default_ptr == *rhs.default_ptr;
     }
 }
 
@@ -698,7 +698,7 @@ void Table::ReadMetaData(istream& is)
             line_iss >> field_name;
             const DefAttr& def_attr(GetAttr(def_header_, field_name));
             Value value(ReadValue(line_iss, def_attr.type));
-            const_cast<DefAttr&>(def_attr).def_ptr = value;
+            const_cast<DefAttr&>(def_attr).default_ptr = value;
         } else {
             BOOST_FAIL("Unknown constraint: " + constr_name);
         }

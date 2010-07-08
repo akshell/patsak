@@ -41,12 +41,12 @@ namespace ak
     ////////////////////////////////////////////////////////////////////////////
 
     struct DefAttr : public Attr {
-        ValuePtr def_ptr;
+        ValuePtr default_ptr;
 
         DefAttr(const std::string& name,
                 Type type,
-                ValuePtr def_ptr = ValuePtr())
-            : Attr(name, type), def_ptr(def_ptr) {}
+                ValuePtr default_ptr = ValuePtr())
+            : Attr(name, type), default_ptr(default_ptr) {}
     };
 
 
