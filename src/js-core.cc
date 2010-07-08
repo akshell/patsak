@@ -3,7 +3,6 @@
 
 #include "js-core.h"
 #include "js-common.h"
-#include "js-fs.h"
 
 
 using namespace ak;
@@ -17,9 +16,6 @@ using namespace std;
 
 namespace
 {
-    string code_path;
-
-
     DEFINE_JS_FUNCTION(PrintCb, args)
     {
         CheckArgsLength(args, 1);
@@ -54,41 +50,14 @@ namespace
                     : 0);
         return Integer::New(hash);
     }
-
-
-    string GetPath(const Arguments& args)
-    {
-        CheckArgsLength(args, 1);
-        string path(Stringify(args[0]));
-        if (GetPathDepth(path) <= 0)
-            throw Error(Error::PATH, "Code path \"" + path + "\" is illegal");
-        return code_path + '/' + path;
-    }
-
-
-    DEFINE_JS_FUNCTION(ReadCodeCb, args)
-    {
-        auto_ptr<Chars> data_ptr(ReadFile(GetPath(args)));
-        return String::New(&data_ptr->front(), data_ptr->size());
-    }
-
-
-    DEFINE_JS_FUNCTION(GetCodeModDateCb, args)
-    {
-        time_t date = GetStat(GetPath(args))->st_mtime;
-        return Date::New(static_cast<double>(date) * 1000);
-    }
 }
 
 
-Handle<Object> ak::InitCore(const string& code_path)
+Handle<Object> ak::InitCore()
 {
-    ::code_path = code_path;
     Handle<Object> result(Object::New());
     SetFunction(result, "print", PrintCb);
     SetFunction(result, "set", SetCb);
     SetFunction(result, "hash", HashCb);
-    SetFunction(result, "readCode", ReadCodeCb);
-    SetFunction(result, "getCodeModDate", GetCodeModDateCb);
     return result;
 }

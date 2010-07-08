@@ -209,9 +209,9 @@ void ak::InitJS(const string& code_path,
     context = Context::New();
     Context::Scope context_scope(context);
     Handle<Object> global(context->Global());
-    Set(global, "core", InitCore(code_path));
+    Set(global, "core", InitCore());
     Set(global, "db", InitDB());
-    Set(global, "fs", InitFS(media_path));
+    Set(global, "fs", InitFS(code_path, media_path));
     Set(global, "binary", InitBinary());
     Set(global, "proxy", InitProxy());
     Set(global, "script", InitScript());

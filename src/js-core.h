@@ -11,7 +11,7 @@
 
 namespace ak
 {
-    v8::Handle<v8::Object> InitCore(const std::string& code_path);
+    v8::Handle<v8::Object> InitCore();
 }
 
 #endif // JS_SCRIPT_H

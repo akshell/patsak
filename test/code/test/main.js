@@ -8,6 +8,8 @@ Binary.prototype.toString = Binary.prototype._toString;
 connect = socket.connect;
 HttpParser = http.HttpParser;
 Repo = git.Repo;
+code = fs.code;
+media = fs.media;
 
 READ_ONLY   = 1 << 0;
 DONT_ENUM   = 1 << 1;
@@ -25,12 +27,12 @@ errors.slice(2).forEach(
 
 
 function remove(path) {
-  if (fs.isDir(path)) {
-    var children = fs.list(path);
+  if (media.isDir(path)) {
+    var children = media.list(path);
     for (var i = 0; i < children.length; ++i)
       arguments.callee(path + '/' + children[i]);
   }
-  fs.remove(path);
+  media.remove(path);
 };
 
 
@@ -211,19 +213,6 @@ var baseTestSuite = {
     assertEqual(keys(obj), ['readOnly', 'dontDelete']);
     delete obj.dontDelete;
     assertSame(obj.dontDelete, 3);
-  },
-
-  testReadCode: function () {
-    assertSame(readCode('main/index.js'), 'exports.main = require.main;\n');
-    assertThrow(PathError, readCode, '');
-    assertThrow(PathError, readCode, 'subdir/../../another-app/main.js');
-    assertThrow(EntryIsDirError, readCode, 'main');
-    assertThrow(UsageError, readCode);
-  },
-
-  testGetCodeModDate: function () {
-    assert(getCodeModDate('main.js') > new Date('01.01.2010'));
-    assertThrow(NoSuchEntryError, getCodeModDate, 'no-such-file');
   },
 
   testScript: function () {
@@ -1022,7 +1011,10 @@ var dbTestSuite = {
 
   testBigIndexRow: function () {
     create('rv', {s: 'string'});
-    assertThrow(DBError, "db.insert('rv', {s: readCode('main.js')})");
+    var s = 'x';
+    for (var i = 0; i < 20; ++i)
+      s += s;
+    assertThrow(DBError, function () { db.insert('rv', {s: s}); });
     db.drop(['rv']);
   },
 
@@ -1213,33 +1205,33 @@ var dbTestSuite = {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// File test suite
+// FS test suite
 ////////////////////////////////////////////////////////////////////////////////
 
-var fileTestSuite = {
+var fsTestSuite = {
   setUp: function ()
   {
-    fs.list('').forEach(remove);
-    fs.createDir('dir1');
-    fs.createDir('dir2');
-    fs.createDir('dir1/subdir');
-    fs.open('file')._write('some text');
-    fs.open('dir1/subdir/hello')._write('hello world!');
-    fs.open('dir1/subdir/привет')._write('привет!');
+    media.list('').forEach(remove);
+    media.createDir('dir1');
+    media.createDir('dir2');
+    media.createDir('dir1/subdir');
+    media.open('file')._write('some text');
+    media.open('dir1/subdir/hello')._write('hello world!');
+    media.open('dir1/subdir/привет')._write('привет!');
   },
 
   tearDown: function () {
-    fs.list('').forEach(remove);
+    media.list('').forEach(remove);
   },
 
   testOpen: function () {
-    assertEqual(fs.open('//dir1////subdir/hello')._read(), 'hello world!');
-    assertSame(fs.open('file')._read()[5], 't'.charCodeAt(0));
-    assertSame(fs.open('/dir1/subdir/привет')._read()._toString(), 'привет!');
-    assertThrow(EntryIsDirError, "fs.open('dir1')");
-    assertThrow(PathError, "fs.open('//..//test-app/dir1/subdir/hello')");
-    assertThrow(PathError, "fs.open('/dir1/../../file')");
-    var file = fs.open('test');
+    assertEqual(media.open('//dir1////subdir/hello')._read(), 'hello world!');
+    assertSame(media.open('file')._read()[5], 't'.charCodeAt(0));
+    assertSame(media.open('/dir1/subdir/привет')._read()._toString(), 'привет!');
+    assertThrow(EntryIsDirError, "media.open('dir1')");
+    assertThrow(PathError, "media.open('//..//test-app/dir1/subdir/hello')");
+    assertThrow(PathError, "media.open('/dir1/../../file')");
+    var file = media.open('test');
     var text = 'russian text русский текст';
     var binary = new Binary(text);
     file._write(binary);
@@ -1261,74 +1253,86 @@ var fileTestSuite = {
     assertThrow(ValueError, function () { file._read(); });
     remove('test');
 
-    assertThrow(EntryIsNotDirError, "fs.open('file/xxx')");
-    assertThrow(EntryIsDirError, "fs.open('dir1')");
+    assertThrow(EntryIsNotDirError, "media.open('file/xxx')");
+    assertThrow(EntryIsDirError, "media.open('dir1')");
     assertThrow(
       PathError,
       function () {
         var array = [];
         for (var i = 0; i < 1000; ++i)
           array.push('x');
-        fs.open(array.join(''));
+        media.open(array.join(''));
       });
+
+    file = code.open('main/index.js');
+    assertSame(file._read() + '', 'exports.main = require.main;\n');
+    assert(!file.writable);
+    assertThrow(ValueError, function () { file.length = 0; });
+    assertThrow(ValueError, function () { file._flush(); });
+    assertThrow(ValueError, function () { file._write(''); });
+    file._close();
   },
 
   testExists: function () {
-    assertSame(fs.exists(''), true);
-    assertSame(fs.exists('dir1/subdir/hello'), true);
-    assertSame(fs.exists('no/such'), false);
+    assertSame(media.exists(''), true);
+    assertSame(media.exists('dir1/subdir/hello'), true);
+    assertSame(media.exists('no/such'), false);
   },
 
   testIsDir: function () {
-    assertSame(fs.isDir(''), true);
-    assertSame(fs.isDir('dir2'), true);
-    assertSame(fs.isDir('file'), false);
-    assertSame(fs.isDir('no/such'), false);
+    assertSame(media.isDir(''), true);
+    assertSame(media.isDir('dir2'), true);
+    assertSame(media.isDir('file'), false);
+    assertSame(media.isDir('no/such'), false);
   },
 
   testIsFile: function () {
-    assertSame(fs.isFile(''), false);
-    assertSame(fs.isFile('dir1/subdir/hello'), true);
-    assertSame(fs.isFile('dir1/subdir'), false);
-    assertSame(fs.isFile('no/such'), false);
+    assertSame(media.isFile(''), false);
+    assertSame(media.isFile('dir1/subdir/hello'), true);
+    assertSame(media.isFile('dir1/subdir'), false);
+    assertSame(media.isFile('no/such'), false);
   },
 
   testList: function () {
-    assertEqual(fs.list('').sort(), ['dir1', 'dir2', 'file']);
-    assertThrow(NoSuchEntryError, "fs.list('no such dir')");
+    assertEqual(media.list('').sort(), ['dir1', 'dir2', 'file']);
+    assertThrow(NoSuchEntryError, "media.list('no such dir')");
+    assertEqual(code.list('main'), ['index.js']);
   },
 
   testGetModDate: function () {
-    fs.open('hello')._write('');
-    assert(Math.abs(new Date() - fs.getModDate('hello')) < 2000);
-    assertThrow(NoSuchEntryError, "fs.getModDate('no-such-file')");
+    media.open('hello')._write('');
+    assert(Math.abs(new Date() - media.getModDate('hello')) < 2000);
+    assertThrow(NoSuchEntryError, "media.getModDate('no-such-file')");
     remove('hello');
   },
 
   testCreateDir: function () {
-    fs.createDir('dir2/ddd');
-    assertEqual(fs.list('dir2'), ['ddd']);
-    assertEqual(fs.list('dir2/ddd'), []);
+    media.createDir('dir2/ddd');
+    assertEqual(media.list('dir2'), ['ddd']);
+    assertEqual(media.list('dir2/ddd'), []);
     remove('dir2/ddd');
-    assertThrow(EntryExistsError, "fs.createDir('file')");
+    assertThrow(EntryExistsError, "media.createDir('file')");
+    assertThrow(ValueError, "code.createDir('never')");
   },
 
   testRemove: function () {
-    fs.open('new-file')._write('data');
+    media.open('new-file')._write('data');
     remove('new-file');
-    fs.createDir('dir2/new-dir');
+    media.createDir('dir2/new-dir');
     remove('dir2/new-dir');
-    assertEqual(fs.list('').sort(), ['dir1', 'dir2', 'file']);
-    assertEqual(fs.list('dir2'), []);
-    assertThrow(FSError, "fs.remove('dir1')");
-    assertThrow(PathError, "fs.remove('dir1/..//')");
+    assertEqual(media.list('').sort(), ['dir1', 'dir2', 'file']);
+    assertEqual(media.list('dir2'), []);
+    assertThrow(FSError, "media.remove('dir1')");
+    assertThrow(PathError, "media.remove('dir1/..//')");
+    assertThrow(ValueError, "code.remove('main.js')");
   },
 
   testRename: function () {
-    fs.rename('dir1', 'dir2/dir3');
-    assertEqual(fs.open('dir2/dir3/subdir/hello')._read(), 'hello world!');
-    fs.rename('dir2/dir3', 'dir1');
-    assertThrow(NoSuchEntryError, "fs.rename('no such file', 'xxx')");
+    media.rename('dir1', 'dir2/dir3');
+    assertEqual(media.open('dir2/dir3/subdir/hello')._read(), 'hello world!');
+    media.rename('dir2/dir3', 'dir1');
+    assertThrow(NoSuchEntryError, "media.rename('no such file', 'xxx')");
+    assertThrow(ValueError, "code.rename('main.js', 'never.js')");
   },
 
   testBinary: function () {
@@ -1451,7 +1455,7 @@ var fileTestSuite = {
 ////////////////////////////////////////////////////////////////////////////////
 
 test = function () {
-  return runTestSuites([baseTestSuite, dbTestSuite, fileTestSuite]);
+  return runTestSuites([baseTestSuite, dbTestSuite, fsTestSuite]);
 };
 
 

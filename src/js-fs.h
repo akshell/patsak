@@ -14,16 +14,6 @@
 
 namespace ak
 {
-    std::auto_ptr<Chars> ReadFile(const std::string& path);
-
-    std::auto_ptr<struct stat> GetStat(const std::string& path,
-                                       bool ignore_error = false);
-
-    // Calculate the depth of directory nesting for relative or absolute path.
-    // Return 0 for empty or root path, -1 for path beyond root or parent.
-    int GetPathDepth(const std::string& path);
-
-
     class BaseFile {
     protected:
         int fd_;
@@ -36,7 +26,8 @@ namespace ak
     };
 
 
-    v8::Handle<v8::Object> InitFS(const std::string& media_path);
+    v8::Handle<v8::Object> InitFS(const std::string& code_path,
+                                  const std::string& media_path);
 }
 
 #endif // JS_FS_H

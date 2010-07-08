@@ -105,7 +105,12 @@
       if (cache.hasOwnProperty(id))
         return cache[id];
       var absPath = id + '.js';
-      var code = core.readCode(absPath);
+      var file = fs.code.open(absPath);
+      try {
+        var code = file._read()._toString();
+      } finally {
+        file._close();
+      }
       var func = new script.Script(
         '(function (require, exports, module) {\n' + code + '\n})',
         absPath, -1)._run();
