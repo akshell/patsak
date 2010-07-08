@@ -1073,8 +1073,8 @@ size_t ak::Update(const string& rel_var_name,
                   const Drafts& expr_params)
 {
     const Header& header(GetHeader(rel_var_name));
-    BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map)
-        GetAttr(header, named_expr.first);
+    BOOST_FOREACH(const NamedString& named_expr, expr_map)
+        GetAttr(header, named_expr.name);
     string sql(
         TranslateUpdate(
             rel_var_name, where, where_params, expr_map, expr_params));

@@ -971,8 +971,8 @@ BOOST_AUTO_TEST_CASE(translator_test)
         "DELETE FROM \"User\" WHERE ((\"User\".\"id\" % 2) = 0)");
 
     StringMap expr_map;
-    expr_map.insert(StringMap::value_type("flooder", "id == 0 || !flooder"));
-    expr_map.insert(StringMap::value_type("name", "name + id + $"));
+    expr_map.add(NamedString("flooder", "id == 0 || !flooder"));
+    expr_map.add(NamedString("name", "name + id + $"));
     Drafts expr_params;
     expr_params.push_back(CreateDraft(Value(Type::STRING, "abc")));
     BOOST_CHECK_EQUAL(

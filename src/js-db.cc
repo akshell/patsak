@@ -643,12 +643,13 @@ namespace
         CheckArgsLength(args, 5);
         if (!args[3]->IsObject())
             throw Error(Error::TYPE, "Update needs an object");
-        StringMap expr_map;
         PropEnumerator prop_enumerator(args[3]->ToObject());
+        StringMap expr_map;
+        expr_map.reserve(prop_enumerator.GetSize());
         for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
             Prop prop(prop_enumerator.GetProp(i));
-            expr_map.insert(StringMap::value_type(Stringify(prop.key),
-                                                  Stringify(prop.value)));
+            expr_map.add(
+                NamedString(Stringify(prop.key), Stringify(prop.value)));
         }
         size_t rows_number = Update(
             Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]),

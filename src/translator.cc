@@ -941,13 +941,13 @@ string ak::TranslateUpdate(const string& rel_var_name,
     oss << "UPDATE \"" << rel_var_name << "\" SET ";
     const Header& header(get_header_cb(rel_var_name));
     Separator sep;
-    BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map)
-        oss << sep << '"' << named_expr.first << "\" = "
+    BOOST_FOREACH(const NamedString& named_expr, expr_map)
+        oss << sep << '"' << named_expr.name << "\" = "
             << DoTranslateExpr(rel_var_name,
                                header,
-                               named_expr.second,
+                               named_expr.str,
                                update_params,
-                               GetAttr(header, named_expr.first).type);
+                               GetAttr(header, named_expr.name).type);
     oss << " WHERE " << DoTranslateExpr(rel_var_name,
                                         header,
                                         where,

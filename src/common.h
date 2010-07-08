@@ -199,7 +199,7 @@ namespace ak
     };
 
     ////////////////////////////////////////////////////////////////////////////
-    // Attr and Header
+    // Named and NameGetter
     ////////////////////////////////////////////////////////////////////////////
 
     struct Named {
@@ -215,6 +215,9 @@ namespace ak
         }
     };
 
+    ////////////////////////////////////////////////////////////////////////////
+    // Attr, Header, and GetAttr
+    ////////////////////////////////////////////////////////////////////////////
 
     struct Attr : public Named {
         Type type;
@@ -254,6 +257,20 @@ namespace ak
     };
 
     ////////////////////////////////////////////////////////////////////////////
+    // NamedString and StringMap
+    ////////////////////////////////////////////////////////////////////////////
+
+    struct NamedString : public Named {
+        std::string str;
+
+        NamedString(const std::string& name, const std::string& str)
+            : Named(name), str(str) {}
+    };
+
+
+    typedef orset<NamedString, NameGetter> StringMap;
+
+    ////////////////////////////////////////////////////////////////////////////
     // Typedefs
     ////////////////////////////////////////////////////////////////////////////
 
@@ -262,7 +279,6 @@ namespace ak
     typedef std::vector<Value> Values;
     typedef std::vector<Type> Types;
     typedef std::vector<Draft> Drafts;
-    typedef std::map<std::string, std::string> StringMap;
     typedef std::map<std::string, Draft> DraftMap;
     typedef std::vector<char> Chars;
 
