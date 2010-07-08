@@ -199,31 +199,35 @@ namespace ak
     };
 
     ////////////////////////////////////////////////////////////////////////////
-    // Header
+    // Attr and Header
     ////////////////////////////////////////////////////////////////////////////
 
-    struct Attr {
+    struct Named {
         std::string name;
-        Type type;
 
-        Attr(const std::string& name, Type type) : name(name), type(type) {}
+        Named(const std::string& name) : name(name) {}
     };
 
 
-    template <typename T>
-    struct NameGetter : public std::unary_function<T, std::string> {
-        std::string operator()(const T& value) const {
-            return value.name;
+    struct NameGetter : public std::unary_function<Named, std::string> {
+        const std::string& operator()(const Named& named) const {
+            return named.name;
         }
     };
 
 
-    typedef orset<Attr, NameGetter<Attr> > Header;
+    struct Attr : public Named {
+        Type type;
+
+        Attr(const std::string& name, Type type) : Named(name), type(type) {}
+    };
+
+
+    typedef orset<Attr, NameGetter> Header;
 
 
     template <typename T>
-    const T& GetAttr(const orset<T, NameGetter<T> >& set,
-                     const std::string& name)
+    const T& GetAttr(const orset<T, NameGetter>& set, const std::string& name)
     {
         const T* ptr = set.find(name);
         if (ptr)

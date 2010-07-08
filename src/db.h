@@ -50,7 +50,7 @@ namespace ak
     };
 
 
-    typedef orset<DefAttr, NameGetter<DefAttr> > DefHeader;
+    typedef orset<DefAttr, NameGetter> DefHeader;
 
 
     struct ValAttr : public Attr {
@@ -61,7 +61,7 @@ namespace ak
     };
 
 
-    typedef orset<ValAttr, NameGetter<ValAttr> > ValHeader;
+    typedef orset<ValAttr, NameGetter> ValHeader;
 
     ////////////////////////////////////////////////////////////////////////////
     // API
