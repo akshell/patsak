@@ -72,7 +72,7 @@ namespace
         const Header& GetHeader() const;
         const UniqueKeySet& GetUniqueKeySet() const;
         const ForeignKeySet& GetForeignKeySet() const;
-        void AddAttrs(const DefHeader& attrs);
+        void AddAttrs(const ValHeader& val_attr_set);
         void DropAttrs(const StringSet& attr_names);
         void AddDefault(const DraftMap& draft_map);
         void DropDefault(const StringSet& attr_names);
@@ -439,48 +439,45 @@ void RelVar::InitHeader()
 }
 
 
-void RelVar::AddAttrs(const DefHeader& def_attrs)
+void RelVar::AddAttrs(const ValHeader& val_attr_set)
 {
-    if (def_attrs.empty())
+    if (val_attr_set.empty())
         return;
-    CheckAttrNumber(header_.size() + def_attrs.size());
+    CheckAttrNumber(header_.size() + val_attr_set.size());
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
     Separator sep;
-    BOOST_FOREACH(const DefAttr& def_attr, def_attrs) {
-        string attr_name(def_attr.name);
-        CheckName(attr_name);
-        BOOST_FOREACH(const DefAttr& old_def_attr, def_header_)
-            if (old_def_attr.name == attr_name)
-                throw Error(Error::ATTR_EXISTS,
-                            "Attribute \"" + attr_name + "\" already exists");
-        oss << sep << "ADD \"" << attr_name << "\" "
-            << def_attr.type.GetPgName();
+    BOOST_FOREACH(const ValAttr& val_attr, val_attr_set) {
+        CheckName(val_attr.name);
+        if (header_.find(val_attr.name))
+            throw Error(Error::ATTR_EXISTS,
+                        "Attribute \"" + val_attr.name + "\" already exists");
+        oss << sep << "ADD \"" << val_attr.name << "\" "
+            << val_attr.type.GetPgName();
     }
     oss << "; UPDATE \"" << name_ << "\" SET ";
     sep = Separator();
-    BOOST_FOREACH(const DefAttr& def_attr, def_attrs)
-        oss << sep << '"' << def_attr.name << "\" = "
-            << def_attr.def_ptr->GetPgLiter();
+    BOOST_FOREACH(const ValAttr& val_attr, val_attr_set)
+        oss << sep << '"' << val_attr.name << "\" = "
+            << val_attr.value.GetPgLiter();
     oss << "; ALTER TABLE \"" << name_ << "\" ";
     sep = Separator();
-    BOOST_FOREACH(const DefAttr& def_attr, def_attrs)
-        oss << sep << "ALTER \"" << def_attr.name << "\" SET NOT NULL";
+    BOOST_FOREACH(const ValAttr& val_attr, val_attr_set)
+        oss << sep << "ALTER \"" << val_attr.name << "\" SET NOT NULL";
     StringSet unique_key;
     if (header_.empty()) {
         oss << ", ADD UNIQUE (";
         Separator sep;
-        BOOST_FOREACH(const DefAttr& def_attr, def_attrs) {
-            string attr_name(def_attr.name);
-            unique_key.add(attr_name);
-            oss << sep <<'"' << attr_name << '"';
+        BOOST_FOREACH(const ValAttr& val_attr, val_attr_set) {
+            unique_key.add(val_attr.name);
+            oss << sep <<'"' << val_attr.name << '"';
         }
         oss << ')';
     }
     Exec(oss.str());
-    BOOST_FOREACH(const DefAttr& def_attr, def_attrs) {
-        def_header_.add(DefAttr(def_attr.name, def_attr.type));
-        header_.add(def_attr);
+    BOOST_FOREACH(const ValAttr& val_attr, val_attr_set) {
+        def_header_.add(DefAttr(val_attr.name, val_attr.type));
+        header_.add(val_attr);
     }
     if (!unique_key.empty())
         unique_key_set_.add(unique_key);
@@ -1169,9 +1166,9 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
 }
 
 
-void ak::AddAttrs(const string& rel_var_name, const DefHeader& def_attrs)
+void ak::AddAttrs(const string& rel_var_name, const ValHeader& val_attr_set)
 {
-    db_ptr->ChangeMeta().Get(rel_var_name).AddAttrs(def_attrs);
+    db_ptr->ChangeMeta().Get(rel_var_name).AddAttrs(val_attr_set);
 }
 
 

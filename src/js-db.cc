@@ -664,8 +664,8 @@ namespace
             throw Error(Error::TYPE,
                         "Attributes must be described by an object");
         PropEnumerator prop_enumerator(args[1]->ToObject());
-        DefHeader def_attrs;
-        def_attrs.reserve(prop_enumerator.GetSize());
+        ValHeader val_attr_set;
+        val_attr_set.reserve(prop_enumerator.GetSize());
         for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
             Prop prop(prop_enumerator.GetProp(i));
             Handle<Array> descr(GetArray(prop.value));
@@ -684,10 +684,10 @@ namespace
             ak::Value value(
                 CreateDraft(
                     descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
-            def_attrs.add(
-                DefAttr(Stringify(prop.key), type_ptr->GetType(), value));
+            val_attr_set.add(
+                ValAttr(Stringify(prop.key), type_ptr->GetType(), value));
         }
-        AddAttrs(Stringify(args[0]), def_attrs);
+        AddAttrs(Stringify(args[0]), val_attr_set);
         return Undefined();
     }
 

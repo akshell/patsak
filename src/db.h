@@ -37,7 +37,7 @@ namespace ak
     typedef orset<StringSet> UniqueKeySet;
 
     ////////////////////////////////////////////////////////////////////////////
-    // RichAttr and RichHeader
+    // DefAttr and DefHeader, ValAttr and ValHeader
     ////////////////////////////////////////////////////////////////////////////
 
     struct DefAttr : public Attr {
@@ -51,6 +51,17 @@ namespace ak
 
 
     typedef orset<DefAttr, NameGetter<DefAttr> > DefHeader;
+
+
+    struct ValAttr : public Attr {
+        Value value;
+
+        ValAttr(const std::string& name, Type type, Value value)
+            : Attr(name, type), value(value) {}
+    };
+
+
+    typedef orset<ValAttr, NameGetter<ValAttr> > ValHeader;
 
     ////////////////////////////////////////////////////////////////////////////
     // API
@@ -97,7 +108,7 @@ namespace ak
                   const DraftMap& draft_map);
 
     void AddAttrs(const std::string& rel_var_name,
-                  const DefHeader& def_attrs);
+                  const ValHeader& val_attr_set);
 
     void DropAttrs(const std::string& rel_var_name,
                    const StringSet& attr_names);
