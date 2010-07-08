@@ -85,7 +85,7 @@ namespace
         Persistent<Object> handler_;
         bool got_exception_;
         http_parser impl_;
-        const BinaryBg* binary_ptr_;
+        BinaryBg* binary_ptr_;
 
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ExecCb, const Arguments&);
     };

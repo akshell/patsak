@@ -15,12 +15,12 @@ namespace ak
 {
     class BinaryBg;
 
-    const BinaryBg* CastToBinary(v8::Handle<v8::Value> value);
+    BinaryBg* CastToBinary(v8::Handle<v8::Value> value);
 
     v8::Handle<v8::Object> NewBinary(std::auto_ptr<Chars> data_ptr =
                                      std::auto_ptr<Chars>());
 
-    v8::Handle<v8::Object> NewBinary(const BinaryBg& parent,
+    v8::Handle<v8::Object> NewBinary(BinaryBg& parent,
                                      size_t start = 0,
                                      size_t stop = MINUS_ONE);
 

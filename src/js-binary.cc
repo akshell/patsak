@@ -104,7 +104,7 @@ public:
     DECLARE_JS_CONSTRUCTOR(BinaryBg);
 
     BinaryBg(auto_ptr<Chars> data_ptr = auto_ptr<Chars>());
-    BinaryBg(const BinaryBg& parent, size_t start = 0, size_t stop = MINUS_ONE);
+    BinaryBg(BinaryBg& parent, size_t start = 0, size_t stop = MINUS_ONE);
     ~BinaryBg();
 
     Handle<Object> Wrap();
@@ -128,10 +128,10 @@ private:
                          const Arguments&) const;
 
     DECLARE_JS_CALLBACK1(Handle<v8::Value>, RangeCb,
-                         const Arguments&) const;
+                         const Arguments&);
 
     DECLARE_JS_CALLBACK1(Handle<v8::Value>, FillCb,
-                         const Arguments&) const;
+                         const Arguments&);
 
     DECLARE_JS_CALLBACK1(Handle<v8::Value>, IndexOfCb,
                          const Arguments&) const;
@@ -259,7 +259,7 @@ BinaryBg::BinaryBg(auto_ptr<Chars> data_ptr)
 }
 
 
-BinaryBg::BinaryBg(const BinaryBg& parent, size_t start, size_t stop)
+BinaryBg::BinaryBg(BinaryBg& parent, size_t start, size_t stop)
 {
     stop = min(stop, parent.size_);
     if (start >= stop) {
@@ -337,7 +337,7 @@ size_t BinaryBg::ReadIndex(Handle<v8::Value> value) const
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, RangeCb,
-                    const Arguments&, args) const
+                    const Arguments&, args)
 {
     BinaryBg* binary_ptr =
         args.Length() == 0
@@ -350,7 +350,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, RangeCb,
 
 
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, FillCb,
-                    const Arguments&, args) const
+                    const Arguments&, args)
 {
     memset(data_, args.Length() ? args[0]->Uint32Value() : 0, size_);
     return args.This();
@@ -401,16 +401,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, CompareCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    const BinaryBg* other_ptr = BinaryBg::GetJSClass().Cast(args[0]);
-    if (!other_ptr)
-        throw Error(Error::TYPE, "Binary expected");
-    int cmp = memcmp(data_,
-                     other_ptr->data_,
-                     min(size_, other_ptr->size_));
+    const BinaryBg& other(GetBg<BinaryBg>(args[0]));
+    int cmp = memcmp(data_, other.data_, min(size_, other.size_));
     return Integer::New(cmp == 0
-                        ? (size_ == other_ptr->size_
+                        ? (size_ == other.size_
                            ? 0
-                           : (size_ > other_ptr->size_ ? 1 : -1))
+                           : (size_ > other.size_ ? 1 : -1))
                         : (cmp > 0 ? 1 : -1));
 }
 
@@ -440,7 +436,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, BinaryBg, Sha1Cb,
 // CastToBinary and NewBinary
 ////////////////////////////////////////////////////////////////////////////////
 
-const BinaryBg* ak::CastToBinary(Handle<v8::Value> value)
+BinaryBg* ak::CastToBinary(Handle<v8::Value> value)
 {
     return BinaryBg::GetJSClass().Cast(value);
 }
@@ -452,7 +448,7 @@ Handle<Object> ak::NewBinary(auto_ptr<Chars> data_ptr)
 }
 
 
-Handle<Object> ak::NewBinary(const BinaryBg& parent, size_t start, size_t stop)
+Handle<Object> ak::NewBinary(BinaryBg& parent, size_t start, size_t stop)
 {
     return (new BinaryBg(parent, start, stop))->Wrap();
 }
