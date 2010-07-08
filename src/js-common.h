@@ -127,7 +127,6 @@ namespace ak
     public:
         std::string GetName() const;
         v8::Handle<v8::ObjectTemplate> GetObjectTemplate() const;
-        static void InitConstructors(v8::Handle<v8::Object> holder);
         v8::Handle<v8::Function> GetFunction();
 
     protected:

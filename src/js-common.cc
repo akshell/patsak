@@ -210,16 +210,6 @@ void* JSClassBase::Cast(Handle<v8::Value> value)
 }
 
 
-void JSClassBase::InitConstructors(Handle<Object> holder)
-{
-    BOOST_FOREACH(JSClassBase* class_ptr, GetInstancePtrs()) {
-        const string& name(class_ptr->GetName());
-        AK_ASSERT(name.size());
-        Set(holder, name, class_ptr->GetFunction());
-    }
-}
-
-
 Handle<ObjectTemplate> JSClassBase::GetProtoTemplate() const
 {
     return function_template_->PrototypeTemplate();
