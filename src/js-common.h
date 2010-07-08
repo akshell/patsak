@@ -337,7 +337,7 @@ namespace ak
         return T()
 
 
-#define DEFINE_JS_CALLBACK(name, args)                      \
+#define DEFINE_JS_FUNCTION(name, args)                      \
     v8::Handle<v8::Value> name##Impl(const Arguments&);     \
     v8::Handle<v8::Value> name(const Arguments& arguments)  \
     {                                                       \

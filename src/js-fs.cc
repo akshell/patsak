@@ -351,40 +351,40 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(OpenCb, args)
+    DEFINE_JS_FUNCTION(OpenCb, args)
     {
         return JSNew<FileBg>(ReadPath(args));
     }
 
 
-    DEFINE_JS_CALLBACK(ExistsCb, args)
+    DEFINE_JS_FUNCTION(ExistsCb, args)
     {
         return Boolean::New(GetStat(ReadPath(args), true).get());
     }
 
 
-    DEFINE_JS_CALLBACK(IsDirCb, args)
+    DEFINE_JS_FUNCTION(IsDirCb, args)
     {
         auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args), true));
         return Boolean::New(stat_ptr.get() && S_ISDIR(stat_ptr->st_mode));
     }
 
 
-    DEFINE_JS_CALLBACK(IsFileCb, args)
+    DEFINE_JS_FUNCTION(IsFileCb, args)
     {
         auto_ptr<struct stat> stat_ptr(GetStat(ReadPath(args), true));
         return Boolean::New(stat_ptr.get() && S_ISREG(stat_ptr->st_mode));
     }
 
 
-    DEFINE_JS_CALLBACK(GetModDateCb, args)
+    DEFINE_JS_FUNCTION(GetModDateCb, args)
     {
         return Date::New(
             static_cast<double>(GetStat(ReadPath(args))->st_mtime) * 1000);
     }
 
 
-    DEFINE_JS_CALLBACK(ListCb, args)
+    DEFINE_JS_FUNCTION(ListCb, args)
     {
         DIR* dir_ptr = opendir(ReadPath(args).c_str());
         if (!dir_ptr)
@@ -401,7 +401,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(CreateDirCb, args)
+    DEFINE_JS_FUNCTION(CreateDirCb, args)
     {
         CheckArgsLength(args, 1);
         if (mkdir(ReadPath(args[0]).c_str(), 0755) == -1)
@@ -410,7 +410,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(RemoveCb, args)
+    DEFINE_JS_FUNCTION(RemoveCb, args)
     {
         CheckArgsLength(args, 1);
         if (remove(ReadPath(args[0], false).c_str()) == -1)
@@ -419,7 +419,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(RenameCb, args)
+    DEFINE_JS_FUNCTION(RenameCb, args)
     {
         CheckArgsLength(args, 2);
         string from_path(ReadPath(args[0], false));

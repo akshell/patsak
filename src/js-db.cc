@@ -303,14 +303,14 @@ namespace
     bool rolled_back = false;
 
 
-    DEFINE_JS_CALLBACK(RollBackCb, /*args*/)
+    DEFINE_JS_FUNCTION(RollBackCb, /*args*/)
     {
         rolled_back = true;
         return Undefined();
     }
 
 
-    DEFINE_JS_CALLBACK(QueryCb, args)
+    DEFINE_JS_FUNCTION(QueryCb, args)
     {
         CheckArgsLength(args, 6);
         Handle<Array> by_values(GetArray(args[2]));
@@ -345,14 +345,14 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(CountCb, args)
+    DEFINE_JS_FUNCTION(CountCb, args)
     {
         CheckArgsLength(args, 2);
         return Integer::New(Count(Stringify(args[0]), ReadParams(args[1])));
     }
 
 
-    DEFINE_JS_CALLBACK(CreateCb, args)
+    DEFINE_JS_FUNCTION(CreateCb, args)
     {
         CheckArgsLength(args, 5);
         if (!args[1]->IsObject())
@@ -394,7 +394,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(DropCb, args)
+    DEFINE_JS_FUNCTION(DropCb, args)
     {
         CheckArgsLength(args, 1);
         DropRelVars(ReadStringSet(args[0]));
@@ -402,7 +402,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(ListCb, /*args*/)
+    DEFINE_JS_FUNCTION(ListCb, /*args*/)
     {
         StringSet rel_var_name_set(GetRelVarNames());
         Handle<Array> result(Array::New(rel_var_name_set.size()));
@@ -413,7 +413,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(GetHeaderCb, args)
+    DEFINE_JS_FUNCTION(GetHeaderCb, args)
     {
         CheckArgsLength(args, 1);
         Handle<Object> result(Object::New());
@@ -423,7 +423,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(GetDefaultCb, args)
+    DEFINE_JS_FUNCTION(GetDefaultCb, args)
     {
         CheckArgsLength(args, 1);
         Handle<Object> result(Object::New());
@@ -434,7 +434,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(GetUniqueCb, args)
+    DEFINE_JS_FUNCTION(GetUniqueCb, args)
     {
         CheckArgsLength(args, 1);
         const UniqueKeySet& unique_key_set(GetUniqueKeySet(Stringify(args[0])));
@@ -445,7 +445,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(GetForeignCb, args)
+    DEFINE_JS_FUNCTION(GetForeignCb, args)
     {
         CheckArgsLength(args, 1);
         const ForeignKeySet& foreign_key_set(
@@ -464,7 +464,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(InsertCb, args)
+    DEFINE_JS_FUNCTION(InsertCb, args)
     {
         CheckArgsLength(args, 2);
         string name(Stringify(args[0]));
@@ -478,7 +478,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(DelCb, args)
+    DEFINE_JS_FUNCTION(DelCb, args)
     {
         CheckArgsLength(args, 3);
         size_t rows_number = Delete(
@@ -487,7 +487,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(UpdateCb, args)
+    DEFINE_JS_FUNCTION(UpdateCb, args)
     {
         CheckArgsLength(args, 5);
         if (!args[3]->IsObject())
@@ -507,7 +507,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(AddAttrsCb, args)
+    DEFINE_JS_FUNCTION(AddAttrsCb, args)
     {
         CheckArgsLength(args, 2);
         if (!args[1]->IsObject())
@@ -536,7 +536,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(DropAttrsCb, args)
+    DEFINE_JS_FUNCTION(DropAttrsCb, args)
     {
         CheckArgsLength(args, 2);
         DropAttrs(Stringify(args[0]), ReadStringSet(args[1]));
@@ -544,7 +544,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(AddDefaultCb, args)
+    DEFINE_JS_FUNCTION(AddDefaultCb, args)
     {
         CheckArgsLength(args, 2);
         AddDefault(Stringify(args[0]), ReadDraftMap(args[1]));
@@ -552,7 +552,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(DropDefaultCb, args)
+    DEFINE_JS_FUNCTION(DropDefaultCb, args)
     {
         CheckArgsLength(args, 2);
         DropDefault(Stringify(args[0]), ReadStringSet(args[1]));
@@ -560,7 +560,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(AddConstrsCb, args)
+    DEFINE_JS_FUNCTION(AddConstrsCb, args)
     {
         CheckArgsLength(args, 4);
         UniqueKeySet unique_key_set;
@@ -574,7 +574,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(DropAllConstrsCb, args)
+    DEFINE_JS_FUNCTION(DropAllConstrsCb, args)
     {
         CheckArgsLength(args, 1);
         DropAllConstrs(Stringify(args[0]));

@@ -192,7 +192,7 @@ Handle<Object> SocketScope::GetSocket() const
 
 namespace
 {
-    DEFINE_JS_CALLBACK(ConnectCb, args)
+    DEFINE_JS_FUNCTION(ConnectCb, args)
     {
         CheckArgsLength(args, 2);
         return JSNew<SocketBg>(Stringify(args[0]), Stringify(args[1]));

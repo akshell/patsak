@@ -20,7 +20,7 @@ namespace
     string code_path;
 
 
-    DEFINE_JS_CALLBACK(PrintCb, args)
+    DEFINE_JS_FUNCTION(PrintCb, args)
     {
         CheckArgsLength(args, 1);
         Log(Stringify(args[0]));
@@ -28,7 +28,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(SetCb, args)
+    DEFINE_JS_FUNCTION(SetCb, args)
     {
         CheckArgsLength(args, 4);
         if (!args[0]->IsObject())
@@ -46,7 +46,7 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(HashCb, args)
+    DEFINE_JS_FUNCTION(HashCb, args)
     {
         CheckArgsLength(args, 1);
         int hash = (args[0]->IsObject()
@@ -66,14 +66,14 @@ namespace
     }
 
 
-    DEFINE_JS_CALLBACK(ReadCodeCb, args)
+    DEFINE_JS_FUNCTION(ReadCodeCb, args)
     {
         auto_ptr<Chars> data_ptr(ReadFile(GetPath(args)));
         return String::New(&data_ptr->front(), data_ptr->size());
     }
 
 
-    DEFINE_JS_CALLBACK(GetCodeModDateCb, args)
+    DEFINE_JS_FUNCTION(GetCodeModDateCb, args)
     {
         time_t date = GetStat(GetPath(args))->st_mtime;
         return Date::New(static_cast<double>(date) * 1000);
