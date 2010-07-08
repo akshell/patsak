@@ -5,8 +5,6 @@
 #include "js-common.h"
 #include "js-fs.h"
 
-#include <boost/foreach.hpp>
-
 
 using namespace ak;
 using namespace v8;

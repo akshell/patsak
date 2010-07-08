@@ -4,7 +4,6 @@
 #include "js-binary.h"
 #include "js-common.h"
 
-#include <boost/foreach.hpp>
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 

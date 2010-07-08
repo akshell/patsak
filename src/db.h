@@ -50,8 +50,7 @@ namespace ak
     };
 
 
-    typedef orset<DefAttr, ByNameComparator<DefAttr>, ByNameFinder<DefAttr> >
-    DefHeader;
+    typedef orset<DefAttr, NameGetter<DefAttr> > DefHeader;
 
     ////////////////////////////////////////////////////////////////////////////
     // API

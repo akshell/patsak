@@ -5,7 +5,6 @@
 
 #include <boost/spirit/include/classic.hpp>
 #include <boost/spirit/include/phoenix1.hpp>
-#include <boost/foreach.hpp>
 #include <boost/optional.hpp>
 
 
@@ -61,7 +60,7 @@ RangeVarSet Lookuper::EnterScope(const RVDef& rv_def)
 {
     RangeVarSet rv_set;
     BOOST_FOREACH(const string& id, rv_def.id_list)
-        rv_set.add_sure(RangeVar(id, rv_def.rel));
+        rv_set.add(RangeVar(id, rv_def.rel));
     stack_.push_back(rv_set);
     return rv_set;
 }
@@ -83,7 +82,7 @@ RangeVar Lookuper::Lookup(const string& name)
             if (rv.GetName() == name)
                 return rv;
     RangeVar result(name, Base(name));
-    stack_[0].add_sure(result);
+    stack_[0].add(result);
     return result;
 }
 
@@ -122,7 +121,7 @@ namespace
 
         template <typename ContT, typename ItemT>
         void operator()(ContT& c, const ItemT& item) const {
-            if (!c.add_unsure(item))
+            if (!c.add_safely(item))
                 throw Error(Error::QUERY, "Duplicating items in a list");
         }
     };

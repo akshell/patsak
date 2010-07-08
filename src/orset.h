@@ -6,85 +6,82 @@
 
 #include "debug.h"
 
+#include <boost/foreach.hpp>
+
 #include <vector>
-#include <algorithm>
-#include <stdexcept>
-#include <memory>
 
 
 namespace ak
 {
-    template <typename T, typename CompT = std::equal_to<T> >
-    class item_finder : public std::binary_function<T, T, bool> {
-    public:
-        bool operator()(const T& item, const T& key) const {
-            return CompT()(item, key);
+    template <typename T>
+    struct identity : public std::unary_function<T, T> {
+        const T& operator()(const T& value) const {
+            return value;
         }
-
-        void not_found(const T& /*key*/) const {}
     };
 
 
-    template <typename T,
-              typename CompT = std::equal_to<T>,
-              typename FindT = item_finder<T, CompT> >
+    template <typename T, typename F = identity<T> >
     class orset : private std::vector<T> {
     private:
         typedef std::vector<T> base;
-        typedef orset<T, CompT, FindT> this_type;
+        typedef orset<T, F> this_type;
 
     public:
-        using base::iterator;
         using base::const_iterator;
-        using base::size_type;
-        using base::value_type;
-        using base::reverse_iterator;
-        using base::const_reverse_iterator;
-
-        using base::begin;
-        using base::end;
-        using base::rbegin;
-        using base::rend;
-        using base::size;
-        using base::at;
-        using base::operator[];
-        using base::back;
-        using base::capacity;
-        using base::clear;
         using base::empty;
-        using base::front;
+        using base::size;
+        using base::clear;
         using base::reserve;
-        using base::erase;
 
-        orset() {}
-
-        bool contains(const T& val) const {
-            return std::find_if(begin(),
-                                end(),
-                                std::bind1st(CompT(), val)) != end();
+        typename base::const_iterator begin() const {
+            return base::begin();
         }
 
-        bool add_unsure(const T& val) {
-            if (contains(val))
+        typename base::const_iterator end() const {
+            return base::end();
+        }
+
+        const T& operator[](size_t i) const {
+            return base::operator[](i);
+        }
+
+        void erase(size_t pos) {
+            base::erase(base::begin() + pos);
+        }
+
+        const T& front() const {
+            return base::front();
+        }
+
+        const T& back() const {
+            return base::back();
+        }
+
+        const T* find(const typename F::result_type& key) const {
+            BOOST_FOREACH(const T& value, *this)
+                if (F()(value) == key)
+                    return &value;
+            return 0;
+        }
+
+        void add(const T& value) {
+            AK_ASSERT(!find(F()(value)));
+            push_back(value);
+        }
+
+        bool add_safely(const T& value) {
+            if (find(F()(value)))
                 return false;
-            push_back(val);
+            push_back(value);
             return true;
-        }
-
-        void add_sure(const T& val) {
-            AK_ASSERT(!contains(val));
-            push_back(val);
         }
 
         bool operator==(const this_type& other) const {
             if (size() != other.size())
                 return false;
-            for (typename base::const_iterator itr = begin();
-                 itr != end();
-                 ++itr)
-                if (std::find_if(other.begin(),
-                                 other.end(),
-                                 std::bind1st(CompT(), *itr)) == other.end())
+            BOOST_FOREACH(const T& value, other)
+                if (!find(F()(value)))
                     return false;
             return true;
         }
@@ -92,37 +89,16 @@ namespace ak
         bool operator!=(const this_type& other) const {
             return !(*this == other);
         }
+    };
+}
 
-        T* find_ptr(const typename FindT::second_argument_type& key) {
-            typename base::iterator itr(
-                std::find_if(begin(), end(), std::bind2nd(FindT(), key)));
-            return itr == end() ? 0 : &*itr;
-        }
 
-        T& find(const typename FindT::second_argument_type& key) {
-            T* ptr = find_ptr(key);
-            if (!ptr) {
-                FindT().not_found(key);
-                throw std::runtime_error("key not found");
-            }
-            return *ptr;
-        }
-
-        const T*
-        find_ptr(const typename FindT::second_argument_type& key) const {
-            typename base::const_iterator itr(
-                std::find_if(begin(), end(), std::bind2nd(FindT(), key)));
-            return itr == end() ? 0 : &*itr;
-        }
-
-        const T& find(const typename FindT::second_argument_type& key) const {
-            const T* ptr = find_ptr(key);
-            if (!ptr) {
-                FindT().not_found(key);
-                throw std::runtime_error("key not found");
-            }
-            return *ptr;
-        }
+namespace boost
+{
+    template <typename T, typename F>
+    struct range_mutable_iterator<ak::orset<T, F> >
+    {
+        typedef typename ak::orset<T, F>::const_iterator type;
     };
 }
 

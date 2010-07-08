@@ -6,7 +6,6 @@
 
 #include <pqxx/pqxx>
 #include <boost/format.hpp>
-#include <boost/foreach.hpp>
 
 
 using namespace std;
@@ -163,7 +162,7 @@ RelVar::RelVar(const string& name)
                 def_attr.def_ptr = ValuePtr(Value(def_attr.type, def_str));
             }
         }
-        def_header_.add_sure(def_attr);
+        def_header_.add(def_attr);
     }
     InitHeader();
 }
@@ -189,8 +188,8 @@ RelVar::RelVar(const Meta& meta,
         StringSet unique_key;
         unique_key.reserve(def_header.size());
         BOOST_FOREACH(const DefAttr& def_attr, def_header)
-            unique_key.add_sure(def_attr.name);
-        unique_key_set_.add_sure(unique_key);
+            unique_key.add(def_attr.name);
+        unique_key_set_.add(unique_key);
     }
 
     ostringstream oss;
@@ -252,15 +251,14 @@ void RelVar::LoadConstrs(const Meta& meta) {
         StringSet attr_names(ReadAttrNames(tuple[1].c_str()));
         char constr_code = tuple[0].c_str()[0];
         if (constr_code == 'p' || constr_code == 'u') {
-            unique_key_set_.add_sure(attr_names);
+            unique_key_set_.add(attr_names);
         } else if (constr_code == 'f') {
             AK_ASSERT(!tuple[2].is_null() && !tuple[3].is_null());
             string ref_rel_var_name(tuple[2].c_str());
             StringSet ref_attr_names(
                 meta.Get(ref_rel_var_name).ReadAttrNames(tuple[3].c_str()));
-            foreign_key_set_.add_sure(ForeignKey(attr_names,
-                                                 ref_rel_var_name,
-                                                 ref_attr_names));
+            foreign_key_set_.add(
+                ForeignKey(attr_names, ref_rel_var_name, ref_attr_names));
         };
     }
 }
@@ -269,7 +267,7 @@ void RelVar::LoadConstrs(const Meta& meta) {
 bool RelVar::Intersect(const StringSet& lhs, const StringSet& rhs)
 {
     BOOST_FOREACH(const string& str, lhs)
-        if (rhs.contains(str))
+        if (rhs.find(str))
             return true;
     return false;
 }
@@ -328,7 +326,7 @@ StringSet RelVar::ReadAttrNames(const string& pg_array) const
         size_t index;
         iss >> index;
         AK_ASSERT(!iss.fail());
-        result.add_sure(header_[index - 1].name);
+        result.add(header_[index - 1].name);
         if (iss.eof())
             return result;
         char comma;
@@ -343,7 +341,7 @@ void RelVar::PrintUniqueKey(ostream& os, const StringSet& unique_key) const
     if (unique_key.empty())
         throw Error(Error::VALUE, "Empty unique attribute set");
     BOOST_FOREACH(const string& attr_name, unique_key)
-        header_.find(attr_name);
+        GetAttr(header_, attr_name);
     os << "UNIQUE ";
     PrintAttrNames(os, unique_key);
 }
@@ -364,8 +362,8 @@ void RelVar::PrintForeignKey(ostream& os,
                               : meta.Get(foreign_key.ref_rel_var_name));
     const Header& ref_header(ref_rel_var.GetHeader());
     for (size_t i = 0; i < foreign_key.key_attr_names.size(); ++i) {
-        Attr key_attr(header_.find(foreign_key.key_attr_names[i]));
-        Attr ref_attr(ref_header.find(foreign_key.ref_attr_names[i]));
+        Attr key_attr(GetAttr(header_, foreign_key.key_attr_names[i]));
+        Attr ref_attr(GetAttr(ref_header, foreign_key.ref_attr_names[i]));
         if (key_attr.type != ref_attr.type &&
             !((key_attr.type == Type::INT && ref_attr.type == Type::SERIAL) ||
               (ref_attr.type == Type::INT && key_attr.type == Type::SERIAL)))
@@ -437,7 +435,7 @@ void RelVar::InitHeader()
 {
     header_.reserve(def_header_.size());
     BOOST_FOREACH(const DefAttr& def_attr, def_header_)
-        header_.add_sure(def_attr);
+        header_.add(def_attr);
 }
 
 
@@ -474,18 +472,18 @@ void RelVar::AddAttrs(const DefHeader& def_attrs)
         Separator sep;
         BOOST_FOREACH(const DefAttr& def_attr, def_attrs) {
             string attr_name(def_attr.name);
-            unique_key.add_sure(attr_name);
+            unique_key.add(attr_name);
             oss << sep <<'"' << attr_name << '"';
         }
         oss << ')';
     }
     Exec(oss.str());
     BOOST_FOREACH(const DefAttr& def_attr, def_attrs) {
-        def_header_.add_sure(DefAttr(def_attr.name, def_attr.type));
-        header_.add_sure(def_attr);
+        def_header_.add(DefAttr(def_attr.name, def_attr.type));
+        header_.add(def_attr);
     }
     if (!unique_key.empty())
-        unique_key_set_.add_sure(unique_key);
+        unique_key_set_.add(unique_key);
 }
 
 
@@ -496,24 +494,24 @@ void RelVar::DropAttrs(const StringSet& attr_names)
     UniqueKeySet new_unique_key_set;
     BOOST_FOREACH(const StringSet& unique_key, unique_key_set_)
         if (!Intersect(unique_key, attr_names))
-            new_unique_key_set.add_sure(unique_key);
+            new_unique_key_set.add(unique_key);
     ForeignKeySet new_foreign_key_set;
     BOOST_FOREACH(const ForeignKey& foreign_key, foreign_key_set_)
         if (!Intersect(foreign_key.key_attr_names, attr_names))
-            new_foreign_key_set.add_sure(foreign_key);
+            new_foreign_key_set.add(foreign_key);
     StringSet remaining_attr_names(attr_names);
     DefHeader new_def_header;
     BOOST_FOREACH(const DefAttr& def_attr, def_header_) {
         bool found = false;
         for (size_t i = 0; i < remaining_attr_names.size(); ++i) {
             if (remaining_attr_names[i] == def_attr.name) {
-                remaining_attr_names.erase(remaining_attr_names.begin() + i);
+                remaining_attr_names.erase(i);
                 found = true;
                 break;
             }
         }
         if (!found)
-            new_def_header.add_sure(def_attr);
+            new_def_header.add(def_attr);
     }
     if (!remaining_attr_names.empty())
         throw Error(
@@ -530,10 +528,10 @@ void RelVar::DropAttrs(const StringSet& attr_names)
         Separator sep;
         BOOST_FOREACH(const DefAttr& new_def_attr, new_def_header) {
             string new_attr_name(new_def_attr.name);
-            unique_key.add_sure(new_attr_name);
+            unique_key.add(new_attr_name);
             oss << sep << '"' << new_attr_name << '"';
         }
-        new_unique_key_set.add_sure(unique_key);
+        new_unique_key_set.add(unique_key);
         oss << ')';
     }
     try {
@@ -564,9 +562,9 @@ void RelVar::AddDefault(const DraftMap& draft_map)
     oss << "ALTER TABLE \"" << name_ << "\" ";
     Separator sep;
     BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map) {
-        DefAttr& new_def_attr(new_def_header.find(named_draft.first));
+        const DefAttr& new_def_attr(GetAttr(new_def_header, named_draft.first));
         Value value(named_draft.second.Get(new_def_attr.type));
-        new_def_attr.def_ptr = value;
+        const_cast<DefAttr&>(new_def_attr).def_ptr = value;
         oss << sep << "ALTER \"" << named_draft.first
             << "\" SET DEFAULT " <<  value.GetPgLiter();
     }
@@ -585,11 +583,11 @@ void RelVar::DropDefault(const StringSet& attr_names)
     oss << "ALTER TABLE \"" << name_ << "\" ";
     Separator sep;
     BOOST_FOREACH(const string& attr_name, attr_names) {
-        DefAttr& def_attr(def_header_.find(attr_name));
+        const DefAttr& def_attr(GetAttr(def_header_, attr_name));
         if (!def_attr.def_ptr)
             throw Error(Error::DB,
                         "Attribute \"" + attr_name + "\" has no default value");
-        def_attr_ptrs.push_back(&def_attr);
+        def_attr_ptrs.push_back(const_cast<DefAttr*>(&def_attr));
         oss << sep << "ALTER \"" << attr_name << "\" DROP DEFAULT";
     }
     Exec(oss.str());
@@ -633,9 +631,9 @@ void RelVar::AddConstrs(const Meta& meta,
                     "Check constraint cannot be added");
     }
     BOOST_FOREACH(const StringSet& unique_key, unique_key_set)
-        unique_key_set_.add_unsure(unique_key);
+        unique_key_set_.add_safely(unique_key);
     BOOST_FOREACH(const ForeignKey& foreign_key, foreign_key_set)
-        foreign_key_set_.add_unsure(foreign_key);
+        foreign_key_set_.add_safely(foreign_key);
 }
 
 
@@ -649,7 +647,7 @@ void RelVar::DropAllConstrs()
     StringSet unique_key;
     Separator sep;
     BOOST_FOREACH(const Attr& attr, header_) {
-        unique_key.add_sure(attr.name);
+        unique_key.add(attr.name);
         oss << sep << '"' << attr.name << '"';
     }
     oss << ')';
@@ -663,7 +661,7 @@ void RelVar::DropAllConstrs()
                         "because other RelVar references it")));
     }
     unique_key_set_.clear();
-    unique_key_set_.add_sure(unique_key);
+    unique_key_set_.add(unique_key);
     foreign_key_set_.clear();
 }
 
@@ -735,13 +733,13 @@ void Meta::Drop(const StringSet& rel_var_names)
     vector<size_t> indexes(rel_var_names.size(), -1);
     for (size_t i = 0; i < rel_vars_.size(); ++i) {
         const RelVar& rel_var(rel_vars_[i]);
-        const string* name_ptr = rel_var_names.find_ptr(rel_var.GetName());
+        const string* name_ptr = rel_var_names.find(rel_var.GetName());
         if (name_ptr)
             indexes[name_ptr - &rel_var_names[0]] = i;
         else
             BOOST_FOREACH(const ForeignKey& foreign_key,
                           rel_var.GetForeignKeySet())
-                if (rel_var_names.contains(foreign_key.ref_rel_var_name))
+                if (rel_var_names.find(foreign_key.ref_rel_var_name))
                     throw Error(Error::REL_VAR_DEPENDENCY,
                                 ("Attempt to delete a group of RelVars "
                                  "with a RelVar \"" +
@@ -990,7 +988,7 @@ StringSet ak::GetRelVarNames()
     StringSet result;
     result.reserve(rel_vars.size());
     BOOST_FOREACH(const RelVar& rel_var, rel_vars)
-        result.add_sure(rel_var.GetName());
+        result.add(rel_var.GetName());
     return result;
 }
 
@@ -1079,7 +1077,7 @@ size_t ak::Update(const string& rel_var_name,
 {
     const Header& header(GetHeader(rel_var_name));
     BOOST_FOREACH(const StringMap::value_type& named_expr, expr_map)
-        header.find(named_expr.first);
+        GetAttr(header, named_expr.first);
     string sql(
         TranslateUpdate(
             rel_var_name, where, where_params, expr_map, expr_params));
@@ -1123,11 +1121,11 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
     string sql;
     if (def_header.empty()) {
         if (!draft_map.empty())
-            def_header.find(draft_map.begin()->first); // throws
+            GetAttr(def_header, draft_map.begin()->first); // throws
         sql = (format(empty_cmd) % rel_var_name).str();
     } else if (!draft_map.empty()) {
         BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map)
-            def_header.find(named_draft.first);
+            GetAttr(def_header, named_draft.first);
         ostringstream names_oss, values_oss;
         Separator names_sep, values_sep;
         BOOST_FOREACH(const DefAttr& def_attr, def_header) {

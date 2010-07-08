@@ -4,7 +4,6 @@
 #include "js.h"
 
 #include <boost/program_options.hpp>
-#include <boost/foreach.hpp>
 
 #include <fstream>
 #include <sys/socket.h>

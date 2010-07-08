@@ -5,8 +5,6 @@
 #include "js-common.h"
 #include "db.h"
 
-#include <boost/foreach.hpp>
-
 
 using namespace std;
 using namespace ak;
@@ -169,7 +167,7 @@ namespace
         StringSet result;
         result.reserve(array->Length());
         for (size_t i = 0; i < array->Length(); ++i)
-            if (!result.add_unsure(Stringify(array->Get(Integer::New(i)))))
+            if (!result.add_safely(Stringify(array->Get(Integer::New(i)))))
                 throw Error(Error::VALUE, "Duplicating names");
         return result;
     }
@@ -194,7 +192,7 @@ namespace
     {
         Handle<Array> array(GetArray(value));
         for (size_t i = 0; i < array->Length(); ++i)
-            unique_key_set.add_unsure(
+            unique_key_set.add_safely(
                 ReadStringSet(array->Get(Integer::New(i))));
     }
 
@@ -208,7 +206,7 @@ namespace
             if (foreign->Length() != 3)
                 throw Error(Error::VALUE,
                             "Foreign item must be an array of length 3");
-            foreign_key_set.add_unsure(
+            foreign_key_set.add_safely(
                 ForeignKey(ReadStringSet(foreign->Get(Integer::New(0))),
                            Stringify(foreign->Get(Integer::New(1))),
                            ReadStringSet(foreign->Get(Integer::New(2)))));
@@ -248,8 +246,8 @@ namespace
                               ForeignKeySet& /*foreign_key_set*/,
                               Strings& /*checks*/) const {
             StringSet unique_key;
-            unique_key.add_sure(attr_name);
-            unique_key_set.add_unsure(unique_key);
+            unique_key.add(attr_name);
+            unique_key_set.add_safely(unique_key);
         }
     };
 
@@ -266,11 +264,10 @@ namespace
                               ForeignKeySet& foreign_key_set,
                               Strings& /*checks*/) const {
             StringSet key_attr_names, ref_attr_names;
-            key_attr_names.add_sure(attr_name);
-            ref_attr_names.add_sure(ref_attr_name_);
-            foreign_key_set.add_unsure(ForeignKey(key_attr_names,
-                                                  ref_rel_var_name_,
-                                                  ref_attr_names));
+            key_attr_names.add(attr_name);
+            ref_attr_names.add(ref_attr_name_);
+            foreign_key_set.add_safely(
+                ForeignKey(key_attr_names, ref_rel_var_name_, ref_attr_names));
         }
 
     private:
@@ -531,7 +528,7 @@ namespace
             ValuePtr value_ptr;
             if (type_bg.GetDefaultPtr())
                 value_ptr = *type_bg.GetDefaultPtr();
-            def_header.add_sure(DefAttr(name, type_bg.GetType(), value_ptr));
+            def_header.add(DefAttr(name, type_bg.GetType(), value_ptr));
             type_bg.RetrieveConstrs(
                 name, unique_key_set, foreign_key_set, checks);
         }
@@ -687,7 +684,7 @@ namespace
             ak::Value value(
                 CreateDraft(
                     descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
-            def_attrs.add_sure(
+            def_attrs.add(
                 DefAttr(Stringify(prop.key), type_ptr->GetType(), value));
         }
         AddAttrs(Stringify(args[0]), def_attrs);

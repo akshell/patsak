@@ -344,12 +344,12 @@ namespace ak
 BOOST_AUTO_TEST_CASE(orset_test)
 {
     orset<int> a;
-    a.add_unsure(1);
-    a.add_unsure(2);
-    a.add_unsure(3);
-    a.add_unsure(2);
-    a.add_unsure(1);
-    a.add_unsure(4);
+    a.add_safely(1);
+    a.add_safely(2);
+    a.add_safely(3);
+    a.add_safely(2);
+    a.add_safely(1);
+    a.add_safely(4);
     vector<int> v;
     v.push_back(1);
     v.push_back(2);
@@ -357,17 +357,15 @@ BOOST_AUTO_TEST_CASE(orset_test)
     v.push_back(4);
     BOOST_CHECK(vector<int>(a.begin(), a.end()) == v);
     orset<int> b;
-    b.add_sure(4);
-    b.add_sure(3);
-    b.add_sure(2);
-    b.add_sure(1);
+    b.add(4);
+    b.add(3);
+    b.add(2);
+    b.add(1);
     BOOST_CHECK(a == b);
-    BOOST_CHECK(vector<int>(a.begin(), a.end()) ==
-                vector<int>(b.rbegin(), b.rend()));
-    b.add_sure(5);
+    b.add(5);
     BOOST_CHECK(a != b);
-    BOOST_CHECK_THROW(a.find(42), runtime_error);
-    BOOST_CHECK_THROW(const_cast<const orset<int>&>(a).find(42), runtime_error);
+    BOOST_CHECK(a.find(3));
+    BOOST_CHECK(!a.find(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -502,7 +500,7 @@ Table::Table(const Header& header)
 {
     def_header_.reserve(header.size());
     BOOST_FOREACH(const Attr& attr, header)
-        def_header_.add_sure(DefAttr(attr.name, attr.type));
+        def_header_.add(DefAttr(attr.name, attr.type));
     AddAllUniqueKey();
 }
 
@@ -581,7 +579,7 @@ void Table::SetChecks(const Strings& checks)
 
 void Table::AddRow(const Values& values)
 {
-    values_set_.add_sure(values);
+    values_set_.add(values);
 }
 
 
@@ -616,7 +614,7 @@ void Table::ReadHeader(istream& is)
             AK_ASSERT_EQUAL(type_str, "json");
             type = Type::JSON;
         }
-        def_header_.add_sure(DefAttr(name, type));
+        def_header_.add(DefAttr(name, type));
     }
 }
 
@@ -668,7 +666,7 @@ void Table::ReadMetaData(istream& is)
                 BOOST_REQUIRE(!line_iss.eof());
                 if (name == "-")
                     break;
-                key_attr_names.add_sure(name);
+                key_attr_names.add(name);
             }
             string ref_rel_var_name;
             line_iss >> ref_rel_var_name;
@@ -681,11 +679,10 @@ void Table::ReadMetaData(istream& is)
                 line_iss >> name;
                 if (name.empty())
                     break;
-                ref_attr_names.add_sure(name);
+                ref_attr_names.add(name);
             }
-            foreign_key_set_.add_sure(ForeignKey(key_attr_names,
-                                                 ref_rel_var_name,
-                                                 ref_attr_names));
+            foreign_key_set_.add(
+                ForeignKey(key_attr_names, ref_rel_var_name, ref_attr_names));
         } else if (constr_name == "unique") {
             StringSet unique_key;
             for (;;) {
@@ -693,21 +690,15 @@ void Table::ReadMetaData(istream& is)
                 line_iss >> name;
                 if (name.empty())
                     break;
-                unique_key.add_sure(name);
+                unique_key.add(name);
             }
-            unique_key_set_.add_sure(unique_key);
+            unique_key_set_.add(unique_key);
         } else if (constr_name == "default") {
             string field_name;
             line_iss >> field_name;
-            DefAttr& def_attr(def_header_.find(field_name));
+            const DefAttr& def_attr(GetAttr(def_header_, field_name));
             Value value(ReadValue(line_iss, def_attr.type));
-            def_attr = DefAttr(def_attr.name, def_attr.type, value);
-        } else if (constr_name == "int" || constr_name == "serial") {
-            string field_name;
-            line_iss >> field_name;
-            DefAttr& def_attr(def_header_.find(field_name));
-            def_attr = DefAttr(
-                def_attr.name, def_attr.type, def_attr.def_ptr);
+            const_cast<DefAttr&>(def_attr).def_ptr = value;
         } else {
             BOOST_FAIL("Unknown constraint: " + constr_name);
         }
@@ -728,7 +719,7 @@ void Table::ReadValuesSet(istream& is)
         values.reserve(def_header_.size());
         BOOST_FOREACH(const DefAttr& def_attr, def_header_)
             values.push_back(ReadValue(iss, def_attr.type));
-        values_set_.add_sure(values);
+        values_set_.add(values);
     }
 }
 
@@ -761,8 +752,8 @@ void Table::AddAllUniqueKey()
     StringSet all_unique_key;
     all_unique_key.reserve(def_header_.size());
     BOOST_FOREACH(const DefAttr& def_attr, def_header_)
-        all_unique_key.add_sure(def_attr.name);
-    unique_key_set_.add_unsure(all_unique_key);
+        all_unique_key.add(def_attr.name);
+    unique_key_set_.add_safely(all_unique_key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -872,8 +863,8 @@ BOOST_AUTO_TEST_CASE(db_test)
     LoadRelVarFromFile("Comment");
 
     Header header;
-    header.add_sure(Attr("d", Type::DATE));
-    header.add_sure(Attr("j", Type::JSON));
+    header.add(Attr("d", Type::DATE));
+    header.add(Attr("j", Type::JSON));
     Table table(header);
     Values row;
     row.push_back(Value(Type::DATE, "2009-03-04 17:41:05.915"));
@@ -885,8 +876,8 @@ BOOST_AUTO_TEST_CASE(db_test)
 
     DropRelVars(StringSet());
     StringSet user_and_post;
-    user_and_post.add_sure("User");
-    user_and_post.add_sure("Post");
+    user_and_post.add("User");
+    user_and_post.add("Post");
     BOOST_REQUIRE_THROW(DropRelVars(user_and_post), Error);
 
     Commit();
@@ -1008,11 +999,11 @@ BOOST_AUTO_TEST_CASE(query_test)
     FileTester<Table>("test/query.test", &DumpRel, &ReadTableFromString)();
 
     LoadRelVarFromString("str", "val\nstring\n---\n'test\\\"");
-    BOOST_CHECK(DumpRel("str").GetValuesSet().at(0).at(0) ==
+    BOOST_CHECK(DumpRel("str").GetValuesSet()[0][0] ==
                 Value(Type::STRING, "'test\\\""));
 
     LoadRelVarFromString("num", "val\nnumber\n---\n125.3");
-    BOOST_CHECK(DumpRel("num").GetValuesSet().at(0).at(0) ==
+    BOOST_CHECK(DumpRel("num").GetValuesSet()[0][0] ==
                 Value(Type::NUMBER, 125.3));
 
     LoadRelVarFromString("bool", "val\nbool\n---\ntrue\nfalse");

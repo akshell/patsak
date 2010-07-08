@@ -6,7 +6,6 @@
 #include "js-binary.h"
 
 #include <git/odb.h>
-#include <boost/foreach.hpp>
 
 #include <fstream>
 #include <dirent.h>

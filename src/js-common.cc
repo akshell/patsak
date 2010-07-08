@@ -3,7 +3,6 @@
 
 #include "js-common.h"
 
-#include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 
 #include <signal.h>

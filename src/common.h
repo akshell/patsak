@@ -11,6 +11,7 @@
 
 #include <iostream>
 #include <map>
+#include <stdexcept>
 
 
 namespace ak
@@ -212,29 +213,27 @@ namespace ak
 
 
     template <typename T>
-    class ByNameComparator : public std::binary_function<T, T, bool> {
-    public:
-        bool operator()(const T& lhs, const T& rhs) const {
-            return lhs.name == rhs.name;
+    struct NameGetter : public std::unary_function<T, std::string> {
+        std::string operator()(const T& value) const {
+            return value.name;
         }
     };
+
+
+    typedef orset<Attr, NameGetter<Attr> > Header;
 
 
     template <typename T>
-    class ByNameFinder : public std::binary_function<T, std::string, bool> {
-    public:
-        bool operator()(const T& item, const std::string& name) const {
-            return item.name == name;
-        }
-
-        void not_found(const std::string& name) const {
+    const T& GetAttr(const orset<T, NameGetter<T> >& set,
+                     const std::string& name)
+    {
+        const T* ptr = set.find(name);
+        if (ptr)
+            return *ptr;
+        else
             throw Error(Error::NO_SUCH_ATTR,
-                        "Attribute \"" + name + "\" does not exist");
-        }
-    };
-
-
-    typedef orset<Attr, ByNameComparator<Attr>, ByNameFinder<Attr> > Header;
+                        "Attribute " + name + " doesn't exist");
+    }
 
     ////////////////////////////////////////////////////////////////////////////
     // Draft
