@@ -187,6 +187,7 @@ bool ak::ProgramIsDead()
 
 
 void ak::InitJS(const string& code_path,
+                const string& lib_path,
                 const string& media_path,
                 const string& git_path_prefix,
                 const string& git_path_suffix,
@@ -211,7 +212,7 @@ void ak::InitJS(const string& code_path,
     Handle<Object> global(context->Global());
     Set(global, "core", InitCore());
     Set(global, "db", InitDB());
-    Set(global, "fs", InitFS(code_path, media_path));
+    Set(global, "fs", InitFS(code_path, lib_path, media_path));
     Set(global, "binary", InitBinary());
     Set(global, "proxy", InitProxy());
     Set(global, "script", InitScript());

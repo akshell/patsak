@@ -9,6 +9,7 @@ connect = socket.connect;
 HttpParser = http.HttpParser;
 Repo = git.Repo;
 code = fs.code;
+lib = fs.lib;
 media = fs.media;
 
 READ_ONLY   = 1 << 0;
@@ -1277,6 +1278,7 @@ var fsTestSuite = {
     assertSame(media.exists(''), true);
     assertSame(media.exists('dir1/subdir/hello'), true);
     assertSame(media.exists('no/such'), false);
+    assertSame(lib.exists('core.js'), true);
   },
 
   testIsDir: function () {

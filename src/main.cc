@@ -62,13 +62,14 @@ int main(int argc, char** argv)
          "config file path")
         ;
 
-    string log_path, code_path, media_path;
+    string log_path, code_path, lib_path, media_path;
     string git_path_pattern;
     string db_name, user_name, password, schema_name, tablespace_name;
     po::options_description config_options("Config options");
     config_options.add_options()
-        ("log-file,l", po::value<string>(&log_path), "log file")
+        ("log-file,o", po::value<string>(&log_path), "log file")
         ("code-dir,c", po::value<string>(&code_path), "code directory")
+        ("lib-dir,l", po::value<string>(&lib_path), "lib directory")
         ("media-dir,m", po::value<string>(&media_path), "media directory")
         ("git-pattern,g",
          po::value<string>(&git_path_pattern),
@@ -154,6 +155,7 @@ int main(int argc, char** argv)
 
     RequireOption("log-file", log_path);
     RequireOption("code-dir", code_path);
+    RequireOption("lib-dir", lib_path);
     RequireOption("media-dir", media_path);
     RequireOption("db-name", db_name);
     RequireOption("db-user", user_name);
@@ -176,6 +178,7 @@ int main(int argc, char** argv)
         MakePathAbsolute(curr_dir, log_path);
         MakePathAbsolute(curr_dir, socket_path);
         MakePathAbsolute(curr_dir, code_path);
+        MakePathAbsolute(curr_dir, lib_path);
         MakePathAbsolute(curr_dir, media_path);
         if (!git_path_pattern.empty())
             MakePathAbsolute(curr_dir, git_path_prefix);
@@ -192,6 +195,7 @@ int main(int argc, char** argv)
     }
 
     InitJS(code_path,
+           lib_path,
            media_path,
            git_path_prefix,
            git_path_suffix,

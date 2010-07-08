@@ -381,7 +381,7 @@ FileStorageBg::FileStorageBg(const string& root_path, bool writable)
 void FileStorageBg::CheckWritable() const
 {
     if (!writable_)
-        throw Error(Error::VALUE, "Code storage is read-only");
+        throw Error(Error::VALUE, "File storage is read-only");
 }
 
 
@@ -514,11 +514,14 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileStorageBg, RenameCb,
 // InitFS
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Object> ak::InitFS(const string& code_path, const string& media_path)
+Handle<Object> ak::InitFS(const string& code_path,
+                          const string& lib_path,
+                          const string& media_path)
 {
     Handle<Object> result(Object::New());
     Set(result, "FileStorage", FileStorageBg::GetJSClass().GetFunction());
     Set(result, "code", JSNew<FileStorageBg>(code_path, false));
+    Set(result, "lib", JSNew<FileStorageBg>(lib_path, false));
     Set(result, "media", JSNew<FileStorageBg>(media_path, true));
     return result;
 }

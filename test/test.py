@@ -25,6 +25,7 @@ CONFIG_PATH  = TMP_PATH + '/config'
 LOG_PATH     = TMP_PATH + '/log'
 TEST_PATH    = os.path.dirname(__file__)
 CODE_PATH    = TEST_PATH + '/code'
+LIB_PATH     = TEST_PATH + '/../lib'
 FUNCS_PATH   = TEST_PATH + '/../src/funcs.sql'
 
 
@@ -191,11 +192,12 @@ db-name=%s
 db-user=%s
 db-password=%s
 code-dir=%s/test
+lib-dir=%s
 media-dir=%s
 git-pattern=%s/%%s/.git
 log-file=%s
 ''' % (DB_NAME, DB_USER, DB_PASSWORD,
-       CODE_PATH, MEDIA_PATH, CODE_PATH, LOG_PATH))
+       CODE_PATH, LIB_PATH, MEDIA_PATH, CODE_PATH, LOG_PATH))
 
     unittest.TextTestRunner(verbosity=2).run(suite)
 
