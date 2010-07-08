@@ -79,9 +79,8 @@ namespace ak
             DUMMY
         };
 
-        Type(Tag tag) : tag_(tag) {} // implicit
-        Type()        : tag_(DUMMY) {}
-        Type(const std::string& pg_name);
+        Type(Tag tag = DUMMY) : tag_(tag) {} // implicit
+
         std::string GetPgName() const;
         std::string GetName() const;
         std::string GetCastFunc(Type from) const;
@@ -101,6 +100,10 @@ namespace ak
     private:
         Tag tag_;
     };
+
+
+    Type ReadType(const std::string& name);
+    Type ReadPgType(const std::string& pg_name);
 
     ////////////////////////////////////////////////////////////////////////////
     // Value and ValuePtr

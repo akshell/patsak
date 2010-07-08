@@ -18,25 +18,6 @@ using namespace boost::gregorian;
 // Type
 ////////////////////////////////////////////////////////////////////////////////
 
-Type::Type(const string& pg_name)
-{
-    if (pg_name == "float8") {
-        tag_ = NUMBER;
-    } else if (pg_name == "int4") {
-        tag_ = INT;
-    } else if (pg_name == "text") {
-        tag_ = STRING;
-    } else if (pg_name == "bool") {
-        tag_ = BOOL;
-    } else if (pg_name == "timestamp") {
-        tag_ = DATE;
-    } else {
-        AK_ASSERT_EQUAL(pg_name, "json");
-        tag_ = JSON;
-    }
-}
-
-
 string Type::GetPgName() const
 {
     static const char* pg_names[] =
@@ -64,6 +45,43 @@ string Type::GetCastFunc(Type from) const
     if  (IsNumeric())
         return "ak.to_number";
     return "ak.to_" + GetName();
+}
+
+
+Type ak::ReadType(const string& name)
+{
+    if (name == "number")
+        return Type::NUMBER;
+    if (name == "int")
+        return Type::INT;
+    if (name == "serial")
+        return Type::SERIAL;
+    if (name == "string")
+        return Type::STRING;
+    if (name == "bool")
+        return Type::BOOL;
+    if (name == "date")
+        return Type::DATE;
+    if (name == "json")
+        return Type::JSON;
+    throw Error(Error::VALUE, "Type " + name + " doesn't exist");
+}
+
+
+Type ak::ReadPgType(const string& pg_name)
+{
+    if (pg_name == "float8")
+        return Type::NUMBER;
+    if (pg_name == "int4")
+        return Type::INT;
+    if (pg_name == "text")
+        return Type::STRING;
+    if (pg_name == "bool")
+        return Type::BOOL;
+    if (pg_name == "timestamp")
+        return Type::DATE;
+    AK_ASSERT_EQUAL(pg_name, "json");
+    return Type::JSON;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

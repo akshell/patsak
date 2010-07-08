@@ -152,7 +152,7 @@ RelVar::RelVar(const string& name)
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
         AK_ASSERT_EQUAL(tuple.size(), 3U);
         AK_ASSERT(!tuple[0].is_null() && ! tuple[1].is_null());
-        DefAttr def_attr(tuple[0].c_str(), Type(tuple[1].c_str()));
+        DefAttr def_attr(tuple[0].c_str(), ReadPgType(tuple[1].c_str()));
         if (!tuple[2].is_null()) {
             string def_str(tuple[2].c_str());
             if (def_str.substr(0, 8) == "nextval(") {

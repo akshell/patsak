@@ -295,166 +295,6 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// TypeBg
-////////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-    class TypeBg {
-    public:
-        DECLARE_JS_CLASS(TypeBg);
-
-        TypeBg(Type type);
-
-        Type GetType() const;
-        const ak::Value* GetDefaultPtr() const;
-        void RetrieveConstrs(const string& attr_name,
-                             UniqueKeySet& unique_key_set,
-                             ForeignKeySet& foreign_key_set,
-                             Strings& checks) const;
-
-    private:
-        typedef shared_ptr<AddedConstr> AddedConstrPtr;
-        typedef vector<AddedConstrPtr> AddedConstrPtrs;
-
-        Type type_;
-        shared_ptr<ak::Value> default_ptr_;
-        AddedConstrPtrs ac_ptrs_;
-
-        friend Handle<Object> JSNew<TypeBg>(Type,
-                                            shared_ptr<ak::Value>,
-                                            AddedConstrPtrs);
-
-        TypeBg(Type type,
-               shared_ptr<ak::Value> default_ptr,
-               const AddedConstrPtrs& ac_ptrs);
-
-        DECLARE_JS_CALLBACK2(Handle<v8::Value>, GetNameCb,
-                             Local<String>, const AccessorInfo&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, DefaultCb,
-                             const Arguments&) const;
-
-        Handle<v8::Value> NewWithAddedConstr(AddedConstrPtr ac_ptr) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, UniqueCb,
-                             const Arguments&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ForeignCb,
-                             const Arguments&) const;
-
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, CheckCb,
-                             const Arguments&) const;
-    };
-}
-
-
-DEFINE_JS_CLASS(TypeBg, "Type", object_template, proto_template)
-{
-    object_template->SetAccessor(String::NewSymbol("name"), GetNameCb);
-    SetFunction(proto_template, "_default", DefaultCb);
-    SetFunction(proto_template, "_unique", UniqueCb);
-    SetFunction(proto_template, "_foreign", ForeignCb);
-    SetFunction(proto_template, "_check", CheckCb);
-}
-
-
-TypeBg::TypeBg(Type type)
-    : type_(type)
-{
-}
-
-
-TypeBg::TypeBg(Type type,
-               shared_ptr<ak::Value> default_ptr,
-               const AddedConstrPtrs& ac_ptrs)
-    : type_(type)
-    , default_ptr_(default_ptr)
-    , ac_ptrs_(ac_ptrs)
-{
-}
-
-
-Type TypeBg::GetType() const
-{
-    return type_;
-}
-
-
-const ak::Value* TypeBg::GetDefaultPtr() const
-{
-    return default_ptr_.get();
-}
-
-
-void TypeBg::RetrieveConstrs(const string& attr_name,
-                             UniqueKeySet& unique_key_set,
-                             ForeignKeySet& foreign_key_set,
-                             Strings& checks) const
-{
-    BOOST_FOREACH(const AddedConstrPtr& ac_ptr, ac_ptrs_) {
-        AK_ASSERT(ac_ptr);
-        ac_ptr->Retrieve(attr_name, unique_key_set, foreign_key_set, checks);
-    }
-}
-
-
-DEFINE_JS_CALLBACK2(Handle<v8::Value>, TypeBg, GetNameCb,
-                    Local<String>, /*property*/,
-                    const AccessorInfo&, /*info*/) const
-{
-    return String::New(type_.GetName().c_str());
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, DefaultCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    if (type_ == Type::SERIAL)
-        throw Error(Error::USAGE, "Default and serial are incompatible");
-    shared_ptr<ak::Value> default_ptr(
-        new ak::Value(CreateDraft(args[0]).Get(type_)));
-    return JSNew<TypeBg>(type_, default_ptr, ac_ptrs_);
-}
-
-
-Handle<v8::Value> TypeBg::NewWithAddedConstr(AddedConstrPtr ac_ptr) const
-{
-    AK_ASSERT(ac_ptr.get());
-    AddedConstrPtrs new_ac_ptrs(ac_ptrs_);
-    new_ac_ptrs.push_back(ac_ptr);
-    return JSNew<TypeBg>(type_, default_ptr_, new_ac_ptrs);
-
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, UniqueCb,
-                    const Arguments&, /*args*/) const
-{
-    return NewWithAddedConstr(AddedConstrPtr(new AddedUnique()));
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, ForeignCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 2);
-    AddedConstrPtr ac_ptr(new AddedForeignKey(Stringify(args[0]),
-                                              Stringify(args[1])));
-    return NewWithAddedConstr(ac_ptr);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, TypeBg, CheckCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    AddedConstrPtr ac_ptr(new AddedCheck(Stringify(args[0])));
-    return NewWithAddedConstr(ac_ptr);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // InitDB and RolledBack
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -524,14 +364,22 @@ namespace
         PropEnumerator prop_enumerator(args[1]->ToObject());
         for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
             Prop prop(prop_enumerator.GetProp(i));
-            string name(Stringify(prop.key));
-            const TypeBg& type_bg(GetBg<TypeBg>(prop.value));
-            ValuePtr value_ptr;
-            if (type_bg.GetDefaultPtr())
-                value_ptr = *type_bg.GetDefaultPtr();
-            def_header.add(DefAttr(name, type_bg.GetType(), value_ptr));
-            type_bg.RetrieveConstrs(
-                name, unique_key_set, foreign_key_set, checks);
+            Type type;
+            ValuePtr default_ptr;
+            if (prop.value->IsArray()) {
+                Handle<Array> array(Handle<Array>::Cast(prop.value));
+                if (array->Length() != 2)
+                    throw Error(
+                        Error::VALUE,
+                        ("An attribute with a default value "
+                         "must be described by a 2-item array"));
+                type = ReadType(Stringify(array->Get(Integer::New(0))));
+                default_ptr =
+                    CreateDraft(array->Get(Integer::New(1))).Get(type);
+            } else {
+                type = ReadType(Stringify(prop.value));
+            }
+            def_header.add(DefAttr(Stringify(prop.key), type, default_ptr));
         }
         ReadUniqueKeys(args[2], unique_key_set);
         ReadForeignKeySet(args[3], foreign_key_set);
@@ -670,24 +518,18 @@ namespace
         val_attr_set.reserve(prop_enumerator.GetSize());
         for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
             Prop prop(prop_enumerator.GetProp(i));
-            Handle<Array> descr(GetArray(prop.value));
-            if (descr->Length() != 2)
+            Handle<Array> array(GetArray(prop.value));
+            if (array->Length() != 2)
                 throw Error(
                     Error::VALUE,
                     "Each attribute must be described by a 2-item array");
-            const TypeBg* type_ptr =
-                TypeBg::GetJSClass().Cast(descr->Get(Integer::New(0)));
-            if (!type_ptr)
-                throw Error(Error::TYPE,
-                            "First description item must be a db.Type object");
-            if (type_ptr->GetType() == Type::SERIAL)
+            Type type(ReadType(Stringify(array->Get(Integer::New(0)))));
+            if (type == Type::SERIAL)
                 throw Error(Error::NOT_IMPLEMENTED,
                             "Adding of serial attributes is not implemented");
             ak::Value value(
-                CreateDraft(
-                    descr->Get(Integer::New(1))).Get(type_ptr->GetType()));
-            val_attr_set.add(
-                ValAttr(Stringify(prop.key), type_ptr->GetType(), value));
+                CreateDraft(array->Get(Integer::New(1))).Get(type));
+            val_attr_set.add(ValAttr(Stringify(prop.key), type, value));
         }
         AddAttrs(Stringify(args[0]), val_attr_set);
         return Undefined();
@@ -778,12 +620,5 @@ Handle<Object> ak::InitDB()
     SetFunction(result, "dropDefault", DropDefaultCb);
     SetFunction(result, "addConstrs", AddConstrsCb);
     SetFunction(result, "dropAllConstrs", DropAllConstrsCb);
-    Set(result, "number", JSNew<TypeBg>(Type::NUMBER));
-    Set(result, "int", JSNew<TypeBg>(Type::INT));
-    Set(result, "serial", JSNew<TypeBg>(Type::SERIAL));
-    Set(result, "string", JSNew<TypeBg>(Type::STRING));
-    Set(result, "bool", JSNew<TypeBg>(Type::BOOL));
-    Set(result, "date", JSNew<TypeBg>(Type::DATE));
-    Set(result, "json", JSNew<TypeBg>(Type::JSON));
     return result;
 }

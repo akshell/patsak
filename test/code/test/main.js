@@ -9,14 +9,6 @@ connect = socket.connect;
 HttpParser = http.HttpParser;
 Repo = git.Repo;
 
-number = db.number;
-int = db.int;
-serial = db.serial;
-string = db.string;
-bool = db.bool;
-date = db.date;
-json = db.json;
-
 READ_ONLY   = 1 << 0;
 DONT_ENUM   = 1 << 1;
 DONT_DELETE = 1 << 2;
@@ -203,13 +195,6 @@ var baseTestSuite = {
     assertEqual(items(module), [['exports', exports], ['id', 'main']]);
     assertSame(require.main, module);
     assertSame(m.main, module);
-  },
-
-  testType: function () {
-    assertSame(number.name, 'number');
-    assertSame(string.name, 'string');
-    assertSame(bool.name, 'bool');
-    assertSame(date.name, 'date');
   },
 
   testSet: function () {
@@ -603,32 +588,40 @@ var dbTestSuite = {
   setUp: function () {
     db.drop(db.list());
 
-    create('Dummy', {id: number});
+    create('Dummy', {id: 'number'});
     create('Empty', {});
     create(
       'User',
       {
-        id: serial._unique(),
-        name: string._unique(),
-        age: number,
-        flooder: bool._default('yo!')
-      });
+        id: 'serial',
+        name: 'string',
+        age: 'number',
+        flooder: ['bool', 'yo!']
+      },
+      {unique: [['id'], ['name']]});
     create(
       'Post',
       {
-        id: serial._unique(),
-        title: string,
-        text: string,
-        author: int._foreign('User', 'id')
+        id: 'serial',
+        title: 'string',
+        text: 'string',
+        author: 'int'
       },
-      {unique: [['title', 'author']]});
+      {
+        unique: [['id'], ['title', 'author']],
+        foreign: [[['author'], 'User', ['id']]]
+      });
     create(
       'Comment',
       {
-        id: serial._unique(),
-        text: string,
-        author: int._foreign('User', 'id'),
-        post: int._foreign('Post', 'id')
+        id: 'serial',
+        text: 'string',
+        author: 'int',
+        post: 'int'
+      },
+      {
+        unique: [['id']],
+        foreign: [[['author'], 'User', ['id']], [['post'], 'Post', ['id']]]
       });
 
     db.insert('User', {name: 'anton', age: 22, flooder: 15});
@@ -643,7 +636,7 @@ var dbTestSuite = {
     db.insert('Comment', {text: 'rrr', author: 0, post: 0});
     db.insert('Comment', {text: 'ololo', author: 2, post: 2});
 
-    create('Count', {i: number});
+    create('Count', {i: 'number'});
     for (var i = 0; i < 10; ++i)
       db.insert('Count', {i: i});
 
@@ -659,27 +652,28 @@ var dbTestSuite = {
     assertThrow(UsageError, "db.create('illegal', {})");
     assertThrow(ValueError, create, '', {});
     assertThrow(ValueError, create, '123bad', {});
-    assertThrow(ValueError, create, 'illegal', {'_@': number});
+    assertThrow(ValueError, create, 'illegal', {'_@': 'number'});
     assertThrow(TypeError, create, 'illegal', 'str');
     assertThrow(TypeError, "db.create('illegal', {}, 'str', [], [])");
-    assertThrow(TypeError, create, 'illegal', {field: 15});
+    assertThrow(ValueError, create, 'illegal', {attr: 15});
+    assertThrow(ValueError, create, 'illegal', {attr: []});
     function E() {}
     assertThrow(E, create, 'RV', {get x() { throw new E(); }});
     assertThrow(RelVarExistsError, create, 'User', {});
 
     assertThrow(ValueError,
-                create, 'illegal', {x: number}, {unique: [[]]});
+                create, 'illegal', {x: 'number'}, {unique: [[]]});
     assertThrow(ValueError,
                 create, 'illegal',
-                        {x: number, y: number},
+                        {x: 'number', y: 'number'},
                         {foreign: [['x', 'y'], 'User', ['id']]});
     assertThrow(TypeError,
                 create, 'illegal',
-                        {'id': number},
+                        {'id': 'number'},
                         {foreign: [[['id'], 'Post', 'id']]});
     assertThrow(UsageError,
                 create, 'illegal',
-                        {x: number, y: number},
+                        {x: 'number', y: 'number'},
                         {foreign: [[['x', 'y'],
                                     'Post',
                                     ['id', 'author']]]});
@@ -694,45 +688,45 @@ var dbTestSuite = {
                 function () {
                   attrs = {};
                   for (var i = 0; i < 1000; ++i)
-                    attrs['attr' + i] = number;
+                    attrs['attr' + i] = 'number';
                   create('illegal', attrs);
                 });
 
-    create('legal', {x: bool._default(new Date())});
+    create('legal', {x: ['bool', new Date()]});
     db.insert('legal', {});
     assertSame(query('legal')[0].x, true);
     db.drop(['legal']);
-    assertThrow(TypeError, "date._default('illegal')");
+    assertThrow(TypeError, create, 'illegal', {d: ['date', 'illegal']});
 
     assertThrow(ValueError,
                 create, 'illegal', {}, {foreign: [['a', 'b']]});
     assertThrow(ValueError,
                 create, 'illegal',
-                        {a: number},
+                        {a: 'number'},
                         {unique: [['a', 'a']]});
     assertThrow(ValueError,
                 create, 'illegal',
-                        {x: number},
+                        {x: 'number'},
                         {foreign: [[[], 'User', []]]});
     assertThrow(UsageError,
                 create, 'illegal',
-                        {x: number},
+                        {x: 'number'},
                         {foreign: [[['x'], 'User', ['age']]]});
     assertThrow(ValueError,
                 create, 'illegal',
-                        {x: number},
+                        {x: 'number'},
                         {foreign: [[['x'], 'User', ['id', 'age']]]});
   },
 
   testDropRelVars: function () {
-    create('NewRelVar', {x: number});
+    create('NewRelVar', {x: 'number'});
     db.drop(['NewRelVar']);
     assertSame(db.list().indexOf('NewRelVar'), -1);
     assertThrow(RelVarDependencyError, "db.drop(['User'])");
     assertThrow(RelVarDependencyError, "db.drop(['User', 'Post'])");
     assertThrow(ValueError, "db.drop(['Comment', 'Comment'])");
-    create('rv1', {x: number._unique()});
-    create('rv2', {x: number._foreign('rv1', 'x')});
+    create('rv1', {x: 'number'});
+    create('rv2', {x: 'number'}, {foreign: [[['x'], 'rv1', ['x']]]});
     assertThrow(RelVarDependencyError, "db.drop(['rv1'])");
     db.drop(['rv1', 'rv2']);
     assertThrow(NoSuchRelVarError, "db.drop(['Comment', 'NoSuch'])");
@@ -787,7 +781,7 @@ var dbTestSuite = {
     assertEqual(query('Empty').map(items), [[]]);
     assertThrow(ConstraintError, "db.insert('Empty', {})");
     db.del('Empty', 'true', []);
-    create('Num', {n: number, i: int._default(3.14)});
+    create('Num', {n: 'number', i: ['int', 3.14]});
     assertSame(db.insert('Num', {n: 0}).i, 3);
     assertSame(db.insert('Num', {n: 1.5, i: 1.5}).i, 2);
     assertSame(db.insert('Num', {n: Infinity}).n, Infinity);
@@ -819,7 +813,7 @@ var dbTestSuite = {
   },
 
   testBy: function () {
-    create('ByTest', {x: number, y: number});
+    create('ByTest', {x: 'number', y: 'number'});
     db.insert('ByTest', {x: 0, y: 0});
     db.insert('ByTest', {x: 1, y: 14});
     db.insert('ByTest', {x: 2, y: 21});
@@ -919,15 +913,15 @@ var dbTestSuite = {
   },
 
   testPg: function () {
-    create('pg_class', {x: number});
+    create('pg_class', {x: 'number'});
     db.insert('pg_class', {x: 0});
     assertEqual(query('pg_class').map(items), [[['x', 0]]]);
     db.drop(['pg_class']);
   },
 
   testCheck: function () {
-    create('silly', {n: number._check('n != 42')});
-    create('dummy', {b: bool, s: string}, {check: ['b || s == "hello"']});
+    create('silly', {n: 'number'}, {check: ['n != 42']});
+    create('dummy', {b: 'bool', s: 'string'}, {check: ['b || s == "hello"']});
     db.insert('silly', {n: 0});
     assertThrow(ConstraintError, "db.insert('silly', {n: 42})");
     db.insert('dummy', {b: true, s: 'hi'});
@@ -938,13 +932,13 @@ var dbTestSuite = {
   },
 
   testDate: function () {
-    create('d1', {d: date}, {unique: [['d']]});
+    create('d1', {d: 'date'});
     var someDate = new Date('Wed, Mar 04 2009 16:12:09 GMT');
     var otherDate = new Date(2009, 0, 15, 13, 27, 11, 481);
     db.insert('d1', {d: someDate});
     assertSame(query('{s: d1.d + ""}')[0].s, 'Wed Mar 04 2009 04:12:09');
     assertEqual(field('d', 'd1'), [someDate]);
-    create('d2', {d: date}, {foreign: [[['d'], 'd1', ['d']]]});
+    create('d2', {d: 'date'}, {foreign: [[['d'], 'd1', ['d']]]});
     assertThrow(ConstraintError,
                 function () { db.insert('d2', {d: otherDate}); });
     db.insert('d1', {d: otherDate});
@@ -961,10 +955,10 @@ var dbTestSuite = {
     var now = new Date();
     create('def',
            {
-             n: number._default(42),
-             s: string._default('hello, world!'),
-             b: bool._default(true),
-             d: date._default(now)
+             n: ['number', 42],
+             s: ['string', 'hello, world!'],
+             b: ['bool', true],
+             d: ['date', now]
            });
     assertEqual(items(db.getDefault('def')).sort(),
                 [['b', true],
@@ -984,7 +978,7 @@ var dbTestSuite = {
 
   testUnique: function () {
     create('rv',
-           {a: number, b: string, c: bool},
+           {a: 'number', b: 'string', c: 'bool'},
            {unique: [['a', 'b'], ['b', 'c'], ['c']]});
     assertEqual(db.getUnique('rv').sort(), [['a', 'b'], ['b', 'c'], ['c']]);
     assertEqual(db.getUnique('Dummy'), [['id']]);
@@ -994,10 +988,10 @@ var dbTestSuite = {
   testForeignKey: function () {
     create('rv',
            {
-             title: string,
-             author: int,
-             id: serial,
-             ref: int
+             title: 'string',
+             author: 'int',
+             id: 'serial',
+             ref: 'int'
            },
            {
              foreign: [
@@ -1027,7 +1021,7 @@ var dbTestSuite = {
   },
 
   testBigIndexRow: function () {
-    create('rv', {s: string});
+    create('rv', {s: 'string'});
     assertThrow(DBError, "db.insert('rv', {s: readCode('main.js')})");
     db.drop(['rv']);
   },
@@ -1035,10 +1029,10 @@ var dbTestSuite = {
   testAddAttrs: function () {
     assertThrow(TypeError, "db.addAttrs('X', 42)");
     assertThrow(ValueError, "db.addAttrs('X', {x: []})");
-    assertThrow(TypeError, "db.addAttrs('X', {x: [1, 2]})");
+    assertThrow(ValueError, "db.addAttrs('X', {x: [1, 2]})");
     assertThrow(NotImplementedError,
-                "db.addAttrs('X', {id: [serial, 0]})");
-    create('X', {id: serial});
+                "db.addAttrs('X', {id: ['serial', 0]})");
+    create('X', {id: 'serial'});
     db.insert('X', {});
     db.insert('X', {});
     var d = new Date();
@@ -1046,10 +1040,10 @@ var dbTestSuite = {
     db.addAttrs(
       'X',
       {
-        n: [number, 4.2],
-        i: [int, 0.1],
-        s: [string, 'yo'],
-        d: [date, d]
+        n: ['number', 4.2],
+        i: ['int', 0.1],
+        s: ['string', 'yo'],
+        d: ['date', d]
       });
     assertEqual(
       query('X', [], ['id']).map(items),
@@ -1057,16 +1051,16 @@ var dbTestSuite = {
         [['id', 0], ['n', 4.2], ['i', 0], ['s', 'yo'], ['d', d]],
         [['id', 1], ['n', 4.2], ['i', 0], ['s', 'yo'], ['d', d]]
       ]);
-    assertThrow(AttrExistsError, "db.addAttrs('X', {s: [string, '']})");
+    assertThrow(AttrExistsError, "db.addAttrs('X', {s: ['string', '']})");
     for (var i = 0; i < 495; ++i) {
       var descr = {};
-      descr['a' + i] = [number, i];
+      descr['a' + i] = ['number', i];
       db.addAttrs('X', descr);
     }
-    assertThrow(QuotaError, "db.addAttrs('X', {another: [string, '']})");
+    assertThrow(QuotaError, "db.addAttrs('X', {another: ['string', '']})");
     create('Y', {});
     db.insert('Y', {});
-    db.addAttrs('Y', {n: [number, 0], s: [string, '']});
+    db.addAttrs('Y', {n: ['number', 0], s: ['string', '']});
     assertEqual(db.getUnique('Y'), [['n', 's']]);
     assertThrow(ConstraintError, "db.insert('Y', {n: 0, s: ''})");
     db.drop(['X', 'Y']);
@@ -1074,11 +1068,11 @@ var dbTestSuite = {
 
   testDropAttrs: function () {
     create('X',
-           {n: number._unique(), s: string, b: bool, d: date},
-           {unique: [['s', 'b']]});
+           {n: 'number', s: 'string', b: 'bool', d: 'date'},
+           {unique: [['n'], ['s', 'b']]});
     create('Y',
-           {n: number._foreign('X', 'n'), s: string, b: bool, d: date},
-           {foreign: [[['s', 'b'], 'X', ['s', 'b']]]});
+           {n: 'number', s: 'string', b: 'bool', d: 'date'},
+           {foreign: [[['n'], 'X', ['n']], [['s', 'b'], 'X', ['s', 'b']]]});
     assertThrow(NoSuchAttrError, "db.dropAttrs('X', ['n', 'x'])");
     assertThrow(RelVarDependencyError, "db.dropAttrs('X', ['b', 'd'])");
     db.dropAttrs('X', ['d']);
@@ -1106,7 +1100,7 @@ var dbTestSuite = {
   },
 
   testAddDefault: function () {
-    create('X', {n: number, s: string, b: bool});
+    create('X', {n: 'number', s: 'string', b: 'bool'});
     assertThrow(NoSuchAttrError, "db.addDefault('X', {s: '', x: 42})");
     db.addDefault('X', {});
     assertEqual(items(db.getDefault('X')), []);
@@ -1125,9 +1119,9 @@ var dbTestSuite = {
     create(
       'X',
       {
-        n: number._default(42),
-        s: string._default(""),
-        b: bool._default(false)
+        n: ['number', 42],
+        s: ['string', ''],
+        b: ['bool', false]
       });
     assertThrow(NoSuchAttrError, "db.dropDefault('X', ['a', 's'])");
     db.dropDefault('X', []);
@@ -1141,9 +1135,9 @@ var dbTestSuite = {
   },
 
   testAddConstrs: function () {
-    create('X', {n: number._unique(), s: string._unique()}, {unique: [['n']]});
+    create('X', {n: 'number', s: 'string'}, {unique: [['n'], ['n'], ['s']]});
     assertEqual(db.getUnique('X'), [['n'], ['s']]);
-    create('Y', {n: number, s: string, b: bool});
+    create('Y', {n: 'number', s: 'string', b: 'bool'});
     db.addConstrs('Y', [], [], []);
     db.addConstrs('Y', [['n']], [[['s'], 'X', ['s']]], ['b']);
     assertEqual(db.getUnique('Y'), [['n', 's', 'b'], ['n']]);
@@ -1166,13 +1160,18 @@ var dbTestSuite = {
   },
 
   testDropAllConstrs: function () {
-    create('X', {n: number._unique()});
+    create('X', {n: 'number'});
     create(
       'Y',
       {
-        n: number._foreign('X', 'n'),
-        s: string._unique(),
-        c: bool._check('c')
+        n: 'number',
+        s: 'string',
+        c: 'bool'
+      },
+      {
+        unique: [['s']],
+        foreign: [[['n'], 'X', ['n']]],
+        check: ['c']
       });
     db.dropAllConstrs('Empty');
     assertThrow(RelVarDependencyError, "db.dropAllConstrs('X')");
@@ -1181,7 +1180,7 @@ var dbTestSuite = {
     assertEqual(db.getForeign('Y'), []);
     db.insert('Y', {n: 0, s: '', c: false});
     db.dropAllConstrs('X');
-    create('Z', {n: number._unique(), s: string});
+    create('Z', {n: 'number', s: 'string'}, {unique: [['n']]});
     var s = 'x';
     for (var i = 0; i < 20; ++i)
       s += s;
@@ -1191,7 +1190,7 @@ var dbTestSuite = {
   },
 
   testJSON: function () {
-    create('X', {j: json});
+    create('X', {j: 'json'});
     db.insert('X', {j: [1, 2, 3]});
     assertEqual(query('X')[0].j, [1, 2, 3]);
     db.insert('X', {j: 42});
