@@ -37,7 +37,7 @@ namespace ak
     // RangeVar
     ////////////////////////////////////////////////////////////////////////////
 
-    class RangeVar : private boost::equality_comparable<RangeVar> {
+    class RangeVar {
     public:
         struct Impl {
             std::string name;
@@ -53,8 +53,12 @@ namespace ak
         RangeVar(const std::string& name, const Rel& rel)
             : pimpl_(new Impl(name, rel)) {}
 
-        bool operator==(const RangeVar& other) const {
+        bool operator==(RangeVar other) const {
             return pimpl_ == other.pimpl_;
+        }
+
+        bool operator!=(RangeVar other) const {
+            return !(*this == other);
         }
 
         std::string GetName() const {

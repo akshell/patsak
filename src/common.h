@@ -7,7 +7,6 @@
 #include "orset.h"
 
 #include <boost/shared_ptr.hpp>
-#include <boost/operators.hpp>
 
 #include <iostream>
 #include <map>
@@ -68,12 +67,7 @@ namespace ak
     // Type
     ////////////////////////////////////////////////////////////////////////////
 
-    class Type : private
-    boost::equivalent<
-        Type,
-        boost::less_than_comparable<
-            Type,
-            boost::equality_comparable<Type> > > {
+    class Type {
     public:
         enum Tag {
             NUMBER,
@@ -97,8 +91,12 @@ namespace ak
             return tag_ == NUMBER || tag_ == INT || tag_ == SERIAL;
         }
 
-        bool operator<(Type other) const {
-            return tag_ < other.tag_;
+        bool operator==(Type other) const {
+            return tag_ == other.tag_;
+        }
+
+        bool operator!=(Type other) const {
+            return !(*this == other);
         }
 
     private:
@@ -109,7 +107,7 @@ namespace ak
     // Value and ValuePtr
     ////////////////////////////////////////////////////////////////////////////
 
-    class Value: private boost::equality_comparable<Value> {
+    class Value {
     public:
         class Impl;
 
@@ -204,7 +202,7 @@ namespace ak
     // Header
     ////////////////////////////////////////////////////////////////////////////
 
-    struct Attr : private boost::equality_comparable<Attr> {
+    struct Attr {
         std::string name;
         Type type;
 
