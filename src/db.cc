@@ -558,11 +558,11 @@ void RelVar::AddDefault(const DraftMap& draft_map)
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
     Separator sep;
-    BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map) {
-        const DefAttr& new_def_attr(GetAttr(new_def_header, named_draft.first));
-        Value value(named_draft.second.Get(new_def_attr.type));
+    BOOST_FOREACH(const NamedDraft& named_draft, draft_map) {
+        const DefAttr& new_def_attr(GetAttr(new_def_header, named_draft.name));
+        Value value(named_draft.draft.Get(new_def_attr.type));
         const_cast<DefAttr&>(new_def_attr).default_ptr = value;
-        oss << sep << "ALTER \"" << named_draft.first
+        oss << sep << "ALTER \"" << named_draft.name
             << "\" SET DEFAULT " <<  value.GetPgLiter();
     }
     Exec(oss.str());
@@ -1118,26 +1118,24 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
     string sql;
     if (def_header.empty()) {
         if (!draft_map.empty())
-            GetAttr(def_header, draft_map.begin()->first); // throws
+            GetAttr(def_header, draft_map[0].name); // throws
         sql = (format(empty_cmd) % rel_var_name).str();
     } else if (!draft_map.empty()) {
-        BOOST_FOREACH(const DraftMap::value_type& named_draft, draft_map)
-            GetAttr(def_header, named_draft.first);
+        BOOST_FOREACH(const NamedDraft& named_draft, draft_map)
+            GetAttr(def_header, named_draft.name);
         ostringstream names_oss, values_oss;
         Separator names_sep, values_sep;
         BOOST_FOREACH(const DefAttr& def_attr, def_header) {
-            DraftMap::const_iterator itr(
-                draft_map.find(def_attr.name));
-            if (itr == draft_map.end()) {
-                if (def_attr.type != Type::SERIAL && !def_attr.default_ptr)
-                    throw Error(Error::ATTR_VALUE_REQUIRED,
-                                ("Value of attribute \"" +
-                                 def_attr.name +
-                                 "\" must be supplied"));
-            } else {
+            const NamedDraft* named_draft_ptr = draft_map.find(def_attr.name);
+            if (named_draft_ptr) {
                 names_oss << names_sep << '"' << def_attr.name << '"';
-                Value value(itr->second.Get(def_attr.type));
+                Value value(named_draft_ptr->draft.Get(def_attr.type));
                 values_oss << values_sep << value.GetPgLiter();
+            } else if (def_attr.type != Type::SERIAL && !def_attr.default_ptr) {
+                throw Error(Error::ATTR_VALUE_REQUIRED,
+                            ("Value of attribute \"" +
+                             def_attr.name +
+                             "\" must be supplied"));
             }
         }
         sql = (format(cmd)

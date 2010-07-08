@@ -832,8 +832,8 @@ namespace
             assert(values.size() == def_header.size());
             DraftMap draft_map;
             for (size_t i = 0; i < def_header.size(); ++i)
-                draft_map.insert(DraftMap::value_type(def_header[i].name,
-                                                      CreateDraft(values[i])));
+                draft_map.add(
+                    NamedDraft(def_header[i].name, CreateDraft(values[i])));
             Insert(rel_var_name, draft_map);
         }
         Commit();

@@ -9,7 +9,6 @@
 #include <boost/shared_ptr.hpp>
 
 #include <iostream>
-#include <map>
 #include <stdexcept>
 
 
@@ -241,7 +240,7 @@ namespace ak
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // Draft
+    // Draft, NamedDraft, and DraftMap
     ////////////////////////////////////////////////////////////////////////////
 
     class Draft {
@@ -255,6 +254,17 @@ namespace ak
     private:
         boost::shared_ptr<Impl> pimpl_;
     };
+
+
+    struct NamedDraft : public Named {
+        Draft draft;
+
+        NamedDraft(const std::string& name, Draft draft)
+            : Named(name), draft(draft) {}
+    };
+
+
+    typedef orset<NamedDraft, NameGetter> DraftMap;
 
     ////////////////////////////////////////////////////////////////////////////
     // NamedString and StringMap
@@ -279,7 +289,6 @@ namespace ak
     typedef std::vector<Value> Values;
     typedef std::vector<Type> Types;
     typedef std::vector<Draft> Drafts;
-    typedef std::map<std::string, Draft> DraftMap;
     typedef std::vector<char> Chars;
 
     const size_t MINUS_ONE = static_cast<size_t>(-1);

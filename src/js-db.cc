@@ -179,10 +179,11 @@ namespace
             throw Error(Error::TYPE, "Object required");
         PropEnumerator prop_enumerator(value->ToObject());
         DraftMap result;
+        result.reserve(prop_enumerator.GetSize());
         for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
             Prop prop(prop_enumerator.GetProp(i));
-            result.insert(DraftMap::value_type(Stringify(prop.key),
-                                               CreateDraft(prop.value)));
+            result.add(
+                NamedDraft(Stringify(prop.key), CreateDraft(prop.value)));
         }
         return result;
     }
