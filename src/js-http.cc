@@ -61,14 +61,12 @@ namespace
 {
     class HttpParserBg {
     public:
-        DECLARE_JS_CLASS(HttpParserBg);
+        DECLARE_JS_CONSTRUCTOR(HttpParserBg);
 
         HttpParserBg(http_parser_type type, Handle<Object> handler);
         ~HttpParserBg();
 
     private:
-        static Handle<v8::Value> ConstructorCb(const Arguments& args);
-
         DEFINE_HTTP_CALLBACK(MessageBegin)
         DEFINE_HTTP_CALLBACK(MessageComplete)
 
@@ -94,34 +92,28 @@ namespace
 }
 
 
-DEFINE_JS_CONSTRUCTOR(HttpParserBg, "HTTPParser", ConstructorCb,
+DEFINE_JS_CONSTRUCTOR(HttpParserBg, "HTTPParser",
                       /*object_template*/, proto_template)
 {
     SetFunction(proto_template, "_exec", ExecCb);
 }
 
 
-Handle<v8::Value> HttpParserBg::ConstructorCb(const Arguments& args)
+DEFINE_JS_CONSTRUCTOR_CALLBACK(HttpParserBg, args)
 {
-    if (!args.IsConstructCall())
-        return Undefined();
-    try {
-        CheckArgsLength(args, 2);
-        string type_name(Stringify(args[0]));
-        http_parser_type type;
-        if (type_name == "request")
-            type = HTTP_REQUEST;
-        else if (type_name == "response")
-            type = HTTP_RESPONSE;
-        else
-            throw Error(Error::VALUE,
-                        "HTTPParser type must be 'request' or 'response'");
-        if (!args[1]->IsObject())
-            throw Error(Error::TYPE, "Object required");
-        HttpParserBg::GetJSClass().Attach(
-            args.This(), new HttpParserBg(type, args[1]->ToObject()));
-        return Handle<v8::Value>();
-    } JS_CATCH(Handle<v8::Value>);
+    CheckArgsLength(args, 2);
+    string type_name(Stringify(args[0]));
+    http_parser_type type;
+    if (type_name == "request")
+        type = HTTP_REQUEST;
+    else if (type_name == "response")
+        type = HTTP_RESPONSE;
+    else
+        throw Error(Error::VALUE,
+                    "HTTPParser type must be 'request' or 'response'");
+    if (!args[1]->IsObject())
+        throw Error(Error::TYPE, "Object required");
+    return new HttpParserBg(type, args[1]->ToObject());
 }
 
 

@@ -28,14 +28,12 @@ namespace
 
     class RepoBg {
     public:
-        DECLARE_JS_CLASS(RepoBg);
+        DECLARE_JS_CONSTRUCTOR(RepoBg);
 
         RepoBg(const string& app_name);
         ~RepoBg();
 
     private:
-        static Handle<v8::Value> ConstructorCb(const Arguments& args);
-
         string path_;
         git_odb* odb_ptr;
 
@@ -51,24 +49,17 @@ namespace
 }
 
 
-DEFINE_JS_CONSTRUCTOR(RepoBg, "Repo", ConstructorCb,
-                      /*object_template*/, proto_template)
+DEFINE_JS_CONSTRUCTOR(RepoBg, "Repo", /*object_template*/, proto_template)
 {
     SetFunction(proto_template, "_catFile", CatFileCb);
     SetFunction(proto_template, "_readRefs", ReadRefsCb);
 }
 
 
-Handle<v8::Value> RepoBg::ConstructorCb(const Arguments& args)
+DEFINE_JS_CONSTRUCTOR_CALLBACK(RepoBg, args)
 {
-    if (!args.IsConstructCall())
-        return Undefined();
-    try {
-        CheckArgsLength(args, 1);
-        RepoBg::GetJSClass().Attach(args.This(),
-                                    new RepoBg(Stringify(args[0])));
-        return Undefined();
-    } JS_CATCH(Handle<v8::Value>);
+    CheckArgsLength(args, 1);
+    return new RepoBg(Stringify(args[0]));
 }
 
 

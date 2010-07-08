@@ -282,6 +282,14 @@ namespace ak
                                 v8::Handle<v8::ObjectTemplate>)
 
 
+#define DECLARE_JS_CONSTRUCTOR(cls)                                     \
+    private:                                                            \
+    static v8::Handle<v8::Value> ConstructorCb(const v8::Arguments&);   \
+    static cls* ConstructorCbImpl(const v8::Arguments&);                \
+    public:                                                             \
+    DECLARE_JS_CLASS(cls)
+
+
 #define DO_DEFINE_JS_SUBCONSTRUCTOR(cls, name, parent_ptr, constructor, \
                                     object_template, proto_template)    \
     ak::JSClass<cls>& cls::GetJSClass() {                               \
@@ -293,27 +301,29 @@ namespace ak
         v8::Handle<v8::ObjectTemplate> proto_template)
 
 
-#define DEFINE_JS_SUBCONSTRUCTOR(cls, name, parent, constructor,        \
+#define DEFINE_JS_SUBCONSTRUCTOR(cls, name, parent,                     \
                                  object_template, proto_template)       \
     DO_DEFINE_JS_SUBCONSTRUCTOR(                                        \
-        cls, name, &parent::GetJSClass(), constructor,                  \
+        cls, name, &parent::GetJSClass(), ConstructorCb,                \
         object_template, proto_template)
 
 
 #define DEFINE_JS_SUBCLASS(cls, name, parent,                           \
                            object_template, proto_template)             \
-    DEFINE_JS_SUBCONSTRUCTOR(                                           \
-        cls, name, parent, 0, object_template, proto_template)
+    DO_DEFINE_JS_SUBCONSTRUCTOR(                                        \
+        cls, name, &parent::GetJSClass(), 0,                            \
+        object_template, proto_template)
 
 
-#define DEFINE_JS_CONSTRUCTOR(cls, name, constructor,                   \
+#define DEFINE_JS_CONSTRUCTOR(cls, name,                                \
                               object_template, proto_template)          \
     DO_DEFINE_JS_SUBCONSTRUCTOR(                                        \
-        cls, name, 0, constructor, object_template, proto_template)
+        cls, name, 0, ConstructorCb, object_template, proto_template)
 
 
 #define DEFINE_JS_CLASS(cls, name, object_template, proto_template)     \
-    DEFINE_JS_CONSTRUCTOR(cls, name, 0, object_template, proto_template)
+    DO_DEFINE_JS_SUBCONSTRUCTOR(                                        \
+        cls, name, 0, 0, object_template, proto_template)
 
 
 #define DECLARE_JS_CALLBACK1(T, name, T1)                     \
@@ -339,11 +349,11 @@ namespace ak
 
 #define DEFINE_JS_FUNCTION(name, args)                      \
     v8::Handle<v8::Value> name##Impl(const Arguments&);     \
-    v8::Handle<v8::Value> name(const Arguments& arguments)  \
+    v8::Handle<v8::Value> name(const Arguments& a)          \
     {                                                       \
         JS_CALLBACK_GUARD(v8::Handle<v8::Value>);           \
         try {                                               \
-            return name##Impl(arguments);                   \
+            return name##Impl(a);                           \
         } JS_CATCH(v8::Handle<v8::Value>);                  \
     }                                                       \
     v8::Handle<v8::Value> name##Impl(const Arguments& args)
@@ -381,5 +391,18 @@ namespace ak
         } JS_CATCH(T);                                                  \
     }                                                                   \
     T cls::name##Impl(T1 arg1, T2 arg2, T3 arg3)
+
+
+#define DEFINE_JS_CONSTRUCTOR_CALLBACK(cls, args)                       \
+    v8::Handle<v8::Value> cls::ConstructorCb(const v8::Arguments& a)    \
+    {                                                                   \
+        if (!a.IsConstructCall())                                       \
+            return Undefined();                                         \
+        try {                                                           \
+            cls::GetJSClass().Attach(a.This(), ConstructorCbImpl(a));   \
+            return v8::Handle<v8::Value>();                             \
+        } JS_CATCH(Handle<v8::Value>);                                  \
+    }                                                                   \
+    cls* cls::ConstructorCbImpl(const v8::Arguments& args)
 
 #endif // JS_COMMON_H

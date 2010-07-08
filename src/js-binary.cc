@@ -101,7 +101,7 @@ namespace
 
 class ak::BinaryBg {
 public:
-    DECLARE_JS_CLASS(BinaryBg);
+    DECLARE_JS_CONSTRUCTOR(BinaryBg);
 
     BinaryBg(auto_ptr<Chars> data_ptr = auto_ptr<Chars>());
     BinaryBg(const BinaryBg& parent, size_t start = 0, size_t stop = MINUS_ONE);
@@ -116,8 +116,6 @@ private:
     boost::shared_ptr<BinaryHolder> holder_ptr_;
     char* data_;
     size_t size_;
-
-    static Handle<v8::Value> ConstructorCb(const Arguments& args);
 
     void SetIndexedProperties(Handle<Object> object) const;
     size_t ReadIndex(Handle<v8::Value> value) const;
@@ -152,8 +150,7 @@ private:
 };
 
 
-DEFINE_JS_CONSTRUCTOR(BinaryBg, "Binary", ConstructorCb,
-                      object_template, proto_template)
+DEFINE_JS_CONSTRUCTOR(BinaryBg, "Binary", object_template, proto_template)
 {
     object_template->SetAccessor(String::NewSymbol("length"), GetLengthCb,
                                  0, Handle<v8::Value>(), DEFAULT,
@@ -169,88 +166,83 @@ DEFINE_JS_CONSTRUCTOR(BinaryBg, "Binary", ConstructorCb,
 }
 
 
-Handle<v8::Value> BinaryBg::ConstructorCb(const Arguments& args)
+DEFINE_JS_CONSTRUCTOR_CALLBACK(BinaryBg, args)
 {
-    if (!args.IsConstructCall())
-        return Undefined();
-    try {
-        auto_ptr<Chars> data_ptr(new Chars());
-        Chars& data(*data_ptr);
-        if (args.Length()) {
-            if (args[0]->IsInt32()) {
-                int32_t size = args[0]->Int32Value();
-                if (size < 0)
-                    throw Error(Error::RANGE, "Length must be positive");
-                data.assign(size,
-                            args.Length() > 1 ? args[1]->Uint32Value() : 0);
-            } else if (args[0]->IsString()) {
-                Handle<String> str(args[0]->ToString());
-                string charset(args.Length() > 1
-                               ? ReadLower(args[1])
-                               : "utf-8");
-                if (charset == "utf-8" || charset == "utf8") {
-                    int size = str->Utf8Length();
-                    data.resize(size);
-                    str->WriteUtf8(&data[0], size);
-                } else {
-                    String::Value utf16_value(str);
-                    transcode(reinterpret_cast<const char*>(*utf16_value),
-                              utf16_value.length() * 2,
-                              "utf-16",
-                              charset,
-                              data);
-                }
-            } else if (args[0]->IsArray()) {
-                Handle<Array> array(Handle<Array>::Cast(args[0]));
-                size_t size = array->Length();
+    auto_ptr<Chars> data_ptr(new Chars());
+    Chars& data(*data_ptr);
+    if (args.Length()) {
+        if (args[0]->IsInt32()) {
+            int32_t size = args[0]->Int32Value();
+            if (size < 0)
+                throw Error(Error::RANGE, "Length must be positive");
+            data.assign(size,
+                        args.Length() > 1 ? args[1]->Uint32Value() : 0);
+        } else if (args[0]->IsString()) {
+            Handle<String> str(args[0]->ToString());
+            string charset(args.Length() > 1
+                           ? ReadLower(args[1])
+                           : "utf-8");
+            if (charset == "utf-8" || charset == "utf8") {
+                int size = str->Utf8Length();
                 data.resize(size);
-                for (size_t i = 0; i < size; ++i)
-                    data[i] = array->Get(Integer::New(i))->Uint32Value();
-            } else if (const BinaryBg* binary_ptr =
-                       BinaryBg::GetJSClass().Cast(args[0])) {
-                if (args.Length() == 1) {
-                    data.assign(binary_ptr->data_,
-                                binary_ptr->data_ + binary_ptr->size_);
-                } else if (const BinaryBg* second_binary_ptr =
-                           BinaryBg::GetJSClass().Cast(args[1])) {
-                    vector<const BinaryBg*> binary_ptrs(args.Length());
-                    binary_ptrs[0] = binary_ptr;
-                    binary_ptrs[1] = second_binary_ptr;
-                    size_t size = binary_ptr->size_ + second_binary_ptr->size_;
-                    for (int i = 2; i < args.Length(); ++i) {
-                        binary_ptr = BinaryBg::GetJSClass().Cast(args[i]);
-                        if (!binary_ptr)
-                            throw Error(Error::TYPE, "Another Binary expected");
-                        binary_ptrs[i] = binary_ptr;
-                        size += binary_ptr->size_;
-                    }
-                    data.resize(size);
-                    char* start_ptr = &data[0];
-                    BOOST_FOREACH(binary_ptr, binary_ptrs) {
-                        memcpy(start_ptr,
-                               binary_ptr->data_,
-                               binary_ptr->size_);
-                        start_ptr += binary_ptr->size_;
-                    }
-                } else {
-                    string to_charset(ReadLower(args[1]));
-                    string from_charset(args.Length() > 2 ?
-                                        ReadLower(args[2])
-                                        : "utf-8");
-                    transcode(binary_ptr->data_, binary_ptr->size_,
-                              from_charset, to_charset,
-                              data);
+                str->WriteUtf8(&data[0], size);
+            } else {
+                String::Value utf16_value(str);
+                transcode(reinterpret_cast<const char*>(*utf16_value),
+                          utf16_value.length() * 2,
+                          "utf-16",
+                          charset,
+                          data);
+            }
+        } else if (args[0]->IsArray()) {
+            Handle<Array> array(Handle<Array>::Cast(args[0]));
+            size_t size = array->Length();
+            data.resize(size);
+            for (size_t i = 0; i < size; ++i)
+                data[i] = array->Get(Integer::New(i))->Uint32Value();
+        } else if (const BinaryBg* binary_ptr =
+                   BinaryBg::GetJSClass().Cast(args[0])) {
+            if (args.Length() == 1) {
+                data.assign(binary_ptr->data_,
+                            binary_ptr->data_ + binary_ptr->size_);
+            } else if (const BinaryBg* second_binary_ptr =
+                       BinaryBg::GetJSClass().Cast(args[1])) {
+                vector<const BinaryBg*> binary_ptrs(args.Length());
+                binary_ptrs[0] = binary_ptr;
+                binary_ptrs[1] = second_binary_ptr;
+                size_t size = binary_ptr->size_ + second_binary_ptr->size_;
+                for (int i = 2; i < args.Length(); ++i) {
+                    binary_ptr = BinaryBg::GetJSClass().Cast(args[i]);
+                    if (!binary_ptr)
+                        throw Error(Error::TYPE, "Another Binary expected");
+                    binary_ptrs[i] = binary_ptr;
+                    size += binary_ptr->size_;
+                }
+                data.resize(size);
+                char* start_ptr = &data[0];
+                BOOST_FOREACH(binary_ptr, binary_ptrs) {
+                    memcpy(start_ptr,
+                           binary_ptr->data_,
+                           binary_ptr->size_);
+                    start_ptr += binary_ptr->size_;
                 }
             } else {
-                throw Error(Error::TYPE,
-                            "Binary, Array, string or integer required");
+                string to_charset(ReadLower(args[1]));
+                string from_charset(args.Length() > 2 ?
+                                    ReadLower(args[2])
+                                    : "utf-8");
+                transcode(binary_ptr->data_, binary_ptr->size_,
+                          from_charset, to_charset,
+                          data);
             }
+        } else {
+            throw Error(Error::TYPE,
+                        "Binary, Array, string or integer required");
         }
-        BinaryBg* new_binary_ptr = new BinaryBg(data_ptr);
-        BinaryBg::GetJSClass().Attach(args.This(), new_binary_ptr);
-        new_binary_ptr->SetIndexedProperties(args.This());
-        return Handle<v8::Value>();
-    } JS_CATCH(Handle<v8::Value>);
+    }
+    BinaryBg* result = new BinaryBg(data_ptr);
+    result->SetIndexedProperties(args.This());
+    return result;
 }
 
 

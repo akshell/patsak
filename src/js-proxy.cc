@@ -18,15 +18,13 @@ namespace
 {
     class ProxyBg {
     public:
-        DECLARE_JS_CLASS(ProxyBg);
+        DECLARE_JS_CONSTRUCTOR(ProxyBg);
 
         ProxyBg(Handle<Object> handler);
         ~ProxyBg();
 
     private:
         Persistent<Object> handler_;
-
-        static Handle<v8::Value> ConstructorCb(const Arguments& args);
 
         Handle<v8::Value> Call(const string& name,
                                int argc,
@@ -69,8 +67,7 @@ namespace
 }
 
 
-DEFINE_JS_CONSTRUCTOR(ProxyBg, "Proxy", ConstructorCb,
-                      object_template, /*proto_template*/)
+DEFINE_JS_CONSTRUCTOR(ProxyBg, "Proxy", object_template, /*proto_template*/)
 {
     object_template->SetNamedPropertyHandler(GetNamedCb,
                                              SetNamedCb,
@@ -84,18 +81,12 @@ DEFINE_JS_CONSTRUCTOR(ProxyBg, "Proxy", ConstructorCb,
 }
 
 
-Handle<v8::Value> ProxyBg::ConstructorCb(const Arguments& args)
+DEFINE_JS_CONSTRUCTOR_CALLBACK(ProxyBg, args)
 {
-    if (!args.IsConstructCall())
-        return Undefined();
-    try {
-        CheckArgsLength(args, 1);
-        if (!args[0]->IsObject())
-            throw Error(Error::TYPE, "Object required");
-        ProxyBg::GetJSClass().Attach(args.This(),
-                                     new ProxyBg(args[0]->ToObject()));
-        return Handle<v8::Value>();
-    } JS_CATCH(Handle<v8::Value>);
+    CheckArgsLength(args, 1);
+    if (!args[0]->IsObject())
+        throw Error(Error::TYPE, "Object required");
+    return new ProxyBg(args[0]->ToObject());
 }
 
 
