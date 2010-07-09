@@ -21,12 +21,6 @@ for (var name in core)
   this[name] = core[name];
 
 
-errors.slice(2).forEach(
-  function (error) {
-    this[error.prototype.name] = error;
-  });
-
-
 function remove(path) {
   if (media.isDir(path)) {
     var children = media.list(path);

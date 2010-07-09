@@ -209,26 +209,29 @@ void ak::InitJS(const string& code_path,
     HandleScope handle_scope;
     context = Context::New();
     Context::Scope context_scope(context);
-    Handle<Object> global(context->Global());
-    Set(global, "core", InitCore());
-    Set(global, "db", InitDB());
-    Set(global, "fs", InitFS(code_path, lib_path, media_path));
-    Set(global, "binary", InitBinary());
-    Set(global, "proxy", InitProxy());
-    Set(global, "script", InitScript());
-    Set(global, "socket", InitSocket());
-    Set(global, "http", InitHTTP());
+    Handle<Object> basis(Object::New());
+    Set(basis, "core", InitCore());
+    Set(basis, "db", InitDB());
+    Set(basis, "fs", InitFS(code_path, lib_path, media_path));
+    Set(basis, "binary", InitBinary());
+    Set(basis, "proxy", InitProxy());
+    Set(basis, "script", InitScript());
+    Set(basis, "socket", InitSocket());
+    Set(basis, "http", InitHTTP());
     if (!git_path_prefix.empty() || !git_path_suffix.empty())
-        Set(global, "git", InitGit(git_path_prefix, git_path_suffix));
+        Set(basis, "git", InitGit(git_path_prefix, git_path_suffix));
 
-    // Run init.js script
     Handle<Script> script(
         Script::Compile(String::New(INIT_JS, sizeof(INIT_JS)),
                         String::New("native init.js")));
     AK_ASSERT(!script.IsEmpty());
-    Handle<v8::Value> init_ret(script->Run());
-    AK_ASSERT(!init_ret.IsEmpty());
-
-    js_error_classes = Persistent<Object>::New(
-        Get(global, "errors")->ToObject()->Clone());
+    Handle<v8::Value> init_func_value(script->Run());
+    AK_ASSERT(!init_func_value.IsEmpty() && init_func_value->IsFunction());
+    Handle<Function> init_func(Handle<Function>::Cast(init_func_value));
+    Handle<v8::Value> basis_value(basis);
+    Handle<v8::Value> error_classes_value(
+        init_func->Call(context->Global(), 1, &basis_value));
+    AK_ASSERT(!error_classes_value.IsEmpty() &&
+              error_classes_value->IsObject());
+    InitErrorClasses(error_classes_value->ToObject());
 }

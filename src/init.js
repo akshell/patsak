@@ -1,14 +1,15 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-(function ()
+(function (basis)
 {
+  // Temporary code
+  for (var name in basis)
+    this[name] = basis[name];
+
   //////////////////////////////////////////////////////////////////////////////
   // Errors
   //////////////////////////////////////////////////////////////////////////////
-
-  var global = this;
-
 
   Error.stackTraceLimit = 1000;
 
@@ -27,7 +28,7 @@
     };
     result.prototype.name = fullName;
     result.prototype.__proto__ = (parent || Error).prototype;
-    global[fullName] = result;
+    this[fullName] = result;
     return result;
   }
 
@@ -36,7 +37,7 @@
   defineErrorClass('FS');
 
 
-  errors = [
+  var errors = [
     TypeError,
     RangeError,
 
@@ -134,4 +135,6 @@
 
   require = makeRequire([]);
 
-})();
+
+  return errors;
+});

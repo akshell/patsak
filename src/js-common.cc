@@ -18,14 +18,23 @@ using boost::lexical_cast;
 // Utils
 ////////////////////////////////////////////////////////////////////////////////
 
-Persistent<Object> ak::js_error_classes;
+namespace
+{
+    Persistent<Object> error_classes;
+}
+
+
+void ak::InitErrorClasses(v8::Handle<v8::Object> error_classes)
+{
+    ::error_classes = Persistent<Object>::New(error_classes);
+}
 
 
 void ak::ThrowError(const ak::Error& err)
 {
     Handle<v8::Value> message(String::New(err.what()));
     ThrowException(
-        Function::Cast(*js_error_classes->Get(Integer::New(err.GetTag())))
+        Function::Cast(*error_classes->Get(Integer::New(err.GetTag())))
         ->NewInstance(1, &message));
 }
 
