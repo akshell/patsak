@@ -38,12 +38,10 @@ namespace ak
             DEPENDENCY,
 
             FS,
-            PATH,
             ENTRY_EXISTS,
             NO_SUCH_ENTRY,
             ENTRY_IS_DIR,
-            ENTRY_IS_NOT_DIR,
-            FILE_IS_READ_ONLY,
+            ENTRY_IS_FILE,
 
             CONVERSION,
             SOCKET

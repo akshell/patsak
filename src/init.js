@@ -55,12 +55,10 @@
     defineErrorClass('Dependency', DBError),
 
     FSError,
-    defineErrorClass('Path', FSError),
     defineErrorClass('EntryExists', FSError),
     defineErrorClass('NoSuchEntry', FSError),
     defineErrorClass('EntryIsDir', FSError),
-    defineErrorClass('EntryIsNotDir', FSError),
-    defineErrorClass('FileIsReadOnly', FSError),
+    defineErrorClass('EntryIsFile', FSError),
 
     defineErrorClass('Conversion'),
     defineErrorClass('Socket')

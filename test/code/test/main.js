@@ -1224,8 +1224,8 @@ var fsTestSuite = {
     assertSame(media.open('file')._read()[5], 't'.charCodeAt(0));
     assertSame(media.open('/dir1/subdir/привет')._read()._toString(), 'привет!');
     assertThrow(EntryIsDirError, "media.open('dir1')");
-    assertThrow(PathError, "media.open('//..//test-app/dir1/subdir/hello')");
-    assertThrow(PathError, "media.open('/dir1/../../file')");
+    assertThrow(ValueError, "media.open('//..//test-app/dir1/subdir/hello')");
+    assertThrow(ValueError, "media.open('/dir1/../../file')");
     var file = media.open('test');
     var text = 'russian text русский текст';
     var binary = new Binary(text);
@@ -1248,10 +1248,10 @@ var fsTestSuite = {
     assertThrow(ValueError, function () { file._read(); });
     remove('test');
 
-    assertThrow(EntryIsNotDirError, "media.open('file/xxx')");
+    assertThrow(EntryIsFileError, "media.open('file/xxx')");
     assertThrow(EntryIsDirError, "media.open('dir1')");
     assertThrow(
-      PathError,
+      ValueError,
       function () {
         var array = [];
         for (var i = 0; i < 1000; ++i)
@@ -1319,7 +1319,7 @@ var fsTestSuite = {
     assertEqual(media.list('').sort(), ['dir1', 'dir2', 'file']);
     assertEqual(media.list('dir2'), []);
     assertThrow(FSError, "media.remove('dir1')");
-    assertThrow(PathError, "media.remove('dir1/..//')");
+    assertThrow(ValueError, "media.remove('dir1/..//')");
     assertThrow(ValueError, "code.remove('main.js')");
   },
 

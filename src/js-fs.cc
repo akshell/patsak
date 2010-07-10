@@ -36,13 +36,11 @@ namespace
     {
         Error::Tag tag = Error::FS;
         switch (errno) {
-        case EEXIST:       tag = Error::ENTRY_EXISTS;     break;
-        case ENOENT:       tag = Error::NO_SUCH_ENTRY;    break;
-        case EISDIR:       tag = Error::ENTRY_IS_DIR;     break;
-        case ENOTDIR:      tag = Error::ENTRY_IS_NOT_DIR; break;
-        case ENAMETOOLONG: tag = Error::PATH;             break;
-        case EILSEQ:
-        case EINVAL:       tag = Error::CONVERSION;       break;
+        case EEXIST:       tag = Error::ENTRY_EXISTS;  break;
+        case ENOENT:       tag = Error::NO_SUCH_ENTRY; break;
+        case EISDIR:       tag = Error::ENTRY_IS_DIR;  break;
+        case ENOTDIR:      tag = Error::ENTRY_IS_FILE; break;
+        case ENAMETOOLONG: tag = Error::VALUE;         break;
         }
         return Error(tag, strerror(errno));
     }
@@ -397,7 +395,7 @@ string FileStorageBg::ReadPath(Handle<v8::Value> value, bool can_be_root) const
         if (component == "..") {
             if (!depth)
                 throw Error(
-                    Error::PATH,
+                    Error::VALUE,
                     "Path \"" + path + "\" leads beyond the root directory");
             --depth;
         } else if (component != ".") {
@@ -408,7 +406,7 @@ string FileStorageBg::ReadPath(Handle<v8::Value> value, bool can_be_root) const
         from = to;
     }
     if (!can_be_root && !depth)
-        throw Error(Error::PATH, "Path \"" + path + "\" is empty");
+        throw Error(Error::VALUE, "Path \"" + path + "\" is empty");
     return root_path_ + '/' + path;
 }
 
