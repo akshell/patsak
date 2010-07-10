@@ -45,8 +45,6 @@
     defineErrorClass('Usage'),
     defineErrorClass('NotImplemented'),
 
-    defineErrorClass('NoSuchApp'),
-    defineErrorClass('NoSuchUser'),
     defineErrorClass('Conversion'),
     defineErrorClass('Socket'),
     defineErrorClass('Quota'),

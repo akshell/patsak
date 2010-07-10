@@ -28,8 +28,6 @@ namespace ak
             USAGE,
             NOT_IMPLEMENTED,
 
-            NO_SUCH_APP,
-            NO_SUCH_USER,
             CONVERSION,
             SOCKET,
             QUOTA,
