@@ -196,7 +196,7 @@ var baseTestSuite = {
 
   testSet: function () {
     var obj = {};
-    assertThrow(UsageError, set);
+    assertThrow(TypeError, set);
     assertThrow(TypeError, set, 1, 'f', 0, 42);
     assertSame(set(obj, 'readOnly', READ_ONLY, 1), obj);
     set(obj, 'dontEnum', DONT_ENUM, 2);
@@ -213,7 +213,7 @@ var baseTestSuite = {
   testScript: function () {
     assertSame((new Script('2+2'))._run(), 4);
     assertSame(Script('2+2'), undefined);
-    assertThrow(UsageError, "new Script()");
+    assertThrow(TypeError, "new Script()");
     assertThrow(SyntaxError, "new Script('(')");
     assertThrow(ReferenceError, "new Script('undeclarated')._run()");
     assertThrow(
@@ -241,7 +241,7 @@ var baseTestSuite = {
   },
 
   testHash: function () {
-    assertThrow(UsageError, hash);
+    assertThrow(TypeError, hash);
     assertSame(hash(undefined), 0);
     assertSame(hash(null), 0);
     assertSame(hash(42), 0);
@@ -254,13 +254,13 @@ var baseTestSuite = {
   testErrors: function () {
     assertSame(ValueError.prototype.name, 'ValueError');
     assert(new NoSuchAttrError() instanceof DBError);
-    assert(UsageError() instanceof UsageError);
+    assert(ValueError() instanceof ValueError);
     assertSame(NotImplementedError(42).message, '42');
   },
 
   testProxy: function () {
     assertSame(Proxy(), undefined);
-    assertThrow(UsageError, "new Proxy()");
+    assertThrow(TypeError, "new Proxy()");
     assertThrow(TypeError, "new Proxy(42)");
     assertThrow(TypeError, "(new Proxy({})).x");
     assertEqual(
@@ -633,7 +633,7 @@ var dbTestSuite = {
   },
 
   testCreate: function () {
-    assertThrow(UsageError, "db.create('illegal', {})");
+    assertThrow(TypeError, "db.create('illegal', {})");
     assertThrow(ValueError, create, '', {});
     assertThrow(ValueError, create, '123bad', {});
     assertThrow(ValueError, create, 'illegal', {'_@': 'number'});
@@ -655,7 +655,7 @@ var dbTestSuite = {
                 create, 'illegal',
                         {'id': 'number'},
                         {foreign: [[['id'], 'Post', 'id']]});
-    assertThrow(UsageError,
+    assertThrow(ConstraintError,
                 create, 'illegal',
                         {x: 'number', y: 'number'},
                         {foreign: [[['x', 'y'],
@@ -692,7 +692,7 @@ var dbTestSuite = {
                 create, 'illegal',
                         {x: 'number'},
                         {foreign: [[[], 'User', []]]});
-    assertThrow(UsageError,
+    assertThrow(ConstraintError,
                 create, 'illegal',
                         {x: 'number'},
                         {foreign: [[['x'], 'User', ['age']]]});
@@ -717,7 +717,7 @@ var dbTestSuite = {
   },
 
   testQuery: function () {
-    assertThrow(UsageError, "db.query()");
+    assertThrow(TypeError, "db.query()");
     assertThrow(TypeError, query, 'User', {});
     assertEqual(
       query('User[name, age, flooder] where +id == "0"').map(items),
@@ -744,7 +744,7 @@ var dbTestSuite = {
   },
 
   testInsert: function () {
-    assertThrow(UsageError, "db.insert('User')");
+    assertThrow(TypeError, "db.insert('User')");
     assertThrow(TypeError, "db.insert('User', 15)");
     assertThrow(NoSuchAttrError, "db.insert('User', {'@': 'abc'})");
     assertThrow(ConstraintError,
@@ -844,7 +844,7 @@ var dbTestSuite = {
   testUpdate: function () {
     var initial = query('User');
     assertThrow(ValueError, "db.update('User', 'id == 0', [], {}, [])");
-    assertThrow(UsageError, "db.update('User', 'id == 0', [], {})");
+    assertThrow(TypeError, "db.update('User', 'id == 0', [], {})");
     assertThrow(TypeError, "db.update('User', 'id == 0', [], 1, [])");
     assertThrow(ConstraintError,
                "db.update('User', 'id == 0', [], {id: '$'}, ['asdf'])");

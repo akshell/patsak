@@ -369,7 +369,7 @@ void RelVar::PrintForeignKey(ostream& os,
         if (key_attr.type != ref_attr.type &&
             !((key_attr.type == Type::INT && ref_attr.type == Type::SERIAL) ||
               (ref_attr.type == Type::INT && key_attr.type == Type::SERIAL)))
-            throw Error(Error::USAGE,
+            throw Error(Error::CONSTRAINT,
                         ("Foreign key attribite type mismatch: \"" +
                          name_ + '.' +
                          key_attr.name + "\" is " +
@@ -388,7 +388,7 @@ void RelVar::PrintForeignKey(ostream& os,
         }
     }
     if (!unique_found)
-        throw Error(Error::USAGE,
+        throw Error(Error::CONSTRAINT,
                     "Foreign key ref attributes must be unique");
     os << "FOREIGN KEY ";
     PrintAttrNames(os, foreign_key.key_attr_names);

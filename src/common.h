@@ -25,12 +25,11 @@ namespace ak
             RANGE,
 
             VALUE,
-            USAGE,
             NOT_IMPLEMENTED,
+            QUOTA,
 
             CONVERSION,
             SOCKET,
-            QUOTA,
 
             DB,
             REL_VAR_EXISTS,

@@ -42,12 +42,11 @@
     RangeError,
 
     defineErrorClass('Value'),
-    defineErrorClass('Usage'),
     defineErrorClass('NotImplemented'),
+    defineErrorClass('Quota'),
 
     defineErrorClass('Conversion'),
     defineErrorClass('Socket'),
-    defineErrorClass('Quota'),
 
     DBError,
     defineErrorClass('RelVarExists', DBError),

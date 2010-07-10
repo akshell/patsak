@@ -49,7 +49,7 @@ string ak::Stringify(Handle<v8::Value> value)
 void ak::CheckArgsLength(const Arguments& args, int length)
 {
     if (args.Length() < length)
-        throw Error(Error::USAGE,
+        throw Error(Error::TYPE,
                     ("At least " +
                      lexical_cast<string>(length) +
                      " arguments required"));
