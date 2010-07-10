@@ -28,18 +28,14 @@ namespace ak
             NOT_IMPLEMENTED,
             QUOTA,
 
-            CONVERSION,
-            SOCKET,
-
             DB,
             REL_VAR_EXISTS,
             NO_SUCH_REL_VAR,
-            CONSTRAINT,
-            QUERY,
             ATTR_EXISTS,
             NO_SUCH_ATTR,
-            ATTR_VALUE_REQUIRED,
-            REL_VAR_DEPENDENCY,
+            CONSTRAINT,
+            QUERY,
+            DEPENDENCY,
 
             FS,
             PATH,
@@ -47,7 +43,10 @@ namespace ak
             NO_SUCH_ENTRY,
             ENTRY_IS_DIR,
             ENTRY_IS_NOT_DIR,
-            FILE_IS_READ_ONLY
+            FILE_IS_READ_ONLY,
+
+            CONVERSION,
+            SOCKET
         };
 
         Error(Tag tag, const std::string& msg)

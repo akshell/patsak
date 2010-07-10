@@ -45,18 +45,14 @@
     defineErrorClass('NotImplemented'),
     defineErrorClass('Quota'),
 
-    defineErrorClass('Conversion'),
-    defineErrorClass('Socket'),
-
     DBError,
     defineErrorClass('RelVarExists', DBError),
     defineErrorClass('NoSuchRelVar', DBError),
-    defineErrorClass('Constraint', DBError),
-    defineErrorClass('Query', DBError),
     defineErrorClass('AttrExists', DBError),
     defineErrorClass('NoSuchAttr', DBError),
-    defineErrorClass('AttrValueRequired', DBError),
-    defineErrorClass('RelVarDependency', DBError),
+    defineErrorClass('Constraint', DBError),
+    defineErrorClass('Query', DBError),
+    defineErrorClass('Dependency', DBError),
 
     FSError,
     defineErrorClass('Path', FSError),
@@ -64,7 +60,10 @@
     defineErrorClass('NoSuchEntry', FSError),
     defineErrorClass('EntryIsDir', FSError),
     defineErrorClass('EntryIsNotDir', FSError),
-    defineErrorClass('FileIsReadOnly', FSError)
+    defineErrorClass('FileIsReadOnly', FSError),
+
+    defineErrorClass('Conversion'),
+    defineErrorClass('Socket')
   ];
 
   //////////////////////////////////////////////////////////////////////////////

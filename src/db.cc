@@ -540,7 +540,7 @@ void RelVar::DropAttrs(const StringSet& attr_names)
                     ("Cannot drop attributes because "
                      "remaining tuples have duplicates"));
     } catch (const pqxx::sql_error& err) {
-        throw Error(Error::REL_VAR_DEPENDENCY,
+        throw Error(Error::DEPENDENCY,
                     ("Cannot drop attribute because "
                      "it is referenced from other relation variable"));
     }
@@ -655,7 +655,7 @@ void RelVar::DropAllConstrs()
     } catch (const pqxx::sql_error& err) {
         throw (string(err.what()).substr(0, 13) == "ERROR:  index"
                ? Error(Error::QUOTA, "Unique string is too long")
-               : Error(Error::REL_VAR_DEPENDENCY,
+               : Error(Error::DEPENDENCY,
                        ("Unique cannot be dropped "
                         "because other RelVar references it")));
     }
@@ -739,7 +739,7 @@ void Meta::Drop(const StringSet& rel_var_names)
             BOOST_FOREACH(const ForeignKey& foreign_key,
                           rel_var.GetForeignKeySet())
                 if (rel_var_names.find(foreign_key.ref_rel_var_name))
-                    throw Error(Error::REL_VAR_DEPENDENCY,
+                    throw Error(Error::DEPENDENCY,
                                 ("Attempt to delete a group of RelVars "
                                  "with a RelVar \"" +
                                  foreign_key.ref_rel_var_name +
@@ -1134,7 +1134,7 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
                 Value value(named_draft_ptr->draft.Get(def_attr.type));
                 values_oss << values_sep << value.GetPgLiter();
             } else if (def_attr.type != Type::SERIAL && !def_attr.default_ptr) {
-                throw Error(Error::ATTR_VALUE_REQUIRED,
+                throw Error(Error::VALUE,
                             ("Value of attribute \"" +
                              def_attr.name +
                              "\" must be supplied"));

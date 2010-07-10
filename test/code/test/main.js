@@ -706,12 +706,12 @@ var dbTestSuite = {
     create('NewRelVar', {x: 'number'});
     db.drop(['NewRelVar']);
     assertSame(db.list().indexOf('NewRelVar'), -1);
-    assertThrow(RelVarDependencyError, "db.drop(['User'])");
-    assertThrow(RelVarDependencyError, "db.drop(['User', 'Post'])");
+    assertThrow(DependencyError, "db.drop(['User'])");
+    assertThrow(DependencyError, "db.drop(['User', 'Post'])");
     assertThrow(ValueError, "db.drop(['Comment', 'Comment'])");
     create('rv1', {x: 'number'});
     create('rv2', {x: 'number'}, {foreign: [[['x'], 'rv1', ['x']]]});
-    assertThrow(RelVarDependencyError, "db.drop(['rv1'])");
+    assertThrow(DependencyError, "db.drop(['rv1'])");
     db.drop(['rv1', 'rv2']);
     assertThrow(NoSuchRelVarError, "db.drop(['Comment', 'NoSuch'])");
   },
@@ -749,7 +749,7 @@ var dbTestSuite = {
     assertThrow(NoSuchAttrError, "db.insert('User', {'@': 'abc'})");
     assertThrow(ConstraintError,
                "db.insert('Comment', {id: 2, text: 'yo', author: 5, post: 0})");
-    assertThrow(AttrValueRequiredError, "db.insert('User', {id: 2})");
+    assertThrow(ValueError, "db.insert('User', {id: 2})");
     assertThrow(NoSuchAttrError, "db.insert('Empty', {x: 5})");
     assertEqual(
       items(db.insert('User', {name: 'xxx', age: false})),
@@ -1061,7 +1061,7 @@ var dbTestSuite = {
            {n: 'number', s: 'string', b: 'bool', d: 'date'},
            {foreign: [[['n'], 'X', ['n']], [['s', 'b'], 'X', ['s', 'b']]]});
     assertThrow(NoSuchAttrError, "db.dropAttrs('X', ['n', 'x'])");
-    assertThrow(RelVarDependencyError, "db.dropAttrs('X', ['b', 'd'])");
+    assertThrow(DependencyError, "db.dropAttrs('X', ['b', 'd'])");
     db.dropAttrs('X', ['d']);
     assertEqual(db.getUnique('X'), [['n'], ['s', 'b']]);
     db.dropAttrs('Y', []);
@@ -1161,7 +1161,7 @@ var dbTestSuite = {
         check: ['c']
       });
     db.dropAllConstrs('Empty');
-    assertThrow(RelVarDependencyError, "db.dropAllConstrs('X')");
+    assertThrow(DependencyError, "db.dropAllConstrs('X')");
     db.dropAllConstrs('Y');
     assertEqual(db.getUnique('Y'), [['n', 's', 'c']]);
     assertEqual(db.getForeign('Y'), []);
