@@ -1,24 +1,75 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-Script = script.Script;
-Proxy = proxy.Proxy;
-Binary = binary.Binary;
+var imports = {
+  core: [
+    'print',
+    'set',
+    'hash',
+    'ValueError',
+    'NotImplementedError',
+    'QuotaError',
+    'RequireError'
+  ],
+  db: [
+    'DBError',
+    'RelVarExistsError',
+    'NoSuchRelVarError',
+    'AttrExistsError',
+    'NoSuchAttrError',
+    'ConstraintError',
+    'QueryError',
+    'DependencyError'
+  ],
+  fs: [
+    'code',
+    'lib',
+    'media',
+    'FSError',
+    'EntryExistsError',
+    'NoSuchEntryError',
+    'EntryIsDirError',
+    'EntryIsFileError'
+  ],
+  binary: [
+    'Binary',
+    'ConversionError'
+  ],
+  proxy: [
+    'Proxy'
+  ],
+  script: [
+    'Script'
+  ],
+  socket: [
+    'connect',
+    'Socket',
+    'SocketError'
+  ],
+  http: [
+    'HttpParser'
+  ],
+  git: [
+    'Repo'
+  ]
+};
+
+
+for (var moduleName in imports) {
+  this[moduleName] = require(moduleName);
+  imports[moduleName].forEach(
+    function (importName) {
+      this[importName] = this[moduleName][importName];
+    });
+}
+
+
 Binary.prototype.toString = Binary.prototype._toString;
-connect = socket.connect;
-HttpParser = http.HttpParser;
-Repo = git.Repo;
-code = fs.code;
-lib = fs.lib;
-media = fs.media;
+
 
 READ_ONLY   = 1 << 0;
 DONT_ENUM   = 1 << 1;
 DONT_DELETE = 1 << 2;
-
-
-for (var name in core)
-  this[name] = core[name];
 
 
 function remove(path) {
@@ -167,8 +218,6 @@ function runTestSuites(suites) {
 ////////////////////////////////////////////////////////////////////////////////
 // Base test suite
 ////////////////////////////////////////////////////////////////////////////////
-
-var global = this;
 
 var baseTestSuite = {
   testRequire: function () {

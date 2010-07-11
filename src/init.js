@@ -3,19 +3,10 @@
 
 (function (basis)
 {
-  // Temporary code
-  for (var name in basis)
-    this[name] = basis[name];
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Errors
-  //////////////////////////////////////////////////////////////////////////////
-
   Error.stackTraceLimit = 1000;
 
 
-  function defineErrorClass(name, parent/* = Error */) {
-    var fullName = name + 'Error';
+  function subclassError(moduleName, className, parent/* = Error */) {
     var result = function (message) {
       if (!(this instanceof arguments.callee)) {
         var self = {__proto__: arguments.callee.prototype};
@@ -26,95 +17,90 @@
       this.message = message + '';
       return undefined;
     };
-    result.prototype.name = fullName;
+    result.prototype.name = className;
     result.prototype.__proto__ = (parent || Error).prototype;
-    this[fullName] = result;
+    basis[moduleName][className] = result;
     return result;
   }
 
 
-  defineErrorClass('DB');
-  defineErrorClass('FS');
+  var RequireError = subclassError('core', 'RequireError');
+  var DBError = subclassError('db', 'DBError');
+  var FSError = subclassError('fs', 'FSError');
 
 
-  var errors = [
-    TypeError,
-    RangeError,
-
-    defineErrorClass('Value'),
-    defineErrorClass('NotImplemented'),
-    defineErrorClass('Quota'),
-
-    DBError,
-    defineErrorClass('RelVarExists', DBError),
-    defineErrorClass('NoSuchRelVar', DBError),
-    defineErrorClass('AttrExists', DBError),
-    defineErrorClass('NoSuchAttr', DBError),
-    defineErrorClass('Constraint', DBError),
-    defineErrorClass('Query', DBError),
-    defineErrorClass('Dependency', DBError),
-
-    FSError,
-    defineErrorClass('EntryExists', FSError),
-    defineErrorClass('NoSuchEntry', FSError),
-    defineErrorClass('EntryIsDir', FSError),
-    defineErrorClass('EntryIsFile', FSError),
-
-    defineErrorClass('Conversion'),
-    defineErrorClass('Socket')
-  ];
-
-  //////////////////////////////////////////////////////////////////////////////
-  // require
-  //////////////////////////////////////////////////////////////////////////////
-
-  function parsePath(path, dir) {
-    var parts = path.split('/');
-    var result = path[0] == '.' ? dir.slice() : [];
-    for (var i = 0; i < parts.length; ++i) {
-      switch (parts[i]) {
-      case '':
-      case '.':
-        break;
-      case '..':
-        if (!result.length)
-          throw PathError('Invalid code path: ' + path);
-        result.pop();
-        break;
-      default:
-        result.push(parts[i]);
-      }
-    }
-    return result;
-  }
-
-
-  var cache = {};
+  var codeCache = {};
+  var libCache = {};
   var main;
 
 
-  function makeRequire(baseDir) {
-    return function (path) {
-      var loc = parsePath(path, baseDir);
+  function openSafely(storage, path) {
+    try {
+      return storage.open(path);
+    } catch (error) {
+      if (error instanceof FSError)
+        return null;
+      else
+        throw error;
+    }
+  }
+
+
+  function makeRequire(storage, dir) {
+    return function (rawId) {
+      var parts = rawId.split('/');
+      var isRelative = parts[0] == '.';
+      var loc = isRelative ? dir.slice() : [];
+      for (var i = 0; i < parts.length; ++i) {
+        switch (parts[i]) {
+        case '':
+        case '.':
+          break;
+        case '..':
+          if (!loc.length)
+            throw RequireError('Invalid require path: ' + rawId);
+          loc.pop();
+          break;
+        default:
+          loc.push(parts[i]);
+        }
+      }
       var id = loc.join('/');
-      if (cache.hasOwnProperty(id))
-        return cache[id];
-      var absPath = id + '.js';
-      var file = fs.code.open(absPath);
+      var path = id + '.js';
+      var isLib = storage === basis.fs.lib;
+      var file;
+      if (!isLib) {
+        if (codeCache.hasOwnProperty(id))
+          return codeCache[id];
+        file = openSafely(storage, path);
+        if (!file && !isRelative)
+          isLib = true;
+      }
+      if (isLib) {
+        if (libCache.hasOwnProperty(id))
+          return libCache[id];
+        file = openSafely(basis.fs.lib, path);
+      }
+      if (!file)
+        throw RequireError('Module not found: ' + rawId);
       try {
         var code = file._read()._toString();
       } finally {
         file._close();
       }
-      var func = new script.Script(
+      var func = new basis.script.Script(
         '(function (require, exports, module) {\n' + code + '\n})',
-        absPath, -1)._run();
-      var require = makeRequire(loc.slice(0, loc.length - 1));
-      var exports = cache[id] = {};
+        path, -1)._run();
+      var require = makeRequire(isLib ? basis.fs.lib : storage,
+                                loc.slice(0, loc.length - 1));
+      var cache = isLib ? libCache : codeCache;
+      var exports = cache[id] = (isLib && basis.hasOwnProperty(id)
+                                 ? basis[id]
+                                 : {});
       var module = {exports: exports, id: id};
       var oldMain = main;
       main = main || module;
-      core.set(require, 'main', 5, main);
+      basis.core.set(require, 'main', 5, main);
       try {
         func(require, exports, module);
       } catch (error) {
@@ -127,8 +113,34 @@
   }
 
 
-  require = makeRequire([]);
+  require = makeRequire(basis.fs.code, []);
 
 
-  return errors;
+  return [
+    TypeError,
+    RangeError,
+
+    subclassError('core', 'ValueError'),
+    subclassError('core', 'NotImplementedError'),
+    subclassError('core', 'QuotaError'),
+
+    DBError,
+    subclassError('db', 'RelVarExistsError', DBError),
+    subclassError('db', 'NoSuchRelVarError', DBError),
+    subclassError('db', 'AttrExistsError', DBError),
+    subclassError('db', 'NoSuchAttrError', DBError),
+    subclassError('db', 'ConstraintError', DBError),
+    subclassError('db', 'QueryError', DBError),
+    subclassError('db', 'DependencyError', DBError),
+
+    FSError,
+    subclassError('fs', 'EntryExistsError', FSError),
+    subclassError('fs', 'NoSuchEntryError', FSError),
+    subclassError('fs', 'EntryIsDirError', FSError),
+    subclassError('fs', 'EntryIsFileError', FSError),
+
+    subclassError('binary', 'ConversionError'),
+
+    subclassError('socket', 'SocketError')
+  ];
 });
