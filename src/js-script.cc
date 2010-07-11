@@ -34,7 +34,7 @@ namespace
 
 DEFINE_JS_CONSTRUCTOR(ScriptBg, "Script", /*object_template*/, proto_template)
 {
-    SetFunction(proto_template, "_run", RunCb);
+    SetFunction(proto_template, "run", RunCb);
 }
 
 

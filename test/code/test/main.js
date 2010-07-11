@@ -246,29 +246,29 @@ var baseTestSuite = {
   },
 
   testScript: function () {
-    assertSame((new Script('2+2'))._run(), 4);
+    assertSame((new Script('2+2')).run(), 4);
     assertSame(Script('2+2'), undefined);
     assertThrow(TypeError, "new Script()");
     assertThrow(SyntaxError, "new Script('(')");
-    assertThrow(ReferenceError, "new Script('undeclarated')._run()");
+    assertThrow(ReferenceError, "new Script('undeclarated').run()");
     assertThrow(
       SyntaxError,
-      function () { new Script('new Script("(")', 'just string')._run(); });
+      function () { new Script('new Script("(")', 'just string').run(); });
     try {
-      new Script('undeclarated', 'some name', 10, 20)._run();
+      new Script('undeclarated', 'some name', 10, 20).run();
       assert(false);
     } catch (error) {
       assert(error instanceof ReferenceError);
       assert(error.stack.indexOf('some name:11:21\n') != -1);
     }
     try {
-      new Script('undeclarated', 'some name', 10)._run();
+      new Script('undeclarated', 'some name', 10).run();
       assert(false);
     } catch (error) {
       assert(error.stack.indexOf('some name:11:1\n') != -1);
     }
     try {
-      new Script('undeclarated', 'some name', {}, 20)._run();
+      new Script('undeclarated', 'some name', {}, 20).run();
       assert(false);
     } catch (error) {
       assert(error.stack.indexOf('some name:1:21\n') != -1);

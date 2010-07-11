@@ -90,7 +90,7 @@
       }
       var func = new basis.script.Script(
         '(function (require, exports, module) {\n' + code + '\n})',
-        path, -1)._run();
+        path, -1).run();
       var require = makeRequire(isLib ? basis.fs.lib : storage,
                                 loc.slice(0, loc.length - 1));
       var cache = isLib ? libCache : codeCache;
