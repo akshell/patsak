@@ -74,11 +74,7 @@ void ak::SetFunction(Handle<ObjectTemplate> object_template,
                      const string& name,
                      InvocationCallback callback)
 {
-    AK_ASSERT(!name.empty());
-    Set(object_template,
-        name.c_str(),
-        FunctionTemplate::New(callback),
-        name[0] == '_' ? DontEnum : None);
+    Set(object_template, name.c_str(), FunctionTemplate::New(callback));
 }
 
 
@@ -86,11 +82,7 @@ void ak::SetFunction(Handle<Object> object,
                      const string& name,
                      InvocationCallback callback)
 {
-    AK_ASSERT(!name.empty());
-    Set(object,
-        name,
-        FunctionTemplate::New(callback)->GetFunction(),
-        name[0] == '_' ? DontEnum : None);
+    Set(object, name, FunctionTemplate::New(callback)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
