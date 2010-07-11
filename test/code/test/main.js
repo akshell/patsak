@@ -9,7 +9,11 @@ var imports = {
     'ValueError',
     'NotImplementedError',
     'QuotaError',
-    'RequireError'
+    'RequireError',
+    'COMMON',
+    'READONLY',
+    'HIDDEN',
+    'PERMANENT'
   ],
   db: [
     'DBError',
@@ -65,11 +69,6 @@ for (var moduleName in imports) {
 
 
 Binary.prototype.toString = Binary.prototype._toString;
-
-
-READ_ONLY   = 1 << 0;
-DONT_ENUM   = 1 << 1;
-DONT_DELETE = 1 << 2;
 
 
 function remove(path) {
@@ -246,10 +245,10 @@ var baseTestSuite = {
   testSet: function () {
     var obj = {};
     assertThrow(TypeError, set);
-    assertThrow(TypeError, set, 1, 'f', 0, 42);
-    assertSame(set(obj, 'readOnly', READ_ONLY, 1), obj);
-    set(obj, 'dontEnum', DONT_ENUM, 2);
-    set(obj, 'dontDelete', DONT_DELETE, 3);
+    assertThrow(TypeError, set, 1, 'f', COMMON, 42);
+    assertSame(set(obj, 'readOnly', READONLY, 1), obj);
+    set(obj, 'dontEnum', HIDDEN, 2);
+    set(obj, 'dontDelete', PERMANENT, 3);
     assertThrow(TypeError, set, obj, 'field', {}, 42);
     assertThrow(ValueError, set, obj, 'field', 8, 42);
     obj.readOnly = 5;
