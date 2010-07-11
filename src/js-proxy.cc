@@ -228,6 +228,6 @@ DEFINE_JS_CALLBACK2(Handle<Boolean>, ProxyBg, DeleteIndexedCb,
 Handle<Object> ak::InitProxy()
 {
     Handle<Object> result(Object::New());
-    Set(result, "Proxy", ProxyBg::GetJSClass().GetFunction());
+    PutClass<ProxyBg>(result);
     return result;
 }

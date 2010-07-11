@@ -84,6 +84,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, ScriptBg, RunCb,
 Handle<Object> ak::InitScript()
 {
     Handle<Object> result(Object::New());
-    Set(result, "Script", ScriptBg::GetJSClass().GetFunction());
+    PutClass<ScriptBg>(result);
     return result;
 }

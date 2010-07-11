@@ -502,6 +502,6 @@ size_t Binarizator::GetSize() const
 Handle<Object> ak::InitBinary()
 {
     Handle<Object> result(Object::New());
-    Set(result, "Binary", BinaryBg::GetJSClass().GetFunction());
+    PutClass<BinaryBg>(result);
     return result;
 }

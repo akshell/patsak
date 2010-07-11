@@ -204,6 +204,6 @@ Handle<Object> ak::InitSocket()
 {
     Handle<Object> result(Object::New());
     SetFunction(result, "connect", ConnectCb);
-    Set(result, "Socket", SocketBg::GetJSClass().GetFunction());
+    PutClass<SocketBg>(result);
     return result;
 }

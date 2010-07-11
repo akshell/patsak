@@ -124,7 +124,6 @@ namespace ak
     class JSClassBase : boost::noncopyable {
     public:
         std::string GetName() const;
-        v8::Handle<v8::ObjectTemplate> GetObjectTemplate() const;
         v8::Handle<v8::Function> GetFunction();
 
     protected:
@@ -135,6 +134,7 @@ namespace ak
         ~JSClassBase();
 
         void* Cast(v8::Handle<v8::Value> value);
+        v8::Handle<v8::ObjectTemplate> GetObjectTemplate() const;
         v8::Handle<v8::ObjectTemplate> GetProtoTemplate() const;
 
     private:
@@ -143,8 +143,6 @@ namespace ak
         v8::Persistent<v8::Function> function_;
         v8::Persistent<v8::TypeSwitch> type_switch_;
         std::vector<v8::Handle<v8::FunctionTemplate> > cast_js_classes_;
-
-        static std::vector<JSClassBase*>& GetInstancePtrs();
     };
 
 
@@ -258,6 +256,14 @@ namespace ak
             throw ak::Error(ak::Error::TYPE,
                             js_class.GetName() + " object was expected");
         return *bg_ptr;
+    }
+
+
+    template <typename T>
+    void PutClass(v8::Handle<v8::Object> object)
+    {
+        JSClassBase& js_class(T::GetJSClass());
+        Set(object, js_class.GetName(), js_class.GetFunction());
     }
 }
 

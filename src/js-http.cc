@@ -92,7 +92,7 @@ namespace
 }
 
 
-DEFINE_JS_CONSTRUCTOR(HttpParserBg, "HTTPParser",
+DEFINE_JS_CONSTRUCTOR(HttpParserBg, "HttpParser",
                       /*object_template*/, proto_template)
 {
     SetFunction(proto_template, "_exec", ExecCb);
@@ -227,6 +227,6 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, HttpParserBg, ExecCb,
 Handle<Object> ak::InitHTTP()
 {
     Handle<Object> result(Object::New());
-    Set(result, "HttpParser", HttpParserBg::GetJSClass().GetFunction());
+    PutClass<HttpParserBg>(result);
     return result;
 }

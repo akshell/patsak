@@ -163,7 +163,6 @@ JSClassBase::JSClassBase(const string& name,
     : name_(name)
     , function_template_(FunctionTemplate::New(constructor))
 {
-    GetInstancePtrs().push_back(this);
     function_template_->SetClassName(String::New(name.c_str()));
     GetObjectTemplate()->SetInternalFieldCount(1);
     cast_js_classes_.push_back(function_template_);
@@ -180,12 +179,6 @@ JSClassBase::~JSClassBase()
 string JSClassBase::GetName() const
 {
     return name_;
-}
-
-
-Handle<ObjectTemplate> JSClassBase::GetObjectTemplate() const
-{
-    return function_template_->InstanceTemplate();
 }
 
 
@@ -216,14 +209,13 @@ void* JSClassBase::Cast(Handle<v8::Value> value)
 }
 
 
-Handle<ObjectTemplate> JSClassBase::GetProtoTemplate() const
+Handle<ObjectTemplate> JSClassBase::GetObjectTemplate() const
 {
-    return function_template_->PrototypeTemplate();
+    return function_template_->InstanceTemplate();
 }
 
 
-vector<JSClassBase*>& JSClassBase::GetInstancePtrs()
+Handle<ObjectTemplate> JSClassBase::GetProtoTemplate() const
 {
-    static vector<JSClassBase*> instance_ptrs;
-    return instance_ptrs;
+    return function_template_->PrototypeTemplate();
 }

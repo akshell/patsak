@@ -170,6 +170,6 @@ Handle<Object> ak::InitGit(const string& path_prefix, const string& path_suffix)
     ::path_prefix = path_prefix;
     ::path_suffix = path_suffix;
     Handle<Object> result(Object::New());
-    Set(result, "Repo", RepoBg::GetJSClass().GetFunction());
+    PutClass<RepoBg>(result);
     return result;
 }
