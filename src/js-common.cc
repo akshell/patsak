@@ -174,9 +174,6 @@ JSClassBase::JSClassBase(const string& name,
 
 JSClassBase::~JSClassBase()
 {
-    type_switch_.Dispose();
-    function_.Dispose();
-    function_template_.Dispose(); // NB: used to segfault in cov mode
 }
 
 
