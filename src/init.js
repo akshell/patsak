@@ -84,7 +84,7 @@
       if (!file)
         throw RequireError('Module not found: ' + rawId);
       try {
-        var code = file.read()._toString();
+        var code = file.read();
       } finally {
         file.close();
       }

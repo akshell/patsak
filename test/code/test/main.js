@@ -68,9 +68,6 @@ for (var moduleName in imports) {
 }
 
 
-Binary.prototype.toString = Binary.prototype._toString;
-
-
 function query(query, queryParams, by, byParams, start, length) {
   return db.query(query,
                   queryParams || [],
@@ -594,9 +591,9 @@ var baseTestSuite = {
        'Initial commit.\n'));
     object = repo._catFile('c2b28e85ec63083f158cc26b04c053d51c27d928');
     assertSame(object.type, 2);
-    assertSame(object.data._range(0, 13) + '', '100644 README');
+    assertSame(object.data.range(0, 13) + '', '100644 README');
     assertSame(object.data[13], 0);
-    object = repo._catFile(object.data._range(14));
+    object = repo._catFile(object.data.range(14));
     assertSame(object.type, 3);
     assertSame(object.data + '', 'Akshell engine test library.\n');
   }
@@ -1260,7 +1257,7 @@ var fsTestSuite = {
   testOpen: function () {
     assertEqual(media.open('//dir1////subdir/hello').read(), 'hello world!');
     assertSame(media.open('file').read()[5], 't'.charCodeAt(0));
-    assertSame(media.open('/dir1/subdir/привет').read()._toString(), 'привет!');
+    assertSame(media.open('/dir1/subdir/привет').read() + '', 'привет!');
     assertThrow(EntryIsDirError, "media.open('dir1')");
     assertThrow(ValueError, "media.open('//..//test-app/dir1/subdir/hello')");
     assertThrow(ValueError, "media.open('/dir1/../../file')");
@@ -1385,7 +1382,7 @@ var fsTestSuite = {
   testBinary: function () {
     assertSame(Binary(), undefined);
     var text = 'some text in russian русский текст';
-    assertSame(new Binary(text)._toString(), text);
+    assertSame(new Binary(text) + '', text);
     var binary = new Binary(text, 'koi8');
     assert(!delete binary.length);
     binary.length = 0;
@@ -1395,86 +1392,76 @@ var fsTestSuite = {
     binary = new Binary(binary, 'cp1251');
     assertSame(binary.length, text.length);
     binary = new Binary(binary);
-    assertSame(binary._toString('CP1251'), text);
-    assertSame(new Binary()._toString(), '');
-    assertSame(new Binary()._toString('koi8'), '');
+    assertSame(binary.toString('CP1251'), text);
+    assertSame(new Binary() + '', '');
+    assertSame(new Binary().toString('koi8'), '');
     assertThrow(ConversionError, "new Binary('russian русский', 'ascii')");
     assertThrow(ConversionError, "new Binary('', 'no-such-charset')");
     binary = new Binary('ascii text', 'ascii');
     binary = new Binary(binary, 'utf-32', 'ascii');
     binary = new Binary(binary, 'ascii', 'utf-32');
-    assertSame(binary._toString(), 'ascii text');
-    assertSame(new Binary(3, 'x'.charCodeAt(0))._toString(), 'xxx');
+    assertSame(binary + '', 'ascii text');
+    assertSame(new Binary(3, 'x'.charCodeAt(0)) + '', 'xxx');
     var array = [];
     var asciiText = 'hello world';
     for (var i = 0; i < asciiText.length; ++i)
       array.push(asciiText.charCodeAt(i));
-    assertSame(new Binary(array)._toString('ascii'), asciiText);
+    assertSame(new Binary(array).toString('ascii'), asciiText);
     assertThrow(TypeError, "new Binary(new Binary(), new Binary(), 42)");
     assertSame(new Binary(new Binary('binary '),
                           new Binary('concatenation '),
-                          new Binary('works!'))._toString(),
+                          new Binary('works!')) + '',
                'binary concatenation works!');
     assertThrow(TypeError, "new Binary(1.5)");
     assertThrow(RangeError, "new Binary(-1)");
 
     assertSame(
-      new Binary(text, 'utf-32le')._range(21 * 4, -6 * 4)._toString('utf-32'),
+      new Binary(text, 'utf-32le').range(21 * 4, -6 * 4).toString('utf-32'),
       'русский');
     assertSame(
-      new Binary(text, 'utf-16le')._range(-1000, 4 * 2)._toString('utf-16'),
+      new Binary(text, 'utf-16le').range(-1000, 4 * 2).toString('utf-16'),
       'some');
     assertSame(
-      new Binary(text)._range()._range()._range(21)._toString(),
+      new Binary(text).range().range().range(21).toString(),
       'русский текст');
-    assertSame(new Binary(text)._range(1000).length, 0);
+    assertSame(new Binary(text).range(1000).length, 0);
 
     binary = new Binary('Hello world    Filling works.');
-    binary._range(11, 14)._fill('!'.charCodeAt(0));
-    assertSame(binary._toString(), 'Hello world!!! Filling works.');
+    binary.range(11, 14).fill('!'.charCodeAt(0));
+    assertSame(binary + '', 'Hello world!!! Filling works.');
 
     binary = new Binary('test test test');
-    assertSame(binary._indexOf(''), 0);
-    assertSame(binary._indexOf('', 5), 5);
-    assertSame(binary._indexOf('', 55), 14);
-    assertSame(binary._indexOf('est'), 1);
-    assertSame(binary._indexOf('est', 1), 1);
-    assertSame(binary._indexOf('est', 2), 6);
-    assertSame(binary._indexOf('est', -5), 11);
-    assertSame(binary._indexOf('no such', 2), -1);
-    assertSame(binary._indexOf('est', 55), -1);
-    assertSame(binary._indexOf('est', 12), -1);
-    assertSame(binary._lastIndexOf(''), 14);
-    assertSame(binary._lastIndexOf('', -5), 9);
-    assertSame(binary._lastIndexOf('', 55), 14);
-    assertSame(binary._lastIndexOf('est'), 11);
-    assertSame(binary._lastIndexOf('est', 11), 11);
-    assertSame(binary._lastIndexOf('est', 10), 6);
-    assertSame(binary._lastIndexOf('st', -13), -1);
-    assertSame(new Binary('abc')._compare(new Binary('de')), -1);
-    assertSame(new Binary('abc')._compare(new Binary('')), 1);
-    assertSame(new Binary('abc')._compare(new Binary('abc')), 0);
-    assertSame(new Binary('abcd')._compare(new Binary('abc')), 1);
-    assertSame(new Binary('abcd')._compare(new Binary('abcdef')), -1);
-    assertSame(new Binary()._compare(new Binary('')), 0);
-    assertThrow(TypeError, "new Binary()._compare(42)");
+    assertSame(binary.indexOf(''), 0);
+    assertSame(binary.indexOf('', 5), 5);
+    assertSame(binary.indexOf('', 55), 14);
+    assertSame(binary.indexOf('est'), 1);
+    assertSame(binary.indexOf('est', 1), 1);
+    assertSame(binary.indexOf('est', 2), 6);
+    assertSame(binary.indexOf('est', -5), 11);
+    assertSame(binary.indexOf('no such', 2), -1);
+    assertSame(binary.indexOf('est', 55), -1);
+    assertSame(binary.indexOf('est', 12), -1);
+    assertSame(binary.lastIndexOf(''), 14);
+    assertSame(binary.lastIndexOf('', -5), 9);
+    assertSame(binary.lastIndexOf('', 55), 14);
+    assertSame(binary.lastIndexOf('est'), 11);
+    assertSame(binary.lastIndexOf('est', 11), 11);
+    assertSame(binary.lastIndexOf('est', 10), 6);
+    assertSame(binary.lastIndexOf('st', -13), -1);
+    assertSame(new Binary('abc').compare(new Binary('de')), -1);
+    assertSame(new Binary('abc').compare(new Binary('')), 1);
+    assertSame(new Binary('abc').compare(new Binary('abc')), 0);
+    assertSame(new Binary('abcd').compare(new Binary('abc')), 1);
+    assertSame(new Binary('abcd').compare(new Binary('abcdef')), -1);
+    assertSame(new Binary().compare(new Binary('')), 0);
+    assertThrow(TypeError, "new Binary().compare(42)");
 
     binary = new Binary(text);
-    function hex(binary) {
-      return Array.prototype.map.call(
-        binary,
-        function (code) {
-          var string = code.toString(16);
-          while (string.length < 2)
-            string = '0' + string;
-          return string;
-        }).join('');
-    }
-    assertSame(hex(binary._md5()), '2dc09086c2543df2ebb03147a589ae85');
-    assertSame(hex(binary._sha1()), '1c673153e2f3555eb5fd8d7670114f318fc5d5d2');
+    assertSame(binary.md5(), '2dc09086c2543df2ebb03147a589ae85');
+    assertSame(binary.sha1(), '1c673153e2f3555eb5fd8d7670114f318fc5d5d2');
     binary = new Binary();
-    assertSame(hex(binary._md5()), 'd41d8cd98f00b204e9800998ecf8427e');
-    assertSame(hex(binary._sha1()), 'da39a3ee5e6b4b0d3255bfef95601890afd80709');
+    assertSame(binary.md5(), 'd41d8cd98f00b204e9800998ecf8427e');
+    assertSame(binary.sha1(), 'da39a3ee5e6b4b0d3255bfef95601890afd80709');
   },
 
   testConnect: function () {
@@ -1513,7 +1500,7 @@ main = function (socket) {
       break;
     var start = 0;
     do {
-      var count = socket.send(data._range(start));
+      var count = socket.send(data.range(start));
       start += count;
     } while (count && start < data.length);
   }

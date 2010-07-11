@@ -155,14 +155,14 @@ DEFINE_JS_CONSTRUCTOR(BinaryBg, "Binary", object_template, proto_template)
     object_template->SetAccessor(String::NewSymbol("length"), GetLengthCb,
                                  0, Handle<v8::Value>(), DEFAULT,
                                  ReadOnly | DontEnum | DontDelete);
-    SetFunction(proto_template, "_toString", ToStringCb);
-    SetFunction(proto_template, "_range", RangeCb);
-    SetFunction(proto_template, "_fill", FillCb);
-    SetFunction(proto_template, "_indexOf", IndexOfCb);
-    SetFunction(proto_template, "_lastIndexOf", LastIndexOfCb);
-    SetFunction(proto_template, "_compare", CompareCb);
-    SetFunction(proto_template, "_md5", Md5Cb);
-    SetFunction(proto_template, "_sha1", Sha1Cb);
+    SetFunction(proto_template, "toString", ToStringCb);
+    SetFunction(proto_template, "range", RangeCb);
+    SetFunction(proto_template, "fill", FillCb);
+    SetFunction(proto_template, "indexOf", IndexOfCb);
+    SetFunction(proto_template, "lastIndexOf", LastIndexOfCb);
+    SetFunction(proto_template, "compare", CompareCb);
+    SetFunction(proto_template, "md5", Md5Cb);
+    SetFunction(proto_template, "sha1", Sha1Cb);
 }
 
 
