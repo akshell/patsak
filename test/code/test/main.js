@@ -1280,10 +1280,13 @@ var fsTestSuite = {
     file.position += 1;
     assertEqual(file.read(), 'русский');
     assert(!file.closed);
+    assert(file.readable);
+    assert(file.positionable);
     file.flush();
     file.close();
     assert(file.closed);
     assertThrow(ValueError, function () { file.read(); });
+    assertThrow(ValueError, function () { return file.positionable; });
     media.remove('test');
 
     assertThrow(EntryIsFileError, "media.open('file/xxx')");

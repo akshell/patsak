@@ -539,6 +539,7 @@ Handle<Object> ak::InitFS(const string& code_path,
                           const string& media_path)
 {
     Handle<Object> result(Object::New());
+    Set(result, "File", FileBg::GetJSClass().GetFunction());
     Set(result, "FileStorage", FileStorageBg::GetJSClass().GetFunction());
     Set(result, "code", JSNew<FileStorageBg>(code_path, false));
     Set(result, "lib", JSNew<FileStorageBg>(lib_path, false));
