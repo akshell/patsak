@@ -95,7 +95,7 @@ namespace
 DEFINE_JS_CONSTRUCTOR(HttpParserBg, "HttpParser",
                       /*object_template*/, proto_template)
 {
-    SetFunction(proto_template, "_exec", ExecCb);
+    SetFunction(proto_template, "exec", ExecCb);
 }
 
 

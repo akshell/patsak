@@ -392,7 +392,7 @@ var baseTestSuite = {
     assertSame(HttpParser(), undefined);
       assertThrow(ValueError, "new HttpParser('bad', {})");
     assertThrow(TypeError, "new HttpParser('request', 42)");
-    assertThrow(TypeError, "new HttpParser('request', {})._exec(42)");
+    assertThrow(TypeError, "new HttpParser('request', {}).exec(42)");
     [
       'DELETE',
       'GET',
@@ -414,7 +414,7 @@ var baseTestSuite = {
         var parsed;
         new HttpParser(
           'request',
-          {onHeadersComplete: function (info) { parsed = info.method; }})._exec(
+          {onHeadersComplete: function (info) { parsed = info.method; }}).exec(
             new Binary(method + ' / HTTP/1.0\r\n\r\n'));
         assertSame(parsed, method);
       });
@@ -427,7 +427,7 @@ var baseTestSuite = {
           function () {
             var handler = {};
             handler[name] = function () { throw new E(); };
-            new HttpParser('request', handler)._exec(binary);
+            new HttpParser('request', handler).exec(binary);
           });
         });
     var Handler = function () {
@@ -461,8 +461,8 @@ var baseTestSuite = {
         };
       });
     var handler = new Handler();
-    new HttpParser('request', {})._exec(binary);
-    new HttpParser('request', handler)._exec(binary);
+    new HttpParser('request', {}).exec(binary);
+    new HttpParser('request', handler).exec(binary);
     assertEqual(
       handler.history,
       [
@@ -488,7 +488,7 @@ var baseTestSuite = {
       'x-www-form-urlencoded\r\nContent-',
       'Length: 32\r\nHost: example.com\r\n\r\nhome=Cosby&',
       'favorite+flavor=flies'
-    ].forEach(function (s) { parser._exec(new Binary(s)); });
+    ].forEach(function (s) { parser.exec(new Binary(s)); });
     assertEqual(
       handler.history,
       [
@@ -515,9 +515,9 @@ var baseTestSuite = {
         ['onBody', 'favorite+flavor=flies'],
         ['onMessageComplete']
       ]);
-    assertThrow(ValueError, function () { parser._exec(new Binary('bla')); });
+    assertThrow(ValueError, function () { parser.exec(new Binary('bla')); });
     handler = new Handler();
-    new HttpParser('response', handler)._exec(
+    new HttpParser('response', handler).exec(
       new Binary('HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nyo'));
     assertEqual(
       handler.history,
