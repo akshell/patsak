@@ -64,9 +64,9 @@ DEFINE_JS_CLASS(SocketBg, "Socket", object_template, proto_template)
                                  GetClosedCb, 0,
                                  Handle<v8::Value>(), DEFAULT,
                                  ReadOnly | DontDelete);
-    SetFunction(proto_template, "_close", CloseCb);
-    SetFunction(proto_template, "_receive", ReceiveCb);
-    SetFunction(proto_template, "_send", SendCb);
+    SetFunction(proto_template, "close", CloseCb);
+    SetFunction(proto_template, "receive", ReceiveCb);
+    SetFunction(proto_template, "send", SendCb);
 }
 
 

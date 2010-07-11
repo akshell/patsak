@@ -1248,9 +1248,9 @@ var fsTestSuite = {
     media.createDir('dir1');
     media.createDir('dir2');
     media.createDir('dir1/subdir');
-    media.open('file')._write('some text');
-    media.open('dir1/subdir/hello')._write('hello world!');
-    media.open('dir1/subdir/привет')._write('привет!');
+    media.open('file').write('some text');
+    media.open('dir1/subdir/hello').write('hello world!');
+    media.open('dir1/subdir/привет').write('привет!');
   },
 
   tearDown: function () {
@@ -1258,32 +1258,32 @@ var fsTestSuite = {
   },
 
   testOpen: function () {
-    assertEqual(media.open('//dir1////subdir/hello')._read(), 'hello world!');
-    assertSame(media.open('file')._read()[5], 't'.charCodeAt(0));
-    assertSame(media.open('/dir1/subdir/привет')._read()._toString(), 'привет!');
+    assertEqual(media.open('//dir1////subdir/hello').read(), 'hello world!');
+    assertSame(media.open('file').read()[5], 't'.charCodeAt(0));
+    assertSame(media.open('/dir1/subdir/привет').read()._toString(), 'привет!');
     assertThrow(EntryIsDirError, "media.open('dir1')");
     assertThrow(ValueError, "media.open('//..//test-app/dir1/subdir/hello')");
     assertThrow(ValueError, "media.open('/dir1/../../file')");
     var file = media.open('test');
     var text = 'russian text русский текст';
     var binary = new Binary(text);
-    file._write(binary);
+    file.write(binary);
     file.position = 0;
-    assertEqual(file._read(), text);
+    assertEqual(file.read(), text);
     assertSame(file.length, binary.length);
     assertSame(file.position, binary.length);
     file.length += 3;
-    assertEqual(file._read(), '\0\0\0');
+    assertEqual(file.read(), '\0\0\0');
     file.position = 8;
-    assertEqual(file._read(4), 'text');
+    assertEqual(file.read(4), 'text');
     file.length = 27;
     file.position += 1;
-    assertEqual(file._read(), 'русский');
+    assertEqual(file.read(), 'русский');
     assert(!file.closed);
-    file._flush();
-    file._close();
+    file.flush();
+    file.close();
     assert(file.closed);
-    assertThrow(ValueError, function () { file._read(); });
+    assertThrow(ValueError, function () { file.read(); });
     media.remove('test');
 
     assertThrow(EntryIsFileError, "media.open('file/xxx')");
@@ -1298,12 +1298,12 @@ var fsTestSuite = {
       });
 
     file = code.open('main/index.js');
-    assertSame(file._read() + '', 'exports.main = require.main;\n');
+    assertSame(file.read() + '', 'exports.main = require.main;\n');
     assert(!file.writable);
     assertThrow(ValueError, function () { file.length = 0; });
-    assertThrow(ValueError, function () { file._flush(); });
-    assertThrow(ValueError, function () { file._write(''); });
-    file._close();
+    assertThrow(ValueError, function () { file.flush(); });
+    assertThrow(ValueError, function () { file.write(''); });
+    file.close();
   },
 
   testExists: function () {
@@ -1334,7 +1334,7 @@ var fsTestSuite = {
   },
 
   testGetModDate: function () {
-    media.open('hello')._write('');
+    media.open('hello').write('');
     assert(Math.abs(new Date() - media.getModDate('hello')) < 2000);
     assertThrow(NoSuchEntryError, "media.getModDate('no-such-file')");
     media.remove('hello');
@@ -1350,7 +1350,7 @@ var fsTestSuite = {
   },
 
   testRemove: function () {
-    media.open('new-file')._write('data');
+    media.open('new-file').write('data');
     media.remove('new-file');
     media.createDir('dir2/new-dir');
     media.remove('dir2/new-dir');
@@ -1363,7 +1363,7 @@ var fsTestSuite = {
 
   testRename: function () {
     media.rename('dir1', 'dir2/dir3');
-    assertEqual(media.open('dir2/dir3/subdir/hello')._read(), 'hello world!');
+    assertEqual(media.open('dir2/dir3/subdir/hello').read(), 'hello world!');
     media.rename('dir2/dir3', 'dir1');
     assertThrow(NoSuchEntryError, "media.rename('no such file', 'xxx')");
     assertThrow(ValueError, "code.rename('main.js', 'never.js')");
@@ -1469,13 +1469,13 @@ var fsTestSuite = {
     assertThrow(SocketError, "connect('localhost', '666')");
     var socket = connect('example.com', 'http');
     var request = 'GET / HTTP/1.0\r\n\r\n';
-    assertSame(socket._send(request), request.length);
-    var response = socket._receive(15);
+    assertSame(socket.send(request), request.length);
+    var response = socket.receive(15);
     assertSame(response + '', 'HTTP/1.1 200 OK');
     assert(!socket.closed);
-    socket._close();
+    socket.close();
     assert(socket.closed);
-    assertThrow(ValueError, function () { socket._send('yo'); });
+    assertThrow(ValueError, function () { socket.send('yo'); });
     // Socket quota test. Slow to run.
 //     var sockets = [];
 //     for (var i = 0; i < 100; ++i)
@@ -1495,12 +1495,12 @@ test = function () {
 
 main = function (socket) {
   for (;;) {
-    var data = socket._receive(4096);
+    var data = socket.receive(4096);
     if (!data.length)
       break;
     var start = 0;
     do {
-      var count = socket._send(data._range(start));
+      var count = socket.send(data._range(start));
       start += count;
     } while (count && start < data.length);
   }

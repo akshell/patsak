@@ -168,10 +168,10 @@ DEFINE_JS_CLASS(FileBg, "File", object_template, proto_template)
                                  GetPositionCb, SetPositionCb,
                                  Handle<v8::Value>(), DEFAULT,
                                  DontDelete);
-    SetFunction(proto_template, "_close", CloseCb);
-    SetFunction(proto_template, "_flush", FlushCb);
-    SetFunction(proto_template, "_read", ReadCb);
-    SetFunction(proto_template, "_write", WriteCb);
+    SetFunction(proto_template, "close", CloseCb);
+    SetFunction(proto_template, "flush", FlushCb);
+    SetFunction(proto_template, "read", ReadCb);
+    SetFunction(proto_template, "write", WriteCb);
 }
 
 

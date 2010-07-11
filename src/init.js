@@ -84,9 +84,9 @@
       if (!file)
         throw RequireError('Module not found: ' + rawId);
       try {
-        var code = file._read()._toString();
+        var code = file.read()._toString();
       } finally {
-        file._close();
+        file.close();
       }
       var func = new basis.script.Script(
         '(function (require, exports, module) {\n' + code + '\n})',
