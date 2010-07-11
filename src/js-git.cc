@@ -51,8 +51,8 @@ namespace
 
 DEFINE_JS_CONSTRUCTOR(RepoBg, "Repo", /*object_template*/, proto_template)
 {
-    SetFunction(proto_template, "_catFile", CatFileCb);
-    SetFunction(proto_template, "_readRefs", ReadRefsCb);
+    SetFunction(proto_template, "catFile", CatFileCb);
+    SetFunction(proto_template, "readRefs", ReadRefsCb);
 }
 
 

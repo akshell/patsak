@@ -544,7 +544,7 @@ var baseTestSuite = {
     assertThrow(ValueError, "new Repo('no-such-lib')");
     var repo = new Repo('lib');
     assertEqual(
-      items(repo._readRefs()),
+      items(repo.readRefs()),
       [
         [
           'HEAD',
@@ -567,10 +567,10 @@ var baseTestSuite = {
           '4a7af2ca3dbc02a712a3415b6ec9f3694e35c37d'
         ]
       ]);
-    assertThrow(ValueError, function () { repo._catFile('invalid'); });
+    assertThrow(ValueError, function () { repo.catFile('invalid'); });
     assertThrow(ValueError,
-                function () { repo._catFile('xxxxxxxxxxxxxxxxxxxx'); });
-    var object = repo._catFile('b53dffba67ee52511ad67fd95a1f140bdb691936');
+                function () { repo.catFile('xxxxxxxxxxxxxxxxxxxx'); });
+    var object = repo.catFile('b53dffba67ee52511ad67fd95a1f140bdb691936');
     assertSame(object.type, 4);
     assertSame(
       object.data + '',
@@ -580,7 +580,7 @@ var baseTestSuite = {
        'tagger korenyushkin <anton@akshell.com> 1278150273 +0400\n' +
        '\n' +
        'Dummy tag.\n'));
-    object = repo._catFile('4a7af2ca3dbc02a712a3415b6ec9f3694e35c37d');
+    object = repo.catFile('4a7af2ca3dbc02a712a3415b6ec9f3694e35c37d');
     assertSame(object.type, 1);
     assertSame(
       object.data + '',
@@ -589,11 +589,11 @@ var baseTestSuite = {
        'committer korenyushkin <anton@akshell.com> 1278150258 +0400\n' +
        '\n' +
        'Initial commit.\n'));
-    object = repo._catFile('c2b28e85ec63083f158cc26b04c053d51c27d928');
+    object = repo.catFile('c2b28e85ec63083f158cc26b04c053d51c27d928');
     assertSame(object.type, 2);
     assertSame(object.data.range(0, 13) + '', '100644 README');
     assertSame(object.data[13], 0);
-    object = repo._catFile(object.data.range(14));
+    object = repo.catFile(object.data.range(14));
     assertSame(object.type, 3);
     assertSame(object.data + '', 'Akshell engine test library.\n');
   }
