@@ -485,13 +485,35 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileStorageBg, CreateDirCb,
 }
 
 
+namespace
+{
+    void DoRemove(const string& path)
+    {
+        DIR* dir_ptr = opendir(path.c_str());
+        if (dir_ptr) {
+            while (struct dirent* dirent_ptr = readdir(dir_ptr)) {
+                string name(dirent_ptr->d_name);
+                if (name != "." && name != "..")
+                    DoRemove(path + '/' + name);
+            }
+            int ret = rmdir(path.c_str());
+            AK_ASSERT_EQUAL(ret, 0);
+        } else if (errno == ENOTDIR) {
+            int ret = unlink(path.c_str());
+            AK_ASSERT_EQUAL(ret, 0);
+        } else {
+            throw MakeErrnoError();
+        }
+    }
+}
+
+
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileStorageBg, RemoveCb,
                     const Arguments&, args) const
 {
     CheckWritable();
     CheckArgsLength(args, 1);
-    if (remove(ReadPath(args[0], false).c_str()) == -1)
-        throw MakeErrnoError();
+    DoRemove(ReadPath(args[0], false));
     return Undefined();
 }
 

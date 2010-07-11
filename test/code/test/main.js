@@ -71,16 +71,6 @@ for (var moduleName in imports) {
 Binary.prototype.toString = Binary.prototype._toString;
 
 
-function remove(path) {
-  if (media.isDir(path)) {
-    var children = media.list(path);
-    for (var i = 0; i < children.length; ++i)
-      arguments.callee(path + '/' + children[i]);
-  }
-  media.remove(path);
-};
-
-
 function query(query, queryParams, by, byParams, start, length) {
   return db.query(query,
                   queryParams || [],
@@ -1254,7 +1244,7 @@ var dbTestSuite = {
 var fsTestSuite = {
   setUp: function ()
   {
-    media.list('').forEach(remove);
+    media.removeAll();
     media.createDir('dir1');
     media.createDir('dir2');
     media.createDir('dir1/subdir');
@@ -1264,7 +1254,7 @@ var fsTestSuite = {
   },
 
   tearDown: function () {
-    media.list('').forEach(remove);
+    media.removeAll();
   },
 
   testOpen: function () {
@@ -1294,7 +1284,7 @@ var fsTestSuite = {
     file._close();
     assert(file.closed);
     assertThrow(ValueError, function () { file._read(); });
-    remove('test');
+    media.remove('test');
 
     assertThrow(EntryIsFileError, "media.open('file/xxx')");
     assertThrow(EntryIsDirError, "media.open('dir1')");
@@ -1347,27 +1337,27 @@ var fsTestSuite = {
     media.open('hello')._write('');
     assert(Math.abs(new Date() - media.getModDate('hello')) < 2000);
     assertThrow(NoSuchEntryError, "media.getModDate('no-such-file')");
-    remove('hello');
+    media.remove('hello');
   },
 
   testCreateDir: function () {
     media.createDir('dir2/ddd');
     assertEqual(media.list('dir2'), ['ddd']);
     assertEqual(media.list('dir2/ddd'), []);
-    remove('dir2/ddd');
+    media.remove('dir2/ddd');
     assertThrow(EntryExistsError, "media.createDir('file')");
     assertThrow(ValueError, "code.createDir('never')");
   },
 
   testRemove: function () {
     media.open('new-file')._write('data');
-    remove('new-file');
+    media.remove('new-file');
     media.createDir('dir2/new-dir');
-    remove('dir2/new-dir');
+    media.remove('dir2/new-dir');
     assertEqual(media.list('').sort(), ['dir1', 'dir2', 'file']);
     assertEqual(media.list('dir2'), []);
-    assertThrow(FSError, "media.remove('dir1')");
     assertThrow(ValueError, "media.remove('dir1/..//')");
+    assertThrow(NoSuchEntryError, "media.remove('no-such-file')");
     assertThrow(ValueError, "code.remove('main.js')");
   },
 
