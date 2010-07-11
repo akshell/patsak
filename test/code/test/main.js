@@ -1306,6 +1306,16 @@ var fsTestSuite = {
     file.close();
   },
 
+  testRead: function () {
+    assertSame(media.read('file') + '', 'some text');
+  },
+
+  testWrite: function () {
+    media.write('file', 'yo');
+    assertSame(media.read('file') + '', 'yo');
+    media.write('file', 'some text');
+  },
+
   testExists: function () {
     assertSame(media.exists(''), true);
     assertSame(media.exists('dir1/subdir/hello'), true);
