@@ -279,7 +279,7 @@ var coreTestSuite = {
 
 var dbTestSuite1 = {
   setUp: function () {
-    db.drop(db.list());
+    db.dropAll();
 
     create('Empty', {});
     create(
@@ -334,7 +334,7 @@ var dbTestSuite1 = {
   },
 
   tearDown: function () {
-    db.drop(db.list());
+    db.dropAll();
   },
 
   testList: function () {
@@ -564,11 +564,11 @@ var dbTestSuite1 = {
 
 var dbTestSuite2 = {
   setUp: function () {
-    db.drop(db.list());
+    db.dropAll();
   },
 
   tearDown: function () {
-    db.drop(db.list());
+    db.dropAll();
   },
 
   testBy: function () {
