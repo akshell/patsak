@@ -71,31 +71,11 @@ for (var moduleName in imports) {
 // Utils
 ////////////////////////////////////////////////////////////////////////////////
 
-function query(query, queryParams, by, byParams, start, length) {
-  return db.query(query,
-                  queryParams || [],
-                  by || [],
-                  byParams || [],
-                  start || 0,
-                  length);
-}
-
-
 function field(name, str, queryParams, by, byParams, start, length) {
   return Array.prototype.map.call(
-    query('for (x in ' + str + ') x.' + name,
-          queryParams, by, byParams, start, length),
+    db.query('for (x in ' + str + ') x.' + name,
+             queryParams, by, byParams, start, length),
     function (item) { return item[name]; });
-}
-
-
-function create(name, header, constrs) {
-  constrs = constrs || {};
-  return db.create(name,
-                   header,
-                   constrs.unique || [],
-                   constrs.foreign || [],
-                   constrs.check || []);
 }
 
 
@@ -281,8 +261,8 @@ var dbTestSuite1 = {
   setUp: function () {
     db.dropAll();
 
-    create('Empty', {});
-    create(
+    db.create('Empty', {});
+    db.create(
       'User',
       {
         id: 'serial',
@@ -290,8 +270,8 @@ var dbTestSuite1 = {
         age: 'number',
         flooder: ['bool', 'yo!']
       },
-      {unique: [['id'], ['name']]});
-    create(
+      [['id'], ['name']]);
+    db.create(
       'Post',
       {
         id: 'serial',
@@ -299,11 +279,9 @@ var dbTestSuite1 = {
         text: 'string',
         author: 'int'
       },
-      {
-        unique: [['id'], ['title', 'author']],
-        foreign: [[['author'], 'User', ['id']]]
-      });
-    create(
+      [['id'], ['title', 'author']],
+      [[['author'], 'User', ['id']]]);
+    db.create(
       'Comment',
       {
         id: 'serial',
@@ -311,10 +289,8 @@ var dbTestSuite1 = {
         author: 'int',
         post: 'int'
       },
-      {
-        unique: [['id']],
-        foreign: [[['author'], 'User', ['id']], [['post'], 'Post', ['id']]]
-      });
+      [['id']],
+      [[['author'], 'User', ['id']], [['post'], 'Post', ['id']]]);
 
     db.insert('User', {name: 'anton', age: 22, flooder: 15});
     db.insert('User', {name: 'marina', age: 25, flooder: false});
@@ -328,7 +304,7 @@ var dbTestSuite1 = {
     db.insert('Comment', {text: 'rrr', author: 0, post: 0});
     db.insert('Comment', {text: 'ololo', author: 2, post: 2});
 
-    create('Count', {i: 'number'});
+    db.create('Count', {i: 'number'});
     for (var i = 0; i < 10; ++i)
       db.insert('Count', {i: i});
   },
@@ -343,72 +319,62 @@ var dbTestSuite1 = {
   },
 
   testCreate: function () {
-    assertThrow(TypeError, "db.create('Bad', {})");
-    assertThrow(ValueError, create, '', {});
-    assertThrow(ValueError, create, '123bad', {});
-    assertThrow(ValueError, create, 'Bad', {'_@': 'number'});
-    assertThrow(TypeError, create, 'Bad', 'str');
+    assertThrow(TypeError, "db.create('Bad')");
+    assertThrow(ValueError, db.create, '', {});
+    assertThrow(ValueError, db.create, '123bad', {});
+    assertThrow(ValueError, db.create, 'Bad', {'_@': 'number'});
+    assertThrow(TypeError, db.create, 'Bad', 'str');
     assertThrow(TypeError, "db.create('Bad', {}, 'str', [], [])");
-    assertThrow(ValueError, create, 'Bad', {attr: 15});
-    assertThrow(ValueError, create, 'Bad', {attr: []});
+    assertThrow(ValueError, db.create, 'Bad', {attr: 15});
+    assertThrow(ValueError, db.create, 'Bad', {attr: []});
     function E() {}
-    assertThrow(E, create, 'RV', {get x() { throw new E(); }});
-    assertThrow(RelVarExistsError, create, 'User', {});
+    assertThrow(E, db.create, 'RV', {get x() { throw new E(); }});
+    assertThrow(RelVarExistsError, db.create, 'User', {});
 
     assertThrow(ValueError,
-                create, 'Bad', {x: 'number'}, {unique: [[]]});
+                db.create, 'Bad', {x: 'number'}, [[]]);
     assertThrow(ValueError,
-                create, 'Bad',
-                        {x: 'number', y: 'number'},
-                        {foreign: [['x', 'y'], 'User', ['id']]});
+                db.create,
+                'Bad', {x: 'number', y: 'number'},
+                [], [['x', 'y'], 'User', ['id']]);
     assertThrow(TypeError,
-                create, 'Bad',
-                        {'id': 'number'},
-                        {foreign: [[['id'], 'Post', 'id']]});
+                db.create,
+                'Bad', {'id': 'number'},
+                [], [[['id'], 'Post', 'id']]);
     assertThrow(ConstraintError,
-                create, 'Bad',
-                        {x: 'number', y: 'number'},
-                        {foreign: [[['x', 'y'],
-                                    'Post',
-                                    ['id', 'author']]]});
+                db.create,
+                'Bad', {x: 'number', y: 'number'},
+                [], [[['x', 'y'], 'Post', ['id', 'author']]]);
     assertThrow(QuotaError,
                 function () {
                   var name = '';
                   for (var i = 0; i < 61; ++i)
                     name += 'x';
-                  create(name, {});
+                  db.create(name, {});
                 });
     assertThrow(QuotaError,
                 function () {
                   attrs = {};
                   for (var i = 0; i < 1000; ++i)
                     attrs['attr' + i] = 'number';
-                  create('Bad', attrs);
+                  db.create('Bad', attrs);
                 });
 
-    create('X', {b: ['bool', new Date()]});
+    db.create('X', {b: ['bool', new Date()]});
     db.insert('X', {});
-    assertSame(query('X')[0].b, true);
+    assertSame(db.query('X')[0].b, true);
 
-    assertThrow(TypeError, create, 'Bad', {d: ['date', 'bad']});
+    assertThrow(TypeError, db.create, 'Bad', {d: ['date', 'bad']});
+    assertThrow(ValueError, db.create, 'Bad', {}, [], [['a', 'b']]);
+    assertThrow(ValueError, db.create, 'Bad', {a: 'number'}, [['a', 'a']]);
     assertThrow(ValueError,
-                create, 'Bad', {}, {foreign: [['a', 'b']]});
-    assertThrow(ValueError,
-                create, 'Bad',
-                        {a: 'number'},
-                        {unique: [['a', 'a']]});
-    assertThrow(ValueError,
-                create, 'Bad',
-                        {x: 'number'},
-                        {foreign: [[[], 'User', []]]});
+                db.create, 'Bad', {x: 'number'}, [], [[[], 'User', []]]);
     assertThrow(ConstraintError,
-                create, 'Bad',
-                        {x: 'number'},
-                        {foreign: [[['x'], 'User', ['age']]]});
+                db.create, 'Bad', {x: 'number'},
+                [], [[['x'], 'User', ['age']]]);
     assertThrow(ValueError,
-                create, 'Bad',
-                        {x: 'number'},
-                        {foreign: [[['x'], 'User', ['id', 'age']]]});
+                db.create, 'Bad', {x: 'number'},
+                [], [[['x'], 'User', ['id', 'age']]]);
   },
 
   testDropRelVars: function () {
@@ -423,36 +389,36 @@ var dbTestSuite1 = {
 
   testQuery: function () {
     assertThrow(TypeError, "db.query()");
-    assertThrow(TypeError, query, 'User', {});
+    assertThrow(TypeError, db.query, 'User', {});
     assertEqual(
-      query('User[name, age, flooder] where +id == "0"').map(items),
+      db.query('User[name, age, flooder] where +id == "0"').map(items),
       [[['name', 'anton'], ['age', 22], ['flooder', true]]]);
-    assertThrow(NoSuchRelVarError, query, 'dfsa');
+    assertThrow(NoSuchRelVarError, db.query, 'dfsa');
     assertEqual(
-      query('Post.author->name where id == $', [0]).map(items),
+      db.query('Post.author->name where id == $', [0]).map(items),
       [[['name', 'anton']]]);
-    assertThrow(NoSuchAttrError, query, 'User.asdf');
+    assertThrow(NoSuchAttrError, db.query, 'User.asdf');
     assertEqual(
-      query('User[id, name] where id == $1 && name == $2',
-            [0, 'anton']).map(items),
+      db.query('User[id, name] where id == $1 && name == $2',
+               [0, 'anton']).map(items),
       [[['id', 0], ['name', 'anton']]]);
-    assertSame(query('User where forsome (x in {}) true').length, 3);
-    assertThrow(QueryError, query, '{i: 1} where i->name');
+    assertSame(db.query('User where forsome (x in {}) true').length, 3);
+    assertThrow(QueryError, db.query, '{i: 1} where i->name');
     assertEqual(
       field('title', ' Post where author->name == $', ['anton']).sort(),
       ['first', 'third']);
     assertEqual(field('age', 'User where name == \'anton\''), [22]);
     assertEqual(field('age', 'User where name == "den"'), [23]);
-    assertThrow(QueryError, query, 'for (x in {f: 1}) x.f->k');
-    assertThrow(QueryError, query, '{f: 1}', [], ['f->k']);
-    assertEqual(query('{} where $1 == $2', [false, new Date()]), []);
+    assertThrow(QueryError, db.query, 'for (x in {f: 1}) x.f->k');
+    assertThrow(QueryError, db.query, '{f: 1}', [], ['f->k']);
+    assertEqual(db.query('{} where $1 == $2', [false, new Date()]), []);
     assertEqual(
-      query(('User[id, age] where ' +
-             'flooder && ' +
-             '(forsome (Comment) ' +
-             ' author == User.id && post->author->name == $)'),
-            ['anton'],
-            ['id']).map(items),
+      db.query(('User[id, age] where ' +
+                'flooder && ' +
+                '(forsome (Comment) ' +
+                ' author == User.id && post->author->name == $)'),
+               ['anton'],
+               ['id']).map(items),
       [[['id', 0], ['age', 22]], [['id', 2], ['age', 23]]]);
   },
 
@@ -460,8 +426,9 @@ var dbTestSuite1 = {
     assertThrow(TypeError, "db.insert('User')");
     assertThrow(TypeError, "db.insert('User', 15)");
     assertThrow(NoSuchAttrError, "db.insert('User', {'@': 'abc'})");
-    assertThrow(ConstraintError,
-               "db.insert('Comment', {id: 2, text: 'yo', author: 5, post: 0})");
+    assertThrow(
+      ConstraintError,
+      "db.insert('Comment', {id: 2, text: 'yo', author: 5, post: 0})");
     assertThrow(ValueError, "db.insert('User', {id: 2})");
     assertThrow(NoSuchAttrError, "db.insert('Empty', {x: 5})");
     assertEqual(
@@ -470,13 +437,13 @@ var dbTestSuite1 = {
     var tuple = db.insert('User', {id: 4, name: 'yyy', age: 'asdf'});
     assert(isNaN(tuple.age));
     assertThrow(ConstraintError,
-               "db.insert('User', {id: 'asdf', name: 'zzz', age: 42})");
+                "db.insert('User', {id: 'asdf', name: 'zzz', age: 42})");
     assertThrow(ConstraintError,
-               "db.insert('User', {name: 'zzz', age: 42})");
+                "db.insert('User', {name: 'zzz', age: 42})");
     assertEqual(items(db.insert('Empty', {})), []);
-    assertEqual(query('Empty').map(items), [[]]);
+    assertEqual(db.query('Empty').map(items), [[]]);
     assertThrow(ConstraintError, "db.insert('Empty', {})");
-    create('Num', {n: 'number', i: ['int', 3.14]});
+    db.create('Num', {n: 'number', i: ['int', 3.14]});
     assertSame(db.insert('Num', {n: 0}).i, 3);
     assertSame(db.insert('Num', {n: 1.5, i: 1.5}).i, 2);
     assertSame(db.insert('Num', {n: Infinity}).n, Infinity);
@@ -524,16 +491,16 @@ var dbTestSuite1 = {
     assertEqual(field('id', 'User').sort(), [0, 1, 2]);
     assertEqual(field('name', 'User where !(id % 2)', [], ['-name']),
                 ['den', 'anton']);
-    assertSame(query('User where id == $', [0])[0]['name'], 'anton');
+    assertSame(db.query('User where id == $', [0])[0]['name'], 'anton');
     assertEqual(field('id', 'User where name != $', ['den'], ['-id']), [1, 0]);
   },
 
   testUpdate: function () {
     assertThrow(ValueError, "db.update('User', 'id == 0', [], {}, [])");
-    assertThrow(TypeError, "db.update('User', 'id == 0', [], {})");
+    assertThrow(TypeError, "db.update('User', 'id == 0')");
     assertThrow(TypeError, "db.update('User', 'id == 0', [], 1, [])");
     assertThrow(ConstraintError,
-               "db.update('User', 'id == 0', [], {id: '$'}, ['asdf'])");
+                "db.update('User', 'id == 0', [], {id: '$'}, ['asdf'])");
     assertEqual(db.update('User', 'id == 0', [], {name: '$'}, ['ANTON']), 1);
     assertEqual(field('name', 'User where id == 0'), ['ANTON']);
     assertSame(db.update('User',
@@ -545,7 +512,7 @@ var dbTestSuite1 = {
     for (var i = 0; i < 10; ++i)
       assertThrow(
         ConstraintError,
-        "db.update('User', 'name == $', ['den'], {id: '4'}, [])");
+        "db.update('User', 'name == $', ['den'], {id: '4'})");
   },
 
   testDel: function () {
@@ -555,9 +522,10 @@ var dbTestSuite1 = {
     db.insert('Post', {id: 3, title: "", text: "", author: 3});
     db.update('User', 'id == 3', [], {name: 'name + 1'}, []);
     assertEqual(field('name', 'User where id == 3'), [name + 1]);
-    assertEqual(db.del('Post', 'author->name == $', [name + 1]), 1);
+    assertSame(db.del('Post', 'author->name == $', [name + 1]), 1);
     assertSame(db.del('User', 'age == $', [15]), 1);
     assertEqual(field('id', 'User', [], ['id']), [0, 1, 2]);
+    assertSame(db.del('Comment', 'true'), 3);
   }
 };
 
@@ -572,7 +540,7 @@ var dbTestSuite2 = {
   },
 
   testBy: function () {
-    create('ByTest', {x: 'number', y: 'number'});
+    db.create('ByTest', {x: 'number', y: 'number'});
     db.insert('ByTest', {x: 0, y: 0});
     db.insert('ByTest', {x: 1, y: 14});
     db.insert('ByTest', {x: 2, y: 21});
@@ -582,43 +550,43 @@ var dbTestSuite2 = {
     db.insert('ByTest', {x: 8, y: 3});
     db.insert('ByTest', {x: 9, y: 32});
     assertEqual(
-      query('ByTest where y != $',
-            [5],
-            ['x * $1 % $2', 'y % $3'],
-            [2, 7, 10],
-            3, 3).map(items),
+      db.query('ByTest where y != $',
+               [5],
+               ['x * $1 % $2', 'y % $3'],
+               [2, 7, 10],
+               3, 3).map(items),
       [[['x', 1], ['y', 14]], [['x', 2], ['y', 21]], [['x', 9], ['y', 32]]]);
     assertEqual(field('x', 'ByTest', [], ['x'], [], 5), [5, 8, 9]);
     assertEqual(field('x', 'ByTest', [], ['x'], [], 0, 2), [0, 1]);
-    assertSame(query('ByTest', [], [], [], 3, 6).length, 5);
+    assertSame(db.query('ByTest', [], [], [], 3, 6).length, 5);
   },
 
   testPg: function () {
-    create('pg_class', {x: 'number'});
+    db.create('pg_class', {x: 'number'});
     db.insert('pg_class', {x: 0});
-    assertEqual(query('pg_class').map(items), [[['x', 0]]]);
+    assertEqual(db.query('pg_class').map(items), [[['x', 0]]]);
     db.drop(['pg_class']);
   },
 
   testCheck: function () {
-    create('X', {n: 'number'}, {check: ['n != 42']});
-    create('Y', {b: 'bool', s: 'string'}, {check: ['b || s == "hello"']});
+    db.create('X', {n: 'number'}, [], [], ['n != 42']);
+    db.create('Y', {b: 'bool', s: 'string'}, [], [], ['b || s == "hello"']);
     db.insert('X', {n: 0});
     assertThrow(ConstraintError, "db.insert('X', {n: 42})");
     db.insert('Y', {b: true, s: 'hi'});
     db.insert('Y', {b: false, s: 'hello'});
     assertThrow(ConstraintError,
-               "db.insert('Y', {b: false, s: 'oops'})");
+                "db.insert('Y', {b: false, s: 'oops'})");
   },
 
   testDate: function () {
-    create('D1', {d: 'date'});
+    db.create('D1', {d: 'date'});
     var someDate = new Date('Wed, Mar 04 2009 16:12:09 GMT');
     var otherDate = new Date(2009, 0, 15, 13, 27, 11, 481);
     db.insert('D1', {d: someDate});
-    assertSame(query('{s: D1.d + ""}')[0].s, 'Wed Mar 04 2009 04:12:09');
+    assertSame(db.query('{s: D1.d + ""}')[0].s, 'Wed Mar 04 2009 04:12:09');
     assertEqual(field('d', 'D1'), [someDate]);
-    create('D2', {d: 'date'}, {foreign: [[['d'], 'D1', ['d']]]});
+    db.create('D2', {d: 'date'}, [], [[['d'], 'D1', ['d']]]);
     assertThrow(ConstraintError,
                 function () { db.insert('D2', {d: otherDate}); });
     db.insert('D1', {d: otherDate});
@@ -632,13 +600,13 @@ var dbTestSuite2 = {
 
   testDefault: function () {
     var now = new Date();
-    create('X',
-           {
-             n: ['number', 42],
-             s: ['string', 'hello, world!'],
-             b: ['bool', true],
-             d: ['date', now]
-           });
+    db.create('X',
+              {
+                n: ['number', 42],
+                s: ['string', 'hello, world!'],
+                b: ['bool', true],
+                d: ['date', now]
+              });
     assertEqual(items(db.getDefault('X')).sort(),
                 [['b', true],
                  ['d', now],
@@ -648,36 +616,35 @@ var dbTestSuite2 = {
     assertThrow(ConstraintError, "db.insert('X', {})");
     db.insert('X', {b: false});
     db.insert('X', {n: 0, s: 'hi'});
-    assertEqual(query('X', [], ['b', 'n']).map(items),
+    assertEqual(db.query('X', [], ['b', 'n']).map(items),
                 [[['n', 42], ['s', 'hello, world!'], ['b', false], ['d', now]],
                  [['n', 0], ['s', 'hi'], ['b', true], ['d', now]],
                  [['n', 42], ['s', 'hello, world!'], ['b', true], ['d', now]]]);
   },
 
   testUnique: function () {
-    create('X',
-           {a: 'number', b: 'string', c: 'bool'},
-           {unique: [['a', 'b'], ['b', 'c'], ['c']]});
+    db.create('X',
+              {a: 'number', b: 'string', c: 'bool'},
+              [['a', 'b'], ['b', 'c'], ['c']]);
     assertEqual(db.getUnique('X').sort(), [['a', 'b'], ['b', 'c'], ['c']]);
-    create('Y', {n: 'number'});
+    db.create('Y', {n: 'number'});
     assertEqual(db.getUnique('Y'), [['n']]);
   },
 
   testForeignKey: function () {
-    create('X', {s: 'string', i: 'int'});
-    create('Y',
-           {
-             s: 'string',
-             i: 'int',
-             id: 'serial',
-             ref: 'int'
-           },
-           {
-             foreign: [
-               [['s', 'i'], 'X', ['s', 'i']],
-               [['ref'], 'Y', ['id']]],
-             unique: [['id']]
-           });
+    db.create('X', {s: 'string', i: 'int'});
+    db.create('Y',
+              {
+                s: 'string',
+                i: 'int',
+                id: 'serial',
+                ref: 'int'
+              },
+              [['id']],
+              [
+                [['s', 'i'], 'X', ['s', 'i']],
+                [['ref'], 'Y', ['id']]
+              ]);
     assertEqual(db.getForeign('Y').sort(),
                 [
                   [['ref'], 'Y', ['id']],
@@ -689,12 +656,12 @@ var dbTestSuite2 = {
     assertThrow(QuotaError,
                 function () {
                   for (var i = 0; i < 501; ++i)
-                    create('X' + i, {});
+                    db.create('X' + i, {});
                 });
   },
 
   testBigIndexRow: function () {
-    create('X', {s: 'string'});
+    db.create('X', {s: 'string'});
     var s = 'x';
     for (var i = 0; i < 20; ++i)
       s += s;
@@ -707,7 +674,7 @@ var dbTestSuite2 = {
     assertThrow(ValueError, "db.addAttrs('X', {x: [1, 2]})");
     assertThrow(NotImplementedError,
                 "db.addAttrs('X', {id: ['serial', 0]})");
-    create('X', {id: 'serial'});
+    db.create('X', {id: 'serial'});
     db.insert('X', {});
     db.insert('X', {});
     var d = new Date();
@@ -721,7 +688,7 @@ var dbTestSuite2 = {
         d: ['date', d]
       });
     assertEqual(
-      query('X', [], ['id']).map(items),
+      db.query('X', [], ['id']).map(items),
       [
         [['id', 0], ['n', 4.2], ['i', 0], ['s', 'yo'], ['d', d]],
         [['id', 1], ['n', 4.2], ['i', 0], ['s', 'yo'], ['d', d]]
@@ -733,7 +700,7 @@ var dbTestSuite2 = {
       db.addAttrs('X', descr);
     }
     assertThrow(QuotaError, "db.addAttrs('X', {another: ['string', '']})");
-    create('Y', {});
+    db.create('Y', {});
     db.insert('Y', {});
     db.addAttrs('Y', {n: ['number', 0], s: ['string', '']});
     assertEqual(db.getUnique('Y'), [['n', 's']]);
@@ -741,12 +708,12 @@ var dbTestSuite2 = {
   },
 
   testDropAttrs: function () {
-    create('X',
-           {n: 'number', s: 'string', b: 'bool', d: 'date'},
-           {unique: [['n'], ['s', 'b']]});
-    create('Y',
-           {n: 'number', s: 'string', b: 'bool', d: 'date'},
-           {foreign: [[['n'], 'X', ['n']], [['s', 'b'], 'X', ['s', 'b']]]});
+    db.create('X',
+              {n: 'number', s: 'string', b: 'bool', d: 'date'},
+              [['n'], ['s', 'b']]);
+    db.create('Y',
+              {n: 'number', s: 'string', b: 'bool', d: 'date'},
+              [], [[['n'], 'X', ['n']], [['s', 'b'], 'X', ['s', 'b']]]);
     assertThrow(NoSuchAttrError, "db.dropAttrs('X', ['n', 'x'])");
     assertThrow(DependencyError, "db.dropAttrs('X', ['b', 'd'])");
     db.dropAttrs('X', ['d']);
@@ -765,15 +732,15 @@ var dbTestSuite2 = {
     assertEqual(db.getUnique('Y'), [['n', 's']]);
     db.insert('Y', {n: 1, s: ''});
     db.dropAttrs('Y', ['n', 's']);
-    assertSame(query('Y').length, 1);
+    assertSame(db.query('Y').length, 1);
     db.del('X', 'true', []);
     db.dropAttrs('X', ['n', 's', 'b']);
-    assertSame(query('X').length, 0);
+    assertSame(db.query('X').length, 0);
     assertEqual(db.getUnique('X'), []);
   },
 
   testAddDefault: function () {
-    create('X', {n: 'number', s: 'string', b: 'bool'});
+    db.create('X', {n: 'number', s: 'string', b: 'bool'});
     assertThrow(NoSuchAttrError, "db.addDefault('X', {s: '', x: 42})");
     db.addDefault('X', {});
     assertEqual(items(db.getDefault('X')), []);
@@ -788,7 +755,7 @@ var dbTestSuite2 = {
   },
 
   testDropDefault: function () {
-    create(
+    db.create(
       'X',
       {
         n: ['number', 42],
@@ -806,10 +773,10 @@ var dbTestSuite2 = {
   },
 
   testAddConstrs: function () {
-    create('X', {n: 'number', s: 'string'}, {unique: [['n'], ['n'], ['s']]});
+    db.create('X', {n: 'number', s: 'string'}, [['n'], ['n'], ['s']]);
     assertEqual(db.getUnique('X'), [['n'], ['s']]);
-    create('Y', {n: 'number', s: 'string', b: 'bool'});
-    db.addConstrs('Y', [], [], []);
+    db.create('Y', {n: 'number', s: 'string', b: 'bool'});
+    db.addConstrs('Y');
     db.addConstrs('Y', [['n']], [[['s'], 'X', ['s']]], ['b']);
     assertEqual(db.getUnique('Y'), [['n', 's', 'b'], ['n']]);
     assertEqual(db.getForeign('Y'), [[['s'], 'X', ['s']]]);
@@ -830,28 +797,26 @@ var dbTestSuite2 = {
   },
 
   testDropAllConstrs: function () {
-    create('E', {});
+    db.create('E', {});
     db.dropAllConstrs('E');
-    create('X', {n: 'number'});
-    create(
+    db.create('X', {n: 'number'});
+    db.create(
       'Y',
       {
         n: 'number',
         s: 'string',
         c: 'bool'
       },
-      {
-        unique: [['s']],
-        foreign: [[['n'], 'X', ['n']]],
-        check: ['c']
-      });
+      [['s']],
+      [[['n'], 'X', ['n']]],
+      ['c']);
     assertThrow(DependencyError, "db.dropAllConstrs('X')");
     db.dropAllConstrs('Y');
     assertEqual(db.getUnique('Y'), [['n', 's', 'c']]);
     assertEqual(db.getForeign('Y'), []);
     db.insert('Y', {n: 0, s: '', c: false});
     db.dropAllConstrs('X');
-    create('Z', {n: 'number', s: 'string'}, {unique: [['n']]});
+    db.create('Z', {n: 'number', s: 'string'}, [['n']]);
     var s = 'x';
     for (var i = 0; i < 20; ++i)
       s += s;
@@ -860,14 +825,14 @@ var dbTestSuite2 = {
   },
 
   testJSON: function () {
-    create('X', {j: 'json'});
+    db.create('X', {j: 'json'});
     db.insert('X', {j: [1, 2, 3]});
-    assertEqual(query('X')[0].j, [1, 2, 3]);
+    assertEqual(db.query('X')[0].j, [1, 2, 3]);
     db.insert('X', {j: 42});
-    var tuples = query('{n: X.j + 0}');
+    var tuples = db.query('{n: X.j + 0}');
     assertSame(tuples[0].n, 42);
     assert(isNaN(tuples[1].n));
-    tuples = query('X where j < "["');
+    tuples = db.query('X where j < "["');
     assertSame(tuples.length, 1);
     assertSame(tuples[0].j, 42);
     assertThrow(TypeError, "db.update('X', 'true', [], {j: 'j + 1'}, [])");
@@ -1353,7 +1318,7 @@ var socketTestSuite = {
 var httpTestSuite = {
   testHttpParser: function () {
     assertSame(HttpParser(), undefined);
-      assertThrow(ValueError, "new HttpParser('bad', {})");
+    assertThrow(ValueError, "new HttpParser('bad', {})");
     assertThrow(TypeError, "new HttpParser('request', 42)");
     assertThrow(TypeError, "new HttpParser('request', {}).exec(42)");
     [
@@ -1392,7 +1357,7 @@ var httpTestSuite = {
             handler[name] = function () { throw new E(); };
             new HttpParser('request', handler).exec(binary);
           });
-        });
+      });
     var Handler = function () {
       this.history = [];
     };

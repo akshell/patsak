@@ -117,8 +117,10 @@ namespace
 
     Drafts ReadParams(Handle<v8::Value> value)
     {
-        Handle<Array> array(GetArray(value));
         Drafts result;
+        if (!value->BooleanValue())
+            return result;
+        Handle<Array> array(GetArray(value));
         result.reserve(array->Length());
         for (size_t i = 0; i < array->Length(); ++i)
             result.push_back(CreateDraft(array->Get(Integer::New(i))));
@@ -189,37 +191,50 @@ namespace
     }
 
 
-    void ReadUniqueKeys(Handle<v8::Value> value, UniqueKeySet& unique_key_set)
+    UniqueKeySet ReadUniqueKeys(Handle<v8::Value> value)
     {
+        UniqueKeySet result;
+        if (!value->BooleanValue())
+            return result;
         Handle<Array> array(GetArray(value));
+        result.reserve(array->Length());
         for (size_t i = 0; i < array->Length(); ++i)
-            unique_key_set.add_safely(
-                ReadStringSet(array->Get(Integer::New(i))));
+            result.add_safely(ReadStringSet(array->Get(Integer::New(i))));
+        return result;
     }
 
 
-    void ReadForeignKeySet(Handle<v8::Value> value,
-                           ForeignKeySet& foreign_key_set)
+    ForeignKeySet ReadForeignKeySet(Handle<v8::Value> value)
     {
+        ForeignKeySet result;
+        if (!value->BooleanValue())
+            return result;
         Handle<Array> array(GetArray(value));
+        result.reserve(array->Length());
         for (size_t i = 0; i < array->Length(); ++i) {
             Handle<Array> foreign(GetArray(array->Get(Integer::New(i))));
             if (foreign->Length() != 3)
                 throw Error(Error::VALUE,
                             "Foreign item must be an array of length 3");
-            foreign_key_set.add_safely(
+            result.add_safely(
                 ForeignKey(ReadStringSet(foreign->Get(Integer::New(0))),
                            Stringify(foreign->Get(Integer::New(1))),
                            ReadStringSet(foreign->Get(Integer::New(2)))));
         }
+        return result;
     }
 
 
-    void ReadChecks(Handle<v8::Value> value, Strings& checks)
+    Strings ReadChecks(Handle<v8::Value> value)
     {
+        Strings result;
+        if (!value->BooleanValue())
+            return result;
         Handle<Array> array(GetArray(value));
+        result.reserve(array->Length());
         for (size_t i = 0; i < array->Length(); ++i)
-            checks.push_back(Stringify(array->Get(Integer::New(i))));
+            result.push_back(Stringify(array->Get(Integer::New(i))));
+        return result;
     }
 }
 
@@ -347,20 +362,17 @@ namespace
 
     DEFINE_JS_FUNCTION(CountCb, args)
     {
-        CheckArgsLength(args, 2);
+        CheckArgsLength(args, 1);
         return Integer::New(Count(Stringify(args[0]), ReadParams(args[1])));
     }
 
 
     DEFINE_JS_FUNCTION(CreateCb, args)
     {
-        CheckArgsLength(args, 5);
+        CheckArgsLength(args, 2);
         if (!args[1]->IsObject())
             throw Error(Error::TYPE, "Header must be an object");
         DefHeader def_header;
-        UniqueKeySet unique_key_set;
-        ForeignKeySet foreign_key_set;
-        Strings checks;
         PropEnumerator prop_enumerator(args[1]->ToObject());
         for (size_t i = 0; i < prop_enumerator.GetSize(); ++i) {
             Prop prop(prop_enumerator.GetProp(i));
@@ -381,14 +393,11 @@ namespace
             }
             def_header.add(DefAttr(Stringify(prop.key), type, default_ptr));
         }
-        ReadUniqueKeys(args[2], unique_key_set);
-        ReadForeignKeySet(args[3], foreign_key_set);
-        ReadChecks(args[4], checks);
         CreateRelVar(Stringify(args[0]),
                      def_header,
-                     unique_key_set,
-                     foreign_key_set,
-                     checks);
+                     ReadUniqueKeys(args[2]),
+                     ReadForeignKeySet(args[3]),
+                     ReadChecks(args[4]));
         return Undefined();
 
     }
@@ -480,7 +489,7 @@ namespace
 
     DEFINE_JS_FUNCTION(DelCb, args)
     {
-        CheckArgsLength(args, 3);
+        CheckArgsLength(args, 2);
         size_t rows_number = Delete(
             Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]));
         return Number::New(static_cast<double>(rows_number));
@@ -489,7 +498,7 @@ namespace
 
     DEFINE_JS_FUNCTION(UpdateCb, args)
     {
-        CheckArgsLength(args, 5);
+        CheckArgsLength(args, 4);
         if (!args[3]->IsObject())
             throw Error(Error::TYPE, "Update needs an object");
         PropEnumerator prop_enumerator(args[3]->ToObject());
@@ -562,14 +571,11 @@ namespace
 
     DEFINE_JS_FUNCTION(AddConstrsCb, args)
     {
-        CheckArgsLength(args, 4);
-        UniqueKeySet unique_key_set;
-        ForeignKeySet foreign_key_set;
-        Strings checks;
-        ReadUniqueKeys(args[1], unique_key_set);
-        ReadForeignKeySet(args[2], foreign_key_set);
-        ReadChecks(args[3], checks);
-        AddConstrs(Stringify(args[0]), unique_key_set, foreign_key_set, checks);
+        CheckArgsLength(args, 1);
+        AddConstrs(Stringify(args[0]),
+                   ReadUniqueKeys(args[1]),
+                   ReadForeignKeySet(args[2]),
+                   ReadChecks(args[3]));
         return Undefined();
     }
 
