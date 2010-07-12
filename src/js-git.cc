@@ -105,8 +105,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RepoBg, CatFileCb,
     if (git_odb_read(&obj, odb_ptr, &oid))
         throw Error(Error::VALUE, "Object not found");
     Handle<Object> result(Object::New());
+    Set(result, "type", String::NewSymbol(git_obj_type_to_string(obj.type)));
     const char* data = static_cast<char*>(obj.data);
-    Set(result, "type", Integer::New(obj.type));
     Set(result, "data",
         NewBinary(auto_ptr<Chars>(new Chars(data, data + obj.len))));
     git_obj_close(&obj);
