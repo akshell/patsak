@@ -37,29 +37,29 @@ namespace
         string path_;
         git_odb* odb_ptr;
 
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, CatFileCb,
-                             const Arguments&) const;
-
         void ReadLooseRef(const string& name, Handle<Object> object) const;
         void ReadLooseRefs(const string& name, Handle<Object> object) const;
+        Handle<Object> ReadRefs() const;
 
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadRefsCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadCb,
                              const Arguments&) const;
+
     };
 }
 
 
 DEFINE_JS_CONSTRUCTOR(RepoBg, "Repo", /*object_template*/, proto_template)
 {
-    SetFunction(proto_template, "catFile", CatFileCb);
-    SetFunction(proto_template, "readRefs", ReadRefsCb);
+    SetFunction(proto_template, "read", ReadCb);
 }
 
 
 DEFINE_JS_CONSTRUCTOR_CALLBACK(RepoBg, args)
 {
     CheckArgsLength(args, 1);
-    return new RepoBg(Stringify(args[0]));
+    auto_ptr<RepoBg> repo_ptr(new RepoBg(Stringify(args[0])));
+    Set(args.This(), "refs", repo_ptr->ReadRefs());
+    return repo_ptr.release();
 }
 
 
@@ -80,37 +80,6 @@ RepoBg::RepoBg(const string& lib_name)
 RepoBg::~RepoBg()
 {
     git_odb_close(odb_ptr);
-}
-
-
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RepoBg, CatFileCb,
-                    const Arguments&, args) const
-{
-    CheckArgsLength(args, 1);
-    git_oid oid;
-    Binarizator binarizator(args[0]);
-    switch (binarizator.GetSize()) {
-    case 20:
-        git_oid_mkraw(
-            &oid,
-            reinterpret_cast<const unsigned char*>(binarizator.GetData()));
-        break;
-    case 40:
-        if (!git_oid_mkstr(&oid, binarizator.GetData()))
-            break;
-    default:
-        throw Error(Error::VALUE, "Invalid object id");
-    }
-    git_obj obj;
-    if (git_odb_read(&obj, odb_ptr, &oid))
-        throw Error(Error::VALUE, "Object not found");
-    Handle<Object> result(Object::New());
-    Set(result, "type", String::NewSymbol(git_obj_type_to_string(obj.type)));
-    const char* data = static_cast<char*>(obj.data);
-    Set(result, "data",
-        NewBinary(auto_ptr<Chars>(new Chars(data, data + obj.len))));
-    git_obj_close(&obj);
-    return result;
 }
 
 
@@ -142,8 +111,7 @@ void RepoBg::ReadLooseRefs(const string& name, Handle<Object> object) const
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RepoBg, ReadRefsCb,
-                    const Arguments&, /*args*/) const
+Handle<Object> RepoBg::ReadRefs() const
 {
     Handle<Object> result(Object::New());
     ReadLooseRef("HEAD", result);
@@ -158,6 +126,37 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RepoBg, ReadRefsCb,
         }
         file.close();
     }
+    return result;
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RepoBg, ReadCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    git_oid oid;
+    Binarizator binarizator(args[0]);
+    switch (binarizator.GetSize()) {
+    case 20:
+        git_oid_mkraw(
+            &oid,
+            reinterpret_cast<const unsigned char*>(binarizator.GetData()));
+        break;
+    case 40:
+        if (!git_oid_mkstr(&oid, binarizator.GetData()))
+            break;
+    default:
+        throw Error(Error::VALUE, "Invalid object id");
+    }
+    git_obj obj;
+    if (git_odb_read(&obj, odb_ptr, &oid))
+        throw Error(Error::VALUE, "Object not found");
+    Handle<Object> result(Object::New());
+    Set(result, "type", String::NewSymbol(git_obj_type_to_string(obj.type)));
+    const char* data = static_cast<char*>(obj.data);
+    Set(result, "data",
+        NewBinary(auto_ptr<Chars>(new Chars(data, data + obj.len))));
+    git_obj_close(&obj);
     return result;
 }
 

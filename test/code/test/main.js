@@ -1004,7 +1004,7 @@ var gitTestSuite = {
     assertThrow(ValueError, "new Repo('no-such-lib')");
     var repo = new Repo('lib');
     assertEqual(
-      items(repo.readRefs()),
+      items(repo.refs),
       [
         [
           'HEAD',
@@ -1027,10 +1027,10 @@ var gitTestSuite = {
           '4a7af2ca3dbc02a712a3415b6ec9f3694e35c37d'
         ]
       ]);
-    assertThrow(ValueError, function () { repo.catFile('invalid'); });
+    assertThrow(ValueError, function () { repo.read('invalid'); });
     assertThrow(ValueError,
-                function () { repo.catFile('xxxxxxxxxxxxxxxxxxxx'); });
-    var object = repo.catFile('b53dffba67ee52511ad67fd95a1f140bdb691936');
+                function () { repo.read('xxxxxxxxxxxxxxxxxxxx'); });
+    var object = repo.read('b53dffba67ee52511ad67fd95a1f140bdb691936');
     assertSame(object.type, 'tag');
     assertSame(
       object.data + '',
@@ -1040,7 +1040,7 @@ var gitTestSuite = {
        'tagger korenyushkin <anton@akshell.com> 1278150273 +0400\n' +
        '\n' +
        'Dummy tag.\n'));
-    object = repo.catFile('4a7af2ca3dbc02a712a3415b6ec9f3694e35c37d');
+    object = repo.read('4a7af2ca3dbc02a712a3415b6ec9f3694e35c37d');
     assertSame(object.type, 'commit');
     assertSame(
       object.data + '',
@@ -1049,25 +1049,22 @@ var gitTestSuite = {
        'committer korenyushkin <anton@akshell.com> 1278150258 +0400\n' +
        '\n' +
        'Initial commit.\n'));
-    object = repo.catFile('c2b28e85ec63083f158cc26b04c053d51c27d928');
+    object = repo.read('c2b28e85ec63083f158cc26b04c053d51c27d928');
     assertSame(object.type, 'tree');
     assertSame(object.data.range(0, 13) + '', '100644 README');
     assertSame(object.data[13], 0);
-    object = repo.catFile(object.data.range(14));
+    object = repo.read(object.data.range(14));
     assertSame(object.type, 'blob');
     assertSame(object.data + '', 'Akshell engine test library.\n');
   },
 
   testGitStorage: function () {
     var MockRepo = function (refs, files) {
-      this._refs = refs;
+      this.refs = refs;
       this._files = files;
     };
     MockRepo.prototype.__proto__ = Repo.prototype;
-    MockRepo.prototype.readRefs = function () {
-      return this._refs;
-    };
-    MockRepo.prototype.catFile = function (sha) {
+    MockRepo.prototype.read = function (sha) {
       if (!this._files.hasOwnProperty(sha))
         throw ValueError(sha);
       var array = this._files[sha];
