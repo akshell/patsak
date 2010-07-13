@@ -54,7 +54,8 @@ var imports = {
     'HttpParser'
   ],
   git: [
-    'Repo'
+    'Repo',
+    'GitStorage'
   ]
 };
 
@@ -1055,6 +1056,87 @@ var gitTestSuite = {
     object = repo.catFile(object.data.range(14));
     assertSame(object.type, 'blob');
     assertSame(object.data + '', 'Akshell engine test library.\n');
+  },
+
+  testGitStorage: function () {
+    var MockRepo = function (refs, files) {
+      this._refs = refs;
+      this._files = files;
+    };
+    MockRepo.prototype.__proto__ = Repo.prototype;
+    MockRepo.prototype.readRefs = function () {
+      return this._refs;
+    };
+    MockRepo.prototype.catFile = function (sha) {
+      if (!this._files.hasOwnProperty(sha))
+        throw ValueError(sha);
+      var array = this._files[sha];
+      return {type: array[0], data: new Binary(array[1])};
+    };
+
+    var mockRepo = new MockRepo(
+      {
+        'HEAD': 'ref: refs/remotes/master',
+        'refs/heads/master': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'refs/heads/upstream': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        'refs/remotes/master': 'ref: refs/heads/upstream',
+        'refs/tags/upstream': 'cccccccccccccccccccccccccccccccccccccccc',
+        'refs/tags/bad': 'dddddddddddddddddddddddddddddddddddddddd'
+      },
+      {
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa':
+        ['commit', 'tree dddddddddddddddddddddddddddddddddddddddd\n'],
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb':
+        ['commit', 'tree eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n'],
+        'cccccccccccccccccccccccccccccccccccccccc':
+        ['tag', 'object aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'],
+        'dddddddddddddddddddddddddddddddddddddddd':
+        ['tree',
+         '40000 dir\0aaaaaaaaaaaaaaaaaaaa100644 file\0bbbbbbbbbbbbbbbbbbbb'],
+        'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee':
+        ['tree',
+         '40000 dir\0aaaaaaaaaaaaaaaaaaaa100644 file\0cccccccccccccccccccc'],
+        'aaaaaaaaaaaaaaaaaaaa':
+        ['tree', '40000 subdir\0dddddddddddddddddddd'],
+        'bbbbbbbbbbbbbbbbbbbb':
+        ['blob', 'hello world'],
+        'cccccccccccccccccccc':
+        ['blob', 'hi there'],
+        'dddddddddddddddddddd':
+        ['tree', '100644 yo\0eeeeeeeeeeeeeeeeeeee'],
+        'eeeeeeeeeeeeeeeeeeee':
+        ['blob', 'wuzzup!!!']
+      });
+
+    var storage = new GitStorage(mockRepo, 'upstream')
+    assertEqual(storage.list(''), ['dir', 'file']);
+    assertEqual(storage.list('dir/subdir/.././../dir//subdir'), ['yo']);
+    assert(storage.exists('dir/subdir//'));
+    assert(storage.exists('dir/subdir//yo'));
+    assert(!storage.exists('file/'));
+    assert(storage.isDir('dir//'));
+    assert(!storage.isDir('file'));
+    assert(!storage.isDir('no-such'));
+    assert(storage.isFile('dir/../file'));
+    assert(!storage.isFile('dir'));
+    assert(!storage.isFile('dir/no-such-dir/no-such-file'));
+    assertSame(storage.read('file') + '', 'hello world');
+    assertSame(storage.read('dir/subdir/yo') + '', 'wuzzup!!!');
+    assertThrow(ValueError, function () { storage.exists('dir/../../file'); });
+    assertThrow(NoSuchEntryError, function () { storage.list('no-such'); });
+    assertThrow(EntryIsFileError, function () { storage.list('file'); });
+    assertThrow(NoSuchEntryError, function () { storage.read('no-such'); });
+    assertThrow(EntryIsDirError, function () { storage.read('dir/subdir'); });
+    assertSame(new GitStorage(mockRepo, 'HEAD').read('file') + '',
+               'hi there');
+    assertSame(new GitStorage(mockRepo, 'heads/upstream').read('file') + '',
+               'hi there');
+    assertSame(new GitStorage(mockRepo, 'master').read('file') + '',
+               'hello world');
+    assertThrow(ValueError,
+                function () { new GitStorage(mockRepo, 'no-such'); });
+    assertThrow(ValueError,
+                function () { new GitStorage(mockRepo, 'bad'); });
   }
 };
 
