@@ -217,6 +217,69 @@ var coreTestSuite = {
     assertEqual(items(module), [['id', 'main'], ['exports', exports]]);
     assertSame(require.main, module);
     assertSame(m.main, module);
+    assertSame(require('default', 'core'), core);
+    assertThrow(RequireError, require, 'noSuch');
+    assertThrow(RequireError, require, './core');
+    assertThrow(RequireError, require, 'noSuch', 'module');
+    assertThrow(RequireError, require, 'default', 'noSuch');
+
+    var libs = {
+      core: {
+        '0.1': {
+          'index.js': 'exports.x = 42'
+        }
+      },
+      fs: {
+        '0.1': {}
+      },
+      ak: {
+        '0.3': {
+          'manifest.json': '{deps: {fs: "0.1"}}',
+          'index.js': 'exports.fs = require("fs")',
+          'error.js': 'throw Error()'
+        },
+        '0.2': {
+          'manifest.json': '{deps: {core: "0.1"}}',
+          'index.js':
+          'require("default", "core").set(exports, "x", 0, require("core").x)'
+        }
+      },
+      form: {
+        '0.2': {
+          'manifest.json': '{deps: {ak: "0.2"}}',
+          'dir/x.js': 'exports.x = require("ak").x'
+        }
+      },
+      bad: {
+        '0.1': {
+          'manifest.json': '{',
+          'index.js': ''
+        }
+      }
+    };
+    var MockStorage = function (libName, ref) {
+      this._files = libs[libName][ref];
+      assert(this._files);
+    };
+    MockStorage.prototype.read = function (path) {
+      if (!this._files.hasOwnProperty(path))
+        throw NoSuchEntryError();
+      return new Binary(this._files[path]);
+    };
+    git.GitStorage = MockStorage;
+    try {
+      assertSame(require('form', 'dir/x').x, 42);
+      assertSame(require('form', 'dir/x').x, 42);
+      assertSame(require('ak').fs, fs);
+      assertThrow(RequireError, require, 'bad');
+      try {
+        require('ak', 'error');
+      } catch (error) {
+        assert(error.stack.indexOf('ak:0.3:error.js:1:7') != -1);
+      }
+    } finally {
+      git.GitStorage = GitStorage;
+    }
   },
 
   testSet: function () {

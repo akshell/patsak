@@ -57,27 +57,112 @@
     subclassError('socket', 'SocketError'));
 
 
-  var codeCache = {};
-  var libCache = {};
-
-
-  function openSafely(storage, path) {
+  function readSafely(storage, path) {
     try {
-      return storage.open(path);
+      if (storage.read)
+        return storage.read(path);
+      var file = storage.open(path);
     } catch (error) {
       if (error instanceof FSError)
         return null;
       else
         throw error;
     }
+    try {
+      return file.read();
+    } finally {
+      file.close();
+    }
   }
 
 
-  function makeRequire(storage, dir) {
-    return function (rawId) {
+  function Place(storage, prefix) {
+    this.storage = storage;
+    this.prefix = prefix;
+    this.cache = {};
+    var manifest = readSafely(storage, 'manifest.json');
+    if (manifest) {
+      try {
+        this.deps = JSON.parse(manifest).deps;
+      } catch (error) {
+        throw RequireError('Failed to parse manifest.json: ' + error.message);
+      }
+    } else {
+      this.deps = {};
+    }
+  }
+
+
+  var defaultPlace = new Place(basis.fs.lib, 'default:');
+  var mainPlace = new Place(basis.fs.code, '');
+  var main = {id: 'main'};
+  var gitPlaces = {};
+  var GitStorage;
+
+
+  function doRequire(place, id, dir) {
+    if (place.cache.hasOwnProperty(id))
+      return place.cache[id];
+    var path = id + '.js';
+    var code = readSafely(place.storage, path);
+    if (!code)
+      return null;
+    var func = new basis.script.Script(
+      '(function (require, exports, module) {\n' + code + '\n})',
+      place.prefix + path, -1).run();
+    var require = makeRequire(place, dir);
+    var exports = place.cache[id] =
+      place === defaultPlace && basis.hasOwnProperty(id) ? basis[id] : {};
+    var module = main.exports ? {id: id} : main;
+    module.exports = exports;
+    basis.core.set(require, 'main', 5, main);
+    try {
+      func(require, exports, module);
+    } catch (error) {
+      delete place.cache[id];
+      delete module.exports;
+      throw error;
+    }
+    return exports;
+  }
+
+
+  function doLibRequire(place, libName, id, dir) {
+    if (libName == 'default')
+      return doRequire(defaultPlace, id, dir);
+    if (!place.deps.hasOwnProperty(libName))
+      return undefined;
+    var ref = place.deps[libName];
+    var refs;
+    if (gitPlaces.hasOwnProperty(libName)) {
+      refs = gitPlaces[libName];
+      if (refs.hasOwnProperty(ref))
+        return doRequire(refs[ref], id, dir);
+    }
+    GitStorage = GitStorage || makeRequire(defaultPlace, [])('git').GitStorage;
+    var libPlace = new Place(new GitStorage(libName, ref),
+                             libName + ':' + ref + ':');
+    if (!refs)
+      gitPlaces[libName] = refs = {};
+    refs[ref] = libPlace;
+    return doRequire(libPlace, id, dir);
+  }
+
+
+  function makeRequire(place, dir) {
+    return function () {
+      if (!arguments.length)
+        throw TypeError('At least one argument required');
+      var libName;
+      var rawId;
+      if (arguments.length == 1) {
+        rawId = arguments[0];
+      } else {
+        libName = arguments[0];
+        rawId = arguments[1];
+      }
       var parts = rawId.split('/');
-      var isRelative = parts[0] == '.';
-      var loc = isRelative ? dir.slice() : [];
+      var loc = parts[0] == '.' ? dir.slice() : [];
       for (var i = 0; i < parts.length; ++i) {
         switch (parts[i]) {
         case '':
@@ -93,54 +178,28 @@
         }
       }
       var id = loc.join('/');
-      var path = id + '.js';
-      var isLib = storage === basis.fs.lib;
-      var file;
-      if (!isLib) {
-        if (codeCache.hasOwnProperty(id))
-          return codeCache[id];
-        file = openSafely(storage, path);
-        if (!file && !isRelative)
-          isLib = true;
+      loc.pop();
+      var result;
+      if (libName) {
+        result = doLibRequire(place, libName, id, loc);
+        if (result === undefined)
+          throw RequireError('No such lib: ' + libName);
+        if (result === null)
+          throw RequireError('Module not found: ' + libName + ':' + rawId);
+      } else {
+        result = doRequire(place, id, loc);
+        if (!result && parts.length == 1)
+          result = doLibRequire(place, rawId, 'index', []);
+        if (!result && parts[0] != '.' && place !== defaultPlace)
+          result = doLibRequire(place, 'default', id, loc);
+        if (!result)
+          throw RequireError('Module not found: ' + rawId);
       }
-      if (isLib) {
-        if (libCache.hasOwnProperty(id))
-          return libCache[id];
-        file = openSafely(basis.fs.lib, path);
-      }
-      if (!file)
-        throw RequireError('Module not found: ' + rawId);
-      try {
-        var code = file.read();
-      } finally {
-        file.close();
-      }
-      var func = new basis.script.Script(
-        '(function (require, exports, module) {\n' + code + '\n})',
-        path, -1).run();
-      var require = makeRequire(isLib ? basis.fs.lib : storage,
-                                loc.slice(0, loc.length - 1));
-      var cache = isLib ? libCache : codeCache;
-      var exports = cache[id] = (isLib && basis.hasOwnProperty(id)
-                                 ? basis[id]
-                                 : {});
-      var main = arguments.callee.main;
-      var module = main.exports ? {id: id} : main;
-      module.exports = exports;
-      basis.core.set(require, 'main', 5, main);
-      try {
-        func(require, exports, module);
-      } catch (error) {
-        delete cache[id];
-        if (module === main)
-          delete main.exports;
-        throw error;
-      }
-      return exports;
+      return result;
     };
   }
 
 
-  require = makeRequire(basis.fs.code, []);
-  basis.core.set(require, 'main', 5, {id: 'main'});
+  require = makeRequire(mainPlace, []);
+  basis.core.set(require, 'main', 5, main);
 });
