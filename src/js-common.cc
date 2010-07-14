@@ -20,13 +20,13 @@ using boost::lexical_cast;
 
 namespace
 {
-    Persistent<Object> error_classes;
+    Persistent<Array> error_classes;
 }
 
 
-void ak::InitErrorClasses(v8::Handle<v8::Object> error_classes)
+void ak::InitErrorClasses(Handle<Array> error_classes)
 {
-    ::error_classes = Persistent<Object>::New(error_classes);
+    ::error_classes = Persistent<Array>::New(error_classes);
 }
 
 

@@ -214,7 +214,7 @@ var coreTestSuite = {
         assert(require(name + '/index').pass);
       });
     var m = require('main/index');
-    assertEqual(items(module), [['exports', exports], ['id', 'main']]);
+    assertEqual(items(module), [['id', 'main'], ['exports', exports]]);
     assertSame(require.main, module);
     assertSame(m.main, module);
   },

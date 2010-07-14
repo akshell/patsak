@@ -30,7 +30,7 @@ namespace ak
     class Propagate {};
 
 
-    void InitErrorClasses(v8::Handle<v8::Object> error_classes);
+    void InitErrorClasses(v8::Handle<v8::Array> error_classes);
     void ThrowError(const ak::Error& err);
     std::string Stringify(v8::Handle<v8::Value> value);
     void CheckArgsLength(const v8::Arguments& args, int length);

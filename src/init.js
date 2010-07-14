@@ -1,7 +1,7 @@
 
 // (c) 2009-2010 by Anton Korenyushkin
 
-(function (basis)
+(function (basis, errorClasses)
 {
   Error.stackTraceLimit = 1000;
 
@@ -29,9 +29,36 @@
   var FSError = subclassError('fs', 'FSError');
 
 
+  errorClasses.push(
+    TypeError,
+    RangeError,
+
+    subclassError('core', 'ValueError'),
+    subclassError('core', 'NotImplementedError'),
+    subclassError('core', 'QuotaError'),
+
+    DBError,
+    subclassError('db', 'RelVarExistsError', DBError),
+    subclassError('db', 'NoSuchRelVarError', DBError),
+    subclassError('db', 'AttrExistsError', DBError),
+    subclassError('db', 'NoSuchAttrError', DBError),
+    subclassError('db', 'ConstraintError', DBError),
+    subclassError('db', 'QueryError', DBError),
+    subclassError('db', 'DependencyError', DBError),
+
+    FSError,
+    subclassError('fs', 'EntryExistsError', FSError),
+    subclassError('fs', 'NoSuchEntryError', FSError),
+    subclassError('fs', 'EntryIsDirError', FSError),
+    subclassError('fs', 'EntryIsFileError', FSError),
+
+    subclassError('binary', 'ConversionError'),
+
+    subclassError('socket', 'SocketError'));
+
+
   var codeCache = {};
   var libCache = {};
-  var main;
 
 
   function openSafely(storage, path) {
@@ -97,15 +124,16 @@
       var exports = cache[id] = (isLib && basis.hasOwnProperty(id)
                                  ? basis[id]
                                  : {});
-      var module = {exports: exports, id: id};
-      var oldMain = main;
-      main = main || module;
+      var main = arguments.callee.main;
+      var module = main.exports ? {id: id} : main;
+      module.exports = exports;
       basis.core.set(require, 'main', 5, main);
       try {
         func(require, exports, module);
       } catch (error) {
         delete cache[id];
-        main = oldMain;
+        if (module === main)
+          delete main.exports;
         throw error;
       }
       return exports;
@@ -114,33 +142,5 @@
 
 
   require = makeRequire(basis.fs.code, []);
-
-
-  return [
-    TypeError,
-    RangeError,
-
-    subclassError('core', 'ValueError'),
-    subclassError('core', 'NotImplementedError'),
-    subclassError('core', 'QuotaError'),
-
-    DBError,
-    subclassError('db', 'RelVarExistsError', DBError),
-    subclassError('db', 'NoSuchRelVarError', DBError),
-    subclassError('db', 'AttrExistsError', DBError),
-    subclassError('db', 'NoSuchAttrError', DBError),
-    subclassError('db', 'ConstraintError', DBError),
-    subclassError('db', 'QueryError', DBError),
-    subclassError('db', 'DependencyError', DBError),
-
-    FSError,
-    subclassError('fs', 'EntryExistsError', FSError),
-    subclassError('fs', 'NoSuchEntryError', FSError),
-    subclassError('fs', 'EntryIsDirError', FSError),
-    subclassError('fs', 'EntryIsFileError', FSError),
-
-    subclassError('binary', 'ConversionError'),
-
-    subclassError('socket', 'SocketError')
-  ];
+  basis.core.set(require, 'main', 5, {id: 'main'});
 });

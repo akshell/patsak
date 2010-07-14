@@ -220,6 +220,8 @@ void ak::InitJS(const string& code_path,
     Set(basis, "http", InitHTTP());
     if (!git_path_prefix.empty() || !git_path_suffix.empty())
         Set(basis, "git", InitGit(git_path_prefix, git_path_suffix));
+    Handle<Array> error_classes(Array::New());
+    InitErrorClasses(error_classes);
 
     Handle<Script> script(
         Script::Compile(String::New(INIT_JS, sizeof(INIT_JS)),
@@ -228,10 +230,7 @@ void ak::InitJS(const string& code_path,
     Handle<v8::Value> init_func_value(script->Run());
     AK_ASSERT(!init_func_value.IsEmpty() && init_func_value->IsFunction());
     Handle<Function> init_func(Handle<Function>::Cast(init_func_value));
-    Handle<v8::Value> basis_value(basis);
-    Handle<v8::Value> error_classes_value(
-        init_func->Call(context->Global(), 1, &basis_value));
-    AK_ASSERT(!error_classes_value.IsEmpty() &&
-              error_classes_value->IsObject());
-    InitErrorClasses(error_classes_value->ToObject());
+    Handle<v8::Value> args[] = {basis, error_classes};
+    Handle<v8::Value> init_ret(init_func->Call(context->Global(), 2, args));
+    AK_ASSERT(!init_ret.IsEmpty());
 }
