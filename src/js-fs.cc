@@ -59,54 +59,24 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// BaseFile definitions
-////////////////////////////////////////////////////////////////////////////////
-
-BaseFile::BaseFile(int fd)
-    : fd_(fd)
-{
-    if (fd == -1)
-        throw MakeErrnoError();
-}
-
-
-BaseFile::~BaseFile()
-{
-    Close();
-}
-
-
-void BaseFile::Close()
-{
-    if (fd_ != -1) {
-        int ret = close(fd_);
-        AK_ASSERT_EQUAL(ret, 0);
-        fd_ = -1;
-    }
-}
-
-
-void BaseFile::CheckOpen() const
-{
-    if (fd_ == -1)
-        throw Error(Error::VALUE, "File is already closed");
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // FileBg
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    class FileBg : private BaseFile {
+    class FileBg {
     public:
         DECLARE_JS_CLASS(FileBg);
 
         FileBg(const std::string& path, bool writable);
+        ~FileBg();
 
     private:
+        int fd_;
         bool writable_;
 
+        void Close();
+        void CheckOpen() const;
         void CheckWritable() const;
         size_t GetSize() const;
 
@@ -185,12 +155,35 @@ DEFINE_JS_CLASS(FileBg, "File", object_template, proto_template)
 
 
 FileBg::FileBg(const string& path, bool writable)
-    : BaseFile(
-        writable
-        ? open(path.c_str(), O_CLOEXEC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)
-        : open(path.c_str(), O_CLOEXEC | O_RDONLY))
+    : fd_(writable
+          ? open(path.c_str(), O_CLOEXEC | O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)
+          : open(path.c_str(), O_CLOEXEC | O_RDONLY))
     , writable_(writable)
 {
+    if (fd_ == -1)
+        throw MakeErrnoError();
+}
+
+
+FileBg::~FileBg()
+{
+    Close();
+}
+
+
+void FileBg::Close()
+{
+    if (fd_ != -1) {
+        close(fd_);
+        fd_ = -1;
+    }
+}
+
+
+void FileBg::CheckOpen() const
+{
+    if (fd_ == -1)
+        throw Error(Error::VALUE, "File is already closed");
 }
 
 

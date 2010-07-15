@@ -3,7 +3,6 @@
 
 #include "js-socket.h"
 #include "js-common.h"
-#include "js-fs.h"
 #include "js-binary.h"
 
 #include <sys/socket.h>
@@ -24,23 +23,25 @@ using namespace std;
 namespace
 {
     const size_t MAX_OPEN_COUNT = 100;
+    size_t open_count = 0;
 
 
-    class SocketBg : private BaseFile {
+    class SocketBg {
     public:
         DECLARE_JS_CLASS(SocketBg);
 
         SocketBg(int fd);
         SocketBg(const std::string& host, const std::string& service);
+        ~SocketBg();
+
         void Close();
 
     private:
-        static size_t open_count;
-
+        int fd_;
         bool readable_;
         bool writable_;
 
-        static int Connect(const std::string& host, const std::string& service);
+        void CheckOpen() const;
 
         DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetClosedCb,
                              v8::Local<v8::String>,
@@ -69,9 +70,6 @@ namespace
 }
 
 
-size_t SocketBg::open_count = 0;
-
-
 DEFINE_JS_CLASS(SocketBg, "Socket", object_template, proto_template)
 {
     object_template->SetAccessor(String::NewSymbol("closed"),
@@ -93,7 +91,18 @@ DEFINE_JS_CLASS(SocketBg, "Socket", object_template, proto_template)
 }
 
 
-int SocketBg::Connect(const string& host, const string& service)
+SocketBg::SocketBg(int fd)
+    : fd_(fd)
+    , readable_(true)
+    , writable_(true)
+{
+    ++open_count;
+}
+
+
+SocketBg::SocketBg(const string& host, const string& service)
+    : readable_(true)
+    , writable_(true)
 {
     if (open_count >= MAX_OPEN_COUNT)
         throw Error(Error::QUOTA, "Too many open sockets");
@@ -105,47 +114,43 @@ int SocketBg::Connect(const string& host, const string& service)
     if (int ret = getaddrinfo(host.c_str(), service.c_str(),
                               &hints, &first_info_ptr))
         throw Error(Error::SOCKET, gai_strerror(ret));
-    int fd;
     struct addrinfo* info_ptr = first_info_ptr;
     for (; info_ptr; info_ptr = info_ptr->ai_next) {
-        fd = socket(info_ptr->ai_family,
-                    info_ptr->ai_socktype,
-                    info_ptr->ai_protocol);
-        AK_ASSERT(fd != -1);
-        if (connect(fd, info_ptr->ai_addr, info_ptr->ai_addrlen) != -1)
+        fd_ = socket(info_ptr->ai_family,
+                     info_ptr->ai_socktype,
+                     info_ptr->ai_protocol);
+        AK_ASSERT(fd_ != -1);
+        if (connect(fd_, info_ptr->ai_addr, info_ptr->ai_addrlen) != -1)
             break;
-        close(fd);
+        close(fd_);
     }
     freeaddrinfo(first_info_ptr);
     if (!info_ptr)
         throw Error(Error::SOCKET, "Failed to connect");
-    return fd;
-}
-
-
-SocketBg::SocketBg(int fd)
-    : BaseFile(fd)
-    , readable_(true)
-    , writable_(true)
-{
     ++open_count;
 }
 
 
-SocketBg::SocketBg(const string& host, const string& service)
-    : BaseFile(Connect(host, service))
-    , readable_(true)
-    , writable_(true)
+SocketBg::~SocketBg()
 {
-    ++open_count;
+    Close();
 }
 
 
 void SocketBg::Close()
 {
-    if (fd_ != -1)
+    if (fd_ != -1) {
+        close(fd_);
+        fd_ = -1;
         --open_count;
-    BaseFile::Close();
+    }
+}
+
+
+void SocketBg::CheckOpen() const
+{
+    if (fd_ == -1)
+        throw Error(Error::VALUE, "Socket is already closed");
 }
 
 

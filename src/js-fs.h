@@ -14,18 +14,6 @@
 
 namespace ak
 {
-    class BaseFile {
-    protected:
-        int fd_;
-
-        BaseFile(int fd);
-        ~BaseFile();
-
-        void Close();
-        void CheckOpen() const;
-    };
-
-
     v8::Handle<v8::Object> InitFS(const std::string& code_path,
                                   const std::string& lib_path,
                                   const std::string& media_path);
