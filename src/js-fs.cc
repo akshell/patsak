@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <string.h>
+#include <sys/file.h>
 
 
 using namespace ak;
@@ -146,6 +147,12 @@ namespace
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, WriteCb,
                              const v8::Arguments&) const;
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, LockCb,
+                             const v8::Arguments&) const;
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, UnlockCb,
+                             const v8::Arguments&) const;
     };
 }
 
@@ -172,6 +179,8 @@ DEFINE_JS_CLASS(FileBg, "File", object_template, proto_template)
     SetFunction(proto_template, "flush", FlushCb);
     SetFunction(proto_template, "read", ReadCb);
     SetFunction(proto_template, "write", WriteCb);
+    SetFunction(proto_template, "lock", LockCb);
+    SetFunction(proto_template, "unlock", UnlockCb);
 }
 
 
@@ -301,6 +310,39 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, WriteCb,
     ssize_t count = write(fd_, binarizator.GetData(), binarizator.GetSize());
     AK_ASSERT_EQUAL(count, static_cast<ssize_t>(binarizator.GetSize()));
     return args.This();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, LockCb,
+                    const Arguments&, args) const
+{
+    CheckWritable();
+    int type;
+    if (args.Length()) {
+        string type_name(Stringify(args[0]));
+        if (type_name == "shared")
+            type = LOCK_SH;
+        else if (type_name == "exclusive")
+            type = LOCK_EX;
+        else
+            throw Error(Error::VALUE,
+                        "Valid lock types are 'shared' and 'exclusive'");
+    } else {
+        type = LOCK_EX;
+    }
+    int ret = flock(fd_, type);
+    AK_ASSERT_EQUAL(ret, 0);
+    return Undefined();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, UnlockCb,
+                    const Arguments&, /*args*/) const
+{
+    CheckWritable();
+    int ret = flock(fd_, LOCK_UN);
+    AK_ASSERT_EQUAL(ret, 0);
+    return Undefined();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

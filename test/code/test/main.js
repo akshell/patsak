@@ -961,6 +961,12 @@ var fsTestSuite = {
     assert(file.readable);
     assert(file.positionable);
     file.flush();
+    file.lock();
+    file.lock('exclusive');
+    file.lock('shared');
+    assertThrow(ValueError, function () { file.lock('bad'); });
+    file.unlock();
+    file.unlock();
     file.close();
     assert(file.closed);
     assertThrow(ValueError, function () { file.read(); });
