@@ -37,9 +37,20 @@ namespace
     private:
         static size_t open_count;
 
+        bool readable_;
+        bool writable_;
+
         static int Connect(const std::string& host, const std::string& service);
 
         DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetClosedCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetReadableCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetWritableCb,
                              v8::Local<v8::String>,
                              const v8::AccessorInfo&) const;
 
@@ -51,6 +62,9 @@ namespace
 
         DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, SendCb,
                              const v8::Arguments&) const;
+
+        DECLARE_JS_CALLBACK1(v8::Handle<v8::Value>, ShutdownCb,
+                             const v8::Arguments&);
     };
 }
 
@@ -64,9 +78,18 @@ DEFINE_JS_CLASS(SocketBg, "Socket", object_template, proto_template)
                                  GetClosedCb, 0,
                                  Handle<v8::Value>(), DEFAULT,
                                  ReadOnly | DontDelete);
+    object_template->SetAccessor(String::NewSymbol("readable"),
+                                 GetReadableCb, 0,
+                                 Handle<v8::Value>(), DEFAULT,
+                                 ReadOnly | DontDelete);
+    object_template->SetAccessor(String::NewSymbol("writable"),
+                                 GetWritableCb, 0,
+                                 Handle<v8::Value>(), DEFAULT,
+                                 ReadOnly | DontDelete);
     SetFunction(proto_template, "close", CloseCb);
     SetFunction(proto_template, "receive", ReceiveCb);
     SetFunction(proto_template, "send", SendCb);
+    SetFunction(proto_template, "shutdown", ShutdownCb);
 }
 
 
@@ -102,6 +125,8 @@ int SocketBg::Connect(const string& host, const string& service)
 
 SocketBg::SocketBg(int fd)
     : BaseFile(fd)
+    , readable_(true)
+    , writable_(true)
 {
     ++open_count;
 }
@@ -109,6 +134,8 @@ SocketBg::SocketBg(int fd)
 
 SocketBg::SocketBg(const string& host, const string& service)
     : BaseFile(Connect(host, service))
+    , readable_(true)
+    , writable_(true)
 {
     ++open_count;
 }
@@ -130,6 +157,24 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, SocketBg, GetClosedCb,
 }
 
 
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, SocketBg, GetReadableCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/) const
+{
+    CheckOpen();
+    return Boolean::New(readable_);
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, SocketBg, GetWritableCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/) const
+{
+    CheckOpen();
+    return Boolean::New(writable_);
+}
+
+
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, SocketBg, CloseCb,
                     const Arguments&, /*args*/)
 {
@@ -141,8 +186,10 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SocketBg, CloseCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, SocketBg, ReceiveCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 1);
     CheckOpen();
+    if (!readable_)
+        throw Error(Error::VALUE, "Socket is shut down for receiving");
+    CheckArgsLength(args, 1);
     size_t size = args[0]->Uint32Value();
     auto_ptr<Chars> data_ptr(new Chars(size));
     ssize_t received = recv(fd_, &data_ptr->front(), size, 0);
@@ -156,13 +203,41 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SocketBg, ReceiveCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, SocketBg, SendCb,
                     const Arguments&, args) const
 {
-    CheckArgsLength(args, 1);
     CheckOpen();
+    if (!writable_)
+        throw Error(Error::VALUE, "Socket is shut down for sending");
+    CheckArgsLength(args, 1);
     Binarizator binarizator(args[0]);
     ssize_t sent = send(fd_, binarizator.GetData(), binarizator.GetSize(), 0);
     if (sent == -1)
         throw Error(Error::SOCKET, strerror(errno));
     return Integer::New(sent);
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, SocketBg, ShutdownCb,
+                    const Arguments&, args)
+{
+    CheckOpen();
+    CheckArgsLength(args, 1);
+    int type;
+    string type_name(Stringify(args[0]));
+    if (type_name == "send") {
+        type = SHUT_WR;
+        writable_ = false;
+    } else if (type_name == "receive") {
+        type = SHUT_RD;
+        readable_ = false;
+    } else if (type_name == "both") {
+        type = SHUT_RDWR;
+        readable_ = writable_ = false;
+    } else {
+        throw Error(Error::VALUE,
+                    "Valid shutdown types are 'send', 'receive', and 'both'");
+    }
+    if (shutdown(fd_, type))
+        throw Error(Error::SOCKET, strerror(errno));
+    return Undefined();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
