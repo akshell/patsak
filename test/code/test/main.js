@@ -930,6 +930,11 @@ var fsTestSuite = {
     media.removeAll();
   },
 
+  testWritable: function () {
+    assert(media.writable);
+    assert(!code.writable);
+  },
+
   testOpen: function () {
     assertEqual(media.open('//dir1////subdir/hello').read(), 'hello world!');
     assertSame(media.open('file').read()[5], 't'.charCodeAt(0));

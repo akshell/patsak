@@ -323,6 +323,10 @@ namespace
         string ReadPath(Handle<v8::Value> value, bool can_be_root = true) const;
         string ReadPath(const Arguments& args) const;
 
+        DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetWritableCb,
+                             v8::Local<v8::String>,
+                             const v8::AccessorInfo&) const;
+
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, OpenCb,
                              const Arguments&) const;
 
@@ -354,9 +358,12 @@ namespace
 }
 
 
-DEFINE_JS_CLASS(FileStorageBg, "FileStorage",
-                /*object_template*/, proto_template)
+DEFINE_JS_CLASS(FileStorageBg, "FileStorage", object_template, proto_template)
 {
+    object_template->SetAccessor(String::NewSymbol("writable"),
+                                 GetWritableCb, 0,
+                                 Handle<v8::Value>(), DEFAULT,
+                                 ReadOnly | DontDelete);
     SetFunction(proto_template, "open", OpenCb);
     SetFunction(proto_template, "exists", ExistsCb);
     SetFunction(proto_template, "isDir", IsDirCb);
@@ -415,6 +422,14 @@ string FileStorageBg::ReadPath(const Arguments& args) const
 {
     CheckArgsLength(args, 1);
     return ReadPath(args[0]);
+}
+
+
+DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileStorageBg, GetWritableCb,
+                    Local<String>, /*property*/,
+                    const AccessorInfo&, /*info*/) const
+{
+    return Boolean::New(writable_);
 }
 
 
