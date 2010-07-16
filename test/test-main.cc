@@ -2,9 +2,8 @@
 // (c) 2008-2010 by Anton Korenyushkin
 
 #include "../src/parser.h"
-#include "../src/db.h"
 #include "../src/translator.h"
-#include "../src/js.h"
+#include "../src/db.h"
 
 #include <boost/test/unit_test.hpp>
 #include <boost/foreach.hpp>
