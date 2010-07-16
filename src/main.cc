@@ -67,6 +67,7 @@ int main(int argc, char** argv)
     string db_name, user_name, password, schema_name, tablespace_name;
     po::options_description config_options("Config options");
     config_options.add_options()
+        ("daemonize,d", "daemonize before serving")
         ("log-file,o", po::value<string>(&log_path), "log file")
         ("code-dir,c", po::value<string>(&code_path), "code directory")
         ("lib-dir,l", po::value<string>(&lib_path), "lib directory")
@@ -137,10 +138,9 @@ int main(int argc, char** argv)
         return !vm.count("help");
     }
 
-    bool eval = command == "eval";
     Chars expr;
     string socket_path;
-    if (eval) {
+    if (command == "eval") {
         expr.assign(socket_path_or_expr.begin(), socket_path_or_expr.end());
     } else if (command == "serve") {
         socket_path = socket_path_or_expr;
@@ -172,7 +172,7 @@ int main(int argc, char** argv)
         git_path_suffix = git_path_pattern.substr(pos + 2);
     }
 
-    if (!eval) {
+    if (command == "serve" && vm.count("daemonize")) {
         char* curr_dir = get_current_dir_name();
         AK_ASSERT(curr_dir);
         MakePathAbsolute(curr_dir, log_path);
@@ -203,7 +203,7 @@ int main(int argc, char** argv)
            schema_name,
            tablespace_name);
 
-    if (eval) {
+    if (command == "eval") {
         EvalExpr(expr, STDOUT_FILENO);
         cout << '\n';
         return 0;

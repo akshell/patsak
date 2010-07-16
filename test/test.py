@@ -188,6 +188,7 @@ def main():
 
     with open(CONFIG_PATH, 'w') as f:
         f.write('''
+daemonize=1
 db-name=%s
 db-user=%s
 db-password=%s
