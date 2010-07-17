@@ -175,7 +175,7 @@ def main():
 db-name=%s
 db-user=%s
 db-password=%s
-code-dir=%s/test
+code-dir=%s/main
 lib-dir=%s
 media-dir=%s
 git-pattern=%s/%%s/.git
