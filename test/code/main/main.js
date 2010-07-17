@@ -1649,7 +1649,7 @@ test = function () {
 };
 
 
-main = function (socket) {
+exports.handle = function (socket) {
   socket.send(eval(socket.receive(4096) + ''));
 };
 

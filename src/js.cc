@@ -36,8 +36,8 @@ namespace
     const int MAX_OLD_SPACE_SIZE   = 32 * 1024 * 1024;
     const int STACK_LIMIT          =  2 * 1024 * 1024;
 
-    bool initialized = false;
     Persistent<Context> context;
+    Persistent<Object> main_exports;
     jmp_buf environment;
 
 
@@ -64,10 +64,10 @@ namespace
     }
 
 
-    bool Run(Handle<Function> function,
+    bool Run(const Handle<Object>& holder,
+             const string& func_name,
              Handle<v8::Value> arg,
-             string* result_ptr,
-             bool report_ok)
+             string* result_ptr = 0)
     {
         if (setjmp(environment)) {
             if (result_ptr)
@@ -75,18 +75,38 @@ namespace
             return false;
         }
         TryCatch try_catch;
-        Handle<v8::Value> value;
-        {
-            ExecutionGuard guard;
-            value = function->Call(context->Global(), 1, &arg);
+        Handle<v8::Value> ret;
+        if (main_exports.IsEmpty()) {
+            Handle<Function> require_func(
+                Handle<Function>::Cast(Get(context->Global(), "require")));
+            AK_ASSERT(!require_func.IsEmpty());
+            Handle<v8::Value> main_name(String::New("main"));
+            {
+                ExecutionGuard guard;
+                ret = require_func->Call(context->Global(), 1, &main_name);
+            }
+            if (!ret.IsEmpty())
+                main_exports = Persistent<Object>::New(ret->ToObject());
         }
-        if (!value.IsEmpty()) {
+        if (!main_exports.IsEmpty()) {
+            Handle<v8::Value> func_value(Get(holder, func_name));
+            if (func_value.IsEmpty() || !func_value->IsFunction()) {
+                if (result_ptr)
+                    *result_ptr = func_name + " is not a function";
+                return false;
+            } else {
+                ExecutionGuard guard;
+                ret = Handle<Function>::Cast(func_value)->Call(
+                    context->Global(), 1, &arg);
+            }
+        }
+        if (!ret.IsEmpty()) {
             if (RolledBack())
                 RollBack();
             else
                 Commit();
-            if (result_ptr && report_ok)
-                *result_ptr = Stringify(value);
+            if (result_ptr)
+                *result_ptr = Stringify(ret);
             return true;
         }
         RollBack();
@@ -117,30 +137,6 @@ namespace
         *result_ptr = oss.str();
         return false;
     }
-
-
-    bool Call(const string& func_name,
-              Handle<v8::Value> arg,
-              string* result_ptr = 0)
-    {
-        if (!initialized) {
-            Handle<Function> require_func(
-                Handle<Function>::Cast(Get(context->Global(), "require")));
-            AK_ASSERT(!require_func.IsEmpty());
-            if (!Run(require_func, String::New("main"), result_ptr, false))
-                return false;
-            initialized = true;
-        }
-        Handle<v8::Value> func_value(Get(context->Global(), func_name));
-        if (func_value.IsEmpty() || !func_value->IsFunction()) {
-            if (result_ptr)
-                *result_ptr = func_name + " is not a function";
-            return false;
-        } else {
-            return Run(
-                Handle<Function>::Cast(func_value), arg, result_ptr, true);
-        }
-    }
 }
 
 
@@ -149,7 +145,7 @@ bool ak::HandleRequest(int conn_fd)
     HandleScope handle_scope;
     Context::Scope context_scope(context);
     SocketScope socket_scope(conn_fd);
-    return Call("main", socket_scope.GetSocket());
+    return Run(main_exports, "handle", socket_scope.GetSocket());
 }
 
 
@@ -157,7 +153,7 @@ bool ak::EvalExpr(const char* expr, size_t size, string& result)
 {
     HandleScope handle_scope;
     Context::Scope context_scope(context);
-    return Call("eval", String::New(expr, size), &result);
+    return Run(context->Global(), "eval", String::New(expr, size), &result);
 }
 
 
