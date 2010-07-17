@@ -10,6 +10,8 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <errno.h>
+#include <netdb.h>
+#include <signal.h>
 
 
 using namespace std;
@@ -19,6 +21,9 @@ namespace po = boost::program_options;
 
 namespace
 {
+    const size_t MAX_EXPR_SIZE = 4096;
+
+
     void MakePathAbsolute(const string& base_path, string& path)
     {
         if (path.empty() || path[0] != '/')
@@ -35,18 +40,78 @@ namespace
     }
 
 
-    ssize_t Receive(int fd, char* buf, size_t size)
+    void HandleStop(int /*signal*/)
     {
-        size_t total = 0;
-        while (total < size) {
-            ssize_t received = recv(fd, buf + total, size - total, 0);
-            if (received == -1)
-                return -1;
-            if (!received)
-                break;
-            total += received;
+        exit(0);
+    }
+
+
+    pid_t LaunchWorker(const vector<int>& worker_fds, int listen_fd, int& fd)
+    {
+        int fd_pair[2];
+        int ret = socketpair(AF_UNIX, SOCK_STREAM, 0, fd_pair);
+        AK_ASSERT_EQUAL(ret, 0);
+        pid_t pid = fork();
+        AK_ASSERT(pid != -1);
+        if (pid) {
+            fd = fd_pair[0];
+            close(fd_pair[1]);
+        } else {
+            fd = fd_pair[1];
+            close(fd_pair[0]);
+            close(listen_fd);
+            BOOST_FOREACH(int worker_fd, worker_fds)
+                close(worker_fd);
         }
-        return total;
+        return pid;
+    }
+
+
+    int Serve(int listen_fd, size_t worker_count)
+    {
+        vector<int> worker_fds;
+        worker_fds.reserve(worker_count);
+        for (size_t i = 0; i < worker_count; ++i) {
+            int fd;
+            if (!LaunchWorker(worker_fds, listen_fd, fd))
+                return fd;
+            worker_fds.push_back(fd);
+        }
+        for (size_t i = 0;; i = (i + 1) % worker_count) {
+            int conn_fd = accept(listen_fd, 0, 0);
+            AK_ASSERT(conn_fd != -1);
+            struct msghdr msg;
+            msg.msg_name = 0;
+            msg.msg_namelen = 0;
+            char op = 'H';
+            struct iovec iov;
+            iov.iov_base = &op;
+            iov.iov_len = 1;
+            msg.msg_iov = &iov;
+            msg.msg_iovlen = 1;
+            char control[CMSG_SPACE(sizeof(int))];
+            msg.msg_control = control;
+            msg.msg_controllen = sizeof(control);
+            struct cmsghdr* cmsg_ptr = CMSG_FIRSTHDR(&msg);
+            cmsg_ptr->cmsg_level = SOL_SOCKET;
+            cmsg_ptr->cmsg_type = SCM_RIGHTS;
+            cmsg_ptr->cmsg_len = CMSG_LEN(sizeof(int));
+            *reinterpret_cast<int*>(CMSG_DATA(cmsg_ptr)) = conn_fd;
+            msg.msg_controllen = cmsg_ptr->cmsg_len;
+            ssize_t sent = sendmsg(worker_fds[i], &msg, 0);
+            if (sent != 1) {
+                int fd;
+                if (!LaunchWorker(worker_fds, listen_fd, fd)) {
+                    close(conn_fd);
+                    return fd;
+                }
+                close(worker_fds[i]);
+                worker_fds[i] = fd;
+                sent = sendmsg(fd, &msg, 0);
+                AK_ASSERT_EQUAL(sent, 1);
+            }
+            close(conn_fd);
+        }
     }
 }
 
@@ -65,9 +130,9 @@ int main(int argc, char** argv)
     string log_path, code_path, lib_path, media_path;
     string git_path_pattern;
     string db_name, user_name, password, schema_name, tablespace_name;
+    size_t worker_count;
     po::options_description config_options("Config options");
     config_options.add_options()
-        ("daemonize,d", "daemonize before serving")
         ("log-file,o", po::value<string>(&log_path), "log file")
         ("code-dir,c", po::value<string>(&code_path), "code directory")
         ("lib-dir,l", po::value<string>(&lib_path), "lib directory")
@@ -84,20 +149,24 @@ int main(int argc, char** argv)
         ("db-tablespace,t",
          po::value<string>(&tablespace_name)->default_value("pg_default"),
          "database tablespace")
+        ("daemonize,d", "daemonize before serving")
+        ("workers,w",
+         po::value<size_t>(&worker_count)->default_value(5),
+         "serve worker count")
         ;
 
     string command;
-    string socket_path_or_expr;
+    string place_or_expr;
     po::options_description hidden_options;
     hidden_options.add_options()
         ("command", po::value<string>(&command))
-        ("socket-path-or-expr", po::value<string>(&socket_path_or_expr))
+        ("place-or-expr", po::value<string>(&place_or_expr))
         ;
 
     po::positional_options_description positional_options;
     positional_options
         .add("command", 1)
-        .add("socket-path-or-expr", 1)
+        .add("place-or-expr", 1)
         ;
 
     po::options_description cmdline_options;
@@ -131,26 +200,12 @@ int main(int argc, char** argv)
 
     if (vm.count("help") || command.empty()) {
         po::options_description visible_options(
-            string("Usage: ") + argv[0] + " [options] serve PATH\n"
-            "       " + argv[0] + " [options] eval  EXPR");
+            string("Usage: ") +
+            argv[0] + " [options] serve [PORT or ADDR:PORT or PATH]\n       " +
+            argv[0] + " [options] eval  EXPRESSION");
         visible_options.add(generic_options).add(config_options);
         cout << visible_options << '\n';
         return !vm.count("help");
-    }
-
-    Chars expr;
-    string socket_path;
-    if (command == "eval") {
-        expr.assign(socket_path_or_expr.begin(), socket_path_or_expr.end());
-    } else if (command == "serve") {
-        socket_path = socket_path_or_expr;
-        if (socket_path.empty()) {
-            cerr << "Socket path must be specified\n";
-            return 1;
-        }
-    } else {
-        cerr << "Unknown command: " << command << '\n';
-        return 1;
     }
 
     RequireOption("log-file", log_path);
@@ -172,26 +227,110 @@ int main(int argc, char** argv)
         git_path_suffix = git_path_pattern.substr(pos + 2);
     }
 
-    if (command == "serve" && vm.count("daemonize")) {
-        char* curr_dir = get_current_dir_name();
-        AK_ASSERT(curr_dir);
-        MakePathAbsolute(curr_dir, log_path);
-        MakePathAbsolute(curr_dir, socket_path);
-        MakePathAbsolute(curr_dir, code_path);
-        MakePathAbsolute(curr_dir, lib_path);
-        MakePathAbsolute(curr_dir, media_path);
-        if (!git_path_pattern.empty())
-            MakePathAbsolute(curr_dir, git_path_prefix);
-        free(curr_dir);
-        pid_t pid = fork();
-        AK_ASSERT(pid != -1);
-        if (pid > 0)
-            return 0;
-        umask(0);
-        pid_t sid = setsid();
-        AK_ASSERT(sid != -1);
-        int ret = chdir("/");
-        AK_ASSERT(ret == 0);
+    int server_fd = STDIN_FILENO;
+
+    if (command == "serve") {
+        string& place(place_or_expr);
+        bool local = place.find_first_of('/') != string::npos;
+        if (vm.count("daemonize")) {
+            char* curr_dir = get_current_dir_name();
+            AK_ASSERT(curr_dir);
+            MakePathAbsolute(curr_dir, log_path);
+            MakePathAbsolute(curr_dir, code_path);
+            MakePathAbsolute(curr_dir, lib_path);
+            MakePathAbsolute(curr_dir, media_path);
+            if (!git_path_pattern.empty())
+                MakePathAbsolute(curr_dir, git_path_prefix);
+            if (local)
+                MakePathAbsolute(curr_dir, place);
+            free(curr_dir);
+            pid_t pid = fork();
+            AK_ASSERT(pid != -1);
+            if (pid)
+                return 0;
+            umask(0);
+            pid_t sid = setsid();
+            AK_ASSERT(sid != -1);
+            int ret = chdir("/");
+            AK_ASSERT_EQUAL(ret, 0);
+        }
+        int listen_fd;
+        if (local) {
+            listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+            AK_ASSERT(listen_fd != -1);
+            unlink(place.c_str());
+            struct sockaddr_un address;
+            address.sun_family = AF_UNIX;
+            strncpy(address.sun_path,
+                    place.c_str(),
+                    sizeof(address.sun_path) - 1);
+            if (bind(listen_fd,
+                     reinterpret_cast<struct sockaddr*>(&address),
+                     SUN_LEN(&address)))
+                Fail(strerror(errno));
+            cout << "Running at unix:" << place << '\n';
+        } else {
+            string host("127.0.0.1");
+            string port("8000");
+            if (!place.empty()) {
+                size_t colon_idx = place.find_first_of(':');
+                if (colon_idx == string::npos) {
+                    port = place;
+                } else {
+                    host = place.substr(0, colon_idx);
+                    port = place.substr(colon_idx + 1);
+                }
+            }
+            struct addrinfo hints;
+            memset(&hints, 0, sizeof(hints));
+            hints.ai_family = AF_UNSPEC;
+            hints.ai_socktype = SOCK_STREAM;
+            struct addrinfo* first_info_ptr;
+            if (int ret = getaddrinfo(host.c_str(), port.c_str(),
+                                      &hints, &first_info_ptr))
+                Fail(gai_strerror(ret));
+            struct addrinfo* info_ptr = first_info_ptr;
+            do {
+                listen_fd = socket(info_ptr->ai_family,
+                                   info_ptr->ai_socktype,
+                                   info_ptr->ai_protocol);
+                AK_ASSERT(listen_fd != -1);
+                int yes = 1;
+                int ret = setsockopt(
+                    listen_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+                AK_ASSERT_EQUAL(ret, 0);
+                if (!bind(listen_fd, info_ptr->ai_addr, info_ptr->ai_addrlen))
+                    break;
+                close(listen_fd);
+                info_ptr = info_ptr->ai_next;
+            } while (info_ptr);
+            if (!info_ptr)
+                Fail(strerror(errno));
+            freeaddrinfo(first_info_ptr);
+            cout << "Running at " << host << ':' << port << '\n';
+        }
+        int ret = listen(listen_fd, SOMAXCONN);
+        AK_ASSERT_EQUAL(ret, 0);
+        if (vm.count("daemonize")) {
+            freopen("/dev/null", "r", stdin);
+            freopen("/dev/null", "r", stdout);
+            freopen(log_path.c_str(), "a", stderr);
+        } else {
+            cout << "Quit with Control-C.\n";
+            cout.flush();
+        }
+        struct sigaction action;
+        action.sa_handler = HandleStop;
+        sigemptyset(&action.sa_mask);
+        action.sa_flags = 0;
+        ret = sigaction(SIGTERM, &action, 0);
+        AK_ASSERT_EQUAL(ret, 0);
+        ret = sigaction(SIGINT, &action, 0);
+        AK_ASSERT_EQUAL(ret, 0);
+        server_fd = Serve(listen_fd, worker_count);
+    } else if (command != "eval" && command != "work") {
+        cerr << "Unknown command: " << command << '\n';
+        return 1;
     }
 
     InitJS(code_path,
@@ -204,69 +343,56 @@ int main(int argc, char** argv)
            tablespace_name);
 
     if (command == "eval") {
-        EvalExpr(expr, STDOUT_FILENO);
-        cout << '\n';
+        const string& expr(place_or_expr);
+        string result;
+        EvalExpr(expr.data(), expr.size(), result);
+        cout << result << '\n';
         return 0;
     }
 
-    freopen("/dev/null", "r", stdin);
-    freopen(log_path.c_str(), "a", stderr);
-
-    int listen_fd = socket(PF_UNIX, SOCK_STREAM, 0);
-    AK_ASSERT(listen_fd != -1);
-    unlink(socket_path.c_str());
-    struct sockaddr_un address;
-    address.sun_family = AF_UNIX;
-    strncpy(address.sun_path,
-            socket_path.c_str(),
-            sizeof(address.sun_path) - 1);
-    struct sockaddr* address_ptr = reinterpret_cast<struct sockaddr*>(&address);
-    socklen_t address_size = SUN_LEN(&address);
-    if (bind(listen_fd, address_ptr, address_size) != 0)
-        Fail(strerror(errno));
-    int ret = listen(listen_fd, SOMAXCONN);
-    AK_ASSERT_EQUAL(ret, 0);
-
-    cout << "READY" << endl;
-    freopen("/dev/null", "w", stdout);
-
     do {
-        int conn_fd = accept(listen_fd, address_ptr, &address_size);
-        AK_ASSERT(conn_fd != -1);
-        static const ssize_t OP_SIZE = 5;
-        char op_buf[OP_SIZE];
-        if (Receive(conn_fd, op_buf, OP_SIZE) != OP_SIZE) {
-            close(conn_fd);
-            continue;
-        }
-        string op(op_buf, op_buf + OP_SIZE);
-        if (op == "STOP\n") {
-            close(conn_fd);
+        struct msghdr msg;
+        msg.msg_name = 0;
+        msg.msg_namelen = 0;
+        struct iovec iov;
+        char op;
+        iov.iov_base = &op;
+        iov.iov_len = 1;
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+        char control[CMSG_SPACE(sizeof(int))];
+        msg.msg_control = control;
+        msg.msg_controllen = sizeof(control);
+        ssize_t count = recvmsg(server_fd, &msg, 0);
+        if (count != 1 || op == 'S')
             break;
-        }
-        if (op == "HNDL\n") {
+        struct cmsghdr* cmsg_ptr = CMSG_FIRSTHDR(&msg);
+        int conn_fd = *reinterpret_cast<int*>(CMSG_DATA(cmsg_ptr));
+        if (op == 'H') {
             HandleRequest(conn_fd); // closes the socket
             continue;
         }
-        if (op == "EVAL\n") {
-            static const ssize_t CHUNK_SIZE = 4096;
-            Chars data;
-            size_t size = 0;
-            ssize_t received;
-            do {
-                data.resize(size + CHUNK_SIZE);
-                received = Receive(conn_fd, &data[size], CHUNK_SIZE);
-                size += received;
-            } while (received == CHUNK_SIZE);
-            if (received != -1) {
-                data.resize(size);
-                EvalExpr(data, conn_fd);
+        AK_ASSERT_EQUAL(op, 'E');
+        char expr[MAX_EXPR_SIZE];
+        size_t received = 0;
+        do {
+            count = read(conn_fd, expr + received, MAX_EXPR_SIZE - received);
+            received += count;
+        } while (count > 0);
+        if (count != -1) {
+            string result;
+            char status = EvalExpr(expr, received, result) ? 'S' : 'F';
+            count = write(conn_fd, &status, 1);
+            size_t sent = 0;
+            while (count > 0 && sent < result.size()) {
+                count = write(conn_fd,
+                              result.data() + sent,
+                              result.size() - sent);
+                sent += count;
             }
         }
         close(conn_fd);
     } while (!ProgramIsDead());
-
-    close(listen_fd);
 
     return 0;
 }

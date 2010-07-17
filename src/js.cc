@@ -64,34 +64,14 @@ namespace
     }
 
 
-    void Write(int fd, const char* data, size_t size)
-    {
-        if (fd == -1)
-            return;
-        while (size) {
-            ssize_t count = write(fd, data, size);
-            if (count <= 0)
-                break;
-            data += count;
-            size -= count;
-        }
-    }
-
-
-    void Write(int fd, const std::string& str)
-    {
-        Write(fd, str.c_str(), str.size());
-    }
-
-
-
     bool Run(Handle<Function> function,
              Handle<v8::Value> arg,
-             int out_fd,
-             bool print_ok)
+             string* result_ptr,
+             bool report_ok)
     {
         if (setjmp(environment)) {
-            Write(out_fd, "ERROR\n<Out of memory>");
+            if (result_ptr)
+                *result_ptr = "<Out of memory>";
             return false;
         }
         TryCatch try_catch;
@@ -100,83 +80,84 @@ namespace
             ExecutionGuard guard;
             value = function->Call(context->Global(), 1, &arg);
         }
-        if (value.IsEmpty()) {
-            RollBack();
-            if (TimedOut()) {
-                Write(out_fd, "ERROR\n<Timed out>");
-            } else if (out_fd != -1) {
-                ostringstream oss;
-                oss << "ERROR\n";
-                Handle<v8::Value> stack_trace(try_catch.StackTrace());
-                if (!stack_trace.IsEmpty()) {
-                    oss << Stringify(stack_trace);
-                } else {
-                    Handle<Message> message(try_catch.Message());
-                    if (!message.IsEmpty()) {
-                        oss << Stringify(message->Get()) << "\n    at ";
-                        Handle<v8::Value> resource_name(
-                            message->GetScriptResourceName());
-                        if (!resource_name->IsUndefined())
-                            oss << Stringify(resource_name) << ':';
-                        oss << message->GetLineNumber() << ':'
-                            << message->GetStartColumn();
-                    } else {
-                        Handle<v8::Value> exception(try_catch.Exception());
-                        AK_ASSERT(!exception.IsEmpty());
-                        oss << Stringify(exception);
-                    }
-                }
-                Write(out_fd, oss.str());
-            }
+        if (!value.IsEmpty()) {
+            if (RolledBack())
+                RollBack();
+            else
+                Commit();
+            if (result_ptr && report_ok)
+                *result_ptr = Stringify(value);
+            return true;
+        }
+        RollBack();
+        if (!result_ptr)
+            return false;
+        if (TimedOut()) {
+            *result_ptr = "<Timed out>";
             return false;
         }
-        if (RolledBack())
-            RollBack();
-        else
-            Commit();
-        if (out_fd != -1 && print_ok) {
-            Write(out_fd, "OK\n");
-            Binarizator binarizator(value);
-            Write(out_fd, binarizator.GetData(), binarizator.GetSize());
+        Handle<v8::Value> stack_trace(try_catch.StackTrace());
+        if (!stack_trace.IsEmpty()) {
+            *result_ptr = Stringify(stack_trace);
+            return false;
         }
-        return true;
+        Handle<Message> message(try_catch.Message());
+        if (message.IsEmpty()) {
+            Handle<v8::Value> exception(try_catch.Exception());
+            AK_ASSERT(!exception.IsEmpty());
+            *result_ptr = Stringify(exception);
+            return false;
+        }
+        ostringstream oss;
+        oss << Stringify(message->Get()) << "\n    at ";
+        Handle<v8::Value> resource_name(message->GetScriptResourceName());
+        if (!resource_name->IsUndefined())
+            oss << Stringify(resource_name) << ':';
+        oss << message->GetLineNumber() << ':' << message->GetStartColumn();
+        *result_ptr = oss.str();
+        return false;
     }
 
 
-    void Call(const string& func_name, Handle<v8::Value> arg, int out_fd = -1)
+    bool Call(const string& func_name,
+              Handle<v8::Value> arg,
+              string* result_ptr = 0)
     {
         if (!initialized) {
             Handle<Function> require_func(
                 Handle<Function>::Cast(Get(context->Global(), "require")));
             AK_ASSERT(!require_func.IsEmpty());
-            if (!Run(require_func, String::New("main"), out_fd, false))
-                return;
+            if (!Run(require_func, String::New("main"), result_ptr, false))
+                return false;
             initialized = true;
         }
         Handle<v8::Value> func_value(Get(context->Global(), func_name));
-        if (func_value.IsEmpty() || !func_value->IsFunction())
-            Write(out_fd, "ERROR\n" + func_name + " is not a function");
-        else
-            Run(Handle<Function>::Cast(func_value), arg, out_fd, true);
+        if (func_value.IsEmpty() || !func_value->IsFunction()) {
+            if (result_ptr)
+                *result_ptr = func_name + " is not a function";
+            return false;
+        } else {
+            return Run(
+                Handle<Function>::Cast(func_value), arg, result_ptr, true);
+        }
     }
 }
 
 
-void ak::HandleRequest(int sock_fd)
+bool ak::HandleRequest(int conn_fd)
 {
     HandleScope handle_scope;
     Context::Scope context_scope(context);
-    SocketScope socket_scope(sock_fd);
-    Call("main", socket_scope.GetSocket());
+    SocketScope socket_scope(conn_fd);
+    return Call("main", socket_scope.GetSocket());
 }
 
 
-void ak::EvalExpr(const Chars& expr, int out_fd)
+bool ak::EvalExpr(const char* expr, size_t size, string& result)
 {
     HandleScope handle_scope;
     Context::Scope context_scope(context);
-    Handle<v8::Value> arg(String::New(&expr[0], expr.size()));
-    Call("eval", arg, out_fd);
+    return Call("eval", String::New(expr, size), &result);
 }
 
 

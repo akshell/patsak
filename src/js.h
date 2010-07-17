@@ -9,8 +9,8 @@
 
 namespace ak
 {
-    void HandleRequest(int sock_fd);
-    void EvalExpr(const Chars& expr, int out_fd);
+    bool HandleRequest(int conn_fd);
+    bool EvalExpr(const char* expr, size_t size, std::string& result);
     bool ProgramIsDead();
 
     void InitJS(const std::string& code_path,

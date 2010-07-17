@@ -1650,16 +1650,7 @@ test = function () {
 
 
 main = function (socket) {
-  for (;;) {
-    var data = socket.receive(4096);
-    if (!data.length)
-      break;
-    var start = 0;
-    do {
-      var count = socket.send(data.range(start));
-      start += count;
-    } while (count && start < data.length);
-  }
+  socket.send(eval(socket.receive(4096) + ''));
 };
 
 

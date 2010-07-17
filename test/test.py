@@ -8,11 +8,11 @@ import os.path
 import unittest
 import sys
 import socket
-import time
 import os
 import shutil
 import psycopg2
 import errno
+import signal
 
 
 DB_NAME      = 'test'
@@ -27,6 +27,9 @@ TEST_PATH    = os.path.dirname(__file__)
 CODE_PATH    = TEST_PATH + '/code'
 LIB_PATH     = TEST_PATH + '/../lib'
 FUNCS_PATH   = TEST_PATH + '/../src/funcs.sql'
+HOST         = 'localhost'
+PORT1        = 13423
+PORT2        = 13424
 
 
 def _popen(cmd):
@@ -37,14 +40,17 @@ def _popen(cmd):
         stderr=subprocess.PIPE)
 
 
-class Test(unittest.TestCase):
-    def _check_launch(self, args, code=0, program=None):
-        process = _popen(
-            [program or PATSAK_PATH, '--config-file', CONFIG_PATH] + args)
-        self.assertEqual(process.wait(), code)
+def _launch(args):
+    return _popen([PATSAK_PATH, '--config-file', CONFIG_PATH] + args)
 
-    def testTestPatsak(self):
-        self._check_launch([], 0, TEST_PATSAK_PATH)
+
+class Test(unittest.TestCase):
+    def testDatabase(self):
+        self.assertEqual(_popen(TEST_PATSAK_PATH).wait(), 0)
+
+    def _check_launch(self, args, code=0):
+        process = _launch(args)
+        self.assertEqual(process.wait(), code)
 
     def testMain(self):
         self._check_launch([], 1)
@@ -52,101 +58,79 @@ class Test(unittest.TestCase):
         self._check_launch(['unknown-command'], 1)
         self._check_launch(['--help'])
         self._check_launch(['--rev'])
-        self._check_launch(['serve'], 1)
         self._check_launch(['--code-dir', '', 'serve', 'socket'], 1)
         self._check_launch(['--git-pattern', 'bad', 'eval', '1'], 1)
-        self._check_launch(['serve', 'bad/path'])
+        self._check_launch(['--daemonize', 'serve', 'bad/path'])
+        self._check_launch(['serve', 'bad:bad'], 1)
+        self._check_launch(['serve', 'example.com:80'], 1)
 
     def _eval(self, expr):
-        process = _popen(
-            [PATSAK_PATH, '--config-file', CONFIG_PATH, 'eval', expr])
+        process = _launch(['eval', expr])
         return process.stdout.read()[:-1]
 
-    def testJS(self):
+    def testEval(self):
+        self.assertEqual(self._eval('test()'), '0')
+        self.assertEqual(self._eval('new Binary(3)'), '\0\0\0')
         self.assert_('SyntaxError' in self._eval('argh!!!!'))
         self.assert_('ReferenceError' in self._eval('pish'))
-        self.assertEqual(self._eval('2+2'), 'OK\n4')
-        self.assertEqual(self._eval('2+2\n3+3'), 'OK\n6')
-        self.assertEqual(self._eval('s="x"; while(1) s+=s'),
-                         'ERROR\n<Out of memory>')
-        self._check_launch(['eval', '2+2\n3+3'])
-        process = _popen(
-            [PATSAK_PATH,
-             '--config-file', CONFIG_PATH,
-             '--code-dir', CODE_PATH + '/bad',
-             'eval', '1'])
+        self.assert_('Uncaught 42\n    at main.js:' in self._eval('throw42()'))
+        self.assertEqual(
+            self._eval('function f() { f(); } f()'),
+            'RangeError: Maximum call stack size exceeded')
+        self.assertEqual(self._eval('s="x"; while(1) s+=s'), '<Out of memory>')
+        self.assert_(
+            'Uncaught 42' in
+            self._eval('db.create("xxx", {}, [], [], []); throw 42'))
+        self.assertEqual(
+            self._eval('db.create("xxx", {}, [], [], []); db.rollback()'),
+            'undefined')
+        self.assertEqual(self._eval('db.list().indexOf("xxx")'), '-1')
+        # Timed out test. Long to run.
+#         self.assertEqual(self._eval('for (;;) test();'), '<Timed out>')
+        process = _launch(['--code-dir', CODE_PATH + '/bad', 'eval', '1'])
         self.assert_('SyntaxError' in process.stdout.read())
         self.assertEqual(process.wait(), 0)
 
-    def _connect(self):
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect(SOCKET_PATH)
-        return sock
-
-    def _talk(self, message):
-        sock = self._connect()
+    def _talk(self, sock, message):
         sock.send(message)
         sock.shutdown(socket.SHUT_WR)
         try:
-            result = sock.recv(4096)
-            self.assert_(len(result) < 4096)
-            return result
-        except socket.error, error:
-            if error.errno != errno.ECONNRESET:
-                raise error
-            return ''
+            return sock.recv(1024)
         finally:
             sock.close()
 
-    def testReleaseServer(self):
-        process = _popen(
-            [PATSAK_PATH, '--config-file', CONFIG_PATH, 'serve', SOCKET_PATH])
-        self.assertEqual(process.stdout.read(), 'READY\n')
-        self.assertEqual(process.wait(), 0)
-
-        sock = self._connect()
-        sock.close()
-
-        self.assertEqual(self._talk('UNKNOWN OPERATION'), '')
-        self.assertEqual(self._talk('HNDL\nhello'), 'hello')
-        self.assertEqual(self._talk('HNDL\nhello'), 'hello')
-        self.assertEqual(self._talk('EVAL\ntest()'), 'OK\n0')
-        self.assertEqual(self._talk('EVAL\nnew Binary(3)'), 'OK\n\0\0\0')
-        self.assert_(
-            'Uncaught 42\n    at main.js:' in self._talk('EVAL\nthrow42()'))
-        self.assertEqual(self._talk('EVAL\nfunction f() { f(); } f()'),
-                         'ERROR\nRangeError: Maximum call stack size exceeded')
-
-        self.assert_(
-            'Uncaught 1' in
-            self._talk(
-                'EVAL\ndb.create("xxx", {}, [], [], []); throw 1'))
+    def testServe(self):
+        process = _launch(['--daemonize', 'serve', SOCKET_PATH])
         self.assertEqual(
-            self._talk('EVAL\n'
-                       'db.create("xxx", {}, [], [], []);'
-                       'db.rollback()'),
-            'OK\nundefined')
-        self.assertEqual(self._talk('EVAL\n"xxx" in db.list()'),
-                         'OK\nfalse')
-
-        # Timed out test. Long to run.
-#         self.assertEqual(self._talk('EVAL\nfor (;;) test();'),
-#                          'ERROR\n<Timed out>')
-
-        sock = self._connect()
-        sock.send('EVAL\n')
-        time.sleep(0.1)
-        sock.send('2+2')
-        sock.shutdown(socket.SHUT_WR)
-        self.assertEqual(sock.recv(4096), 'OK\n4')
-        sock.close()
-
-        sock = self._connect()
-        sock.send('EVAL\n')
-        sock.close()
-
-        self.assertEqual(self._talk('STOP\n'), '')
-        self.assertRaises(socket.error, self._connect)
+            process.stdout.read(), 'Running at unix:%s\n' % SOCKET_PATH)
+        self.assertEqual(process.wait(), 0)
+        for expr, result in [('x=3; s="x"; while(1) s+=s', ''),
+                             ('x = 1', '1'),
+                             ('x = 2', '2'),
+                             ('y = 0; this.x', 'undefined'),
+                             ('x', '1'),
+                             ('x', '2'),
+                             ('y', '0'),
+                             ('throw 1', '')]:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.connect(SOCKET_PATH)
+            self.assertEqual(self._talk(sock, expr), result)
+        process = _launch(['serve', '%s:%d' % (HOST, PORT1)])
+        self.assertEqual(
+            process.stdout.readline(), 'Running at %s:%d\n' % (HOST, PORT1))
+        self.assertEqual(process.stdout.readline(), 'Quit with Control-C.\n')
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((HOST, PORT1))
+        self.assertEqual(self._talk(sock, '"hello"'), 'hello')
+        process.send_signal(signal.SIGTERM)
+        self.assertEqual(process.wait(), 0)
+        process = _launch(['serve', str(PORT2)])
+        self.assertEqual(
+            process.stdout.readline(), 'Running at 127.0.0.1:%d\n' % PORT2)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(('127.0.0.1', PORT2))
+        self.assertEqual(self._talk(sock, '"hello"'), 'hello')
+        process.kill()
 
 
 def _connect_to_db(name):
@@ -188,7 +172,6 @@ def main():
 
     with open(CONFIG_PATH, 'w') as f:
         f.write('''
-daemonize=1
 db-name=%s
 db-user=%s
 db-password=%s
@@ -197,12 +180,13 @@ lib-dir=%s
 media-dir=%s
 git-pattern=%s/%%s/.git
 log-file=%s
+workers=3
 ''' % (DB_NAME, DB_USER, DB_PASSWORD,
        CODE_PATH, LIB_PATH, MEDIA_PATH, CODE_PATH, LOG_PATH))
 
     unittest.TextTestRunner(verbosity=2).run(suite)
 
-    _popen(['killall', '-w', 'patsak'])
+    _popen(['killall', 'patsak'])
     shutil.rmtree(TMP_PATH)
 
 
