@@ -123,27 +123,6 @@ END;
 $$ LANGUAGE plpgsql VOLATILE;
 
 
-CREATE FUNCTION ak.drop_schemas(prefix text) RETURNS void AS $$
-DECLARE
-    nsp RECORD;
-BEGIN
-    FOR nsp IN SELECT nspname
-               FROM pg_namespace
-               WHERE nspname LIKE (prefix || '%') LOOP
-        EXECUTE 'DROP SCHEMA ' || quote_ident(nsp.nspname) || ' CASCADE';
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql VOLATILE;
-
-
-CREATE FUNCTION ak.get_schema_size(prefix text) RETURNS numeric AS $$
-    SELECT COALESCE(SUM(pg_total_relation_size(pg_class.oid)), 0)
-    FROM pg_class, pg_namespace
-    WHERE pg_namespace.nspname = $1
-    AND pg_class.relnamespace = pg_namespace.oid;
-$$ LANGUAGE SQL STABLE;
-
-
 CREATE FUNCTION ak.describe_table(
     name text, OUT attname name, OUT typname name, OUT def text)
     RETURNS SETOF RECORD AS
