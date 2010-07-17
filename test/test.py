@@ -87,8 +87,11 @@ class Test(unittest.TestCase):
         self.assertEqual(self._eval('db.list().indexOf("xxx")'), '-1')
         # Timed out test. Long to run.
 #         self.assertEqual(self._eval('for (;;) test();'), '<Timed out>')
-        process = _launch(['--code-dir', CODE_PATH + '/bad', 'eval', '1'])
+        process = _launch(['--code-dir', CODE_PATH + '/syntax', 'eval', '1'])
         self.assert_('SyntaxError' in process.stdout.read())
+        self.assertEqual(process.wait(), 0)
+        process = _launch(['--code-dir', CODE_PATH + '/eval', 'eval', '1'])
+        self.assertEqual(process.stdout.read(), 'eval is not a function\n')
         self.assertEqual(process.wait(), 0)
 
     def _talk(self, sock, message):
