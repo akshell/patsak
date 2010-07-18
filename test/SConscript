@@ -3,6 +3,6 @@
 
 Import('test_env')
 
-objects = [test_env.Object('test-main.cc')]
+objects = [test_env.Object('test.cc')]
 
 Return('objects')
