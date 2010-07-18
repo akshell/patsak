@@ -1,8 +1,5 @@
 # (c) 2008-2010 by Anton Korenyushkin
 
-from os.path import join
-from subprocess import Popen, PIPE
-
 vars = Variables()
 vars.Add('mode', 'build mode (release, debug, cov)', 'release')
 
@@ -10,8 +7,9 @@ COMMON_FLAGS = {
     'CXX': 'g++-4.3', # g++-4.4 fails to compile src/parser.cc
     'CCFLAGS': '-pedantic -Wall -Werror -W -Wno-long-long'.split(),
     'CPPPATH': '.',
-    'LINKCOM': ('$LINK -o $TARGET $LINKFLAGS $SOURCES $_LIBDIRFLAGS '
-                '-Wl,-Bstatic $_LIBFLAGS -Wl,-Bdynamic -lpthread -lpq'),
+    'LINKCOM':
+        ('$LINK -o $TARGET $LINKFLAGS $SOURCES $_LIBDIRFLAGS '
+         '-Wl,-Bstatic $_LIBFLAGS -Wl,-Bdynamic -lpthread -lpq'),
     'LIBS': [
         'pqxx',
         'boost_date_time-mt',
@@ -41,66 +39,47 @@ MODE_FLAGS = {
         },
     }
 
-################################################################################
-
 env = Environment(**COMMON_FLAGS)
-env.Append(**MODE_FLAGS[env['mode']])
+mode = env['mode']
+env.Append(**MODE_FLAGS[mode])
 
-test_env = env.Clone()
-test_env.Append(LIBS=['boost_unit_test_framework-mt'])
+db_objects, js_objects = SConscript(
+    'src/SConscript',
+    build_dir='obj/' + mode,
+    exports='env',
+    duplicate=False)
 
-################################################################################
+test_objects = SConscript(
+    'test/SConscript',
+    build_dir='obj/' + mode + '/test',
+    exports='env',
+    duplicate=False)
 
-def invoke_script(dir, obj_dir, exports):
-    return SConscript(join(dir, 'SConscript'),
-                      build_dir=join('obj', env['mode'], obj_dir),
-                      exports=exports,
-                      duplicate=False)
+patsak = env.Program('exe/' + mode + '/patsak', db_objects + js_objects)
+env.Alias('patsak', patsak)
 
-common_objects, js_objects = invoke_script('src', '', 'env')
-test_objects = invoke_script('test', 'test', 'test_env')
+test_patsak = env.Program(
+    'exe/' + mode + '/test-patsak',
+    db_objects + test_objects,
+    LIBS=env['LIBS'] + ['boost_unit_test_framework-mt'])
+env.Alias('test-patsak', test_patsak)
 
-revision = Popen(
-    ['git', 'log', '-n1', '--date=short', '--pretty=format:%cd %h', 'HEAD'],
-    stdout=PIPE).stdout.read()[:-1]
-main_env = env.Clone()
-main_env.Append(CCFLAGS=['-DREVISION=\\"%s\\"' % revision])
-main_obj = main_env.Object(target=join('obj', env['mode'], 'main.o'),
-                           source='src/main.cc')
-
-################################################################################
-
-def program_path(name):
-    return join('exe', env['mode'], name)
-
-program = env.Program(program_path('patsak'),
-                      common_objects + js_objects + [main_obj])
-
-test_program = test_env.Program(program_path('test-patsak'),
-                                common_objects + test_objects)
-
-################################################################################
-
-env.Alias('prog', program)
-env.Alias('test-prog', test_program)
-all = env.Alias('all', [program, test_program])
+all = env.Alias('all', [patsak, test_patsak])
 env.Default(all)
 
-env.AlwaysBuild(env.Alias('test',
-                          all,
-                          'python test/test.py exe/' + env['mode']))
+env.AlwaysBuild(env.Alias('test', all, 'test/test.py ' + mode))
 
 env.AlwaysBuild(env.Alias('clean', None, 'rm -rf obj exe cov'))
 
-################################################################################
-
-if env['mode'] == 'cov':
-    cov_info = env.Command('cov/cov.info',
-                           all,
-                           'rm obj/cov/*.gcda obj/cov/test/*.gcda;'
-                           'python test/test.py exe/cov;'
-                           'lcov -d obj/cov/ -c -b . -o $TARGET')
+if mode == 'cov':
+    cov_info = env.Command(
+        'cov/cov.info',
+        all,
+        ('rm -r cov;'
+         'mkdir cov;'
+         'test/test.py cov;'
+         'lcov -d obj/cov/ -c -b . -o $TARGET'))
     env.AlwaysBuild(cov_info)
-    cov_html = env.Command('cov/index.html', cov_info,
-                           'genhtml -o cov $SOURCE')
-    env.Alias('cov', cov_html)
+    env.Alias(
+        'cov',
+        env.Command('cov/index.html', cov_info, 'genhtml -o cov $SOURCE'))

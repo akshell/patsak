@@ -1,5 +1,7 @@
 # (c) 2008-2010 by Anton Korenyushkin
 
+import subprocess
+
 Import("env")
 
 env.Command('init.js.h', 'init.js', '\
@@ -8,7 +10,7 @@ env.Command('init.js.h', 'init.js', '\
  echo "};\\n}";\
 ) > $TARGET')
 
-common_sources = [
+db_sources = [
     'db.cc',
     'parser.cc',
     'translator.cc',
@@ -30,8 +32,15 @@ js_sources = [
     'js-git.cc',
     ]
 
-common_objects, js_objects = [
+db_objects, js_objects = [
     [env.Object(source) for source in sources]
-    for sources in (common_sources, js_sources)]
+    for sources in (db_sources, js_sources)]
 
-Return('common_objects', 'js_objects')
+revision = subprocess.Popen(
+    ['git', 'log', '-n1', '--date=short', '--pretty=format:%cd %h', 'HEAD'],
+    stdout=subprocess.PIPE).stdout.read()[:-1]
+
+js_objects.append(env.Object(
+    'main.cc', CCFLAGS=env['CCFLAGS'] + ['-DREVISION=\\"%s\\"' % revision]))
+
+Return('db_objects', 'js_objects')

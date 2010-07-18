@@ -1,4 +1,4 @@
-#!/usr/bin/env/python
+#!/usr/bin/env python
 
 # (c) 2009-2010 by Anton Korenyushkin
 
@@ -27,6 +27,7 @@ TEST_PATH   = os.path.dirname(__file__)
 CODE_PATH   = TEST_PATH + '/code'
 LIB_PATH    = TEST_PATH + '/../lib'
 INIT_PATH   = TEST_PATH + '/../init.sql'
+EXE_PATH    = TEST_PATH + '/../exe/'
 HOST        = 'localhost'
 PORT1       = 13423
 PORT2       = 13424
@@ -145,12 +146,13 @@ def _connect_to_db(name):
 
 def main():
     if len(sys.argv) != 2:
-        print 'Usage: ', sys.argv[0], ' dir'
+        print 'Usage:', sys.argv[0], 'mode'
         sys.exit(1)
 
+    mode = sys.argv[1]
     global PATSAK_PATH, TEST_PATSAK_PATH
-    PATSAK_PATH = os.path.join(sys.argv[1], 'patsak')
-    TEST_PATSAK_PATH = os.path.join(sys.argv[1], 'test-patsak')
+    PATSAK_PATH = EXE_PATH + mode + '/patsak'
+    TEST_PATSAK_PATH = EXE_PATH + mode + '/test-patsak'
     suite = unittest.TestLoader().loadTestsFromTestCase(Test)
 
     conn = _connect_to_db('template1')
