@@ -5,6 +5,7 @@ var imports = {
     'print',
     'set',
     'hash',
+    'construct',
     'ValueError',
     'NotImplementedError',
     'QuotaError',
@@ -306,6 +307,12 @@ var coreTestSuite = {
     assertSame(hash(''), 0);
     assert(hash({}) > 0);
     assert(hash(function () {}) > 0);
+  },
+
+  testConstruct: function () {
+    var binary = construct(Binary, [new Binary('hello '), new Binary('world')]);
+    assertSame(binary + '', 'hello world');
+    assertThrow(TypeError, construct, 42, []);
   },
 
   testErrors: function () {

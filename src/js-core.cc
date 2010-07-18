@@ -49,6 +49,21 @@ namespace
                     : 0);
         return Integer::New(hash);
     }
+
+
+    DEFINE_JS_FUNCTION(ConstructCb, args)
+    {
+        CheckArgsLength(args, 2);
+        if (!args[0]->IsFunction ())
+            throw Error(Error::TYPE, "Function required");
+        Handle<Function> constructor(Handle<Function>::Cast(args[0]));
+        Handle<Array> array(GetArray(args[1]));
+        vector<Handle<v8::Value> > values;
+        values.reserve(array->Length());
+        for (size_t i = 0; i < array->Length(); ++i)
+            values.push_back(array->Get(Integer::New(i)));
+        return constructor->NewInstance(array->Length(), &values[0]);
+    }
 }
 
 
@@ -58,5 +73,6 @@ Handle<Object> ak::InitCore()
     SetFunction(result, "print", PrintCb);
     SetFunction(result, "set", SetCb);
     SetFunction(result, "hash", HashCb);
+    SetFunction(result, "construct", ConstructCb);
     return result;
 }
