@@ -15,21 +15,21 @@ import errno
 import signal
 
 
-DB_NAME      = 'test'
-DB_USER      = 'test'
-DB_PASSWORD  = 'test'
-TMP_PATH     = '/tmp/patsak'
-SOCKET_PATH  = TMP_PATH + '/socket'
-MEDIA_PATH   = TMP_PATH + '/media'
-CONFIG_PATH  = TMP_PATH + '/config'
-LOG_PATH     = TMP_PATH + '/log'
-TEST_PATH    = os.path.dirname(__file__)
-CODE_PATH    = TEST_PATH + '/code'
-LIB_PATH     = TEST_PATH + '/../lib'
-FUNCS_PATH   = TEST_PATH + '/../src/funcs.sql'
-HOST         = 'localhost'
-PORT1        = 13423
-PORT2        = 13424
+DB_NAME     = 'test'
+DB_USER     = 'test'
+DB_PASSWORD = 'test'
+TMP_PATH    = '/tmp/patsak'
+SOCKET_PATH = TMP_PATH + '/socket'
+MEDIA_PATH  = TMP_PATH + '/media'
+CONFIG_PATH = TMP_PATH + '/config'
+LOG_PATH    = TMP_PATH + '/log'
+TEST_PATH   = os.path.dirname(__file__)
+CODE_PATH   = TEST_PATH + '/code'
+LIB_PATH    = TEST_PATH + '/../lib'
+INIT_PATH   = TEST_PATH + '/../init.sql'
+HOST        = 'localhost'
+PORT1       = 13423
+PORT2       = 13424
 
 
 def _popen(cmd):
@@ -165,7 +165,7 @@ def main():
     conn.close()
     conn = _connect_to_db(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute(open(FUNCS_PATH).read())
+    cursor.execute(open(INIT_PATH).read())
     conn.commit()
     conn.close()
 
