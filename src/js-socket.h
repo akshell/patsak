@@ -1,4 +1,3 @@
-
 // (c) 2010 by Anton Korenyushkin
 
 #ifndef JS_SOCKET_H

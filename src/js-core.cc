@@ -1,4 +1,3 @@
-
 // (c) 2010 by Anton Korenyushkin
 
 #include "js-core.h"

@@ -1,4 +1,3 @@
-
 // (c) 2008-2010 by Anton Korenyushkin
 
 #include "common.h"

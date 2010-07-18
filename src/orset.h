@@ -1,4 +1,3 @@
-
 // (c) 2009-2010 by Anton Korenyushkin
 
 #ifndef ORSET_H

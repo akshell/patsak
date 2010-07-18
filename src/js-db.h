@@ -1,4 +1,3 @@
-
 // (c) 2009-2010 by Anton Korenyushkin
 
 #ifndef JS_DB_H
