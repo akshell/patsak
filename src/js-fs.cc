@@ -10,6 +10,7 @@
 #include <dirent.h>
 #include <string.h>
 #include <sys/file.h>
+#include <limits>
 
 
 using namespace ak;
@@ -294,7 +295,8 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, ReadCb,
     CheckOpen();
     size_t rest_size = GetSize() - GetPosition();
     auto_ptr<Chars> data_ptr(
-        new Chars(args.Length()
+        new Chars((args.Length() &&
+                   args[0]->NumberValue() != numeric_limits<double>::infinity())
                   ? min(args[0]->Uint32Value(), rest_size)
                   : rest_size));
     ssize_t count = read(fd_, &data_ptr->front(), data_ptr->size());

@@ -946,7 +946,7 @@ var fsTestSuite = {
     var binary = new Binary(text);
     file.write(binary);
     file.position = 0;
-    assertEqual(file.read(), text);
+    assertEqual(file.read(Infinity), text);
     assertSame(file.length, binary.length);
     assertSame(file.position, binary.length);
     file.length += 3;
