@@ -78,6 +78,7 @@ namespace
         void CheckOpen() const;
         void CheckWritable() const;
         size_t GetSize() const;
+        size_t GetPosition() const;
 
         DECLARE_JS_CALLBACK2(v8::Handle<v8::Value>, GetClosedCb,
                              v8::Local<v8::String>,
@@ -203,6 +204,14 @@ size_t FileBg::GetSize() const
 }
 
 
+size_t FileBg::GetPosition() const
+{
+    off_t position = lseek(fd_, 0, SEEK_CUR);
+    AK_ASSERT(position != -1);
+    return position;
+}
+
+
 DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetClosedCb,
                     Local<String>, /*property*/,
                     const AccessorInfo&, /*info*/) const
@@ -245,9 +254,7 @@ DEFINE_JS_CALLBACK2(Handle<v8::Value>, FileBg, GetPositionCb,
                     const AccessorInfo&, /*info*/) const
 {
     CheckOpen();
-    off_t position = lseek(fd_, 0, SEEK_CUR);
-    AK_ASSERT(position != -1);
-    return Integer::New(position);
+    return Integer::New(GetPosition());
 }
 
 
@@ -283,12 +290,15 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, FlushCb,
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, ReadCb,
                     const Arguments&, args) const
 {
+    // XXX: races
     CheckOpen();
+    size_t rest_size = GetSize() - GetPosition();
     auto_ptr<Chars> data_ptr(
-        new Chars(args.Length() ? args[0]->Uint32Value() : GetSize()));
+        new Chars(args.Length()
+                  ? min(args[0]->Uint32Value(), rest_size)
+                  : rest_size));
     ssize_t count = read(fd_, &data_ptr->front(), data_ptr->size());
-    AK_ASSERT(count != -1);
-    data_ptr->resize(count);
+    AK_ASSERT(count == static_cast<ssize_t>(data_ptr->size()));
     return NewBinary(data_ptr);
 }
 
