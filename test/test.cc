@@ -6,23 +6,15 @@
 #include "../src/db.h"
 
 #include <boost/test/unit_test.hpp>
-#include <boost/foreach.hpp>
 #include <boost/function.hpp>
-#include <boost/bind.hpp>
 #include <boost/lexical_cast.hpp>
-#include <pqxx/connection>
 
-#include <iostream>
 #include <fstream>
 
 using namespace std;
 using namespace ak;
-using boost::bind;
 using boost::function;
 using boost::lexical_cast;
-using boost::noncopyable;
-using boost::static_visitor;
-using boost::apply_visitor;
 
 
 ////////////////////////////////////////////////////////////////////////////////
