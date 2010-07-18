@@ -61,8 +61,9 @@ def invoke_script(dir, obj_dir, exports):
 common_objects, js_objects = invoke_script('src', '', 'env')
 test_objects = invoke_script('test', 'test', 'test_env')
 
-revision = Popen(['git', 'rev-parse', '--short', 'HEAD'],
-                 stdout=PIPE).stdout.read()[:-1]
+revision = Popen(
+    ['git', 'log', '-n1', '--date=short', '--pretty=format:%cd %h', 'HEAD'],
+    stdout=PIPE).stdout.read()[:-1]
 main_env = env.Clone()
 main_env.Append(CCFLAGS=['-DREVISION=\\"%s\\"' % revision])
 main_obj = main_env.Object(target=join('obj', env['mode'], 'main.o'),

@@ -57,7 +57,7 @@ class Test(unittest.TestCase):
         self._check_launch(['--unknown-option'], 1)
         self._check_launch(['unknown-command'], 1)
         self._check_launch(['--help'])
-        self._check_launch(['--rev'])
+        self._check_launch(['--version'])
         self._check_launch(['--code-dir', '', 'serve', 'socket'], 1)
         self._check_launch(['--git-pattern', 'bad', 'eval', '1'], 1)
         self._check_launch(['--daemonize', 'serve', 'bad/path'])

@@ -121,7 +121,7 @@ int main(int argc, char** argv)
     po::options_description generic_options("Generic options");
     generic_options.add_options()
         ("help,h", "print help message")
-        ("rev,r", "print revision")
+        ("version,v", "print version")
         ("config-file,f",
          po::value<string>()->default_value("/ak/patsak.conf"),
          "config file path")
@@ -192,9 +192,9 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    if (vm.count("rev")) {
+    if (vm.count("version")) {
         // REVISION must be provided as a compiler option
-        cout << REVISION << '\n';
+        cout << "patsak 0.3 (" << REVISION << ")\n";
         return 0;
     }
 
