@@ -1,5 +1,8 @@
+-- (c) 2009-2010 by Anton Korenyushkin
+
 
 CREATE LANGUAGE plpgsql;
+
 
 DROP SCHEMA IF EXISTS ak CASCADE;
 CREATE SCHEMA ak;
@@ -114,15 +117,6 @@ END;
 $$ LANGUAGE plpgsql VOLATILE;
 
 
-CREATE FUNCTION ak.create_schema(schema_name text) RETURNS void AS $$
-BEGIN
-    EXECUTE 'CREATE SCHEMA ' || quote_ident(schema_name);
-    EXECUTE 'CREATE OPERATOR ' || quote_ident(schema_name) ||
-            '.% (leftarg = float8, rightarg = float8, procedure = ak.mod)';
-END;
-$$ LANGUAGE plpgsql VOLATILE;
-
-
 CREATE FUNCTION ak.describe_table(
     name text, OUT attname name, OUT typname name, OUT def text)
     RETURNS SETOF RECORD AS
@@ -180,3 +174,31 @@ BEGIN
     EXECUTE cmd;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
+
+
+CREATE TABLE ak.meta (schema_name text UNIQUE NOT NULL, state int NOT NULL);
+
+
+INSERT INTO ak.meta VALUES ('public', 0);
+
+
+CREATE FUNCTION ak.create_schema(schema_name text) RETURNS void AS $$
+BEGIN
+    EXECUTE 'CREATE SCHEMA ' || quote_ident(schema_name);
+    EXECUTE 'CREATE OPERATOR ' || quote_ident(schema_name) ||
+            '.% (leftarg = float8, rightarg = float8, procedure = ak.mod)';
+    INSERT INTO ak.meta VALUES (schema_name, 0);
+END;
+$$ LANGUAGE plpgsql VOLATILE;
+
+
+CREATE FUNCTION ak.get_meta_state(schema_name text) RETURNS int AS $$
+    SELECT state FROM ak.meta WHERE schema_name = $1 FOR SHARE;
+$$ LANGUAGE SQL VOLATILE;
+
+
+CREATE FUNCTION ak.set_meta_state(schema_name text, state int)
+    RETURNS void AS
+$$
+    UPDATE ak.meta SET state = $2 WHERE schema_name = $1;
+$$ LANGUAGE SQL VOLATILE;

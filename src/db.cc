@@ -6,11 +6,13 @@
 
 #include <pqxx/pqxx>
 #include <boost/format.hpp>
+#include <boost/lexical_cast.hpp>
 
 
 using namespace std;
 using namespace ak;
 using boost::format;
+using boost::lexical_cast;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,7 +116,7 @@ namespace
 
     class Meta {
     public:
-        Meta(const string& schema_name);
+        Meta(const string& quoted_schema_name);
         const RelVar& Get(const string& rel_var_name) const;
         RelVar& Get(const string& rel_var_name);
         const RelVars& GetAll() const;
@@ -151,7 +153,7 @@ RelVar::RelVar(const string& name)
     def_header_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
         AK_ASSERT_EQUAL(tuple.size(), 3U);
-        AK_ASSERT(!tuple[0].is_null() && ! tuple[1].is_null());
+        AK_ASSERT(!tuple[0].is_null() && !tuple[1].is_null());
         DefAttr def_attr(tuple[0].c_str(), ReadPgType(tuple[1].c_str()));
         if (!tuple[2].is_null()) {
             string def_str(tuple[2].c_str());
@@ -668,10 +670,10 @@ void RelVar::DropAllConstrs()
 // Meta definitions
 ////////////////////////////////////////////////////////////////////////////////
 
-Meta::Meta(const string& schema_name)
+Meta::Meta(const string& quoted_schema_name)
 {
-    static const format query("SELECT * FROM ak.get_schema_tables('%1%');");
-    pqxx::result pqxx_result = Exec((format(query) % schema_name).str());
+    static const format query("SELECT * FROM ak.get_schema_tables(%1%);");
+    pqxx::result pqxx_result = Exec((format(query) % quoted_schema_name).str());
     rel_vars_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
         AK_ASSERT_EQUAL(tuple.size(), 1U);
@@ -806,7 +808,10 @@ namespace
 
     private:
         pqxx::connection conn_;
-        string schema_name_;
+        string quoted_schema_name_;
+        string get_meta_state_sql_;
+        string set_meta_state_sql_;
+        int meta_state_;
         auto_ptr<Meta> meta_ptr_;
         bool meta_changed_;
         auto_ptr<pqxx::work> work_ptr_;
@@ -820,21 +825,30 @@ DB::DB(const string& options,
        const string& schema_name,
        const string& tablespace_name)
     : conn_(options)
-    , schema_name_(schema_name)
+    , quoted_schema_name_(Quote(schema_name))
 {
-    static const format cmd("SET search_path TO %1%, pg_catalog;"
-                            "SET default_tablespace TO %2%;");
+    static const format set_cmd(
+        "SET search_path TO %1%, pg_catalog;"
+        "SET default_tablespace TO %2%;");
+    static const format get_meta_state_cmd("SELECT ak.get_meta_state(%1%)");
+    static const format set_meta_state_cmd("SELECT ak.set_meta_state(%1%,");
     conn_.set_noticer(auto_ptr<pqxx::noticer>(new pqxx::nonnoticer()));
-    Exec((format(cmd) % Quote(schema_name) % Quote(tablespace_name)).str());
+    get_meta_state_sql_ =
+        (format(get_meta_state_cmd) % quoted_schema_name_).str();
+    set_meta_state_sql_ =
+        (format(set_meta_state_cmd) % quoted_schema_name_).str();
+    Exec(
+        (format(set_cmd) % quoted_schema_name_ % Quote(tablespace_name)).str());
     Commit();
 }
 
 
 const Meta& DB::GetMeta()
 {
+    GetWork();
     if (!meta_ptr_.get()) {
         meta_changed_ = false;
-        meta_ptr_.reset(new Meta(schema_name_));
+        meta_ptr_.reset(new Meta(quoted_schema_name_));
     }
     return *meta_ptr_;
 }
@@ -842,9 +856,10 @@ const Meta& DB::GetMeta()
 
 Meta& DB::ChangeMeta()
 {
+    GetWork();
     meta_changed_ = true;
     if (!meta_ptr_.get())
-        meta_ptr_.reset(new Meta(schema_name_));
+        meta_ptr_.reset(new Meta(quoted_schema_name_));
     return *meta_ptr_;
 }
 
@@ -857,8 +872,17 @@ string DB::Quote(const string& str)
 
 pqxx::work& DB::GetWork()
 {
-    if (!work_ptr_.get())
+    if (!work_ptr_.get()) {
         work_ptr_.reset(new pqxx::work(conn_));
+        pqxx::result pqxx_result(work_ptr_->exec(get_meta_state_sql_));
+        AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
+        AK_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
+        int new_meta_state = pqxx_result[0][0].as<int>();
+        if (meta_state_ != new_meta_state) {
+            meta_ptr_.reset();
+            meta_state_ = new_meta_state;
+        }
+    }
     return *work_ptr_;
 }
 
@@ -877,11 +901,15 @@ pqxx::result DB::ExecSafely(const string& sql)
 
 void DB::Commit()
 {
-    if (work_ptr_.get()) {
-        work_ptr_->commit();
-        work_ptr_.reset();
+    if (!work_ptr_.get())
+        return;
+    if (meta_changed_) {
+        work_ptr_->exec(set_meta_state_sql_ +
+                        lexical_cast<string>(++meta_state_) + ')');
+        meta_changed_ = false;
     }
-    meta_changed_ = false;
+    work_ptr_->commit();
+    work_ptr_.reset();
 }
 
 

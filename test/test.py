@@ -77,7 +77,9 @@ class Test(unittest.TestCase):
         self.assertEqual(
             self._eval('function f() { f(); } f()'),
             'RangeError: Maximum call stack size exceeded')
-        self.assertEqual(self._eval('s="x"; while(1) s+=s'), '<Out of memory>')
+        self.assertEqual(
+            self._eval('s = "x"; while(1) s += s'),
+            '<Out of memory>')
         self.assert_(
             'Uncaught 42' in
             self._eval('db.create("xxx", {}, [], [], []); throw 42'))
@@ -107,17 +109,17 @@ class Test(unittest.TestCase):
         self.assertEqual(
             process.stdout.read(), 'Running at unix:%s\n' % SOCKET_PATH)
         self.assertEqual(process.wait(), 0)
-        for expr, result in [('x=3; s="x"; while(1) s+=s', ''),
-                             ('x = 1', '1'),
+        for expr, result in [('x = 1; s = "x"; while(1) s += s', ''),
                              ('x = 2', '2'),
-                             ('y = 0; this.x', 'undefined'),
-                             ('x', '1'),
+                             ('x = 3', '3'),
+                             ('db.create("X", {}); this.x', 'undefined'),
                              ('x', '2'),
-                             ('y', '0'),
-                             ('throw 1', '')]:
+                             ('x', '3'),
+                             ('throw 1', ''),
+                             ('db.drop(["X"])', 'undefined')]:
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             sock.connect(SOCKET_PATH)
-            self.assertEqual(self._talk(sock, expr), result)
+            self.assertEqual(self._talk(sock, expr), result, expr)
         process = _launch(['serve', '%s:%d' % (HOST, PORT1)])
         self.assertEqual(
             process.stdout.readline(), 'Running at %s:%d\n' % (HOST, PORT1))
