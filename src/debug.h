@@ -9,13 +9,8 @@
 
 namespace ak
 {
-    extern std::string log_prefix;
-
-    void Log(const std::string& message);
-
-    std::string Backtrace();
-
     void Fail(const std::string& message) __attribute__((noreturn));
+
 
     void FailOnAssertion(
         const std::string& file,

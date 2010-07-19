@@ -18,7 +18,7 @@ namespace
     DEFINE_JS_FUNCTION(PrintCb, args)
     {
         CheckArgsLength(args, 1);
-        Log(Stringify(args[0]));
+        cerr << Stringify(args[0]);
         return Undefined();
     }
 
