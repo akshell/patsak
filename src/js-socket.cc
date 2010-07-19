@@ -239,7 +239,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, SocketBg, ShutdownCb,
         throw Error(Error::VALUE,
                     "Valid shutdown types are 'send', 'receive', and 'both'");
     }
-    if (shutdown(fd_, type))
+    if (shutdown(fd_, type) && errno != ENOTCONN)
         throw Error(Error::SOCKET, strerror(errno));
     return Undefined();
 }
