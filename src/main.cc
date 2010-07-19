@@ -156,10 +156,12 @@ int main(int argc, char** argv)
 
     string command;
     string place_or_expr;
+    string log_id;
     po::options_description hidden_options;
     hidden_options.add_options()
         ("command", po::value<string>(&command))
         ("place-or-expr", po::value<string>(&place_or_expr))
+        ("log-id", po::value<string>(&log_id))
         ;
 
     po::positional_options_description positional_options;
@@ -206,6 +208,8 @@ int main(int argc, char** argv)
         cout << visible_options << '\n';
         return !vm.count("help");
     }
+
+    InitDebug(log_id);
 
     RequireOption("log-file", log_path);
     RequireOption("code-dir", code_path);

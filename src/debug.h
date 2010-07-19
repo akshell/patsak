@@ -17,6 +17,8 @@ namespace ak
         const std::string& pretty_function,
         const std::string& assertion,
         const std::string& message = "") __attribute__((noreturn));
+
+    void InitDebug(const std::string& log_id);
 }
 
 

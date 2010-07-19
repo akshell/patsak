@@ -17,6 +17,8 @@ namespace
     const size_t TIME_SIZE = 21;
     const size_t MAX_BACKTRACE_SIZE = 8192;
 
+    string log_id;
+
 
     void PrintPrefix()
     {
@@ -25,6 +27,8 @@ namespace
         char buf[TIME_SIZE];
         size_t size = strftime(buf, TIME_SIZE, "%F %T ", tm_ptr);
         cerr.write(buf, size);
+        if (!log_id.empty())
+            cerr << log_id << ' ';
     }
 
 
@@ -60,4 +64,10 @@ void ak::FailOnAssertion(const string& file,
     cerr << ".\n";
     PrintBacktrace();
     exit(1);
+}
+
+
+void ak::InitDebug(const string& log_id)
+{
+    ::log_id = log_id;
 }
