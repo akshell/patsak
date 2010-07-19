@@ -1456,12 +1456,15 @@ var socketTestSuite = {
     var socket = connect('example.com', 'http');
     assert(!socket.closed && socket.writable && socket.readable);
     var request = 'GET / HTTP/1.0\r\n\r\n';
-    assertSame(socket.send(request), request.length);
+    assertSame(socket.write(request), request.length);
     socket.shutdown('send');
     assert(!socket.writable);
     assertThrow(ValueError, function () { socket.send('yo'); });
-    var response = socket.receive(15);
+    var response = socket.read(15);
     assertSame(response + '', 'HTTP/1.1 200 OK');
+    assert(socket.read().length > 0);
+    assertSame(socket.read().length, 0);
+    assertSame(socket.receive(1).length, 0);
     socket.shutdown('receive');
     assert(!socket.readable);
     assertThrow(ValueError, function () { socket.receive(42); });
@@ -1656,7 +1659,7 @@ test = function () {
 
 
 exports.handle = function (socket) {
-  socket.send(eval(socket.receive(4096) + ''));
+  socket.write(eval(socket.read() + ''));
 };
 
 
