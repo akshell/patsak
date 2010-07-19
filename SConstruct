@@ -1,7 +1,7 @@
 # (c) 2008-2010 by Anton Korenyushkin
 
 vars = Variables()
-vars.Add('mode', 'build mode (release, debug, cov)', 'release')
+vars.Add('mode', 'build mode (common, fast, debug, cov)', 'common')
 
 COMMON_FLAGS = {
     'CXX': 'g++-4.3', # g++-4.4 fails to compile src/parser.cc
@@ -22,9 +22,13 @@ COMMON_FLAGS = {
     }
 
 MODE_FLAGS = {
-    'release': {
+    'common': {
         'LIBS': ['v8'],
         'LINKFLAGS': ['-rdynamic'],
+        },
+    'fast': {
+        'LIBS': ['v8'],
+        'CCFLAGS': ['-O3', '-DNDEBUG'],
         },
     'debug': {
         'LIBS': ['v8_g'],
@@ -40,7 +44,11 @@ MODE_FLAGS = {
 
 env = Environment(**COMMON_FLAGS)
 mode = env['mode']
-env.Append(**MODE_FLAGS[mode])
+try:
+    env.Append(**MODE_FLAGS[mode])
+except KeyError:
+    print 'Valid modes are common, fast, debug, and cov.'
+    Exit(1)
 
 db_objects, js_objects = SConscript(
     'src/SConscript',

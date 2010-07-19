@@ -24,9 +24,14 @@ namespace ak
 
 #ifdef NDEBUG
 
-#define AK_ASSERT(cond)
-#define AK_ASSERT_MESSAGE(cond, message)
-#define AK_ASSERT_EQUAL(lhs, rhs)
+#define AK_ASSERT(cond)                         \
+    (void)(cond)
+
+#define AK_ASSERT_MESSAGE(cond, message)        \
+    (void)(cond), (void)(message)
+
+#define AK_ASSERT_EQUAL(lhs, rhs)               \
+    (void)(lhs), (void)(rhs)
 
 #else // NDEBUG
 
