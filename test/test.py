@@ -64,6 +64,7 @@ class Test(unittest.TestCase):
         self._check_launch(['--daemonize', 'serve', 'bad/path'])
         self._check_launch(['serve', 'bad:bad'], 1)
         self._check_launch(['serve', 'example.com:80'], 1)
+        self._check_launch(['--log-file', 'bad/log', '--daemonize', 'serve'], 1)
 
     def _eval(self, expr):
         process = _launch(['eval', expr])

@@ -236,6 +236,10 @@ int main(int argc, char** argv)
         string& place(place_or_expr);
         bool local = place.find_first_of('/') != string::npos;
         if (vm.count("daemonize")) {
+            if (!freopen(log_path.c_str(), "a", stderr)) {
+                cout << "Failed to open log file: " << strerror(errno) << '\n';
+                return 1;
+            }
             char* curr_dir = get_current_dir_name();
             AK_ASSERT(curr_dir);
             MakePathAbsolute(curr_dir, log_path);
@@ -315,9 +319,10 @@ int main(int argc, char** argv)
         int ret = listen(listen_fd, SOMAXCONN);
         AK_ASSERT_EQUAL(ret, 0);
         if (vm.count("daemonize")) {
-            freopen("/dev/null", "r", stdin);
-            freopen("/dev/null", "r", stdout);
-            freopen(log_path.c_str(), "a", stderr);
+            FILE* file_ptr = freopen("/dev/null", "w", stdout);
+            AK_ASSERT(file_ptr);
+            file_ptr = freopen("/dev/null", "r", stdin);
+            AK_ASSERT(file_ptr);
         } else {
             cout << "Quit with Control-C.\n";
             cout.flush();
