@@ -363,7 +363,7 @@ int main(int argc, char** argv)
         msg.msg_control = control;
         msg.msg_controllen = sizeof(control);
         ssize_t count = recvmsg(server_fd, &msg, 0);
-        if (count != 1 || op == 'S')
+        if (count != 1)
             break;
         struct cmsghdr* cmsg_ptr = CMSG_FIRSTHDR(&msg);
         int conn_fd = *reinterpret_cast<int*>(CMSG_DATA(cmsg_ptr));
