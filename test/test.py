@@ -120,7 +120,7 @@ class Test(unittest.TestCase):
                              ('db.drop(["X"])', 'undefined')]:
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             sock.connect(SOCKET_PATH)
-            self.assertEqual(self._talk(sock, expr), result, expr)
+            self.assertEqual(self._talk(sock, expr), result)
         process = _launch(['serve', '%s:%d' % (HOST, PORT1)])
         self.assertEqual(
             process.stdout.readline(), 'Running at %s:%d\n' % (HOST, PORT1))
