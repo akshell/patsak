@@ -87,7 +87,7 @@ RangeVar Lookuper::Lookup(const string& name)
 
 void Lookuper::Reset()
 {
-    AK_ASSERT_EQUAL(stack_.size(), 1U);
+    AK_ASSERT_EQUAL(stack_.size(), 1);
     stack_.begin()->clear();
 }
 

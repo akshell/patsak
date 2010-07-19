@@ -151,7 +151,7 @@ RelVar::RelVar(const string& name)
     pqxx::result pqxx_result = Exec((format(query) % name_).str());
     def_header_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
-        AK_ASSERT_EQUAL(tuple.size(), 3U);
+        AK_ASSERT_EQUAL(tuple.size(), 3);
         AK_ASSERT(!tuple[0].is_null() && !tuple[1].is_null());
         DefAttr def_attr(tuple[0].c_str(), ReadPgType(tuple[1].c_str()));
         if (!tuple[2].is_null()) {
@@ -246,9 +246,9 @@ void RelVar::LoadConstrs(const Meta& meta) {
     static const format query("SELECT * FROM ak.describe_constrs('\"%1%\"')");
     pqxx::result pqxx_result = Exec((format(query) % name_).str());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
-        AK_ASSERT_EQUAL(tuple.size(), 4U);
+        AK_ASSERT_EQUAL(tuple.size(), 4);
         AK_ASSERT(!tuple[0].is_null() && !tuple[1].is_null());
-        AK_ASSERT_EQUAL(string(tuple[0].c_str()).size(), 1U);
+        AK_ASSERT_EQUAL(string(tuple[0].c_str()).size(), 1);
         StringSet attr_names(ReadAttrNames(tuple[1].c_str()));
         char constr_code = tuple[0].c_str()[0];
         if (constr_code == 'p' || constr_code == 'u') {
@@ -675,7 +675,7 @@ Meta::Meta(const string& quoted_schema_name)
     pqxx::result pqxx_result = Exec((format(query) % quoted_schema_name).str());
     rel_vars_.reserve(pqxx_result.size());
     BOOST_FOREACH(const pqxx::result::tuple& tuple, pqxx_result) {
-        AK_ASSERT_EQUAL(tuple.size(), 1U);
+        AK_ASSERT_EQUAL(tuple.size(), 1);
         AK_ASSERT(!tuple[0].is_null());
         rel_vars_.push_back(RelVar(tuple[0].c_str()));
     }
@@ -874,8 +874,8 @@ pqxx::work& DB::GetWork()
     if (!work_ptr_.get()) {
         work_ptr_.reset(new pqxx::work(conn_));
         pqxx::result pqxx_result(work_ptr_->exec(get_meta_state_sql_));
-        AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
-        AK_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
+        AK_ASSERT_EQUAL(pqxx_result.size(), 1);
+        AK_ASSERT_EQUAL(pqxx_result[0].size(), 1);
         int new_meta_state = pqxx_result[0][0].as<int>();
         if (meta_state_ != new_meta_state) {
             meta_ptr_.reset();
@@ -1089,8 +1089,8 @@ size_t ak::Count(const string& query, const Drafts& params)
 {
     string sql(TranslateCount(query, params));
     pqxx::result pqxx_result(Exec(sql));
-    AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
-    AK_ASSERT_EQUAL(pqxx_result[0].size(), 1U);
+    AK_ASSERT_EQUAL(pqxx_result.size(), 1);
+    AK_ASSERT_EQUAL(pqxx_result[0].size(), 1);
     return pqxx_result[0][0].as<size_t>();
 }
 
@@ -1188,7 +1188,7 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
     }
     if (def_header.empty())
         return Values();
-    AK_ASSERT_EQUAL(pqxx_result.size(), 1U);
+    AK_ASSERT_EQUAL(pqxx_result.size(), 1);
     return GetTupleValues(pqxx_result[0], rel_var.GetHeader());
 }
 

@@ -312,7 +312,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, WriteCb,
     CheckArgsLength(args, 1);
     Binarizator binarizator(args[0]);
     ssize_t count = write(fd_, binarizator.GetData(), binarizator.GetSize());
-    AK_ASSERT_EQUAL(count, static_cast<ssize_t>(binarizator.GetSize()));
+    AK_ASSERT_EQUAL(count, binarizator.GetSize());
     return args.This();
 }
 
