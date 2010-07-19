@@ -5,7 +5,7 @@ vars.Add('mode', 'build mode (release, debug, cov)', 'release')
 
 COMMON_FLAGS = {
     'CXX': 'g++-4.3', # g++-4.4 fails to compile src/parser.cc
-    'CCFLAGS': '-pedantic -Wall -Werror -W -Wno-long-long'.split(),
+    'CCFLAGS': '-pedantic -Wall -Wextra -Werror'.split(),
     'CPPPATH': '.',
     'LINKCOM':
         ('$LINK -o $TARGET $LINKFLAGS $SOURCES $_LIBDIRFLAGS '
@@ -24,17 +24,17 @@ COMMON_FLAGS = {
 MODE_FLAGS = {
     'release': {
         'LIBS': ['v8'],
-        'CCFLAGS': ['-O0', '-DBACKTRACE'],
+        'CCFLAGS': ['-DBACKTRACE'],
         'LINKFLAGS': ['-rdynamic'],
         },
     'debug': {
         'LIBS': ['v8_g'],
-        'CCFLAGS': ['-g', '-O0', '-DBACKTRACE', '-DTEST'],
+        'CCFLAGS': ['-ggdb3', '-DBACKTRACE'],
         'LINKFLAGS': ['-rdynamic'],
         },
     'cov': {
         'LIBS': ['v8'],
-        'CCFLAGS': ['-fprofile-arcs', '-ftest-coverage', '-DTEST'],
+        'CCFLAGS': ['-fprofile-arcs', '-ftest-coverage'],
         'LINKFLAGS': ['-fprofile-arcs', '-ftest-coverage'],
         },
     }
