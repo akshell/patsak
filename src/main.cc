@@ -230,7 +230,8 @@ int main(int argc, char** argv)
         git_path_suffix = git_path_pattern.substr(pos + 2);
     }
 
-    int server_fd = STDIN_FILENO;
+    bool managed = false;
+    int server_fd;
 
     if (command == "serve") {
         string& place(place_or_expr);
@@ -336,7 +337,10 @@ int main(int argc, char** argv)
         ret = sigaction(SIGINT, &action, 0);
         AK_ASSERT_EQUAL(ret, 0);
         server_fd = Serve(listen_fd, worker_count);
-    } else if (command != "eval" && command != "work") {
+    } else if (command == "work") {
+        managed = true;
+        server_fd = STDIN_FILENO;
+    } else if (command != "eval") {
         cerr << "Unknown command: " << command << '\n';
         return 1;
     }
@@ -348,7 +352,8 @@ int main(int argc, char** argv)
            git_path_suffix,
            "user=" + user_name + " password=" + password + " dbname=" + db_name,
            schema_name,
-           tablespace_name);
+           tablespace_name,
+           managed);
 
     if (command == "eval") {
         const string& expr(place_or_expr);
@@ -379,27 +384,30 @@ int main(int argc, char** argv)
         if (op == 'H') {
             HandleRequest(conn_fd); // closes the socket
             continue;
-        }
-        AK_ASSERT_EQUAL(op, 'E');
-        char expr[MAX_EXPR_SIZE];
-        size_t received = 0;
-        do {
-            count = read(conn_fd, expr + received, MAX_EXPR_SIZE - received);
-            received += count;
-        } while (count > 0);
-        if (count != -1) {
-            string result;
-            char status = EvalExpr(expr, received, result) ? 'S' : 'F';
-            count = write(conn_fd, &status, 1);
-            size_t sent = 0;
-            while (count > 0 && sent < result.size()) {
-                count = write(conn_fd,
-                              result.data() + sent,
-                              result.size() - sent);
-                sent += count;
+        } else {
+            AK_ASSERT_EQUAL(op, 'E');
+            char expr[MAX_EXPR_SIZE];
+            size_t received = 0;
+            do {
+                count = read(conn_fd, expr + received, MAX_EXPR_SIZE - received);
+                received += count;
+            } while (count > 0);
+            if (count != -1) {
+                string result;
+                char status = EvalExpr(expr, received, result) ? 'S' : 'F';
+                count = write(conn_fd, &status, 1);
+                size_t sent = 0;
+                while (count > 0 && sent < result.size()) {
+                    count = write(conn_fd,
+                                  result.data() + sent,
+                                  result.size() - sent);
+                    sent += count;
+                }
             }
+            close(conn_fd);
         }
-        close(conn_fd);
+        if (managed)
+            write(server_fd, "D", 1);
     } while (!ProgramIsDead());
 
     return 0;

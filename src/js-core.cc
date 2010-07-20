@@ -67,10 +67,11 @@ namespace
 }
 
 
-Handle<Object> ak::InitCore()
+Handle<Object> ak::InitCore(bool managed)
 {
     Handle<Object> result(Object::New());
-    SetFunction(result, "print", PrintCb);
+    if (!managed)
+        SetFunction(result, "print", PrintCb);
     SetFunction(result, "set", SetCb);
     SetFunction(result, "hash", HashCb);
     SetFunction(result, "construct", ConstructCb);

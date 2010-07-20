@@ -10,7 +10,7 @@
 
 namespace ak
 {
-    v8::Handle<v8::Object> InitCore();
+    v8::Handle<v8::Object> InitCore(bool managed);
 }
 
 #endif // JS_SCRIPT_H

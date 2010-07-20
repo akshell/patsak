@@ -169,7 +169,8 @@ void ak::InitJS(const string& code_path,
                 const string& git_path_suffix,
                 const string& db_options,
                 const string& schema_name,
-                const string& tablespace_name)
+                const string& tablespace_name,
+                bool managed)
 {
     InitDatabase(db_options, schema_name, tablespace_name);
 
@@ -186,7 +187,7 @@ void ak::InitJS(const string& code_path,
     context = Context::New();
     Context::Scope context_scope(context);
     Handle<Object> basis(Object::New());
-    Set(basis, "core", InitCore());
+    Set(basis, "core", InitCore(managed));
     Set(basis, "db", InitDB());
     Set(basis, "fs", InitFS(code_path, lib_path, media_path));
     Set(basis, "binary", InitBinary());
