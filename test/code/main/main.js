@@ -171,7 +171,7 @@ function runTestSuites(suites) {
           return true;
         } catch (error) {
           ++errorCount;
-          print(error.stack);
+          print(error.stack + '\n');
           return false;
         }
       }
@@ -187,7 +187,7 @@ function runTestSuites(suites) {
     });
   print(errorCount + ' errors detected in ' +
         testCount + ' test cases in ' +
-        suites.length + ' test suites');
+        suites.length + ' test suites\n');
   return errorCount;
 }
 
