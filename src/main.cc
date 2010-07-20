@@ -122,7 +122,7 @@ int main(int argc, char** argv)
         ("help,h", "print help message")
         ("version,v", "print version")
         ("config-file,f",
-         po::value<string>()->default_value("/ak/patsak.conf"),
+         po::value<string>()->default_value("/etc/patsak.conf"),
          "config file path")
         ;
 
