@@ -332,11 +332,11 @@ namespace
             char* rest = strptime(s.c_str(), "%F %T", &tm_);
             AK_ASSERT(rest);
             tm_.tm_isdst = -1;
+            ms_ = 0;
             if (*rest == '.') {
-                ms_ = atoi(rest + 1);
-                AK_ASSERT(ms_ < 1000);
-            } else {
-                ms_ = 0;
+                ++rest;
+                for (size_t m = 100; *rest && m; ++rest, m /= 10)
+                    ms_ += (*rest - '0') * m;
             }
         }
 
@@ -347,10 +347,10 @@ namespace
         virtual string GetPgLiter() const {
             const size_t size = 40;
             char buf[size];
-            strftime(buf, size, "'%F %T.   '::timestamp(3)", &tm_);
-            buf[21] = ms_ / 100 + '0';
-            buf[22] = ms_ / 10 % 10 + '0';
-            buf[23] = ms_ % 10 + '0';
+            strftime(buf, size, "'%F %T.***'::timestamp(3)", &tm_);
+            size_t start  = ms_;
+            for (char* ptr = buf + 23; *ptr == '*'; --ptr, start /= 10)
+                *ptr = start % 10 + '0';
             return buf;
         }
 
