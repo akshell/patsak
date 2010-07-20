@@ -14,8 +14,7 @@ using namespace ak;
 
 namespace
 {
-    const size_t TIME_SIZE = 21;
-    const size_t MAX_BACKTRACE_SIZE = 8192;
+    const size_t MAX_BACKTRACE_SIZE = 1024;
 
     string log_id;
 
@@ -24,9 +23,10 @@ namespace
     {
         time_t t = time(0);
         const struct tm* tm_ptr = localtime(&t);
-        char buf[TIME_SIZE];
-        size_t size = strftime(buf, TIME_SIZE, "%F %T ", tm_ptr);
-        cerr.write(buf, size);
+        const size_t size = 21;
+        char buf[size];
+        strftime(buf, size, "%F %T ", tm_ptr);
+        cerr << buf;
         if (!log_id.empty())
             cerr << log_id << ' ';
     }
