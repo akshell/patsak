@@ -3,14 +3,13 @@
 #include "common.h"
 
 #include <boost/lexical_cast.hpp>
-#include "boost/date_time/posix_time/posix_time.hpp"
+
+#include <time.h>
 
 
 using namespace std;
 using namespace ak;
 using boost::lexical_cast;
-using namespace boost::posix_time;
-using namespace boost::gregorian;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -323,38 +322,46 @@ namespace
 
     class DateValue : public Value::Impl {
     public:
-        static const ptime& GetEpoch() {
-            static const ptime epoch(date(1970,1,1));
-            return epoch;
+        DateValue(double d) {
+            time_t t = d / 1000;
+            localtime_r(&t, &tm_);
+            ms_ = d - static_cast<double>(t) * 1000;
         }
 
-        DateValue(const ptime& repr)
-            : repr_(repr) {}
+        DateValue(const string& s) {
+            char* rest = strptime(s.c_str(), "%F %T", &tm_);
+            AK_ASSERT(rest);
+            tm_.tm_isdst = -1;
+            if (*rest == '.') {
+                ms_ = atoi(rest + 1);
+                AK_ASSERT(ms_ < 1000);
+            } else {
+                ms_ = 0;
+            }
+        }
 
         virtual Type GetType() const {
             return Type::DATE;
         }
 
         virtual string GetPgLiter() const {
-            ostringstream oss;
-            oss << '\'' << repr_ << "'::" + GetType().GetPgName();
-            return oss.str();
+            const size_t size = 40;
+            char buf[size];
+            strftime(buf, size, "'%F %T.   '::timestamp(3)", &tm_);
+            buf[21] = ms_ / 100 + '0';
+            buf[22] = ms_ / 10 % 10 + '0';
+            buf[23] = ms_ % 10 + '0';
+            return buf;
         }
 
         virtual bool Get(double& d, string& /*s*/) const {
-            d = (repr_ - GetEpoch()).total_milliseconds();
+            d = static_cast<double>(mktime(&tm_)) * 1000 + ms_;
             return false;
         }
 
     private:
-        ptime repr_;
-
-        static const locale& GetLocale() {
-            static const locale
-                loc(locale::classic(),
-                    new time_facet("%a, %d %b %Y %H:%M:%S GMT"));
-            return loc;
-        }
+        mutable struct tm tm_; // mutable for mktime
+        size_t ms_;
     };
 
 
@@ -380,7 +387,7 @@ namespace
             AK_ASSERT(type == Type::DATE);
             if (d != d)
                 throw Error(Error::TYPE, "Invalid date");
-            return new DateValue(DateValue::GetEpoch() + milliseconds(d));
+            return new DateValue(d);
         }
     }
 
@@ -400,7 +407,7 @@ namespace
             AK_ASSERT(s == "true" || s == "false");
             return new BooleanValue(s == "true");
         } else if (type == Type::DATE) {
-            return new DateValue(time_from_string(s));
+            return new DateValue(s);
         } else {
             AK_ASSERT(type == Type::JSON);
             return new JSONValue(s);

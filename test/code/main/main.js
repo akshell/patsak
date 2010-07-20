@@ -651,10 +651,10 @@ var dbTestSuite2 = {
 
   testDate: function () {
     db.create('D1', {d: 'date'});
-    var someDate = new Date('Wed, Mar 04 2009 16:12:09 GMT');
+    var someDate = new Date('Wed Mar 04 2009 16:12:09');
     var otherDate = new Date(2009, 0, 15, 13, 27, 11, 481);
     db.insert('D1', {d: someDate});
-    assertSame(db.query('{s: D1.d + ""}')[0].s, 'Wed Mar 04 2009 04:12:09');
+    assertSame(db.query('{s: D1.d + ""}')[0].s, 'Wed Mar 04 2009 16:12:09');
     assertEqual(field('d', 'D1'), [someDate]);
     db.create('D2', {d: 'date'}, [], [[['d'], 'D1', ['d']]]);
     assertThrow(ConstraintError,

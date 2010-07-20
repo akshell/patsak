@@ -22,7 +22,7 @@ $$ LANGUAGE SQL IMMUTABLE;
 
 
 CREATE FUNCTION ak.to_string(t timestamp(3)) RETURNS text AS $$
-    SELECT to_char($1, 'Dy Mon DD YYYY HH:MI:SS');
+    SELECT to_char($1, 'Dy Mon DD YYYY HH24:MI:SS');
 $$ LANGUAGE SQL IMMUTABLE;
 
 

@@ -12,7 +12,6 @@ COMMON_FLAGS = {
          '-Wl,-Bstatic $_LIBFLAGS -Wl,-Bdynamic -lpthread -lpq'),
     'LIBS': [
         'pqxx',
-        'boost_date_time-mt',
         'boost_program_options-mt',
         'boost_thread-mt',
         'http_parser',
