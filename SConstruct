@@ -13,7 +13,6 @@ COMMON_FLAGS = {
     'LIBS': [
         'pqxx',
         'boost_program_options-mt',
-        'boost_thread-mt',
         'http_parser',
         'git2',
         ],
