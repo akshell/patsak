@@ -80,7 +80,7 @@ if mode == 'cov':
     cov_info = env.Command(
         'cov/cov.info',
         all,
-        ('rm -r cov;'
+        ('rm -rf cov obj/cov/*.gcda obj/cov/test/*.gcda;'
          'mkdir cov;'
          'test/test.py cov;'
          'lcov -d obj/cov/ -c -b . -o $TARGET'))
