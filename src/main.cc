@@ -243,7 +243,6 @@ int main(int argc, char** argv)
             }
             char* curr_dir = get_current_dir_name();
             AK_ASSERT(curr_dir);
-            MakePathAbsolute(curr_dir, log_path);
             MakePathAbsolute(curr_dir, code_path);
             MakePathAbsolute(curr_dir, lib_path);
             MakePathAbsolute(curr_dir, media_path);
