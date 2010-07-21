@@ -23,10 +23,10 @@ namespace
     const size_t MAX_EXPR_SIZE = 4096;
 
 
-    void MakePathAbsolute(const string& base_path, string& path)
+    void MakePathAbsolute(const string& curr_path, string& path)
     {
         if (path.empty() || path[0] != '/')
-            path = base_path + '/' + path;
+            path = curr_path + '/' + path;
     }
 
 
@@ -241,16 +241,16 @@ int main(int argc, char** argv)
                 cout << "Failed to open log file: " << strerror(errno) << '\n';
                 return 1;
             }
-            char* curr_dir = get_current_dir_name();
-            AK_ASSERT(curr_dir);
-            MakePathAbsolute(curr_dir, code_path);
-            MakePathAbsolute(curr_dir, lib_path);
-            MakePathAbsolute(curr_dir, media_path);
+            char* curr_path = get_current_dir_name();
+            AK_ASSERT(curr_path);
+            MakePathAbsolute(curr_path, code_path);
+            MakePathAbsolute(curr_path, lib_path);
+            MakePathAbsolute(curr_path, media_path);
             if (!git_path_pattern.empty())
-                MakePathAbsolute(curr_dir, git_path_prefix);
+                MakePathAbsolute(curr_path, git_path_prefix);
             if (local)
-                MakePathAbsolute(curr_dir, place);
-            free(curr_dir);
+                MakePathAbsolute(curr_path, place);
+            free(curr_path);
             pid_t pid = fork();
             AK_ASSERT(pid != -1);
             if (pid)
