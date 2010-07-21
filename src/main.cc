@@ -211,7 +211,6 @@ int main(int argc, char** argv)
 
     InitDebug(log_id);
 
-    RequireOption("log-file", log_path);
     RequireOption("code-dir", code_path);
     RequireOption("lib-dir", lib_path);
     RequireOption("media-dir", media_path);
@@ -237,6 +236,7 @@ int main(int argc, char** argv)
         string& place(place_or_expr);
         bool local = place.find_first_of('/') != string::npos;
         if (vm.count("daemonize")) {
+            RequireOption("log-file", log_path);
             if (!freopen(log_path.c_str(), "a", stderr)) {
                 cout << "Failed to open log file: " << strerror(errno) << '\n';
                 return 1;
