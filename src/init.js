@@ -94,8 +94,9 @@
 
   var defaultPlace = new Place(basis.fs.lib, 'default:');
   var mainPlace = new Place(basis.fs.code, '');
-  var main = {id: 'main'};
+  var main = {id: 'main', exports: {}};
   var gitPlaces = {};
+  var defaultRequire;
   var GitStorage;
 
 
@@ -138,7 +139,7 @@
       if (refs.hasOwnProperty(ref))
         return doRequire(refs[ref], id, dir);
     }
-    GitStorage = GitStorage || makeRequire(defaultPlace, [])('git').GitStorage;
+    GitStorage = GitStorage || defaultRequire('git').GitStorage;
     var libPlace = new Place(new GitStorage(libName, ref),
                              libName + ':' + ref + ':');
     if (!refs)
@@ -201,4 +202,10 @@
 
   require = makeRequire(mainPlace, []);
   basis.core.set(require, 'main', 5, main);
+
+
+  defaultRequire = makeRequire(defaultPlace, []);
+  defaultRequire('binary');
+  defaultRequire('socket');
+  delete main.exports;
 });
