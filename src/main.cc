@@ -21,6 +21,8 @@ namespace po = boost::program_options;
 namespace
 {
     const size_t MAX_EXPR_SIZE = 4096;
+    const char* DEFAULT_HOST = "127.0.0.1";
+    const char* DEFAULT_PORT = "8000";
 
 
     void MakePathAbsolute(const string& curr_path, string& path)
@@ -202,7 +204,8 @@ int main(int argc, char** argv)
     if (vm.count("help") || command.empty()) {
         po::options_description visible_options(
             string("Usage: ") +
-            argv[0] + " [options] serve [PORT or ADDR:PORT or PATH]\n       " +
+            argv[0] + " [options] serve [PORT or ADDR:PORT or PATH[:MODE]]\n"
+            "       " +
             argv[0] + " [options] eval  EXPRESSION");
         visible_options.add(generic_options).add(config_options);
         cout << visible_options;
@@ -262,31 +265,38 @@ int main(int argc, char** argv)
             AK_ASSERT_EQUAL(ret, 0);
         }
         int listen_fd;
+        size_t colon_idx = place.find_first_of(':');
         if (local) {
             listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
             AK_ASSERT(listen_fd != -1);
-            unlink(place.c_str());
+            string socket_path = place.substr(0, colon_idx);
+            unlink(socket_path.c_str());
             struct sockaddr_un address;
             address.sun_family = AF_UNIX;
             strncpy(address.sun_path,
-                    place.c_str(),
+                    socket_path.c_str(),
                     sizeof(address.sun_path) - 1);
             if (bind(listen_fd,
                      reinterpret_cast<struct sockaddr*>(&address),
                      SUN_LEN(&address)))
                 Fail(strerror(errno));
-            cout << "Running at unix:" << place << '\n';
+            if (colon_idx != string::npos) {
+                int ret = chmod(socket_path.c_str(),
+                                strtol(place.c_str() + colon_idx + 1, 0, 8));
+                AK_ASSERT_EQUAL(ret, 0);
+            }
+            cout << "Running at unix:" << socket_path << '\n';
         } else {
-            string host("127.0.0.1");
-            string port("8000");
-            if (!place.empty()) {
-                size_t colon_idx = place.find_first_of(':');
-                if (colon_idx == string::npos) {
-                    port = place;
-                } else {
-                    host = place.substr(0, colon_idx);
-                    port = place.substr(colon_idx + 1);
-                }
+            string host, port;
+            if (place.empty()) {
+                host = DEFAULT_HOST;
+                port = DEFAULT_PORT;
+            } else if (colon_idx == string::npos) {
+                host = DEFAULT_HOST;
+                port = place;
+            } else {
+                host = place.substr(0, colon_idx);
+                port = place.substr(colon_idx + 1);
             }
             struct addrinfo hints;
             memset(&hints, 0, sizeof(hints));

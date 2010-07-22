@@ -107,7 +107,7 @@ class Test(unittest.TestCase):
             sock.close()
 
     def testServe(self):
-        process = _launch(['--daemonize', 'serve', SOCKET_PATH])
+        process = _launch(['--daemonize', 'serve', SOCKET_PATH + ':600'])
         self.assertEqual(
             process.stdout.read(), 'Running at unix:%s\n' % SOCKET_PATH)
         self.assertEqual(process.wait(), 0)
@@ -137,7 +137,11 @@ class Test(unittest.TestCase):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect(('127.0.0.1', PORT2))
         self.assertEqual(self._talk(sock, '"hello"'), 'hello')
-        process.kill()
+        process.send_signal(signal.SIGTERM)
+        process = _launch(['serve'])
+        self.assertEqual(
+            process.stdout.readline(), 'Running at 127.0.0.1:8000\n')
+        process.send_signal(signal.SIGTERM)
 
 
 def _connect_to_db(name):
