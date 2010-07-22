@@ -21,8 +21,8 @@ using boost::lexical_cast;
 namespace
 {
     const size_t MAX_NAME_SIZE = 60;
-    const size_t MAX_ATTR_NUMBER = 500;
-    const size_t MAX_REL_VAR_NUMBER = 500;
+    const size_t MAX_ATTR_COUNT = 500;
+    const size_t MAX_REL_VAR_COUNT = 500;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +94,7 @@ namespace
 
         static bool Intersect(const StringSet& lhs, const StringSet& rhs);
         static void CheckName(const string& name);
-        static void CheckAttrNumber(size_t number);
+        static void CheckAttrCount(size_t count);
         static void PrintAttrNames(ostream& os, const StringSet& names);
         StringSet ReadAttrNames(const string& pg_array) const;
 
@@ -181,7 +181,7 @@ RelVar::RelVar(const Meta& meta,
     , foreign_key_set_(foreign_key_set)
 {
     CheckName(name);
-    CheckAttrNumber(def_header.size());
+    CheckAttrCount(def_header.size());
     BOOST_FOREACH(const DefAttr& def_attr, def_header)
         CheckName(def_attr.name);
     InitHeader();
@@ -298,12 +298,11 @@ void RelVar::CheckName(const string& name)
 }
 
 
-void RelVar::CheckAttrNumber(size_t number)
+void RelVar::CheckAttrCount(size_t count)
 {
-    if (number > MAX_ATTR_NUMBER) {
+    if (count > MAX_ATTR_COUNT) {
         static const string message(
-            (format("Maximum attribute number is %1%") %
-             MAX_ATTR_NUMBER).str());
+            (format("Maximum attribute count is %1%") % MAX_ATTR_COUNT).str());
         throw Error(Error::QUOTA, message);
     }
 }
@@ -446,7 +445,7 @@ void RelVar::AddAttrs(const ValHeader& val_attr_set)
 {
     if (val_attr_set.empty())
         return;
-    CheckAttrNumber(header_.size() + val_attr_set.size());
+    CheckAttrCount(header_.size() + val_attr_set.size());
     ostringstream oss;
     oss << "ALTER TABLE \"" << name_ << "\" ";
     Separator sep;
@@ -708,10 +707,9 @@ void Meta::Create(const string& rel_var_name,
                   const ForeignKeySet& foreign_key_set,
                   const Strings& checks)
 {
-    if (rel_vars_.size() >= MAX_REL_VAR_NUMBER) {
+    if (rel_vars_.size() >= MAX_REL_VAR_COUNT) {
         static const string message(
-            (format("Maximum RelVar number is %1%") %
-             MAX_REL_VAR_NUMBER).str());
+            (format("Maximum RelVar count is %1%") % MAX_REL_VAR_COUNT).str());
         throw Error(Error::QUOTA, message);
     }
     if (GetIdx(rel_var_name) != MINUS_ONE)

@@ -489,9 +489,9 @@ namespace
     DEFINE_JS_FUNCTION(DelCb, args)
     {
         CheckArgsLength(args, 2);
-        size_t rows_number = Delete(
-            Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]));
-        return Number::New(static_cast<double>(rows_number));
+        return Number::New(
+            Delete(
+                Stringify(args[0]), Stringify(args[1]), ReadParams(args[2])));
     }
 
 
@@ -508,10 +508,10 @@ namespace
             expr_map.add(
                 NamedString(Stringify(prop.key), Stringify(prop.value)));
         }
-        size_t rows_number = Update(
-            Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]),
-            expr_map, ReadParams(args[4]));
-        return Number::New(static_cast<double>(rows_number));
+        return Number::New(
+            Update(
+                Stringify(args[0]), Stringify(args[1]), ReadParams(args[2]),
+                expr_map, ReadParams(args[4])));
     }
 
 
