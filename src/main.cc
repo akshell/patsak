@@ -205,7 +205,7 @@ int main(int argc, char** argv)
             argv[0] + " [options] serve [PORT or ADDR:PORT or PATH]\n       " +
             argv[0] + " [options] eval  EXPRESSION");
         visible_options.add(generic_options).add(config_options);
-        cout << visible_options << '\n';
+        cout << visible_options;
         return !vm.count("help");
     }
 
