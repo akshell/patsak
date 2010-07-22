@@ -382,7 +382,6 @@ int main(int argc, char** argv)
         int conn_fd = *reinterpret_cast<int*>(CMSG_DATA(cmsg_ptr));
         if (op == 'H') {
             HandleRequest(conn_fd); // closes the socket
-            continue;
         } else {
             AK_ASSERT_EQUAL(op, 'E');
             char expr[MAX_EXPR_SIZE];
