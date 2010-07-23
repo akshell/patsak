@@ -348,7 +348,9 @@ int main(int argc, char** argv)
     } else if (command == "work") {
         managed = true;
         server_fd = STDIN_FILENO;
-    } else if (command != "eval") {
+    } else if (command == "eval") {
+        server_fd = -1;
+    } else {
         cerr << "Unknown command: " << command << '\n';
         return 1;
     }
@@ -363,7 +365,7 @@ int main(int argc, char** argv)
            tablespace_name,
            managed);
 
-    if (command == "eval") {
+    if (server_fd == -1) {
         const string& expr(place_or_expr);
         string result;
         EvalExpr(expr.data(), expr.size(), result);
@@ -391,30 +393,28 @@ int main(int argc, char** argv)
         int conn_fd = *reinterpret_cast<int*>(CMSG_DATA(cmsg_ptr));
         if (op == 'H') {
             HandleRequest(conn_fd); // closes the socket
-        } else {
-            AK_ASSERT_EQUAL(op, 'E');
-            char expr[MAX_EXPR_SIZE];
-            size_t received = 0;
-            do {
-                count = read(conn_fd, expr + received, MAX_EXPR_SIZE - received);
-                received += count;
-            } while (count > 0);
-            if (count != -1) {
-                string result;
-                char status = EvalExpr(expr, received, result) ? 'S' : 'F';
-                count = write(conn_fd, &status, 1);
-                size_t sent = 0;
-                while (count > 0 && sent < result.size()) {
-                    count = write(conn_fd,
-                                  result.data() + sent,
-                                  result.size() - sent);
-                    sent += count;
-                }
-            }
-            close(conn_fd);
+            continue;
         }
-        if (managed)
-            write(server_fd, "D", 1);
+        AK_ASSERT_EQUAL(op, 'E');
+        char expr[MAX_EXPR_SIZE];
+        size_t received = 0;
+        do {
+            count = read(conn_fd, expr + received, MAX_EXPR_SIZE - received);
+            received += count;
+        } while (count > 0);
+        if (count != -1) {
+            string result;
+            char status = EvalExpr(expr, received, result) ? 'S' : 'F';
+            count = write(conn_fd, &status, 1);
+            size_t sent = 0;
+            while (count > 0 && sent < result.size()) {
+                count = write(conn_fd,
+                              result.data() + sent,
+                              result.size() - sent);
+                sent += count;
+            }
+        }
+        close(conn_fd);
     } while (!ProgramIsDead());
 
     return 0;
