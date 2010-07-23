@@ -98,7 +98,6 @@ namespace
             cmsg_ptr->cmsg_type = SCM_RIGHTS;
             cmsg_ptr->cmsg_len = CMSG_LEN(sizeof(int));
             *reinterpret_cast<int*>(CMSG_DATA(cmsg_ptr)) = conn_fd;
-            msg.msg_controllen = cmsg_ptr->cmsg_len;
             ssize_t sent = sendmsg(worker_fds[i], &msg, 0);
             if (sent != 1) {
                 int fd;
