@@ -16,8 +16,6 @@ import signal
 
 
 DB_NAME     = 'test-patsak'
-DB_USER     = 'test'
-DB_PASSWORD = 'test'
 TMP_PATH    = '/tmp/patsak'
 SOCKET_PATH = TMP_PATH + '/socket'
 MEDIA_PATH  = TMP_PATH + '/media'
@@ -42,7 +40,7 @@ def _popen(cmd):
 
 
 def _launch(args):
-    return _popen([PATSAK_PATH, '--config-file', CONFIG_PATH] + args)
+    return _popen([PATSAK_PATH, '--config', CONFIG_PATH] + args)
 
 
 class Test(unittest.TestCase):
@@ -59,12 +57,12 @@ class Test(unittest.TestCase):
         self._check_launch(['unknown-command'], 1)
         self._check_launch(['--help'])
         self._check_launch(['--version'])
-        self._check_launch(['--code-dir', '', 'serve', 'socket'], 1)
+        self._check_launch(['--app', '', 'serve', 'socket'], 1)
         self._check_launch(['--git-pattern', 'bad', 'eval', '1'], 1)
-        self._check_launch(['--daemonize', 'serve', 'bad/path'])
+        self._check_launch(['--background', 'serve', 'bad/path'])
         self._check_launch(['serve', 'bad:bad'], 1)
         self._check_launch(['serve', 'example.com:80'], 1)
-        self._check_launch(['--log-file', 'bad/log', '--daemonize', 'serve'], 1)
+        self._check_launch(['--log', 'bad/log', '--background', 'serve'], 1)
 
     def _eval(self, expr):
         process = _launch(['eval', expr])
@@ -91,10 +89,10 @@ class Test(unittest.TestCase):
         self.assertEqual(self._eval('db.list().indexOf("xxx")'), '-1')
         # Timed out test. Long to run.
 #         self.assertEqual(self._eval('for (;;) test();'), '<Timed out>')
-        process = _launch(['--code-dir', CODE_PATH + '/syntax', 'eval', '1'])
+        process = _launch(['--app', CODE_PATH + '/syntax', 'eval', '1'])
         self.assert_('SyntaxError' in process.stdout.read())
         self.assertEqual(process.wait(), 0)
-        process = _launch(['--code-dir', CODE_PATH + '/eval', 'eval', '1'])
+        process = _launch(['--app', CODE_PATH + '/eval', 'eval', '1'])
         self.assertEqual(process.stdout.read(), 'eval is not a function\n')
         self.assertEqual(process.wait(), 0)
 
@@ -107,7 +105,7 @@ class Test(unittest.TestCase):
             sock.close()
 
     def testServe(self):
-        process = _launch(['--daemonize', 'serve', SOCKET_PATH + ':600'])
+        process = _launch(['--background', 'serve', SOCKET_PATH + ':600'])
         self.assertEqual(
             process.stdout.read(), 'Running at unix:%s\n' % SOCKET_PATH)
         self.assertEqual(process.wait(), 0)
@@ -144,11 +142,6 @@ class Test(unittest.TestCase):
         process.send_signal(signal.SIGTERM)
 
 
-def _connect_to_db(name):
-    return psycopg2.connect(
-        'user=%s password=%s dbname=%s' % (DB_USER, DB_PASSWORD, name))
-
-
 def main():
     if len(sys.argv) != 2:
         print 'Usage:', sys.argv[0], 'mode'
@@ -160,7 +153,7 @@ def main():
     TEST_PATSAK_PATH = EXE_PATH + mode + '/test-patsak'
     suite = unittest.TestLoader().loadTestsFromTestCase(Test)
 
-    conn = _connect_to_db('template1')
+    conn = psycopg2.connect('dbname=template1')
     conn.set_isolation_level(0)
     cursor = conn.cursor()
     try:
@@ -170,7 +163,7 @@ def main():
             raise
     cursor.execute('CREATE DATABASE "%s"' % DB_NAME)
     conn.close()
-    conn = _connect_to_db(DB_NAME)
+    conn = psycopg2.connect('dbname=' + DB_NAME)
     cursor = conn.cursor()
     cursor.execute(open(INIT_PATH).read())
     conn.commit()
@@ -184,17 +177,14 @@ def main():
 
     with open(CONFIG_PATH, 'w') as f:
         f.write('''
-db-name=%s
-db-user=%s
-db-password=%s
-code-dir=%s/main
-lib-dir=%s
-media-dir=%s
-git-pattern=%s/%%s/.git
-log-file=%s
+db=dbname=%s
+app=%s/main
+lib=%s
+media=%s
+git=%s/%%s/.git
+log=%s
 workers=3
-''' % (DB_NAME, DB_USER, DB_PASSWORD,
-       CODE_PATH, LIB_PATH, MEDIA_PATH, CODE_PATH, LOG_PATH))
+''' % (DB_NAME, CODE_PATH, LIB_PATH, MEDIA_PATH, CODE_PATH, LOG_PATH))
 
     unittest.TextTestRunner(verbosity=2).run(suite)
 

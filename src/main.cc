@@ -122,37 +122,34 @@ int main(int argc, char** argv)
     generic_options.add_options()
         ("help,h", "print help message")
         ("version,v", "print version")
-        ("config-file,f",
+        ("config,c",
          po::value<string>()->default_value("/etc/patsak.conf"),
-         "config file path")
+         "config file")
         ;
 
-    string log_path, code_path, lib_path, media_path;
+    string code_path, lib_path, media_path;
     string git_path_pattern;
-    string db_name, user_name, password, schema_name, tablespace_name;
+    string db_options, schema_name, tablespace_name;
+    string log_path;
     size_t worker_count;
     po::options_description config_options("Config options");
     config_options.add_options()
-        ("log-file,o", po::value<string>(&log_path), "log file")
-        ("code-dir,c", po::value<string>(&code_path), "code directory")
-        ("lib-dir,l", po::value<string>(&lib_path), "lib directory")
-        ("media-dir,m", po::value<string>(&media_path), "media directory")
-        ("git-pattern,g",
-         po::value<string>(&git_path_pattern),
-         "git path pattern")
-        ("db-name,n", po::value<string>(&db_name), "database name")
-        ("db-user,u", po::value<string>(&user_name), "database user")
-        ("db-password,p", po::value<string>(&password), "database password")
-        ("db-schema,s",
+        ("app,a", po::value<string>(&code_path), "app code directory")
+        ("lib,l", po::value<string>(&lib_path), "lib directory")
+        ("media,m", po::value<string>(&media_path), "media directory")
+        ("git,g", po::value<string>(&git_path_pattern), "git path pattern")
+        ("db,d", po::value<string>(&db_options), "database options")
+        ("schema,s",
          po::value<string>(&schema_name)->default_value("public"),
          "database schema")
-        ("db-tablespace,t",
+        ("tablespace,t",
          po::value<string>(&tablespace_name)->default_value("pg_default"),
          "database tablespace")
-        ("daemonize,d", "daemonize before serving")
         ("workers,w",
          po::value<size_t>(&worker_count)->default_value(5),
          "serve worker count")
+        ("log,o", po::value<string>(&log_path), "log file")
+        ("background,b", "serve in background")
         ;
 
     string command;
@@ -183,7 +180,7 @@ int main(int argc, char** argv)
                    .options(cmdline_options)
                    .positional(positional_options).run()),
                   vm);
-        ifstream config_file(vm["config-file"].as<string>().c_str());
+        ifstream config_file(vm["config"].as<string>().c_str());
         if (config_file.is_open()) {
             po::store(po::parse_config_file(config_file, config_options), vm);
             config_file.close();
@@ -213,12 +210,10 @@ int main(int argc, char** argv)
 
     InitDebug(log_id);
 
-    RequireOption("code-dir", code_path);
-    RequireOption("lib-dir", lib_path);
-    RequireOption("media-dir", media_path);
-    RequireOption("db-name", db_name);
-    RequireOption("db-user", user_name);
-    RequireOption("db-password", password);
+    RequireOption("app", code_path);
+    RequireOption("lib", lib_path);
+    RequireOption("media", media_path);
+    RequireOption("db", db_options);
 
     string git_path_prefix, git_path_suffix;
     if (!git_path_pattern.empty()) {
@@ -237,8 +232,8 @@ int main(int argc, char** argv)
     if (command == "serve") {
         string& place(place_or_expr);
         bool local = place.find_first_of('/') != string::npos;
-        if (vm.count("daemonize")) {
-            RequireOption("log-file", log_path);
+        if (vm.count("background")) {
+            RequireOption("log", log_path);
             if (!freopen(log_path.c_str(), "a", stderr)) {
                 cout << "Failed to open log file: " << strerror(errno) << '\n';
                 return 1;
@@ -327,7 +322,7 @@ int main(int argc, char** argv)
         }
         int ret = listen(listen_fd, SOMAXCONN);
         AK_ASSERT_EQUAL(ret, 0);
-        if (vm.count("daemonize")) {
+        if (vm.count("background")) {
             FILE* file_ptr = freopen("/dev/null", "w", stdout);
             AK_ASSERT(file_ptr);
             file_ptr = freopen("/dev/null", "r", stdin);
@@ -360,7 +355,7 @@ int main(int argc, char** argv)
            media_path,
            git_path_prefix,
            git_path_suffix,
-           "user=" + user_name + " password=" + password + " dbname=" + db_name,
+           db_options,
            schema_name,
            tablespace_name,
            managed);
