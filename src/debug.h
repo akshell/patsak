@@ -24,32 +24,29 @@ namespace ak
 
 #ifdef NDEBUG
 
-#define AK_ASSERT(cond)                         \
-    (void)(cond)
+#define AK_ASSERT(cond)                                                 \
+    static_cast<void>(cond)
 
-#define AK_ASSERT_MESSAGE(cond, message)        \
-    (void)(cond), (void)(message)
+#define AK_ASSERT_MESSAGE(cond, message)                                \
+    static_cast<void>(cond), static_cast<void>(message)
 
-#define AK_ASSERT_EQUAL(lhs, rhs)               \
-    (void)(lhs), (void)(rhs)
+#define AK_ASSERT_EQUAL(lhs, rhs)                                       \
+    static_cast<void>(lhs), static_cast<void>(rhs)
 
 #else // NDEBUG
 
 #define AK_ASSERT(cond)                                                 \
-    do {                                                                \
-        if (!(cond))                                                    \
-            FailOnAssertion(                                            \
-                __FILE__, __LINE__, __PRETTY_FUNCTION__, #cond);        \
-    } while (0)
+    ((cond)                                                             \
+     ? static_cast<void>(0)                                             \
+     : FailOnAssertion(                                                 \
+         __FILE__, __LINE__, __PRETTY_FUNCTION__, #cond));              \
 
 
 #define AK_ASSERT_MESSAGE(cond, message)                                \
-    do {                                                                \
-        if (!(cond))                                                    \
-            FailOnAssertion(                                            \
-                __FILE__, __LINE__, __PRETTY_FUNCTION__,                \
-                #cond, message);                                        \
-    } while (0)
+    ((cond)                                                             \
+     ? static_cast<void>(0)                                             \
+     : FailOnAssertion(                                                 \
+         __FILE__, __LINE__, __PRETTY_FUNCTION__, #cond, message));     \
 
 
 #define AK_ASSERT_EQUAL(lhs, rhs)                                       \
