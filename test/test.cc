@@ -1011,6 +1011,7 @@ BOOST_AUTO_TEST_CASE(query_test)
 
 boost::unit_test::test_suite* init_unit_test_suite(int, char**)
 {
-    InitDatabase("dbname=test user=test password=test", "public", "pg_default");
+    InitDatabase(
+        "dbname=test-patsak user=test password=test", "public", "pg_default");
     return 0;
 }

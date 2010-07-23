@@ -15,7 +15,7 @@ import errno
 import signal
 
 
-DB_NAME     = 'test'
+DB_NAME     = 'test-patsak'
 DB_USER     = 'test'
 DB_PASSWORD = 'test'
 TMP_PATH    = '/tmp/patsak'
