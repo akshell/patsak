@@ -153,16 +153,8 @@ def main():
     TEST_PATSAK_PATH = EXE_PATH + mode + '/test-patsak'
     suite = unittest.TestLoader().loadTestsFromTestCase(Test)
 
-    conn = psycopg2.connect('dbname=template1')
-    conn.set_isolation_level(0)
-    cursor = conn.cursor()
-    try:
-        cursor.execute('DROP DATABASE "%s"' % DB_NAME)
-    except psycopg2.ProgrammingError, error:
-        if error.pgcode != '3D000':
-            raise
-    cursor.execute('CREATE DATABASE "%s"' % DB_NAME)
-    conn.close()
+    _popen(['dropdb', DB_NAME]).wait()
+    _popen(['createdb', DB_NAME]).wait()
     conn = psycopg2.connect('dbname=' + DB_NAME)
     cursor = conn.cursor()
     cursor.execute(open(INIT_PATH).read())
