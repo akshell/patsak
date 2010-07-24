@@ -63,6 +63,8 @@ class Test(unittest.TestCase):
         self._check_launch(['serve', 'bad:bad'], 1)
         self._check_launch(['serve', 'example.com:80'], 1)
         self._check_launch(['--log', 'bad/log', '--background', 'serve'], 1)
+        self.assertEqual(
+            _popen([PATSAK_PATH, '--config', 'bad/config', 'serve']).wait(), 1)
 
     def _eval(self, expr):
         process = _launch(['eval', expr])

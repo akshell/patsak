@@ -180,8 +180,13 @@ int main(int argc, char** argv)
                    .options(cmdline_options)
                    .positional(positional_options).run()),
                   vm);
-        ifstream config_file(vm["config"].as<string>().c_str());
-        if (config_file.is_open()) {
+        string config_path(vm["config"].as<string>());
+        if (!config_path.empty()) {
+            ifstream config_file(config_path.c_str());
+            if (!config_file.is_open()) {
+                cerr << "Failed to open config file\n";
+                return 1;
+            }
             po::store(po::parse_config_file(config_file, config_options), vm);
             config_file.close();
         }
