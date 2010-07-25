@@ -5,12 +5,13 @@
 #include <boost/program_options.hpp>
 
 #include <fstream>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/un.h>
 #include <errno.h>
 #include <netdb.h>
 #include <signal.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <sys/wait.h>
 
 
 using namespace std;
@@ -109,6 +110,8 @@ namespace
                 worker_fds[i] = fd;
                 sent = sendmsg(fd, &msg, 0);
                 AK_ASSERT_EQUAL(sent, 1);
+                while (waitpid(-1, 0, WNOHANG) > 0)
+                    ;
             }
             close(conn_fd);
         }
