@@ -799,7 +799,7 @@ namespace
 
         const Meta& GetMeta();
         Meta& ChangeMeta();
-        string Quote(const string& str);
+        string Quote(const string& str, bool raw = false);
         pqxx::result Exec(const string& sql);
         pqxx::result ExecSafely(const string& sql);
         void Commit();
@@ -863,9 +863,14 @@ Meta& DB::ChangeMeta()
 }
 
 
-string DB::Quote(const string& str)
+string DB::Quote(const string& str, bool raw)
 {
-    return conn_.quote(str);
+    return ("'" +
+            (raw
+             ? conn_.esc_raw(reinterpret_cast<const unsigned char*>(str.data()),
+                             str.size())
+             : conn_.esc(str)) +
+            "'");
 }
 
 
@@ -940,9 +945,9 @@ namespace
     }
 
 
-    string Quote(const string& str)
+    string Quote(const string& str, bool raw)
     {
-        return db_ptr->Quote(str);
+        return db_ptr->Quote(str, raw);
     }
 
 
@@ -988,6 +993,8 @@ namespace
                 result.push_back(Value(type, field.as<double>()));
             else if (type == Type::BOOLEAN)
                 result.push_back(Value(type, field.as<bool>()));
+            else if (type == Type::BINARY)
+                result.push_back(Value(type, pqxx::binarystring(field).str()));
             else
                 result.push_back(Value(type, field.as<string>()));
         }

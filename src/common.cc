@@ -18,8 +18,16 @@ using boost::lexical_cast;
 
 string Type::GetPgName() const
 {
-    static const char* pg_names[] =
-        {"float8", "int4", "int4", "text", "bool", "timestamp(3)", "ak.json"};
+    static const char* pg_names[] = {
+        "float8",
+        "int4",
+        "int4",
+        "text",
+        "bool",
+        "timestamp(3)",
+        "ak.json",
+        "bytea"
+    };
     AK_ASSERT(tag_ < DUMMY);
     return pg_names[tag_];
 }
@@ -27,8 +35,16 @@ string Type::GetPgName() const
 
 string Type::GetName() const
 {
-    static const char* names[] =
-        {"number", "integer", "serial", "string", "boolean", "date", "json"};
+    static const char* names[] = {
+        "number",
+        "integer",
+        "serial",
+        "string",
+        "boolean",
+        "date",
+        "json",
+        "binary"
+    };
     AK_ASSERT(tag_ < DUMMY);
     return names[tag_];
 }
@@ -40,7 +56,9 @@ string Type::GetCastFunc(Type from) const
         return "";
     if (tag_ == DATE || tag_ == JSON)
         throw Error(Error::TYPE, "Cannot coerce any type to " + GetName());
-    if  (IsNumeric())
+    if (from == BINARY && tag_ != BOOLEAN)
+        throw Error(Error::TYPE, "Cannot coerce binary to " + GetName());
+    if (IsNumeric())
         return "ak.to_number";
     return "ak.to_" + GetName();
 }
@@ -62,6 +80,8 @@ Type ak::ReadType(const string& name)
         return Type::DATE;
     if (name == "json")
         return Type::JSON;
+    if (name == "binary")
+        return Type::BINARY;
     throw Error(Error::VALUE, "Type " + name + " doesn't exist");
 }
 
@@ -78,8 +98,10 @@ Type ak::ReadPgType(const string& pg_name)
         return Type::BOOLEAN;
     if (pg_name == "timestamp")
         return Type::DATE;
-    AK_ASSERT_EQUAL(pg_name, "json");
-    return Type::JSON;
+    if (pg_name == "json")
+        return Type::JSON;
+    AK_ASSERT_EQUAL(pg_name, "bytea");
+    return Type::BINARY;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,6 +155,8 @@ string BinaryOp::GetName() const
 
 Type BinaryOp::GetCommonType(Type left_type, Type right_type) const
 {
+    if (left_type == Type::BINARY || right_type == Type::BINARY)
+        throw Error(Error::TYPE, "Operation cannot be applied to binary");
     if (IsLogical(tag_))
         return Type::BOOLEAN;
     if (IsComparison(tag_)) {
@@ -284,7 +308,7 @@ namespace
         }
 
         virtual string GetPgLiter() const {
-            return quote_cb(repr_);
+            return quote_cb(repr_, type_ == Type::BINARY);
         }
 
         virtual bool Get(double& /*d*/, string& s) const {
@@ -364,11 +388,8 @@ namespace
         mutable struct tm tm_; // mutable for mktime
         size_t ms_;
     };
-}
 
 
-namespace
-{
     Value::Impl* CreateValueImplByDouble(Type type, double d)
     {
         if (type.IsNumeric()) {
@@ -384,7 +405,9 @@ namespace
 
     Value::Impl* CreateValueImplByString(Type type, const string& s)
     {
-        if (type == Type::STRING || type == Type::JSON) {
+        if (type == Type::STRING ||
+            type == Type::JSON ||
+            type == Type::BINARY) {
             return new StringValue(type, s);
         } else if (type.IsNumeric()) {
             return new NumberValue(

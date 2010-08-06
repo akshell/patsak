@@ -2,6 +2,7 @@
 
 #include "js-db.h"
 #include "js-common.h"
+#include "js-binary.h"
 #include "db.h"
 
 
@@ -72,6 +73,11 @@ ak::Value Draft::Impl::Get(Type type) const
             throw Error(Error::TYPE, "Cannot serialize a value into JSON");
         return ak::Value(type, Stringify(json));
     }
+    if (type == Type::BINARY) {
+        Binarizator binarizator(v8_value_);
+        return ak::Value(
+            type, string(binarizator.GetData(), binarizator.GetSize()));
+    }
     AK_ASSERT(type == Type::DUMMY);
     if (v8_value_->IsNumber())
         return ak::Value(Type::NUMBER, v8_value_->NumberValue());
@@ -141,6 +147,8 @@ namespace
             return Boolean::New(d);
         if (type == Type::DATE)
             return Date::New(d);
+        if (type == Type::BINARY)
+            return NewBinary(auto_ptr<Chars>(new Chars(s.begin(), s.end())));
         AK_ASSERT(type == Type::JSON);
         Handle<v8::Value> arg(String::New(s.c_str()));
         Handle<v8::Value> result(

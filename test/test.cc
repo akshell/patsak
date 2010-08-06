@@ -600,9 +600,11 @@ void Table::ReadHeader(istream& is)
             type = Type::BOOLEAN;
         } else if (type_str == "date") {
             type = Type::DATE;
-        } else {
-            AK_ASSERT_EQUAL(type_str, "json");
+        } else if (type_str == "json") {
             type = Type::JSON;
+        } else {
+            AK_ASSERT_EQUAL(type_str, "binary");
+            type = Type::BINARY;
         }
         def_header_.add(DefAttr(name, type));
     }
@@ -855,10 +857,12 @@ BOOST_AUTO_TEST_CASE(db_test)
     Header header;
     header.add(Attr("d", Type::DATE));
     header.add(Attr("j", Type::JSON));
+    header.add(Attr("b", Type::BINARY));
     Table table(header);
     Values row;
     row.push_back(Value(Type::DATE, "2009-03-04 17:41:05.915"));
     row.push_back(Value(Type::JSON, "{}"));
+    row.push_back(Value(Type::BINARY, ""));
     table.AddRow(row);
     LoadRelVar("Test", table);
 

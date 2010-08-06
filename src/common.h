@@ -69,6 +69,7 @@ namespace ak
             BOOLEAN,
             DATE,
             JSON,
+            BINARY,
             DUMMY
         };
 
@@ -293,7 +294,7 @@ namespace ak
     // InitCommon
     ////////////////////////////////////////////////////////////////////////////
 
-    typedef std::string (*QuoteCallback)(const std::string& str);
+    typedef std::string (*QuoteCallback)(const std::string& str, bool raw);
 
     void InitCommon(QuoteCallback quote_cb);
 }

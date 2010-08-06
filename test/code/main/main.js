@@ -913,6 +913,20 @@ var dbTestSuite2 = {
         db.insert('X', {j: {toJSON: function () { throw new E(); }}});
       });
     assertThrow(TypeError, "db.insert('X', {j: undefined})");
+  },
+
+  testBinary: function () {
+    db.create('X', {b: 'binary'});
+    db.insert('X', {b: ''});
+    db.insert('X', {b: 'hello'});
+    db.insert('X', {b: new Binary([0, 0, 0])});
+    assertSame(db.query('X where !b').length, 1);
+    var tuples = db.query('X where b', [], 'b');
+    assertSame(tuples.length, 2);
+    assert(tuples[0].b instanceof Binary);
+    assertSame(tuples[0].b + '', '\0\0\0');
+    assertSame(tuples[1].b + '', 'hello');
+    assertThrow(TypeError, db.query, "X where +b");
   }
 };
 

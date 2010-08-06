@@ -60,7 +60,7 @@ $$ LANGUAGE SQL IMMUTABLE;
 
 
 CREATE FUNCTION ak.to_boolean(t text) RETURNS bool AS $$
-    SELECT CASE WHEN $1 = '' THEN false ELSE true END;
+    SELECT $1 <> '';
 $$ LANGUAGE SQL IMMUTABLE;
 
 
@@ -78,6 +78,9 @@ CREATE FUNCTION ak.to_boolean(j ak.json) RETURNS bool AS $$
     SELECT true;
 $$ LANGUAGE SQL IMMUTABLE;
 
+CREATE FUNCTION ak.to_boolean(b bytea) RETURNS bool AS $$
+    SELECT $1 <> ''::bytea;
+$$ LANGUAGE SQL IMMUTABLE;
 
 CREATE FUNCTION ak.mod(a float8, b float8) RETURNS float8 AS $$
     SELECT $1 - trunc($1/$2) * $2;
