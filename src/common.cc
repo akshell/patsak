@@ -276,11 +276,11 @@ namespace
 
     class StringValue : public Value::Impl {
     public:
-        StringValue(const string& repr)
-            : repr_(repr) {}
+        StringValue(Type type, const string& repr)
+            : type_(type), repr_(repr) {}
 
         virtual Type GetType() const {
-            return Type::STRING;
+            return type_;
         }
 
         virtual string GetPgLiter() const {
@@ -293,6 +293,7 @@ namespace
         }
 
     private:
+        Type type_;
         string repr_;
     };
 
@@ -363,17 +364,6 @@ namespace
         mutable struct tm tm_; // mutable for mktime
         size_t ms_;
     };
-
-
-    class JSONValue : public StringValue {
-    public:
-        JSONValue(const string& repr)
-            : StringValue(repr) {}
-
-        virtual Type GetType() const {
-            return Type::JSON;
-        }
-    };
 }
 
 
@@ -394,8 +384,8 @@ namespace
 
     Value::Impl* CreateValueImplByString(Type type, const string& s)
     {
-        if (type == Type::STRING) {
-            return new StringValue(s);
+        if (type == Type::STRING || type == Type::JSON) {
+            return new StringValue(type, s);
         } else if (type.IsNumeric()) {
             return new NumberValue(
                 s.substr(0, 5) == "'NaN'"
@@ -406,11 +396,9 @@ namespace
         } else if (type == Type::BOOLEAN) {
             AK_ASSERT(s == "true" || s == "false");
             return new BooleanValue(s == "true");
-        } else if (type == Type::DATE) {
-            return new DateValue(s);
         } else {
-            AK_ASSERT(type == Type::JSON);
-            return new JSONValue(s);
+            AK_ASSERT(type == Type::DATE);
+            return new DateValue(s);
         }
     }
 }
