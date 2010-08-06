@@ -133,7 +133,7 @@ namespace
         double d;
         string s;
         ak_value.Get(d, s);
-        if (type == Type::NUMBER)
+        if (type.IsNumeric())
             return Number::New(d);
         if (type == Type::STRING)
             return String::New(s.c_str());

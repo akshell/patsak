@@ -984,7 +984,7 @@ namespace
         for (size_t i = 0; i < tuple.size(); ++i) {
             pqxx::result::field field(tuple[i]);
             Type type(header[i].type);
-            if (type == Type::NUMBER)
+            if (type.IsNumeric())
                 result.push_back(Value(type, field.as<double>()));
             else if (type == Type::BOOLEAN)
                 result.push_back(Value(type, field.as<bool>()));
