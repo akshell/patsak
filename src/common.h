@@ -63,10 +63,10 @@ namespace ak
     public:
         enum Tag {
             NUMBER,
-            INT,
+            INTEGER,
             SERIAL,
             STRING,
-            BOOL,
+            BOOLEAN,
             DATE,
             JSON,
             DUMMY
@@ -79,7 +79,7 @@ namespace ak
         std::string GetCastFunc(Type from) const;
 
         bool IsNumeric() const {
-            return tag_ == NUMBER || tag_ == INT || tag_ == SERIAL;
+            return tag_ == NUMBER || tag_ == INTEGER || tag_ == SERIAL;
         }
 
         bool operator==(Type other) const {

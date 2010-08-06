@@ -54,7 +54,7 @@ ak::Value Draft::Impl::Get(Type type) const
         return ak::Value(type, v8_value_->NumberValue());
     if (type == Type::STRING)
         return ak::Value(type, Stringify(v8_value_));
-    if (type == Type::BOOL)
+    if (type == Type::BOOLEAN)
         return ak::Value(type, v8_value_->BooleanValue());
     if (type == Type::DATE) {
         if (!v8_value_->IsDate())
@@ -76,7 +76,7 @@ ak::Value Draft::Impl::Get(Type type) const
     if (v8_value_->IsNumber())
         return ak::Value(Type::NUMBER, v8_value_->NumberValue());
     if (v8_value_->IsBoolean())
-        return ak::Value(Type::BOOL, v8_value_->BooleanValue());
+        return ak::Value(Type::BOOLEAN, v8_value_->BooleanValue());
     if (v8_value_->IsDate())
         return ak::Value(Type::DATE, v8_value_->NumberValue());
     return ak::Value(Type::STRING, Stringify(v8_value_));
@@ -137,7 +137,7 @@ namespace
             return Number::New(d);
         if (type == Type::STRING)
             return String::New(s.c_str());
-        if (type == Type::BOOL)
+        if (type == Type::BOOLEAN)
             return Boolean::New(d);
         if (type == Type::DATE)
             return Date::New(d);

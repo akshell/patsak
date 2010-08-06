@@ -59,22 +59,22 @@ CREATE FUNCTION ak.to_number(j ak.json) RETURNS float8 AS $$
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE FUNCTION ak.to_bool(t text) RETURNS bool AS $$
+CREATE FUNCTION ak.to_boolean(t text) RETURNS bool AS $$
     SELECT CASE WHEN $1 = '' THEN false ELSE true END;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE FUNCTION ak.to_bool(f float8) RETURNS bool AS $$
+CREATE FUNCTION ak.to_boolean(f float8) RETURNS bool AS $$
     SELECT CASE WHEN $1 = 0 OR $1 = 'NaN'::float8 THEN false ELSE true END;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE FUNCTION ak.to_bool(t timestamp(3)) RETURNS bool AS $$
+CREATE FUNCTION ak.to_boolean(t timestamp(3)) RETURNS bool AS $$
     SELECT true;
 $$ LANGUAGE SQL IMMUTABLE;
 
 
-CREATE FUNCTION ak.to_bool(j ak.json) RETURNS bool AS $$
+CREATE FUNCTION ak.to_boolean(j ak.json) RETURNS bool AS $$
     SELECT true;
 $$ LANGUAGE SQL IMMUTABLE;
 

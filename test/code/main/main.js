@@ -338,7 +338,7 @@ var dbTestSuite1 = {
         id: 'serial',
         name: 'string',
         age: 'number',
-        flooder: ['bool', 'yo!']
+        flooder: ['boolean', 'yo!']
       },
       [['id'], ['name']]);
     db.create(
@@ -347,7 +347,7 @@ var dbTestSuite1 = {
         id: 'serial',
         title: 'string',
         text: 'string',
-        author: 'int'
+        author: 'integer'
       },
       [['id'], ['title', 'author']],
       [[['author'], 'User', ['id']]]);
@@ -356,8 +356,8 @@ var dbTestSuite1 = {
       {
         id: 'serial',
         text: 'string',
-        author: 'int',
-        post: 'int'
+        author: 'integer',
+        post: 'integer'
       },
       [['id']],
       [[['author'], 'User', ['id']], [['post'], 'Post', ['id']]]);
@@ -430,7 +430,7 @@ var dbTestSuite1 = {
                   db.create('Bad', attrs);
                 });
 
-    db.create('X', {b: ['bool', new Date()]});
+    db.create('X', {b: ['boolean', new Date()]});
     db.insert('X', {});
     assertSame(db.query('X')[0].b, true);
 
@@ -513,7 +513,7 @@ var dbTestSuite1 = {
     assertEqual(items(db.insert('Empty', {})), []);
     assertEqual(db.query('Empty').map(items), [[]]);
     assertThrow(ConstraintError, "db.insert('Empty', {})");
-    db.create('Num', {n: 'number', i: ['int', 3.14]});
+    db.create('Num', {n: 'number', i: ['integer', 3.14]});
     assertSame(db.insert('Num', {n: 0}).i, 3);
     assertSame(db.insert('Num', {n: 1.5, i: 1.5}).i, 2);
     assertSame(db.insert('Num', {n: Infinity}).n, Infinity);
@@ -531,7 +531,7 @@ var dbTestSuite1 = {
         ['id', 'serial'],
         ['name', 'string'],
         ['age', 'number'],
-        ['flooder', 'bool']
+        ['flooder', 'boolean']
       ]);
     assertEqual(
       items(db.getHeader('Post')),
@@ -539,7 +539,7 @@ var dbTestSuite1 = {
         ['id', 'serial'],
         ['title', 'string'],
         ['text', 'string'],
-        ['author', 'int']
+        ['author', 'integer']
       ]);
   },
 
@@ -640,7 +640,7 @@ var dbTestSuite2 = {
 
   testCheck: function () {
     db.create('X', {n: 'number'}, [], [], ['n != 42']);
-    db.create('Y', {b: 'bool', s: 'string'}, [], [], ['b || s == "hello"']);
+    db.create('Y', {b: 'boolean', s: 'string'}, [], [], ['b || s == "hello"']);
     db.insert('X', {n: 0});
     assertThrow(ConstraintError, "db.insert('X', {n: 42})");
     db.insert('Y', {b: true, s: 'hi'});
@@ -674,7 +674,7 @@ var dbTestSuite2 = {
               {
                 n: ['number', 42],
                 s: ['string', 'hello, world!'],
-                b: ['bool', true],
+                b: ['boolean', true],
                 d: ['date', now]
               });
     assertEqual(items(db.getDefault('X')).sort(),
@@ -694,7 +694,7 @@ var dbTestSuite2 = {
 
   testUnique: function () {
     db.create('X',
-              {a: 'number', b: 'string', c: 'bool'},
+              {a: 'number', b: 'string', c: 'boolean'},
               [['a', 'b'], ['b', 'c'], ['c']]);
     assertEqual(db.getUnique('X').sort(), [['a', 'b'], ['b', 'c'], ['c']]);
     db.create('Y', {n: 'number'});
@@ -702,13 +702,13 @@ var dbTestSuite2 = {
   },
 
   testForeignKey: function () {
-    db.create('X', {s: 'string', i: 'int'});
+    db.create('X', {s: 'string', i: 'integer'});
     db.create('Y',
               {
                 s: 'string',
-                i: 'int',
+                i: 'integer',
                 id: 'serial',
-                ref: 'int'
+                ref: 'integer'
               },
               [['id']],
               [
@@ -753,7 +753,7 @@ var dbTestSuite2 = {
       'X',
       {
         n: ['number', 4.2],
-        i: ['int', 0.1],
+        i: ['integer', 0.1],
         s: ['string', 'yo'],
         d: ['date', d]
       });
@@ -779,10 +779,10 @@ var dbTestSuite2 = {
 
   testDropAttrs: function () {
     db.create('X',
-              {n: 'number', s: 'string', b: 'bool', d: 'date'},
+              {n: 'number', s: 'string', b: 'boolean', d: 'date'},
               [['n'], ['s', 'b']]);
     db.create('Y',
-              {n: 'number', s: 'string', b: 'bool', d: 'date'},
+              {n: 'number', s: 'string', b: 'boolean', d: 'date'},
               [], [[['n'], 'X', ['n']], [['s', 'b'], 'X', ['s', 'b']]]);
     assertThrow(NoSuchAttrError, "db.dropAttrs('X', ['n', 'x'])");
     assertThrow(DependencyError, "db.dropAttrs('X', ['b', 'd'])");
@@ -810,7 +810,7 @@ var dbTestSuite2 = {
   },
 
   testAddDefault: function () {
-    db.create('X', {n: 'number', s: 'string', b: 'bool'});
+    db.create('X', {n: 'number', s: 'string', b: 'boolean'});
     assertThrow(NoSuchAttrError, "db.addDefault('X', {s: '', x: 42})");
     db.addDefault('X', {});
     assertEqual(items(db.getDefault('X')), []);
@@ -830,7 +830,7 @@ var dbTestSuite2 = {
       {
         n: ['number', 42],
         s: ['string', ''],
-        b: ['bool', false]
+        b: ['boolean', false]
       });
     assertThrow(NoSuchAttrError, "db.dropDefault('X', ['a', 's'])");
     db.dropDefault('X', []);
@@ -845,7 +845,7 @@ var dbTestSuite2 = {
   testAddConstrs: function () {
     db.create('X', {n: 'number', s: 'string'}, [['n'], ['n'], ['s']]);
     assertEqual(db.getUnique('X'), [['n'], ['s']]);
-    db.create('Y', {n: 'number', s: 'string', b: 'bool'});
+    db.create('Y', {n: 'number', s: 'string', b: 'boolean'});
     db.addConstrs('Y');
     db.addConstrs('Y', [['n']], [[['s'], 'X', ['s']]], ['b']);
     assertEqual(db.getUnique('Y'), [['n', 's', 'b'], ['n']]);
@@ -875,7 +875,7 @@ var dbTestSuite2 = {
       {
         n: 'number',
         s: 'string',
-        c: 'bool'
+        c: 'boolean'
       },
       [['s']],
       [[['n'], 'X', ['n']]],

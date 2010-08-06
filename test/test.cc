@@ -207,7 +207,7 @@ namespace ak
         string s;
         if (value.Get(d, s))
             return os << '"' << s << '"';
-        if (value.GetType() == Type::BOOL)
+        if (value.GetType() == Type::BOOLEAN)
             return os << (d ? "true" : "false");
         return os << d;
     }
@@ -591,13 +591,13 @@ void Table::ReadHeader(istream& is)
         if (type_str == "number") {
             type = Type::NUMBER;
         } else if (type_str == "int") {
-            type = Type::INT;
+            type = Type::INTEGER;
         } else if (type_str == "serial") {
             type = Type::SERIAL;
         } else if (type_str == "string") {
             type = Type::STRING;
         } else if (type_str == "bool") {
-            type = Type::BOOL;
+            type = Type::BOOLEAN;
         } else if (type_str == "date") {
             type = Type::DATE;
         } else {
@@ -619,7 +619,7 @@ Value Table::ReadValue(istream& is, Type type)
         string s;
         is >> s;
         return Value(type, s);
-    } else if (type == Type::BOOL) {
+    } else if (type == Type::BOOLEAN) {
         string s;
         is >> s;
         BOOST_CHECK(s == "true" || s == "false");

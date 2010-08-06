@@ -553,7 +553,7 @@ void SelectBuilder::BuildWhere(const Expr& expr,
             return;
     }
     control_ << " WHERE ";
-    control_.TranslateExpr(expr, this_rv_ptr, Type::BOOL);
+    control_.TranslateExpr(expr, this_rv_ptr, Type::BOOLEAN);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -721,9 +721,9 @@ Type ExprTranslator::operator()(const Quant& quant) const
     const RangeVar* this_rv_ptr = (quant.rv_set.size() == 1
                                    ? &quant.rv_set.front()
                                    : 0);
-    control_.TranslateExpr(quant.pred, this_rv_ptr, Type::BOOL);
+    control_.TranslateExpr(quant.pred, this_rv_ptr, Type::BOOLEAN);
     control_ << "))";
-    return Type::BOOL;
+    return Type::BOOLEAN;
 }
 
 
@@ -759,7 +759,7 @@ Type ExprTranslator::operator()(const Unary& unary) const
 Type ExprTranslator::operator()(const Cond& cond) const
 {
     control_ << "(CASE WHEN ";
-    control_.TranslateExpr(cond.term, this_rv_ptr_, Type::BOOL);
+    control_.TranslateExpr(cond.term, this_rv_ptr_, Type::BOOLEAN);
     string yes_str, no_str;
     Type yes_type, no_type;
     {
@@ -951,7 +951,7 @@ string ak::TranslateUpdate(const string& rel_var_name,
                                         header,
                                         where,
                                         where_params,
-                                        Type::BOOL);
+                                        Type::BOOLEAN);
     return oss.str();
 }
 
@@ -965,7 +965,7 @@ string ak::TranslateDelete(const string& rel_var_name,
                             get_header_cb(rel_var_name),
                             where,
                             params,
-                            Type::BOOL));
+                            Type::BOOLEAN));
 }
 
 
@@ -974,7 +974,7 @@ string ak::TranslateExpr(const string& expr_str,
                          const Header& rel_header)
 {
     return DoTranslateExpr(
-        rel_var_name, rel_header, expr_str, Drafts(), Type::BOOL);
+        rel_var_name, rel_header, expr_str, Drafts(), Type::BOOLEAN);
 }
 
 

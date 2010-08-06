@@ -28,7 +28,7 @@ string Type::GetPgName() const
 string Type::GetName() const
 {
     static const char* names[] =
-        {"number", "int", "serial", "string", "bool", "date", "json"};
+        {"number", "integer", "serial", "string", "boolean", "date", "json"};
     AK_ASSERT(tag_ < DUMMY);
     return names[tag_];
 }
@@ -50,14 +50,14 @@ Type ak::ReadType(const string& name)
 {
     if (name == "number")
         return Type::NUMBER;
-    if (name == "int")
-        return Type::INT;
+    if (name == "integer")
+        return Type::INTEGER;
     if (name == "serial")
         return Type::SERIAL;
     if (name == "string")
         return Type::STRING;
-    if (name == "bool")
-        return Type::BOOL;
+    if (name == "boolean")
+        return Type::BOOLEAN;
     if (name == "date")
         return Type::DATE;
     if (name == "json")
@@ -71,11 +71,11 @@ Type ak::ReadPgType(const string& pg_name)
     if (pg_name == "float8")
         return Type::NUMBER;
     if (pg_name == "int4")
-        return Type::INT;
+        return Type::INTEGER;
     if (pg_name == "text")
         return Type::STRING;
     if (pg_name == "bool")
-        return Type::BOOL;
+        return Type::BOOLEAN;
     if (pg_name == "timestamp")
         return Type::DATE;
     AK_ASSERT_EQUAL(pg_name, "json");
@@ -134,7 +134,7 @@ string BinaryOp::GetName() const
 Type BinaryOp::GetCommonType(Type left_type, Type right_type) const
 {
     if (IsLogical(tag_))
-        return Type::BOOL;
+        return Type::BOOLEAN;
     if (IsComparison(tag_)) {
         if (left_type == right_type)
             return left_type;
@@ -153,7 +153,7 @@ Type BinaryOp::GetCommonType(Type left_type, Type right_type) const
 Type BinaryOp::GetResultType(Type common_type) const
 {
     if (IsComparison(tag_))
-        return Type::BOOL;
+        return Type::BOOLEAN;
     return common_type;
 }
 
@@ -204,7 +204,7 @@ Type UnaryOp::GetOpType() const
         return Type::NUMBER;
     default:
         AK_ASSERT_EQUAL(tag_, NEG);
-        return Type::BOOL;
+        return Type::BOOLEAN;
     }
 }
 
@@ -303,7 +303,7 @@ namespace
             : repr_(repr) {}
 
         virtual Type GetType() const {
-            return Type::BOOL;
+            return Type::BOOLEAN;
         }
 
         virtual string GetPgLiter() const {
@@ -403,7 +403,7 @@ namespace
                 : s[0] == '('
                 ? lexical_cast<double>(s.substr(1, s.size() - 2))
                 : lexical_cast<double>(s));
-        } else if (type == Type::BOOL) {
+        } else if (type == Type::BOOLEAN) {
             AK_ASSERT(s == "true" || s == "false");
             return new BooleanValue(s == "true");
         } else if (type == Type::DATE) {
@@ -442,7 +442,7 @@ Value::Value(Type type, const char* c)
 
 Value::Value(Type type, bool b)
 {
-    AK_ASSERT(type == Type::BOOL);
+    AK_ASSERT(type == Type::BOOLEAN);
     pimpl_.reset(new BooleanValue(b));
 }
 

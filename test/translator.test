@@ -70,7 +70,7 @@ FROM "User"
 *(
 User where User.id % 2
 **
-SELECT DISTINCT "User".* FROM "User" WHERE ak.to_bool(("User"."id" % 2))
+SELECT DISTINCT "User".* FROM "User" WHERE ak.to_boolean(("User"."id" % 2))
 *)
 
 *(
@@ -85,9 +85,9 @@ FROM (SELECT DISTINCT ("User"."name" = 'Vasya') AS "is_vasya", "User"."name"
 *(
 {strange: User.id ? User.name : -Post.id ? Post.id : Post.title == User.name}
 **
-SELECT DISTINCT (CASE WHEN ak.to_bool("User"."id")
+SELECT DISTINCT (CASE WHEN ak.to_boolean("User"."id")
                  THEN "User"."name"
-                 ELSE ak.to_string((CASE WHEN ak.to_bool(- "Post"."id")
+                 ELSE ak.to_string((CASE WHEN ak.to_boolean(- "Post"."id")
                                          THEN "Post"."id"
                                          ELSE ak.to_number(("Post"."title" = "User"."name"))
                                          END))

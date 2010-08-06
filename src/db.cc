@@ -157,7 +157,7 @@ RelVar::RelVar(const string& name)
         if (!tuple[2].is_null()) {
             string def_str(tuple[2].c_str());
             if (def_str.substr(0, 8) == "nextval(") {
-                AK_ASSERT(def_attr.type == Type::INT);
+                AK_ASSERT(def_attr.type == Type::INTEGER);
                 def_attr.type = Type::SERIAL;
             } else {
                 def_attr.default_ptr = ValuePtr(Value(def_attr.type, def_str));
@@ -367,8 +367,10 @@ void RelVar::PrintForeignKey(ostream& os,
         const Attr& ref_attr(
             GetAttr(ref_header, foreign_key.ref_attr_names[i]));
         if (key_attr.type != ref_attr.type &&
-            !((key_attr.type == Type::INT && ref_attr.type == Type::SERIAL) ||
-              (ref_attr.type == Type::INT && key_attr.type == Type::SERIAL)))
+            !((key_attr.type == Type::INTEGER &&
+               ref_attr.type == Type::SERIAL) ||
+              (ref_attr.type == Type::INTEGER &&
+               key_attr.type == Type::SERIAL)))
             throw Error(Error::CONSTRAINT,
                         ("Foreign key attribite type mismatch: \"" +
                          name_ + '.' +
@@ -984,7 +986,7 @@ namespace
             Type type(header[i].type);
             if (type == Type::NUMBER)
                 result.push_back(Value(type, field.as<double>()));
-            else if (type == Type::BOOL)
+            else if (type == Type::BOOLEAN)
                 result.push_back(Value(type, field.as<bool>()));
             else
                 result.push_back(Value(type, field.as<string>()));

@@ -321,7 +321,7 @@ Parser::Parser()
                     select_rel.protos = arg1,
                     select_rel.expr = (
                         construct_<Liter>(
-                            construct_<Value>(Type::BOOL, true)))] >>
+                            construct_<Value>(Type::BOOLEAN, true)))] >>
                 !(keyword_p("where") >> expr[select_rel.expr = arg1]))[
                     select_rel.val = construct_<Select>(select_rel.protos,
                                                         select_rel.expr)],
@@ -505,8 +505,8 @@ Parser::Parser()
 #define EXPR bool_liter
 
             EXPR = (
-                LITER(keyword_p("true"), Type::BOOL, true) |
-                LITER(keyword_p("false"), Type::BOOL, false)),
+                LITER(keyword_p("true"), Type::BOOLEAN, true) |
+                LITER(keyword_p("false"), Type::BOOLEAN, false)),
 
 #undef EXPR
 #define EXPR field_expr
