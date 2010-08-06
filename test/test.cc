@@ -201,18 +201,6 @@ namespace
 
 namespace ak
 {
-    ostream& operator<<(ostream&os, const Value& value)
-    {
-        double d;
-        string s;
-        if (value.Get(d, s))
-            return os << '"' << s << '"';
-        if (value.GetType() == Type::BOOLEAN)
-            return os << (d ? "true" : "false");
-        return os << d;
-    }
-
-
     ostream& operator<<(ostream& os, const RangeVar& rv)
     {
         Bracer b(os, "rv");

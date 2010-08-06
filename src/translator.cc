@@ -200,7 +200,7 @@ Type Control::PrintParam(size_t pos, Type needed_type)
             Error::QUERY,
             "Position " + lexical_cast<string>(pos) + " is out of range");
     Value value(params_[pos - 1].Get(needed_type));
-    *this << value.GetPgLiter();
+    *this << value;
     return value.GetType();
 }
 
@@ -692,7 +692,7 @@ ExprTranslator::ExprTranslator(Control& control, const RangeVar* this_rv_ptr)
 
 Type ExprTranslator::operator()(const Liter& liter) const
 {
-    control_ << liter.value.GetPgLiter();
+    control_ << liter.value;
     return liter.value.GetType();
 }
 

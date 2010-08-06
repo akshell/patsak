@@ -13,19 +13,19 @@ true
 *(
 "hi"
 **
-"hi"
+'hi'
 *)
 
 *(
 "just \"hello\""
 **
-"just "hello""
+'just "hello"'
 *)
 
 *(
 'just \'another\' "hello"'
 **
-"just 'another' "hello""
+'just ''another'' "hello"'
 *)
 
 *(

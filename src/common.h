@@ -115,14 +115,21 @@ namespace ak
         ~Value();
 
         Type GetType() const;
-        std::string GetPgLiter() const;
         bool Get(double& d, std::string& s) const;
+        void Print(std::ostream& os) const;
 
     protected:
         boost::shared_ptr<Impl> pimpl_;
 
         Value() {}
     };
+
+
+    inline std::ostream& operator<<(std::ostream& os, const Value& value)
+    {
+        value.Print(os);
+        return os;
+    }
 
 
     class ValuePtr : public Value {
@@ -294,9 +301,9 @@ namespace ak
     // InitCommon
     ////////////////////////////////////////////////////////////////////////////
 
-    typedef std::string (*QuoteCallback)(const std::string& str, bool raw);
+    typedef std::string (*EscapeCallback)(const std::string& str, bool raw);
 
-    void InitCommon(QuoteCallback quote_cb);
+    void InitCommon(EscapeCallback escape_cb);
 }
 
 #endif // COMMON_H

@@ -208,7 +208,7 @@ RelVar::RelVar(const Meta& meta,
         oss << sep << '"' << def_attr.name << "\" "
             << def_attr.type.GetPgName() << " NOT NULL";
         if (def_attr.default_ptr)
-            oss << " DEFAULT " << def_attr.default_ptr->GetPgLiter();
+            oss << " DEFAULT " << *def_attr.default_ptr;
         else if (def_attr.type == Type::SERIAL)
             oss << " DEFAULT nextval('\""
                 << name << '@' << def_attr.name
@@ -462,8 +462,7 @@ void RelVar::AddAttrs(const ValHeader& val_attr_set)
     oss << "; UPDATE \"" << name_ << "\" SET ";
     sep = Separator();
     BOOST_FOREACH(const ValAttr& val_attr, val_attr_set)
-        oss << sep << '"' << val_attr.name << "\" = "
-            << val_attr.value.GetPgLiter();
+        oss << sep << '"' << val_attr.name << "\" = " << val_attr.value;
     oss << "; ALTER TABLE \"" << name_ << "\" ";
     sep = Separator();
     BOOST_FOREACH(const ValAttr& val_attr, val_attr_set)
@@ -567,7 +566,7 @@ void RelVar::AddDefault(const DraftMap& draft_map)
         Value value(named_draft.draft.Get(new_def_attr.type));
         const_cast<DefAttr&>(new_def_attr).default_ptr = value;
         oss << sep << "ALTER \"" << named_draft.name
-            << "\" SET DEFAULT " <<  value.GetPgLiter();
+            << "\" SET DEFAULT " <<  value;
     }
     Exec(oss.str());
     def_header_ = new_def_header;
@@ -799,7 +798,8 @@ namespace
 
         const Meta& GetMeta();
         Meta& ChangeMeta();
-        string Quote(const string& str, bool raw = false);
+        string Escape(const string& str, bool raw);
+        string Quote(const string& str);
         pqxx::result Exec(const string& sql);
         pqxx::result ExecSafely(const string& sql);
         void Commit();
@@ -863,14 +863,18 @@ Meta& DB::ChangeMeta()
 }
 
 
-string DB::Quote(const string& str, bool raw)
+string DB::Escape(const string& str, bool raw)
 {
-    return ("'" +
-            (raw
-             ? conn_.esc_raw(reinterpret_cast<const unsigned char*>(str.data()),
-                             str.size())
-             : conn_.esc(str)) +
-            "'");
+    return (raw
+            ? conn_.esc_raw(reinterpret_cast<const unsigned char*>(str.data()),
+                            str.size())
+            : conn_.esc(str));
+}
+
+
+string DB::Quote(const string& str)
+{
+    return "'" + Escape(str, false) + "'";
 }
 
 
@@ -945,9 +949,9 @@ namespace
     }
 
 
-    string Quote(const string& str, bool raw)
+    string Escape(const string& str, bool raw)
     {
-        return db_ptr->Quote(str, raw);
+        return db_ptr->Escape(str, raw);
     }
 
 
@@ -1144,8 +1148,6 @@ size_t ak::Delete(const string& rel_var_name,
 Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
 {
     static const format empty_cmd("SELECT ak.insert_into_empty('%1%');");
-    static const format cmd(
-        "INSERT INTO \"%1%\" (%2%) VALUES (%3%) RETURNING *;");
     static const format def_cmd(
         "INSERT INTO \"%1%\" DEFAULT VALUES RETURNING *;");
 
@@ -1159,14 +1161,16 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
     } else if (!draft_map.empty()) {
         BOOST_FOREACH(const NamedDraft& named_draft, draft_map)
             GetAttr(def_header, named_draft.name);
-        ostringstream names_oss, values_oss;
-        Separator names_sep, values_sep;
+        ostringstream oss;
+        oss << "INSERT INTO \"" << rel_var_name << "\" (";
+        Separator sep;
+        Values values;
+        values.reserve(draft_map.size());
         BOOST_FOREACH(const DefAttr& def_attr, def_header) {
             const NamedDraft* named_draft_ptr = draft_map.find(def_attr.name);
             if (named_draft_ptr) {
-                names_oss << names_sep << '"' << def_attr.name << '"';
-                Value value(named_draft_ptr->draft.Get(def_attr.type));
-                values_oss << values_sep << value.GetPgLiter();
+                oss << sep << '"' << def_attr.name << '"';
+                values.push_back(named_draft_ptr->draft.Get(def_attr.type));
             } else if (def_attr.type != Type::SERIAL && !def_attr.default_ptr) {
                 throw Error(Error::VALUE,
                             ("Value of attribute \"" +
@@ -1174,10 +1178,12 @@ Values ak::Insert(const string& rel_var_name, const DraftMap& draft_map)
                              "\" must be supplied"));
             }
         }
-        sql = (format(cmd)
-               % rel_var_name
-               % names_oss.str()
-               % values_oss.str()).str();
+        oss << ") VALUES (";
+        sep = Separator();
+        BOOST_FOREACH(const Value& value, values)
+            oss << sep << value;
+        oss << ") RETURNING *;";
+        sql = oss.str();
     } else {
         sql = (format(def_cmd) % rel_var_name).str();
     }
@@ -1250,6 +1256,6 @@ void ak::InitDatabase(const string& options,
     AK_ASSERT(!db_ptr);
     static DB db(options, schema_name, tablespace_name);
     db_ptr = &db;
-    InitCommon(Quote);
+    InitCommon(Escape);
     InitTranslator(GetHeader, FollowReference);
 }
