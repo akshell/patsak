@@ -40,7 +40,7 @@ namespace
         void ReadLooseRefs(const string& name, Handle<Object> object) const;
         Handle<Object> ReadRefs() const;
 
-        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadCb,
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadObjectCb,
                              const Arguments&) const;
 
     };
@@ -49,7 +49,7 @@ namespace
 
 DEFINE_JS_CONSTRUCTOR(RepoBg, "Repo", /*object_template*/, proto_template)
 {
-    SetFunction(proto_template, "read", ReadCb);
+    SetFunction(proto_template, "readObject", ReadObjectCb);
 }
 
 
@@ -129,7 +129,7 @@ Handle<Object> RepoBg::ReadRefs() const
 }
 
 
-DEFINE_JS_CALLBACK1(Handle<v8::Value>, RepoBg, ReadCb,
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, RepoBg, ReadObjectCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
