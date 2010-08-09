@@ -233,19 +233,19 @@ var coreTestSuite = {
       },
       ak: {
         '0.3': {
-          'manifest.json': '{deps: {fs: "0.1"}}',
+          'manifest.json': '{libs: {fs: "0.1"}}',
           'index.js': 'exports.fs = require("fs")',
           'error.js': 'throw Error()'
         },
         '0.2': {
-          'manifest.json': '{deps: {core: "0.1"}}',
+          'manifest.json': '{libs: {core: "0.1"}}',
           'index.js':
           'require("default", "core").set(exports, "x", 0, require("core").x)'
         }
       },
       form: {
         '0.2': {
-          'manifest.json': '{deps: {ak: "0.2"}}',
+          'manifest.json': '{libs: {ak: "0.2"}}',
           'dir/x.js': 'exports.x = require("ak").x'
         }
       },

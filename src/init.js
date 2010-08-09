@@ -82,12 +82,12 @@
     var manifest = readSafely(storage, 'manifest.json');
     if (manifest) {
       try {
-        this.deps = JSON.parse(manifest).deps;
+        this.libs = JSON.parse(manifest).libs;
       } catch (error) {
         throw RequireError('Failed to parse manifest.json: ' + error.message);
       }
     } else {
-      this.deps = {};
+      this.libs = {};
     }
   }
 
@@ -130,9 +130,9 @@
   function doLibRequire(place, libName, id, dir) {
     if (libName == 'default')
       return doRequire(defaultPlace, id, dir);
-    if (!place.deps.hasOwnProperty(libName))
+    if (!place.libs.hasOwnProperty(libName))
       return undefined;
-    var ref = place.deps[libName];
+    var ref = place.libs[libName];
     var refs;
     if (gitPlaces.hasOwnProperty(libName)) {
       refs = gitPlaces[libName];
