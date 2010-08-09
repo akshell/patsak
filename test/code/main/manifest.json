@@ -1,7 +1,8 @@
 {
   libs: {
-    ak: '0.3',
-    form: '0.2',
-    bad: '0.1'
+    ak: 'akshell/ak:0.3',
+    form: 'akshell/form:0.2',
+    bad: 'other/bad:0.1',
+    incorrect: 'yo!'
   }
 }

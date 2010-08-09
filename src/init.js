@@ -97,7 +97,7 @@
   var main = {id: 'main', exports: {}};
   var gitPlaces = {};
   var defaultRequire;
-  var GitStorage;
+  var Repo;
 
 
   function doRequire(place, id, dir) {
@@ -127,24 +127,25 @@
   }
 
 
-  function doLibRequire(place, libName, id, dir) {
-    if (libName == 'default')
+  function doLibRequire(place, libAlias, id, dir) {
+    if (libAlias == 'default')
       return doRequire(defaultPlace, id, dir);
-    if (!place.libs.hasOwnProperty(libName))
+    if (!place.libs.hasOwnProperty(libAlias))
       return undefined;
-    var ref = place.libs[libName];
-    var refs;
-    if (gitPlaces.hasOwnProperty(libName)) {
-      refs = gitPlaces[libName];
-      if (refs.hasOwnProperty(ref))
-        return doRequire(refs[ref], id, dir);
-    }
-    GitStorage = GitStorage || defaultRequire('git').GitStorage;
-    var libPlace = new Place(new GitStorage(libName, ref),
-                             libName + ':' + ref + ':');
-    if (!refs)
-      gitPlaces[libName] = refs = {};
-    refs[ref] = libPlace;
+    var descr = place.libs[libAlias];
+    if (gitPlaces.hasOwnProperty(descr))
+      return doRequire(gitPlaces[descr], id, dir);
+    Repo = Repo || defaultRequire('git').Repo;
+    var slashIdx = descr.indexOf('/');
+    var colonIdx = descr.indexOf(':', slashIdx + 1);
+    if (slashIdx == -1 || colonIdx == -1)
+      throw RequireError('Incorrect lib description: ' + descr);
+    var ownerName = descr.substring(0, slashIdx);
+    var libName = descr.substring(slashIdx + 1, colonIdx);
+    var libVersion = descr.substring(colonIdx + 1);
+    var repo = new Repo(ownerName, libName);
+    var libPlace = new Place(repo.getStorage(libVersion), descr + ':');
+    gitPlaces[descr] = libPlace;
     return doRequire(libPlace, id, dir);
   }
 
@@ -153,12 +154,12 @@
     return function () {
       if (!arguments.length)
         throw TypeError('At least one argument required');
-      var libName;
+      var libAlias;
       var rawId;
       if (arguments.length == 1) {
         rawId = arguments[0];
       } else {
-        libName = arguments[0];
+        libAlias = arguments[0];
         rawId = arguments[1];
       }
       var parts = rawId.split('/');
@@ -180,12 +181,12 @@
       var id = loc.join('/');
       loc.pop();
       var result;
-      if (libName) {
-        result = doLibRequire(place, libName, id, loc);
+      if (libAlias) {
+        result = doLibRequire(place, libAlias, id, loc);
         if (result === undefined)
-          throw RequireError('No such lib: ' + libName);
+          throw RequireError('No such lib: ' + libAlias);
         if (result === null)
-          throw RequireError('Module not found: ' + libName + ':' + rawId);
+          throw RequireError('Module not found: ' + libAlias + ':' + rawId);
       } else {
         result = doRequire(place, id, loc);
         if (!result && parts.length == 1)

@@ -223,61 +223,76 @@ var coreTestSuite = {
     assertThrow(RequireError, require, 'default', 'noSuch');
 
     var libs = {
-      core: {
-        '0.1': {
-          'index.js': 'exports.x = 42'
+      anton: {
+        core: {
+          '0.1': {
+            'index.js': 'exports.x = 42'
+          }
         }
       },
-      fs: {
-        '0.1': {}
-      },
-      ak: {
-        '0.3': {
-          'manifest.json': '{libs: {fs: "0.1"}}',
-          'index.js': 'exports.fs = require("fs")',
-          'error.js': 'throw Error()'
+      akshell: {
+        fs: {
+          '0.1': {}
         },
-        '0.2': {
-          'manifest.json': '{libs: {core: "0.1"}}',
-          'index.js':
-          'require("default", "core").set(exports, "x", 0, require("core").x)'
+        ak: {
+          '0.3': {
+            'manifest.json': '{libs: {fs: "akshell/fs:0.1"}}',
+            'index.js': 'exports.fs = require("fs")',
+            'error.js': 'throw Error()'
+          },
+          '0.2': {
+            'manifest.json': '{libs: {core: "anton/core:0.1"}}',
+            'index.js':
+            'require("default", "core").set(exports, "x", 0, require("core").x)'
+          }
+        },
+        form: {
+          '0.2': {
+            'manifest.json': '{libs: {ak: "akshell/ak:0.2"}}',
+            'dir/x.js': 'exports.x = require("ak").x'
+          }
         }
       },
-      form: {
-        '0.2': {
-          'manifest.json': '{libs: {ak: "0.2"}}',
-          'dir/x.js': 'exports.x = require("ak").x'
-        }
-      },
-      bad: {
-        '0.1': {
-          'manifest.json': '{',
-          'index.js': ''
+      other: {
+        bad: {
+          '0.1': {
+            'manifest.json': '{',
+            'index.js': ''
+          }
         }
       }
     };
-    var MockStorage = function (libName, ref) {
-      this._files = libs[libName][ref];
-      assert(this._files);
+    var MockRepo = function (ownerName, libName) {
+      assert(libs.hasOwnProperty(ownerName));
+      assert(libs[ownerName].hasOwnProperty(libName));
+      this.lib = libs[ownerName][libName];
+    };
+    MockRepo.prototype.getStorage = function (libVersion) {
+      assert(this.lib.hasOwnProperty(libVersion));
+      return new MockStorage(this.lib[libVersion]);
+    };
+    var MockStorage = function (files) {
+      this.files = files;
     };
     MockStorage.prototype.read = function (path) {
-      if (!this._files.hasOwnProperty(path))
+      if (!this.files.hasOwnProperty(path))
         throw NoSuchEntryError();
-      return new Binary(this._files[path]);
+      return new Binary(this.files[path]);
     };
-    git.GitStorage = MockStorage;
+    git.Repo = MockRepo;
     try {
       assertSame(require('form', 'dir/x').x, 42);
       assertSame(require('form', 'dir/x').x, 42);
       assertSame(require('ak').fs, fs);
       assertThrow(RequireError, require, 'bad');
+      assertThrow(RequireError, require, 'incorrect');
       try {
         require('ak', 'error');
       } catch (error) {
-        assert(error.stack.indexOf('ak:0.3:error.js:1:7') != -1);
+        assert(error.stack.indexOf('akshell/ak:0.3:error.js:1:7') != -1);
       }
     } finally {
-      git.GitStorage = GitStorage;
+      git.Repo = Repo;
     }
   },
 
