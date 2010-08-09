@@ -985,7 +985,7 @@ var gitTestSuite = {
       [
         [
           'HEAD',
-          'ref: refs/heads/master'
+          '4a7af2ca3dbc02a712a3415b6ec9f3694e35c37d'
         ],
         [
           'refs/remotes/origin/HEAD',
