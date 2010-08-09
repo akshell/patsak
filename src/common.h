@@ -39,7 +39,7 @@ namespace ak
             FS,
             ENTRY_EXISTS,
             NO_SUCH_ENTRY,
-            ENTRY_IS_DIR,
+            ENTRY_IS_FOLDER,
             ENTRY_IS_FILE,
 
             CONVERSION,

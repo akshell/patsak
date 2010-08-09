@@ -48,7 +48,7 @@
     FSError,
     subclassError('fs', 'EntryExistsError', FSError),
     subclassError('fs', 'NoSuchEntryError', FSError),
-    subclassError('fs', 'EntryIsDirError', FSError),
+    subclassError('fs', 'EntryIsFolderError', FSError),
     subclassError('fs', 'EntryIsFileError', FSError),
 
     subclassError('binary', 'ConversionError'),

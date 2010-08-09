@@ -130,7 +130,7 @@ int main(int argc, char** argv)
          "config file")
         ;
 
-    string code_path, lib_path, media_path;
+    string code_path, lib_path;
     string git_path_pattern;
     string db_options, schema_name, tablespace_name;
     string log_path;
@@ -139,7 +139,6 @@ int main(int argc, char** argv)
     config_options.add_options()
         ("app,a", po::value<string>(&code_path), "app code directory")
         ("lib,l", po::value<string>(&lib_path), "lib directory")
-        ("media,m", po::value<string>(&media_path), "media directory")
         ("git,g", po::value<string>(&git_path_pattern), "git path pattern")
         ("db,d", po::value<string>(&db_options), "database options")
         ("schema,s",
@@ -220,7 +219,6 @@ int main(int argc, char** argv)
 
     RequireOption("app", code_path);
     RequireOption("lib", lib_path);
-    RequireOption("media", media_path);
     RequireOption("db", db_options);
 
     string git_path_prefix, git_path_suffix;
@@ -250,7 +248,6 @@ int main(int argc, char** argv)
             AK_ASSERT(curr_path);
             MakePathAbsolute(curr_path, code_path);
             MakePathAbsolute(curr_path, lib_path);
-            MakePathAbsolute(curr_path, media_path);
             if (!git_path_pattern.empty())
                 MakePathAbsolute(curr_path, git_path_prefix);
             if (local)
@@ -360,7 +357,6 @@ int main(int argc, char** argv)
 
     InitJS(code_path,
            lib_path,
-           media_path,
            git_path_prefix,
            git_path_suffix,
            db_options,

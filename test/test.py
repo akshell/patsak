@@ -18,7 +18,6 @@ import signal
 DB_NAME     = 'test-patsak'
 TMP_PATH    = '/tmp/patsak'
 SOCKET_PATH = TMP_PATH + '/socket'
-MEDIA_PATH  = TMP_PATH + '/media'
 CONFIG_PATH = TMP_PATH + '/config'
 LOG_PATH    = TMP_PATH + '/log'
 TEST_PATH   = os.path.dirname(__file__)
@@ -163,22 +162,17 @@ def main():
     conn.commit()
     conn.close()
 
-    try:
-        os.makedirs(MEDIA_PATH)
-    except OSError, error:
-        if error.errno != errno.EEXIST:
-            raise
-
+    if not os.path.exists(TMP_PATH):
+        os.mkdir(TMP_PATH)
     with open(CONFIG_PATH, 'w') as f:
         f.write('''
 db=dbname=%s
 app=%s/main
 lib=%s
-media=%s
 git=%s/%%s/.git
 log=%s
 workers=3
-''' % (DB_NAME, CODE_PATH, LIB_PATH, MEDIA_PATH, CODE_PATH, LOG_PATH))
+''' % (DB_NAME, CODE_PATH, LIB_PATH, CODE_PATH, LOG_PATH))
 
     unittest.TextTestRunner(verbosity=2).run(suite)
 

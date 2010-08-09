@@ -28,11 +28,10 @@ var imports = {
   fs: [
     'code',
     'lib',
-    'media',
     'FSError',
     'EntryExistsError',
     'NoSuchEntryError',
-    'EntryIsDirError',
+    'EntryIsFolderError',
     'EntryIsFileError'
   ],
   binary: [
@@ -935,155 +934,39 @@ var dbTestSuite2 = {
 ////////////////////////////////////////////////////////////////////////////////
 
 var fsTestSuite = {
-  setUp: function ()
-  {
-    media.removeAll();
-    media.createDir('dir1');
-    media.createDir('dir2');
-    media.createDir('dir1/subdir');
-    media.open('file').write('some text');
-    media.open('dir1/subdir/hello').write('hello world!');
-    media.open('dir1/subdir/привет').write('привет!');
-  },
-
-  tearDown: function () {
-    media.removeAll();
-  },
-
-  testWritable: function () {
-    assert(media.writable);
-    assert(!code.writable);
-  },
-
-  testOpen: function () {
-    assertEqual(media.open('//dir1////subdir/hello').read(), 'hello world!');
-    assertSame(media.open('file').read()[5], 't'.charCodeAt(0));
-    assertSame(media.open('/dir1/subdir/привет').read() + '', 'привет!');
-    assertThrow(EntryIsDirError, "media.open('dir1')");
-    assertThrow(ValueError, "media.open('//..//test-app/dir1/subdir/hello')");
-    assertThrow(ValueError, "media.open('/dir1/../../file')");
-    var file = media.open('test');
-    var text = 'russian text русский текст';
-    var binary = new Binary(text);
-    file.write(binary);
-    file.position = 0;
-    assertEqual(file.read(Infinity), text);
-    assertSame(file.length, binary.length);
-    assertSame(file.position, binary.length);
-    file.length += 3;
-    assertEqual(file.read(), '\0\0\0');
-    file.position = 8;
-    assertEqual(file.read(4), 'text');
-    file.length = 27;
-    file.position += 1;
-    assertEqual(file.read(), 'русский');
-    assert(!file.closed);
-    assert(file.readable);
-    assert(file.positionable);
-    file.flush();
-    file.lock();
-    file.lock('exclusive');
-    file.lock('shared');
-    assertThrow(ValueError, function () { file.lock('bad'); });
-    file.unlock();
-    file.unlock();
-    file.close();
-    assert(file.closed);
-    assertThrow(ValueError, function () { file.read(); });
-    assertThrow(ValueError, function () { return file.positionable; });
-    media.remove('test');
-
-    assertThrow(EntryIsFileError, "media.open('file/xxx')");
-    assertThrow(EntryIsDirError, "media.open('dir1')");
-    assertThrow(
-      ValueError,
-      function () {
-        var array = [];
-        for (var i = 0; i < 1000; ++i)
-          array.push('x');
-        media.open(array.join(''));
-      });
-
-    file = code.open('main/index.js');
-    assertSame(file.read() + '', 'exports.main = require.main;\n');
-    assert(!file.writable);
-    assertThrow(ValueError, function () { file.length = 0; });
-    assertThrow(ValueError, function () { file.flush(); });
-    assertThrow(ValueError, function () { file.write(''); });
-    file.close();
-  },
-
-  testRead: function () {
-    assertSame(media.read('file') + '', 'some text');
-  },
-
-  testWrite: function () {
-    media.write('file', 'yo');
-    assertSame(media.read('file') + '', 'yo');
-    media.write('file', 'some text');
-  },
-
   testExists: function () {
-    assertSame(media.exists(''), true);
-    assertSame(media.exists('dir1/subdir/hello'), true);
-    assertSame(media.exists('no/such'), false);
+    assertSame(code.exists(''), true);
+    assertSame(code.exists('.//absolute/./..//main.js'), true);
+    assertSame(code.exists('no/such'), false);
     assertSame(lib.exists('core.js'), true);
+    assertThrow(ValueError, "code.exists('absolute/../../')");
   },
 
-  testIsDir: function () {
-    assertSame(media.isDir(''), true);
-    assertSame(media.isDir('dir2'), true);
-    assertSame(media.isDir('file'), false);
-    assertSame(media.isDir('no/such'), false);
+  testIsFolder: function () {
+    assertSame(code.isFolder(''), true);
+    assertSame(code.isFolder('absolute'), true);
+    assertSame(code.isFolder('main.js'), false);
+    assertSame(code.isFolder('no/such'), false);
   },
 
   testIsFile: function () {
-    assertSame(media.isFile(''), false);
-    assertSame(media.isFile('dir1/subdir/hello'), true);
-    assertSame(media.isFile('dir1/subdir'), false);
-    assertSame(media.isFile('no/such'), false);
+    assertSame(code.isFile(''), false);
+    assertSame(code.isFile('absolute/index.js'), true);
+    assertSame(code.isFile('absolute/'), false);
+    assertSame(code.isFile('no/such'), false);
+  },
+
+  testRead: function () {
+    assertSame(code.read('absolute/b.js') + '',
+               'exports.foo = function() {};\n');
+    assertThrow(NoSuchEntryError, "code.read('no/such')");
+    assertThrow(EntryIsFolderError, "code.read('absolute')");
   },
 
   testList: function () {
-    assertEqual(media.list('').sort(), ['dir1', 'dir2', 'file']);
-    assertThrow(NoSuchEntryError, "media.list('no such dir')");
-    assertEqual(code.list('main'), ['index.js']);
-  },
-
-  testGetModDate: function () {
-    media.open('hello').write('');
-    assert(Math.abs(new Date() - media.getModDate('hello')) < 2000);
-    assertThrow(NoSuchEntryError, "media.getModDate('no-such-file')");
-    media.remove('hello');
-  },
-
-  testCreateDir: function () {
-    media.createDir('dir2/ddd');
-    assertEqual(media.list('dir2'), ['ddd']);
-    assertEqual(media.list('dir2/ddd'), []);
-    media.remove('dir2/ddd');
-    assertThrow(EntryExistsError, "media.createDir('file')");
-    assertThrow(ValueError, "code.createDir('never')");
-  },
-
-  testRemove: function () {
-    media.open('new-file').write('data');
-    media.remove('new-file');
-    media.createDir('dir2/new-dir');
-    media.remove('dir2/new-dir');
-    assertEqual(media.list('').sort(), ['dir1', 'dir2', 'file']);
-    assertEqual(media.list('dir2'), []);
-    assertThrow(ValueError, "media.remove('dir1/..//')");
-    assertThrow(NoSuchEntryError, "media.remove('no-such-file')");
-    assertThrow(ValueError, "code.remove('main.js')");
-  },
-
-  testRename: function () {
-    media.rename('dir1', 'dir2/dir3');
-    assertEqual(media.open('dir2/dir3/subdir/hello').read(), 'hello world!');
-    media.rename('dir2/dir3', 'dir1');
-    assertThrow(NoSuchEntryError, "media.rename('no such file', 'xxx')");
-    assertThrow(ValueError, "code.rename('main.js', 'never.js')");
+    assertEqual(code.list('absolute'), ['b.js', 'index.js', 'submodule']);
+    assertThrow(NoSuchEntryError, "lib.list('no/such')");
+    assertThrow(EntryIsFileError, "code.list('main.js')");
   }
 };
 
@@ -1217,7 +1100,7 @@ var gitTestSuite = {
     assertThrow(NoSuchEntryError, function () { storage.list('no-such'); });
     assertThrow(EntryIsFileError, function () { storage.list('file'); });
     assertThrow(NoSuchEntryError, function () { storage.read('no-such'); });
-    assertThrow(EntryIsDirError, function () { storage.read('dir/subdir'); });
+    assertThrow(EntryIsFolderError, function () { storage.read('dir/subdir'); });
     assertSame(new GitStorage(mockRepo, 'HEAD').read('file') + '',
                'hi there');
     assertSame(new GitStorage(mockRepo, 'heads/upstream').read('file') + '',
