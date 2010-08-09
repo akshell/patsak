@@ -977,9 +977,11 @@ var fsTestSuite = {
 var gitTestSuite = {
   testRepo: function () {
     assertSame(Repo(), undefined);
-    assertThrow(ValueError, "new Repo('invalid/name')");
-    assertThrow(ValueError, "new Repo('no-such-lib')");
-    var repo = new Repo('lib');
+    assertThrow(ValueError, "new Repo('code', 'bad/name')");
+    assertThrow(ValueError, "new Repo('code', '')");
+    assertThrow(ValueError, "new Repo('bad/name', 'lib')");
+    assertThrow(ValueError, "new Repo('code', 'no-such-lib')");
+    var repo = new Repo('code', 'lib');
     assertEqual(
       items(repo.refs),
       [

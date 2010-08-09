@@ -57,7 +57,8 @@ class Test(unittest.TestCase):
         self._check_launch(['--help'])
         self._check_launch(['--version'])
         self._check_launch(['--app', '', 'serve', 'socket'], 1)
-        self._check_launch(['--git-pattern', 'bad', 'eval', '1'], 1)
+        self._check_launch(['--git', 'bad', 'eval', '1'], 1)
+        self._check_launch(['--git', 'bad%s', 'eval', '1'], 1)
         self._check_launch(['--background', 'serve', 'bad/path'])
         self._check_launch(['serve', 'bad:bad'], 1)
         self._check_launch(['serve', 'example.com:80'], 1)
@@ -169,10 +170,10 @@ def main():
 db=dbname=%s
 app=%s/main
 lib=%s
-git=%s/%%s/.git
+git=%s/%%s/%%s/.git
 log=%s
 workers=3
-''' % (DB_NAME, CODE_PATH, LIB_PATH, CODE_PATH, LOG_PATH))
+''' % (DB_NAME, CODE_PATH, LIB_PATH, TEST_PATH, LOG_PATH))
 
     unittest.TextTestRunner(verbosity=2).run(suite)
 

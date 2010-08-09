@@ -22,20 +22,21 @@ using namespace std;
 
 namespace
 {
-    string path_prefix, path_suffix;
+    string path_prefix, path_suffix, path_ending;
 
 
     class RepoBg {
     public:
         DECLARE_JS_CONSTRUCTOR(RepoBg);
 
-        RepoBg(const string& app_name);
+        RepoBg(const string& owner_name, const string& lib_name);
         ~RepoBg();
 
     private:
         string path_;
         git_odb* odb_ptr;
 
+        static void CheckName(const string& name);
         void ReadLooseRef(const string& name, Handle<Object> object) const;
         void ReadLooseRefs(const string& name, Handle<Object> object) const;
         Handle<Object> ReadRefs() const;
@@ -55,19 +56,19 @@ DEFINE_JS_CONSTRUCTOR(RepoBg, "Repo", /*object_template*/, proto_template)
 
 DEFINE_JS_CONSTRUCTOR_CALLBACK(RepoBg, args)
 {
-    CheckArgsLength(args, 1);
-    auto_ptr<RepoBg> repo_ptr(new RepoBg(Stringify(args[0])));
+    CheckArgsLength(args, 2);
+    auto_ptr<RepoBg> repo_ptr(
+        new RepoBg(Stringify(args[0]), Stringify(args[1])));
     Set(args.This(), "refs", repo_ptr->ReadRefs());
     return repo_ptr.release();
 }
 
 
-RepoBg::RepoBg(const string& lib_name)
+RepoBg::RepoBg(const string& owner_name, const string& lib_name)
 {
-    BOOST_FOREACH(char c, lib_name)
-        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-'))
-            throw Error(Error::VALUE, "Invalid lib name");
-    path_ = path_prefix + lib_name + path_suffix;
+    CheckName(owner_name);
+    CheckName(lib_name);
+    path_ = path_prefix + owner_name + path_suffix + lib_name + path_ending;
     struct stat st;
     if (stat(path_.c_str(), &st) == -1)
         throw Error(Error::VALUE, "No such lib");
@@ -79,6 +80,19 @@ RepoBg::RepoBg(const string& lib_name)
 RepoBg::~RepoBg()
 {
     git_odb_close(odb_ptr);
+}
+
+
+void RepoBg::CheckName(const string& name)
+{
+    if (name.empty())
+        throw Error(Error::VALUE, "Empty name");
+    BOOST_FOREACH(char c, name)
+        if (!((c >= 'a' && c <= 'z') ||
+              (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') ||
+              c == '-'))
+            throw Error(Error::VALUE, "Incorrect name");
 }
 
 
@@ -163,10 +177,13 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RepoBg, ReadObjectCb,
 // InitGit
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Object> ak::InitGit(const string& path_prefix, const string& path_suffix)
+Handle<Object> ak::InitGit(const string& path_prefix,
+                           const string& path_suffix,
+                           const string& path_ending)
 {
     ::path_prefix = path_prefix;
     ::path_suffix = path_suffix;
+    ::path_ending = path_ending;
     Handle<Object> result(Object::New());
     PutClass<RepoBg>(result);
     return result;

@@ -221,15 +221,19 @@ int main(int argc, char** argv)
     RequireOption("lib", lib_path);
     RequireOption("db", db_options);
 
-    string git_path_prefix, git_path_suffix;
+    string git_path_prefix, git_path_suffix, git_path_ending;
     if (!git_path_pattern.empty()) {
-        size_t pos = git_path_pattern.find("%s");
-        if (pos == string::npos) {
-            cerr << "Git path pattern must contain a %s placeholder\n";
+        size_t pos1 = git_path_pattern.find("%s");
+        size_t pos2 = (pos1 == string::npos
+                       ? string::npos
+                       : git_path_pattern.find("%s", pos1 + 2));
+        if (pos2 == string::npos) {
+            cerr << "Git path pattern must contain two %s placeholders\n";
             return 1;
         }
-        git_path_prefix = git_path_pattern.substr(0, pos);
-        git_path_suffix = git_path_pattern.substr(pos + 2);
+        git_path_prefix = git_path_pattern.substr(0, pos1);
+        git_path_suffix = git_path_pattern.substr(pos1 + 2, pos2 - pos1 - 2);
+        git_path_ending = git_path_pattern.substr(pos2 + 2);
     }
 
     bool managed = false;
@@ -359,6 +363,7 @@ int main(int argc, char** argv)
            lib_path,
            git_path_prefix,
            git_path_suffix,
+           git_path_ending,
            db_options,
            schema_name,
            tablespace_name,
