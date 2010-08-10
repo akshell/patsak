@@ -125,9 +125,7 @@ int main(int argc, char** argv)
     generic_options.add_options()
         ("help,h", "print help message")
         ("version,v", "print version")
-        ("config,c",
-         po::value<string>()->default_value("/etc/patsak.conf"),
-         "config file")
+        ("config,c", po::value<string>(), "config file")
         ;
 
     string code_path, lib_path;
@@ -182,15 +180,15 @@ int main(int argc, char** argv)
                    .options(cmdline_options)
                    .positional(positional_options).run()),
                   vm);
-        string config_path(vm["config"].as<string>());
-        if (!config_path.empty()) {
-            ifstream config_file(config_path.c_str());
-            if (!config_file.is_open()) {
-                cerr << "Failed to open config file\n";
-                return 1;
-            }
+        ifstream config_file(vm.count("config")
+                             ? vm["config"].as<string>().c_str()
+                             : "/etc/patsak.conf");
+        if (config_file.is_open()) {
             po::store(po::parse_config_file(config_file, config_options), vm);
             config_file.close();
+        } else if (vm.count("config")) {
+            cerr << "Failed to open config file\n";
+            return 1;
         }
         po::notify(vm);
     } catch (po::error& err) {
