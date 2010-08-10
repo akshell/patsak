@@ -130,6 +130,7 @@ int main(int argc, char** argv)
 
     string code_path, lib_path;
     string git_path_pattern;
+    string repo_name;
     string db_options, schema_name, tablespace_name;
     string log_path;
     size_t worker_count;
@@ -138,6 +139,7 @@ int main(int argc, char** argv)
         ("app,a", po::value<string>(&code_path), "app code directory")
         ("lib,l", po::value<string>(&lib_path), "lib directory")
         ("git,g", po::value<string>(&git_path_pattern), "git path pattern")
+        ("repo,r", po::value<string>(&repo_name), "repository to run")
         ("db,d", po::value<string>(&db_options), "database options")
         ("schema,s",
          po::value<string>(&schema_name)->default_value("public"),
@@ -232,6 +234,9 @@ int main(int argc, char** argv)
         git_path_prefix = git_path_pattern.substr(0, pos1);
         git_path_suffix = git_path_pattern.substr(pos1 + 2, pos2 - pos1 - 2);
         git_path_ending = git_path_pattern.substr(pos2 + 2);
+    } else if (!repo_name.empty()) {
+        cerr << "--repo must be specified with --git\n";
+        return 1;
     }
 
     bool managed = false;
@@ -362,6 +367,7 @@ int main(int argc, char** argv)
            git_path_prefix,
            git_path_suffix,
            git_path_ending,
+           repo_name,
            db_options,
            schema_name,
            tablespace_name,

@@ -167,6 +167,7 @@ void ak::InitJS(const string& code_path,
                 const string& git_path_prefix,
                 const string& git_path_suffix,
                 const string& git_path_ending,
+                const string& repo_name,
                 const string& db_options,
                 const string& schema_name,
                 const string& tablespace_name,
@@ -210,7 +211,9 @@ void ak::InitJS(const string& code_path,
     Handle<v8::Value> init_func_value(script->Run());
     AK_ASSERT(!init_func_value.IsEmpty() && init_func_value->IsFunction());
     Handle<Function> init_func(Handle<Function>::Cast(init_func_value));
-    Handle<v8::Value> args[] = {basis, error_classes};
-    Handle<v8::Value> init_ret(init_func->Call(context->Global(), 2, args));
+    Handle<v8::Value> args[] = {
+        basis, error_classes, String::New(repo_name.c_str())
+    };
+    Handle<v8::Value> init_ret(init_func->Call(context->Global(), 3, args));
     AK_ASSERT(!init_ret.IsEmpty());
 }

@@ -59,6 +59,7 @@ class Test(unittest.TestCase):
         self._check_launch(['--app', '', 'serve', 'socket'], 1)
         self._check_launch(['--git', 'bad', 'eval', '1'], 1)
         self._check_launch(['--git', 'bad%s', 'eval', '1'], 1)
+        self._check_launch(['--git', '', '--repo', 'x/y', 'eval', '1'], 1)
         self._check_launch(['--background', 'serve', 'bad/path'])
         self._check_launch(['serve', 'bad:bad'], 1)
         self._check_launch(['serve', 'example.com:80'], 1)
@@ -96,6 +97,9 @@ class Test(unittest.TestCase):
         self.assertEqual(process.wait(), 0)
         process = _launch(['--app', CODE_PATH + '/eval', 'eval', '1'])
         self.assertEqual(process.stdout.read(), 'eval is not a function\n')
+        self.assertEqual(process.wait(), 0)
+        process = _launch(['--repo', 'code/lib', 'eval', 'answer'])
+        self.assertEqual(process.stdout.read(), '42\n')
         self.assertEqual(process.wait(), 0)
 
     def _talk(self, sock, message):

@@ -1,6 +1,6 @@
 // (c) 2009-2010 by Anton Korenyushkin
 
-(function (basis, errorClasses)
+(function (basis, errorClasses, repoName)
 {
   Error.stackTraceLimit = 1000;
 
@@ -93,7 +93,6 @@
 
 
   var defaultPlace = new Place(basis.fs.lib, 'default:');
-  var mainPlace = new Place(basis.fs.code, '');
   var main = {id: 'main', exports: {}};
   var gitPlaces = {};
   var defaultRequire;
@@ -127,14 +126,9 @@
   }
 
 
-  function doLibRequire(place, libAlias, id, dir) {
-    if (libAlias == 'default')
-      return doRequire(defaultPlace, id, dir);
-    if (!place.libs.hasOwnProperty(libAlias))
-      return undefined;
-    var descr = place.libs[libAlias];
+  function getGitPlace(descr) {
     if (gitPlaces.hasOwnProperty(descr))
-      return doRequire(gitPlaces[descr], id, dir);
+      return gitPlaces[descr];
     Repo = Repo || defaultRequire('git').Repo;
     var slashIdx = descr.indexOf('/');
     var colonIdx = descr.indexOf(':', slashIdx + 1);
@@ -144,9 +138,18 @@
     var libName = descr.substring(slashIdx + 1, colonIdx);
     var libVersion = descr.substring(colonIdx + 1);
     var repo = new Repo(ownerName, libName);
-    var libPlace = new Place(repo.getStorage(libVersion), descr + ':');
-    gitPlaces[descr] = libPlace;
-    return doRequire(libPlace, id, dir);
+    var place = new Place(repo.getStorage(libVersion), descr + ':');
+    gitPlaces[descr] = place;
+    return place;
+  }
+
+
+  function doLibRequire(place, libAlias, id, dir) {
+    if (libAlias == 'default')
+      return doRequire(defaultPlace, id, dir);
+    if (!place.libs.hasOwnProperty(libAlias))
+      return undefined;
+    return doRequire(getGitPlace(place.libs[libAlias]), id, dir);
   }
 
 
@@ -201,12 +204,15 @@
   }
 
 
-  require = makeRequire(mainPlace, []);
-  basis.core.set(require, 'main', 5, main);
-
-
   defaultRequire = makeRequire(defaultPlace, []);
   defaultRequire('binary');
   defaultRequire('socket');
   delete main.exports;
+
+
+  var mainPlace = (repoName
+                   ? getGitPlace(repoName + ':master')
+                   : new Place(basis.fs.code, ''));
+  require = makeRequire(mainPlace, []);
+  basis.core.set(require, 'main', 5, main);
 });

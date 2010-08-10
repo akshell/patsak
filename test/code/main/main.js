@@ -1002,7 +1002,7 @@ var gitTestSuite = {
       [
         [
           'HEAD',
-          '4a7af2ca3dbc02a712a3415b6ec9f3694e35c37d'
+          'b483d1775aedd21eaeb958219e26fa68f36f2e31'
         ],
         [
           'refs/remotes/origin/HEAD',
@@ -1010,7 +1010,7 @@ var gitTestSuite = {
         ],
         [
           'refs/heads/master',
-          '4a7af2ca3dbc02a712a3415b6ec9f3694e35c37d'
+          'b483d1775aedd21eaeb958219e26fa68f36f2e31'
         ],
         [
           'refs/tags/dummy',
@@ -1018,7 +1018,7 @@ var gitTestSuite = {
         ],
         [
           'refs/remotes/origin/master',
-          '4a7af2ca3dbc02a712a3415b6ec9f3694e35c37d'
+          'b483d1775aedd21eaeb958219e26fa68f36f2e31'
         ]
       ]);
     assertThrow(ValueError, function () { repo.readObject('invalid'); });
