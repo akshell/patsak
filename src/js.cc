@@ -164,9 +164,7 @@ bool ak::ProgramIsDead()
 
 void ak::InitJS(const string& code_path,
                 const string& lib_path,
-                const string& git_path_prefix,
-                const string& git_path_suffix,
-                const string& git_path_ending,
+                const GitPathPatterns& git_path_patterns,
                 const string& repo_name,
                 const string& db_options,
                 const string& schema_name,
@@ -196,11 +194,8 @@ void ak::InitJS(const string& code_path,
     Set(basis, "script", InitScript());
     Set(basis, "socket", InitSocket());
     Set(basis, "http", InitHTTP());
-    if (!git_path_prefix.empty() ||
-        !git_path_suffix.empty() ||
-        !git_path_ending.empty())
-        Set(basis, "git",
-            InitGit(git_path_prefix, git_path_suffix, git_path_ending));
+    if (!git_path_patterns.empty())
+        Set(basis, "git", InitGit(git_path_patterns));
     Handle<Array> error_classes(Array::New());
     InitErrorClasses(error_classes);
 

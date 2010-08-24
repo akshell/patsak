@@ -129,7 +129,7 @@ int main(int argc, char** argv)
         ;
 
     string code_path, lib_path;
-    string git_path_pattern;
+    string git_option;
     string repo_name;
     string db_options, schema_name, tablespace_name;
     string log_path;
@@ -138,7 +138,7 @@ int main(int argc, char** argv)
     config_options.add_options()
         ("app,a", po::value<string>(&code_path), "app code directory")
         ("lib,l", po::value<string>(&lib_path), "lib directory")
-        ("git,g", po::value<string>(&git_path_pattern), "git path pattern")
+        ("git,g", po::value<string>(&git_option), "git path patterns")
         ("repo,r", po::value<string>(&repo_name), "repository to run")
         ("db,d", po::value<string>(&db_options), "database options")
         ("schema,s",
@@ -221,19 +221,27 @@ int main(int argc, char** argv)
     RequireOption("lib", lib_path);
     RequireOption("db", db_options);
 
-    string git_path_prefix, git_path_suffix, git_path_ending;
-    if (!git_path_pattern.empty()) {
-        size_t pos1 = git_path_pattern.find("%s");
-        size_t pos2 = (pos1 == string::npos
-                       ? string::npos
-                       : git_path_pattern.find("%s", pos1 + 2));
-        if (pos2 == string::npos) {
-            cerr << "Git path pattern must contain two %s placeholders\n";
-            return 1;
-        }
-        git_path_prefix = git_path_pattern.substr(0, pos1);
-        git_path_suffix = git_path_pattern.substr(pos1 + 2, pos2 - pos1 - 2);
-        git_path_ending = git_path_pattern.substr(pos2 + 2);
+    GitPathPatterns git_path_patterns;
+    if (!git_option.empty()) {
+        size_t start = 0;
+        size_t end;
+        do {
+            end = git_option.find_first_of(':', start);
+            string part(git_option, start, end - start);
+            size_t first = part.find("%s");
+            size_t second = (first == string::npos
+                             ? string::npos
+                             : part.find("%s", first + 2));
+            if (second == string::npos) {
+                cerr << "Git path pattern must contain two %s placeholders\n";
+                return 1;
+            }
+            git_path_patterns.push_back(
+                GitPathPattern(part.substr(0, first),
+                               part.substr(first + 2, second - first - 2),
+                               part.substr(second + 2)));
+            start = end + 1;
+        } while (end != string::npos);
     } else if (!repo_name.empty()) {
         cerr << "--repo must be specified with --git\n";
         return 1;
@@ -255,8 +263,8 @@ int main(int argc, char** argv)
             AK_ASSERT(curr_path);
             MakePathAbsolute(curr_path, code_path);
             MakePathAbsolute(curr_path, lib_path);
-            if (!git_path_pattern.empty())
-                MakePathAbsolute(curr_path, git_path_prefix);
+            BOOST_FOREACH(GitPathPattern& git_path_pattern, git_path_patterns)
+                MakePathAbsolute(curr_path, git_path_pattern.prefix);
             if (local)
                 MakePathAbsolute(curr_path, place);
             free(curr_path);
@@ -364,9 +372,7 @@ int main(int argc, char** argv)
 
     InitJS(code_path,
            lib_path,
-           git_path_prefix,
-           git_path_suffix,
-           git_path_ending,
+           git_path_patterns,
            repo_name,
            db_options,
            schema_name,

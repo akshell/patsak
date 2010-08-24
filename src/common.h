@@ -294,6 +294,26 @@ namespace ak
     typedef orset<NamedString, NameGetter> StringMap;
 
     ////////////////////////////////////////////////////////////////////////////
+    // GitPathPattern and GitPathPatterns
+    ////////////////////////////////////////////////////////////////////////////
+
+    struct GitPathPattern {
+        std::string prefix;
+        std::string suffix;
+        std::string ending;
+
+        GitPathPattern(const std::string& prefix,
+                       const std::string& suffix,
+                       const std::string& ending)
+            : prefix(prefix)
+            , suffix(suffix)
+            , ending(ending) {}
+    };
+
+
+    typedef std::vector<GitPathPattern> GitPathPatterns;
+
+    ////////////////////////////////////////////////////////////////////////////
     // Typedefs and constants
     ////////////////////////////////////////////////////////////////////////////
 

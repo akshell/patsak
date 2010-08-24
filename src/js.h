@@ -14,9 +14,7 @@ namespace ak
 
     void InitJS(const std::string& code_path,
                 const std::string& lib_path,
-                const std::string& git_path_prefix,
-                const std::string& git_path_suffix,
-                const std::string& git_path_ending,
+                const GitPathPatterns& git_path_patterns,
                 const std::string& repo_name,
                 const std::string& db_options,
                 const std::string& schema_name,

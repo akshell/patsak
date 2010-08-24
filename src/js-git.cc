@@ -22,7 +22,7 @@ using namespace std;
 
 namespace
 {
-    string path_prefix, path_suffix, path_ending;
+    GitPathPatterns path_patterns;
 
 
     class RepoBg {
@@ -68,12 +68,18 @@ RepoBg::RepoBg(const string& owner_name, const string& lib_name)
 {
     CheckName(owner_name);
     CheckName(lib_name);
-    path_ = path_prefix + owner_name + path_suffix + lib_name + path_ending;
-    struct stat st;
-    if (stat(path_.c_str(), &st) == -1)
-        throw Error(Error::VALUE, "No such lib");
-    int ret = git_odb_open(&odb_ptr, (path_ + "/objects").c_str());
-    AK_ASSERT_EQUAL(ret, 0);
+    BOOST_FOREACH(const GitPathPattern& path_pattern, path_patterns) {
+        path_ = (path_pattern.prefix + owner_name +
+                 path_pattern.suffix + lib_name +
+                 path_pattern.ending);
+        struct stat st;
+        if (!stat(path_.c_str(), &st)) {
+            int ret = git_odb_open(&odb_ptr, (path_ + "/objects").c_str());
+            AK_ASSERT_EQUAL(ret, 0);
+            return;
+        }
+    }
+    throw Error(Error::VALUE, "No such lib");
 }
 
 
@@ -177,13 +183,9 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RepoBg, ReadObjectCb,
 // InitGit
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Object> ak::InitGit(const string& path_prefix,
-                           const string& path_suffix,
-                           const string& path_ending)
+Handle<Object> ak::InitGit(const GitPathPatterns& path_patterns)
 {
-    ::path_prefix = path_prefix;
-    ::path_suffix = path_suffix;
-    ::path_ending = path_ending;
+    ::path_patterns = path_patterns;
     Handle<Object> result(Object::New());
     PutClass<RepoBg>(result);
     return result;
