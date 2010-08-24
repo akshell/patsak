@@ -243,7 +243,7 @@ int main(int argc, char** argv)
                 git_option.substr(second_idx+ 2)));
     }
 
-    bool managed = false;
+    pid_t parent_pid = 0;
     int server_fd;
 
     if (command == "serve") {
@@ -357,7 +357,7 @@ int main(int argc, char** argv)
         AK_ASSERT_EQUAL(ret, 0);
         server_fd = Serve(listen_fd, worker_count);
     } else if (command == "work") {
-        managed = true;
+        parent_pid = getppid();
         server_fd = STDIN_FILENO;
     } else if (command == "eval") {
         server_fd = -1;
@@ -373,7 +373,7 @@ int main(int argc, char** argv)
            db_options,
            schema_name,
            tablespace_name,
-           managed);
+           parent_pid);
 
     if (server_fd == -1) {
         const string& expr(place_or_expr);
@@ -403,28 +403,33 @@ int main(int argc, char** argv)
         int conn_fd = *reinterpret_cast<int*>(CMSG_DATA(cmsg_ptr));
         if (op == 'H') {
             HandleRequest(conn_fd); // closes the socket
-            continue;
-        }
-        AK_ASSERT_EQUAL(op, 'E');
-        char expr[MAX_EXPR_SIZE];
-        size_t received = 0;
-        do {
-            count = read(conn_fd, expr + received, MAX_EXPR_SIZE - received);
-            received += count;
-        } while (count > 0);
-        if (count != -1) {
-            string result;
-            char status = EvalExpr(expr, received, result) ? 'S' : 'F';
-            count = write(conn_fd, &status, 1);
-            size_t sent = 0;
-            while (count > 0 && sent < result.size()) {
-                count = write(conn_fd,
-                              result.data() + sent,
-                              result.size() - sent);
-                sent += count;
+        } else {
+            AK_ASSERT_EQUAL(op, 'E');
+            char expr[MAX_EXPR_SIZE];
+            size_t received = 0;
+            do {
+                count = read(
+                    conn_fd, expr + received, MAX_EXPR_SIZE - received);
+                received += count;
+            } while (count > 0);
+            if (count != -1) {
+                string result;
+                char status = EvalExpr(expr, received, result) ? 'S' : 'F';
+                count = write(conn_fd, &status, 1);
+                size_t sent = 0;
+                while (count > 0 && sent < result.size()) {
+                    count = write(conn_fd,
+                                  result.data() + sent,
+                                  result.size() - sent);
+                    sent += count;
+                }
             }
+            close(conn_fd);
         }
-        close(conn_fd);
+        if (parent_pid) {
+            int ret = kill(parent_pid, SIGRTMIN);
+            AK_ASSERT_EQUAL(ret, 0);
+        }
     } while (!ProgramIsDead());
 
     return 0;
