@@ -56,7 +56,7 @@ namespace ak
     };
 
     ////////////////////////////////////////////////////////////////////////////
-    // Type
+    // Type, Types, ReadType, and ReadPgType
     ////////////////////////////////////////////////////////////////////////////
 
     class Type {
@@ -96,11 +96,14 @@ namespace ak
     };
 
 
+    typedef std::vector<Type> Types;
+
+
     Type ReadType(const std::string& name);
     Type ReadPgType(const std::string& pg_name);
 
     ////////////////////////////////////////////////////////////////////////////
-    // Value and ValuePtr
+    // Value, Values, and ValuePtr
     ////////////////////////////////////////////////////////////////////////////
 
     class Value {
@@ -123,6 +126,9 @@ namespace ak
 
         Value() {}
     };
+
+
+    typedef std::vector<Value> Values;
 
 
     inline std::ostream& operator<<(std::ostream& os, const Value& value)
@@ -244,7 +250,7 @@ namespace ak
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // Draft, NamedDraft, and DraftMap
+    // Draft, Drafts, NamedDraft, and DraftMap
     ////////////////////////////////////////////////////////////////////////////
 
     class Draft {
@@ -258,6 +264,9 @@ namespace ak
     private:
         boost::shared_ptr<Impl> pimpl_;
     };
+
+
+    typedef std::vector<Draft> Drafts;
 
 
     struct NamedDraft : public Named {
@@ -285,14 +294,11 @@ namespace ak
     typedef orset<NamedString, NameGetter> StringMap;
 
     ////////////////////////////////////////////////////////////////////////////
-    // Typedefs
+    // Typedefs and constants
     ////////////////////////////////////////////////////////////////////////////
 
     typedef orset<std::string> StringSet;
     typedef std::vector<std::string> Strings;
-    typedef std::vector<Value> Values;
-    typedef std::vector<Type> Types;
-    typedef std::vector<Draft> Drafts;
     typedef std::vector<char> Chars;
 
     const size_t MINUS_ONE = static_cast<size_t>(-1);
