@@ -174,7 +174,8 @@ def main():
 db=dbname=%s
 app=%s/main
 lib=%s
-git=bad/%%s/%%s:%s/%%s/%%s/.git
+git=bad/%%s/%%s
+git=%s/%%s/%%s/.git
 log=%s
 workers=3
 ''' % (DB_NAME, CODE_PATH, LIB_PATH, TEST_PATH, LOG_PATH))

@@ -129,7 +129,7 @@ int main(int argc, char** argv)
         ;
 
     string code_path, lib_path;
-    string git_option;
+    Strings git_options;
     string repo_name;
     string db_options, schema_name, tablespace_name;
     string log_path;
@@ -138,7 +138,7 @@ int main(int argc, char** argv)
     config_options.add_options()
         ("app,a", po::value<string>(&code_path), "app code directory")
         ("lib,l", po::value<string>(&lib_path), "lib directory")
-        ("git,g", po::value<string>(&git_option), "git path patterns")
+        ("git,g", po::value<Strings>(&git_options), "git path pattern")
         ("repo,r", po::value<string>(&repo_name), "repository to run")
         ("db,d", po::value<string>(&db_options), "database options")
         ("schema,s",
@@ -221,30 +221,26 @@ int main(int argc, char** argv)
     RequireOption("lib", lib_path);
     RequireOption("db", db_options);
 
-    GitPathPatterns git_path_patterns;
-    if (!git_option.empty()) {
-        size_t start = 0;
-        size_t end;
-        do {
-            end = git_option.find_first_of(':', start);
-            string part(git_option, start, end - start);
-            size_t first = part.find("%s");
-            size_t second = (first == string::npos
-                             ? string::npos
-                             : part.find("%s", first + 2));
-            if (second == string::npos) {
-                cerr << "Git path pattern must contain two %s placeholders\n";
-                return 1;
-            }
-            git_path_patterns.push_back(
-                GitPathPattern(part.substr(0, first),
-                               part.substr(first + 2, second - first - 2),
-                               part.substr(second + 2)));
-            start = end + 1;
-        } while (end != string::npos);
-    } else if (!repo_name.empty()) {
+    if (git_options.empty() && !repo_name.empty()) {
         cerr << "--repo must be specified with --git\n";
         return 1;
+    }
+
+    GitPathPatterns git_path_patterns;
+    BOOST_FOREACH(const string& git_option, git_options) {
+        size_t first_idx = git_option.find("%s");
+        size_t second_idx = (first_idx == string::npos
+                             ? string::npos
+                             : git_option.find("%s", first_idx + 2));
+        if (second_idx == string::npos) {
+            cerr << "Git path pattern must contain two %s placeholders\n";
+            return 1;
+        }
+        git_path_patterns.push_back(
+            GitPathPattern(
+                git_option.substr(0, first_idx),
+                git_option.substr(first_idx + 2, second_idx - first_idx - 2),
+                git_option.substr(second_idx+ 2)));
     }
 
     bool managed = false;
