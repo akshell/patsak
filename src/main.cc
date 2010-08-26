@@ -110,8 +110,6 @@ namespace
                 worker_fds[i] = fd;
                 sent = sendmsg(fd, &msg, 0);
                 AK_ASSERT_EQUAL(sent, 1);
-                while (waitpid(-1, 0, WNOHANG) > 0)
-                    ;
             }
             close(conn_fd);
         }
@@ -354,6 +352,10 @@ int main(int argc, char** argv)
         ret = sigaction(SIGTERM, &action, 0);
         AK_ASSERT_EQUAL(ret, 0);
         ret = sigaction(SIGINT, &action, 0);
+        AK_ASSERT_EQUAL(ret, 0);
+        action.sa_handler = SIG_IGN;
+        action.sa_flags = SA_NOCLDWAIT;
+        ret = sigaction(SIGCHLD, &action, 0);
         AK_ASSERT_EQUAL(ret, 0);
         server_fd = Serve(listen_fd, worker_count);
     } else if (command == "work") {
