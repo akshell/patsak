@@ -998,10 +998,14 @@ var gitTestSuite = {
     assertThrow(ValueError, "new Repo('code', 'no-such-lib')");
     var repo = new Repo('code', 'lib');
     assertEqual(
-      items(repo.refs),
+      items(repo.refs).sort(),
       [
         [
           'HEAD',
+          'b483d1775aedd21eaeb958219e26fa68f36f2e31'
+        ],
+        [
+          'refs/heads/master',
           'b483d1775aedd21eaeb958219e26fa68f36f2e31'
         ],
         [
@@ -1009,16 +1013,12 @@ var gitTestSuite = {
           'ref: refs/remotes/origin/master'
         ],
         [
-          'refs/heads/master',
+          'refs/remotes/origin/master',
           'b483d1775aedd21eaeb958219e26fa68f36f2e31'
         ],
         [
           'refs/tags/dummy',
           'b53dffba67ee52511ad67fd95a1f140bdb691936'
-        ],
-        [
-          'refs/remotes/origin/master',
-          'b483d1775aedd21eaeb958219e26fa68f36f2e31'
         ]
       ]);
     assertThrow(ValueError, function () { repo.readObject('invalid'); });
