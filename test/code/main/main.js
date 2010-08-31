@@ -1500,7 +1500,8 @@ var httpTestSuite = {
       'x-www-form-urlencoded\r\nContent-',
       'Length: 32\r\nHost: example.com\r\n\r\nhome=Cosby&',
       'favorite+flavor=flies'
-    ].forEach(function (s) { parser.exec(new Binary(s)); });
+    ].forEach(
+      function (s) { assertSame(parser.exec(new Binary(s)), s.length); });
     assertEqual(
       handler.history,
       [
@@ -1527,7 +1528,7 @@ var httpTestSuite = {
         ['onBody', 'favorite+flavor=flies'],
         ['onMessageComplete']
       ]);
-    assertThrow(ValueError, function () { parser.exec(new Binary('bla')); });
+    assertSame(parser.exec(new Binary('bla')), 0);
     handler = new Handler();
     new HttpParser('response', handler).exec(
       new Binary('HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nyo'));

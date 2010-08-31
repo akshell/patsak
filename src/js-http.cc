@@ -212,11 +212,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, HttpParserBg, ExecCb,
     size_t parsed = http_parser_execute(
         &impl_, &settings, binarizator.GetData(), binarizator.GetSize());
     binary_ptr_ = 0;
-    if (got_exception_)
-        return Handle<v8::Value>();
-    if (parsed != binarizator.GetSize())
-        throw Error(Error::VALUE, "Parse error");
-    return Undefined();
+    return got_exception_ ? Handle<v8::Value>() : Integer::New(parsed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
