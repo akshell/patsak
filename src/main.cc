@@ -417,8 +417,13 @@ int main(int argc, char** argv)
             if (count != -1) {
                 string result;
                 char status = EvalExpr(expr, received, result) ? 'S' : 'F';
-                count = write(conn_fd, &status, 1);
-                size_t sent = 0;
+                struct iovec iovecs[2];
+                iovecs[0].iov_base = &status;
+                iovecs[0].iov_len = 1;
+                iovecs[1].iov_base = const_cast<char*>(result.data());
+                iovecs[1].iov_len = result.size();
+                count = writev(conn_fd, iovecs, 2);
+                size_t sent = count - 1;
                 while (count > 0 && sent < result.size()) {
                     count = write(conn_fd,
                                   result.data() + sent,
