@@ -433,10 +433,8 @@ int main(int argc, char** argv)
             }
             close(conn_fd);
         }
-        if (parent_pid) {
-            int ret = kill(parent_pid, SIGRTMIN);
-            AK_ASSERT_EQUAL(ret, 0);
-        }
+        if (parent_pid)
+            kill(parent_pid, SIGRTMIN);
     } while (!ProgramIsDead());
 
     return 0;
