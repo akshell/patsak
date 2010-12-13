@@ -23,7 +23,7 @@ LOG_PATH    = TMP_PATH + '/log'
 TEST_PATH   = os.path.dirname(__file__)
 CODE_PATH   = TEST_PATH + '/code'
 LIB_PATH    = TEST_PATH + '/../lib'
-INIT_PATH   = TEST_PATH + '/../init.sql'
+SQL_PATH    = TEST_PATH + '/../patsak.sql'
 EXE_PATH    = TEST_PATH + '/../exe/'
 HOST        = 'localhost'
 PORT1       = 13423
@@ -163,7 +163,7 @@ def main():
     _popen(['createdb', DB_NAME]).wait()
     conn = psycopg2.connect('dbname=' + DB_NAME)
     cursor = conn.cursor()
-    cursor.execute(open(INIT_PATH).read())
+    cursor.execute(open(SQL_PATH).read())
     conn.commit()
     conn.close()
 
