@@ -49,7 +49,7 @@ var imports = {
     'Socket',
     'SocketError'
   ],
-  http: [
+  'http-parser': [
     'HttpParser'
   ],
   git: [

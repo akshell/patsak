@@ -28,7 +28,7 @@ js_sources = [
     'js-proxy.cc',
     'js-script.cc',
     'js-socket.cc',
-    'js-http.cc',
+    'js-http-parser.cc',
     'js-git.cc',
     ]
 

@@ -9,7 +9,7 @@
 #include "js-proxy.h"
 #include "js-script.h"
 #include "js-socket.h"
-#include "js-http.h"
+#include "js-http-parser.h"
 #include "js-git.h"
 #include "db.h"
 
@@ -193,7 +193,7 @@ void ak::InitJS(const string& code_path,
     Set(basis, "proxy", InitProxy());
     Set(basis, "script", InitScript());
     Set(basis, "socket", InitSocket());
-    Set(basis, "http", InitHTTP());
+    Set(basis, "http-parser", InitHttpParser());
     if (!git_path_patterns.empty())
         Set(basis, "git", InitGit(git_path_patterns));
     Handle<Array> error_classes(Array::New());

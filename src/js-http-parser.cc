@@ -1,6 +1,6 @@
 // (c) 2010 by Anton Korenyushkin
 
-#include "js-http.h"
+#include "js-http-parser.h"
 #include "js-common.h"
 #include "js-binary.h"
 
@@ -219,7 +219,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, HttpParserBg, ExecCb,
 // InitHTTP
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Object> ak::InitHTTP()
+Handle<Object> ak::InitHttpParser()
 {
     Handle<Object> result(Object::New());
     PutClass<HttpParserBg>(result);
