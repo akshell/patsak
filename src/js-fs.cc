@@ -61,7 +61,7 @@ DEFINE_JS_CLASS(FileStorageBg, "FileStorage",
     SetFunction(proto_template, "isFolder", IsFolderCb);
     SetFunction(proto_template, "isFile", IsFileCb);
     SetFunction(proto_template, "read", ReadCb);
-    SetFunction(proto_template, "_list", ListCb);
+    SetFunction(proto_template, "list", ListCb);
 }
 
 
