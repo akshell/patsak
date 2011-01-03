@@ -1,4 +1,4 @@
-// (c) 2010 by Anton Korenyushkin
+// (c) 2010-2011 by Anton Korenyushkin
 
 #include "js-http-parser.h"
 #include "js-common.h"

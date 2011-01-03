@@ -1,4 +1,4 @@
-// (c) 2008-2010 by Anton Korenyushkin
+// (c) 2008-2011 by Anton Korenyushkin
 
 #ifndef DEBUG_H
 #define DEBUG_H

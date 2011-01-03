@@ -1,4 +1,4 @@
-// (c) 2009-2010 by Anton Korenyushkin
+// (c) 2009-2011 by Anton Korenyushkin
 
 (function (basis, errorClasses, repoName)
 {

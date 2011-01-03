@@ -1,4 +1,4 @@
-// (c) 2008-2010 by Anton Korenyushkin
+// (c) 2008-2011 by Anton Korenyushkin
 
 #include "db.h"
 #include "translator.h"

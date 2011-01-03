@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# (c) 2009-2010 by Anton Korenyushkin
+# (c) 2009-2011 by Anton Korenyushkin
 
 from __future__ import with_statement
 import subprocess

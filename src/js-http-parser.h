@@ -1,4 +1,4 @@
-// (c) 2010 by Anton Korenyushkin
+// (c) 2010-2011 by Anton Korenyushkin
 
 #ifndef JS_HTTP_PARSER_H
 #define JS_HTTP_PARSER_H

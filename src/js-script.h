@@ -1,4 +1,4 @@
-// (c) 2010 by Anton Korenyushkin
+// (c) 2010-2011 by Anton Korenyushkin
 
 #ifndef JS_SCRIPT_H
 #define JS_SCRIPT_H
