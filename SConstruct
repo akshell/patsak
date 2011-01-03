@@ -1,4 +1,4 @@
-# (c) 2008-2010 by Anton Korenyushkin
+# (c) 2008-2011 by Anton Korenyushkin
 
 vars = Variables()
 vars.Add('mode', 'build mode (common, fast, debug, cov)', 'common')
