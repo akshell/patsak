@@ -67,6 +67,9 @@ for (var moduleName in imports) {
     });
 }
 
+require('jsgi');
+var jsgiHandle = exports.handle;
+
 ////////////////////////////////////////////////////////////////////////////////
 // Utils
 ////////////////////////////////////////////////////////////////////////////////
@@ -1552,6 +1555,67 @@ var httpTestSuite = {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+// jsgi
+////////////////////////////////////////////////////////////////////////////////
+
+var jsgiTestSuite = {
+  testJSGI: function () {
+    var TestSocket = function (requestParts) {
+      this.requestParts = requestParts;
+      this.responseParts = [];
+    };
+    TestSocket.prototype = {
+      receive: function () {
+        return new Binary(this.requestParts.shift());
+      },
+
+      write: function (responsePart) {
+        this.responseParts.push(responsePart);
+      },
+
+      get response() {
+        return this.responseParts.join('');
+      }
+    };
+
+    var socket = new TestSocket(
+      [
+        'GET /some/',
+        'path/?x=',
+        '42 HTTP/1.1\r\nHo',
+        'st: www.',
+        'example.com\r\nContent-',
+        'Length: 5\r\nX-Header: one\r\nX-Header: two\r\n\r\nhell',
+        'o'
+      ]);
+
+    exports.app = function (request) {
+      return {
+        status: 200,
+        headers: request.headers,
+        body: [
+          request.method, ' ',
+          request.host, ' ',
+          request.pathInfo, ' ',
+          request.queryString, ' ',
+          request.input
+        ]
+      };
+    };
+
+    jsgiHandle(socket);
+    assertSame(
+      socket.response,
+      ('HTTP/1.1 200\r\n' +
+       'host: www.example.com\r\n' +
+       'content-length: 5\r\n' +
+       'x-header: one,two\r\n' +
+       '\r\n' +
+       'GET www.example.com /some/path/ x=42 hello'));
+  }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 // Entry points
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1567,7 +1631,8 @@ test = function () {
       proxyTestSuite,
       scriptTestSuite,
       socketTestSuite,
-      httpTestSuite
+      httpTestSuite,
+      jsgiTestSuite
     ]);
 };
 
