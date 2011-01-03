@@ -398,8 +398,7 @@ var dbTestSuite1 = {
   },
 
   testList: function () {
-    assertEqual(db.list().sort(),
-                ['Comment', 'Count', 'Empty', 'Post', 'User']);
+    assertEqual(db.list(), ['Comment', 'Count', 'Empty', 'Post', 'User']);
   },
 
   testCreate: function () {
