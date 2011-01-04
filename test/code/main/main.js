@@ -1590,6 +1590,7 @@ var jsgiTestSuite = {
       ]);
 
     exports.app = function (request) {
+      request.headers['Set-Cookie'] = ['a=42', 'b=15'];
       return {
         status: 200,
         headers: request.headers,
@@ -1610,6 +1611,8 @@ var jsgiTestSuite = {
        'host: www.example.com\r\n' +
        'content-length: 5\r\n' +
        'x-header: one,two\r\n' +
+       'Set-Cookie: a=42\r\n' +
+       'Set-Cookie: b=15\r\n' +
        '\r\n' +
        'GET www.example.com /some/path/ x=42 hello'));
   }
