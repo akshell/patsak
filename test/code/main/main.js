@@ -1104,6 +1104,8 @@ var gitTestSuite = {
       });
 
     var storage = new GitStorage(mockRepo, 'upstream')
+    assertSame(storage.ref, 'upstream');
+    assertSame(storage.commit, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
     assertEqual(storage.list(''), ['dir', 'file']);
     assertEqual(storage.list('dir/subdir/.././../dir//subdir'), ['yo']);
     assert(storage.exists('dir/subdir//'));
