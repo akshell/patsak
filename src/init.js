@@ -114,6 +114,7 @@
       place === defaultPlace && basis.hasOwnProperty(id) ? basis[id] : {};
     var module = main.exports ? {id: id} : main;
     module.exports = exports;
+    module.storage = place.storage;
     basis.core.set(require, 'main', 5, main);
     try {
       func(require, exports, module);
