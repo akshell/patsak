@@ -93,7 +93,7 @@
 
 
   var defaultPlace = new Place(basis.fs.lib, 'default:');
-  var main = {id: 'main', exports: {}};
+  var main = {id: 'main'};
   var gitPlaces = {};
   var defaultRequire;
   var Repo;
@@ -112,7 +112,8 @@
     var require = makeRequire(place, dir);
     var exports = place.cache[id] =
       place === defaultPlace && basis.hasOwnProperty(id) ? basis[id] : {};
-    var module = main.exports ? {id: id} : main;
+    var module =
+      main.exports || place.storage === basis.fs.lib ? {id: id} : main;
     module.exports = exports;
     module.storage = place.storage;
     basis.core.set(require, 'main', 5, main);
@@ -208,12 +209,10 @@
   defaultRequire = makeRequire(defaultPlace, []);
   defaultRequire('binary');
   defaultRequire('socket');
-  delete main.exports;
 
 
-  var mainPlace = (repoName
-                   ? getGitPlace(repoName + ':master')
-                   : new Place(basis.fs.code, ''));
-  require = makeRequire(mainPlace, []);
+  require = makeRequire(
+    repoName ? getGitPlace(repoName + ':master') : new Place(basis.fs.code, ''),
+    []);
   basis.core.set(require, 'main', 5, main);
 });
