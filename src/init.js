@@ -129,6 +129,7 @@
 
 
   function getGitPlace(descr) {
+    descr = descr.toLowerCase();
     if (gitPlaces.hasOwnProperty(descr))
       return gitPlaces[descr];
     Repo = Repo || defaultRequire('git').Repo;
