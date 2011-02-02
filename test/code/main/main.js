@@ -1111,9 +1111,9 @@ var gitTestSuite = {
     assert(storage.exists('dir/subdir//'));
     assert(storage.exists('dir/subdir//yo'));
     assert(!storage.exists('file/'));
-    assert(storage.isDir('dir//'));
-    assert(!storage.isDir('file'));
-    assert(!storage.isDir('no-such'));
+    assert(storage.isFolder('dir//'));
+    assert(!storage.isFolder('file'));
+    assert(!storage.isFolder('no-such'));
     assert(storage.isFile('dir/../file'));
     assert(!storage.isFile('dir'));
     assert(!storage.isFile('dir/no-such-dir/no-such-file'));
