@@ -1380,8 +1380,8 @@ var socketTestSuite = {
     socket.shutdown('send');
     assert(!socket.writable);
     assertThrow(ValueError, function () { socket.send('yo'); });
-    var response = socket.read(15);
-    assertSame(response + '', 'HTTP/1.1 200 OK');
+    var response = socket.read(18);
+    assertSame(response + '', 'HTTP/1.0 302 Found');
     assert(socket.read().length > 0);
     assertSame(socket.read().length, 0);
     assertSame(socket.receive(1).length, 0);
