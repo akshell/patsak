@@ -34,7 +34,7 @@ namespace
 
     private:
         string path_;
-        git_odb* odb_ptr;
+        git_odb* odb_ptr_;
 
         static void CheckName(const string& name);
         void ReadLooseRef(const string& name, Handle<Object> object) const;
@@ -74,7 +74,7 @@ RepoBg::RepoBg(const string& owner_name, const string& lib_name)
                  path_pattern.ending);
         struct stat st;
         if (!stat(path_.c_str(), &st)) {
-            int ret = git_odb_open(&odb_ptr, (path_ + "/objects").c_str());
+            int ret = git_odb_open(&odb_ptr_, (path_ + "/objects").c_str());
             AK_ASSERT_EQUAL(ret, 0);
             return;
         }
@@ -85,7 +85,7 @@ RepoBg::RepoBg(const string& owner_name, const string& lib_name)
 
 RepoBg::~RepoBg()
 {
-    git_odb_close(odb_ptr);
+    git_odb_close(odb_ptr_);
 }
 
 
@@ -168,7 +168,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, RepoBg, ReadObjectCb,
         throw Error(Error::VALUE, "Invalid object id");
     }
     git_obj obj;
-    if (git_odb_read(&obj, odb_ptr, &oid))
+    if (git_odb_read(&obj, odb_ptr_, &oid))
         throw Error(Error::VALUE, "Object not found");
     Handle<Object> result(Object::New());
     Set(result, "type", String::NewSymbol(git_obj_type_to_string(obj.type)));
