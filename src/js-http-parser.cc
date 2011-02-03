@@ -70,7 +70,7 @@ namespace
         DEFINE_HTTP_CALLBACK(MessageComplete)
 
         DEFINE_HTTP_DATA_CALLBACK(Path)
-        DEFINE_HTTP_DATA_CALLBACK(Url)
+        DEFINE_HTTP_DATA_CALLBACK(URI)
         DEFINE_HTTP_DATA_CALLBACK(Fragment)
         DEFINE_HTTP_DATA_CALLBACK(QueryString)
         DEFINE_HTTP_DATA_CALLBACK(HeaderField)
@@ -188,7 +188,7 @@ http_parser_settings HttpParserBg::CreateSettings()
     settings.on_message_begin    = OnMessageBegin;
     settings.on_message_complete = OnMessageComplete;
     settings.on_path             = OnPath;
-    settings.on_url              = OnUrl;
+    settings.on_url              = OnURI;
     settings.on_fragment         = OnFragment;
     settings.on_query_string     = OnQueryString;
     settings.on_header_field     = OnHeaderField;

@@ -1466,7 +1466,7 @@ var httpTestSuite = {
     };
     [
       'onPath',
-      'onUrl',
+      'onURI',
       'onFragment',
       'onQueryString',
       'onHeaderField',
@@ -1487,7 +1487,7 @@ var httpTestSuite = {
         ['onMessageBegin'],
         ['onPath', '/some/path'],
         ['onQueryString', 'a=1&b=2'],
-        ['onUrl', '/some/path?a=1&b=2#fragment'],
+        ['onURI', '/some/path?a=1&b=2#fragment'],
         ['onFragment', 'fragment'],
         [
           'onHeadersComplete',
@@ -1512,7 +1512,7 @@ var httpTestSuite = {
       handler.history,
       [
         ['onMessageBegin'],
-        ['onUrl', '/path/script.cgi'],
+        ['onURI', '/path/script.cgi'],
         ['onPath', '/path/script.cgi'],
         ['onHeaderField', 'Content-Type'],
         ['onHeaderValue', 'application/'],
