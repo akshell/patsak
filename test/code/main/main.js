@@ -1417,7 +1417,6 @@ var httpTestSuite = {
       'HEAD',
       'POST',
       'PUT',
-      'CONNECT',
       'OPTIONS',
       'TRACE',
       'COPY',
@@ -1429,12 +1428,13 @@ var httpTestSuite = {
       'UNLOCK'
     ].forEach(
       function (method) {
-        var parsed;
         new HttpParser(
           'request',
-          {onHeadersComplete: function (info) { parsed = info.method; }}).exec(
-            new Binary(method + ' / HTTP/1.0\r\n\r\n'));
-        assertSame(parsed, method);
+          {
+            onHeadersComplete: function (info) {
+              assertSame(info.method, method);
+            }
+          }).exec(new Binary(method + ' / HTTP/1.0\r\n\r\n'));
       });
     var binary = new Binary('GET /some/path?a=1&b=2#fragment HTTP/1.0\r\n\r\n');
     function E() {}
@@ -1506,8 +1506,7 @@ var httpTestSuite = {
       'x-www-form-urlencoded\r\nContent-',
       'Length: 32\r\nHost: example.com\r\n\r\nhome=Cosby&',
       'favorite+flavor=flies'
-    ].forEach(
-      function (s) { assertSame(parser.exec(new Binary(s)), s.length); });
+    ].forEach(function (s) { parser.exec(new Binary(s)); });
     assertEqual(
       handler.history,
       [
@@ -1534,7 +1533,7 @@ var httpTestSuite = {
         ['onBody', 'favorite+flavor=flies'],
         ['onMessageComplete']
       ]);
-    assertSame(parser.exec(new Binary('bla')), 0);
+    assertThrow(ValueError, function () { parser.exec(new Binary('bla')); });
     handler = new Handler();
     new HttpParser('response', handler).exec(
       new Binary('HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nyo'));
