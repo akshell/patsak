@@ -1588,7 +1588,8 @@ var jsgiTestSuite = {
         '42 HTTP/1.1\r\nHo',
         'st: www.',
         'example.com\r\nContent-',
-        'Length: 5\r\nX-Header: one\r\nX-Header: two\r\n\r\nhell',
+        'Length: 5\r\nX-Header: one\r\nX-Header: two\r\n',
+        'x-header: three\r\n\r\nhell',
         'o'
       ]);
 
@@ -1613,7 +1614,9 @@ var jsgiTestSuite = {
       ('HTTP/1.1 200\r\n' +
        'host: www.example.com\r\n' +
        'content-length: 5\r\n' +
-       'x-header: one,two\r\n' +
+       'x-header: one\r\n' +
+       'x-header: two\r\n' +
+       'x-header: three\r\n' +
        'Set-Cookie: a=42\r\n' +
        'Set-Cookie: b=15\r\n' +
        '\r\n' +
