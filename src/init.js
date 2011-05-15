@@ -169,7 +169,7 @@
         rawId = arguments[1];
       }
       var parts = rawId.split('/');
-      var loc = parts[0] == '.' ? dir.slice() : [];
+      var loc = parts[0] == '.' || parts[0] == '..' ? dir.slice() : [];
       for (var i = 0; i < parts.length; ++i) {
         switch (parts[i]) {
         case '':
