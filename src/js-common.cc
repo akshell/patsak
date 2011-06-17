@@ -116,7 +116,7 @@ ExecutionGuard::ExecutionGuard()
     }
     timed_out = false;
     in_callback = false;
-    alarm(10);
+    alarm(30);
 }
 
 
