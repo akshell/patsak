@@ -132,6 +132,7 @@ int main(int argc, char** argv)
     string db_options, schema_name, tablespace_name;
     string log_path;
     size_t worker_count;
+    size_t timeout;
     po::options_description config_options("Config options");
     config_options.add_options()
         ("app,a", po::value<string>(&code_path), "app code directory")
@@ -150,6 +151,9 @@ int main(int argc, char** argv)
          "serve worker count")
         ("log,o", po::value<string>(&log_path), "log file")
         ("background,b", "serve in background")
+        ("timeout",
+         po::value<size_t>(&timeout)->default_value(10),
+         "time to handle")
         ;
 
     string command;
@@ -375,6 +379,7 @@ int main(int argc, char** argv)
            db_options,
            schema_name,
            tablespace_name,
+           timeout,
            parent_pid);
 
     if (server_fd == -1) {

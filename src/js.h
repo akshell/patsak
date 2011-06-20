@@ -19,6 +19,7 @@ namespace ak
                 const std::string& db_options,
                 const std::string& schema_name,
                 const std::string& tablespace_name,
+                size_t timeout,
                 bool managed);
 }
 

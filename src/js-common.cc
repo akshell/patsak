@@ -20,12 +20,14 @@ using boost::lexical_cast;
 namespace
 {
     Persistent<Array> error_classes;
+    size_t timeout;
 }
 
 
-void ak::InitErrorClasses(Handle<Array> error_classes)
+void ak::InitJSCommon(Handle<Array> error_classes, size_t timeout)
 {
     ::error_classes = Persistent<Array>::New(error_classes);
+    ::timeout = timeout;
 }
 
 
@@ -116,7 +118,7 @@ ExecutionGuard::ExecutionGuard()
     }
     timed_out = false;
     in_callback = false;
-    alarm(30);
+    alarm(timeout);
 }
 
 

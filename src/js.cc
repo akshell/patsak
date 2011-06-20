@@ -169,6 +169,7 @@ void ak::InitJS(const string& code_path,
                 const string& db_options,
                 const string& schema_name,
                 const string& tablespace_name,
+                size_t timeout,
                 bool managed)
 {
     InitDatabase(db_options, schema_name, tablespace_name);
@@ -197,7 +198,7 @@ void ak::InitJS(const string& code_path,
     if (!git_path_patterns.empty())
         Set(basis, "git", InitGit(git_path_patterns));
     Handle<Array> error_classes(Array::New());
-    InitErrorClasses(error_classes);
+    InitJSCommon(error_classes, timeout);
 
     Handle<Script> script(
         Script::Compile(String::New(INIT_JS, sizeof(INIT_JS)),
