@@ -258,6 +258,13 @@ namespace
     }
 
 
+    DEFINE_JS_FUNCTION(CommitCb, /*args*/)
+    {
+        Commit();
+        return Undefined();
+    }
+
+
     DEFINE_JS_FUNCTION(QueryCb, args)
     {
         CheckArgsLength(args, 6);
@@ -532,6 +539,7 @@ Handle<Object> ak::InitDB()
 
     Handle<Object> result(Object::New());
     SetFunction(result, "rollback", RollBackCb);
+    SetFunction(result, "commit", CommitCb);
     SetFunction(result, "query", QueryCb);
     SetFunction(result, "count", CountCb);
     SetFunction(result, "create", CreateCb);
