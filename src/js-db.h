@@ -9,7 +9,6 @@
 namespace ak
 {
     v8::Handle<v8::Object> InitDB();
-    bool RolledBack();
 }
 
 #endif // JS_DB_H

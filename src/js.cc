@@ -100,10 +100,7 @@ namespace
             }
         }
         if (!ret.IsEmpty()) {
-            if (RolledBack())
-                RollBack();
-            else
-                Commit();
+            Commit();
             if (result_ptr)
                 *result_ptr = Stringify(ret);
             return true;

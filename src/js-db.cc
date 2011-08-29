@@ -246,17 +246,14 @@ namespace
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// InitDB and RolledBack
+// InitDB
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    bool rolled_back = false;
-
-
     DEFINE_JS_FUNCTION(RollBackCb, /*args*/)
     {
-        rolled_back = true;
+        RollBack();
         return Undefined();
     }
 
@@ -521,14 +518,6 @@ namespace
         DropAllConstrs(Stringify(args[0]));
         return Undefined();
     }
-}
-
-
-bool ak::RolledBack()
-{
-    bool result = rolled_back;
-    rolled_back = false;
-    return result;
 }
 
 
