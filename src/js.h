@@ -20,7 +20,8 @@ namespace ak
                 const std::string& schema_name,
                 const std::string& tablespace_name,
                 size_t timeout,
-                bool managed);
+                bool managed,
+                bool with_root);
 }
 
 #endif // JS_H

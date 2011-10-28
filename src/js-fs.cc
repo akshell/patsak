@@ -11,12 +11,88 @@
 #include <string.h>
 #include <sys/file.h>
 #include <limits>
+#include <fstream>
 
 
 using namespace ak;
 using namespace v8;
 using namespace std;
 
+
+////////////////////////////////////////////////////////////////////////////////
+// FileStorageBg
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    class FileBg {
+    public:
+        DECLARE_JS_CLASS(FileBg);
+
+        FileBg(const string& path);
+        ~FileBg();
+
+    private:
+        ifstream file;
+
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, CloseCb,
+                             const Arguments&);
+
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadLineCb,
+                             const Arguments&);
+
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, GoodCb,
+                             const Arguments&) const;
+    };
+}
+
+
+DEFINE_JS_CLASS(FileBg, "File", /*object_template*/, proto_template)
+{
+    SetFunction(proto_template, "close", CloseCb);
+    SetFunction(proto_template, "readLine", ReadLineCb);
+    SetFunction(proto_template, "good", GoodCb);
+}
+
+
+FileBg::FileBg(const string& path)
+    : file(path.c_str())
+{
+    if (!file.is_open())
+        throw Error(Error::NO_SUCH_ENTRY, "No such entry: " + path);
+}
+
+
+FileBg::~FileBg()
+{
+    if (file.is_open())
+        file.close();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, CloseCb,
+                    const Arguments&, /*args*/)
+{
+    if (file.is_open())
+        file.close();
+    return Undefined();
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, ReadLineCb,
+                    const Arguments&, /*args*/)
+{
+    string str;
+    getline(file, str);
+    return String::New(str.c_str());
+}
+
+
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileBg, GoodCb,
+                    const Arguments&, /*args*/) const
+{
+    return Boolean::New(file.good());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // FileStorageBg
@@ -48,6 +124,9 @@ namespace
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ReadCb,
                              const Arguments&) const;
 
+        DECLARE_JS_CALLBACK1(Handle<v8::Value>, OpenCb,
+                             const Arguments&) const;
+
         DECLARE_JS_CALLBACK1(Handle<v8::Value>, ListCb,
                              const Arguments&) const;
     };
@@ -61,6 +140,7 @@ DEFINE_JS_CLASS(FileStorageBg, "FileStorage",
     SetFunction(proto_template, "isFolder", IsFolderCb);
     SetFunction(proto_template, "isFile", IsFileCb);
     SetFunction(proto_template, "read", ReadCb);
+    SetFunction(proto_template, "open", OpenCb);
     SetFunction(proto_template, "list", ListCb);
 }
 
@@ -152,6 +232,14 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileStorageBg, ReadCb,
 }
 
 
+DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileStorageBg, OpenCb,
+                    const Arguments&, args) const
+{
+    CheckArgsLength(args, 1);
+    return JSNew<FileBg>(Stringify(args[0]));
+}
+
+
 DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileStorageBg, ListCb,
                     const Arguments&, args) const
 {
@@ -177,11 +265,15 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileStorageBg, ListCb,
 // InitFS
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Object> ak::InitFS(const string& code_path, const string& lib_path)
+Handle<Object> ak::InitFS(const string& code_path,
+                          const string& lib_path,
+                          bool with_root)
 {
     Handle<Object> result(Object::New());
     PutClass<FileStorageBg>(result);
     Set(result, "code", JSNew<FileStorageBg>(code_path));
     Set(result, "lib", JSNew<FileStorageBg>(lib_path));
+    if (with_root)
+        Set(result, "root", JSNew<FileStorageBg>("/"));
     return result;
 }
