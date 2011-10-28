@@ -154,7 +154,6 @@ int main(int argc, char** argv)
         ("timeout",
          po::value<size_t>(&timeout)->default_value(10),
          "time to handle")
-        ("root", "give access to the root directory")
         ;
 
     string command;
@@ -381,8 +380,7 @@ int main(int argc, char** argv)
            schema_name,
            tablespace_name,
            timeout,
-           parent_pid,
-           vm.count("root"));
+           parent_pid);
 
     if (server_fd == -1) {
         const string& expr(place_or_expr);

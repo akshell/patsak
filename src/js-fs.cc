@@ -266,14 +266,12 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileStorageBg, ListCb,
 ////////////////////////////////////////////////////////////////////////////////
 
 Handle<Object> ak::InitFS(const string& code_path,
-                          const string& lib_path,
-                          bool with_root)
+                          const string& lib_path)
 {
     Handle<Object> result(Object::New());
     PutClass<FileStorageBg>(result);
     Set(result, "code", JSNew<FileStorageBg>(code_path));
     Set(result, "lib", JSNew<FileStorageBg>(lib_path));
-    if (with_root)
-        Set(result, "root", JSNew<FileStorageBg>("/"));
+    Set(result, "comstor", JSNew<FileStorageBg>("/akshell/comstor"), DontEnum);
     return result;
 }

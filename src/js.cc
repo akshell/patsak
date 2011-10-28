@@ -167,8 +167,7 @@ void ak::InitJS(const string& code_path,
                 const string& schema_name,
                 const string& tablespace_name,
                 size_t timeout,
-                bool managed,
-                bool with_root)
+                bool managed)
 {
     InitDatabase(db_options, schema_name, tablespace_name);
 
@@ -187,7 +186,7 @@ void ak::InitJS(const string& code_path,
     Handle<Object> basis(Object::New());
     Set(basis, "core", InitCore(managed));
     Set(basis, "db", InitDB());
-    Set(basis, "fs", InitFS(code_path, lib_path, with_root));
+    Set(basis, "fs", InitFS(code_path, lib_path));
     Set(basis, "binary", InitBinary());
     Set(basis, "proxy", InitProxy());
     Set(basis, "script", InitScript());

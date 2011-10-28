@@ -14,8 +14,7 @@
 namespace ak
 {
     v8::Handle<v8::Object> InitFS(const std::string& code_path,
-                                  const std::string& lib_path,
-                                  bool with_root);
+                                  const std::string& lib_path);
 }
 
 #endif // JS_FS_H
