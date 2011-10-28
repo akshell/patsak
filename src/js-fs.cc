@@ -236,7 +236,7 @@ DEFINE_JS_CALLBACK1(Handle<v8::Value>, FileStorageBg, OpenCb,
                     const Arguments&, args) const
 {
     CheckArgsLength(args, 1);
-    return JSNew<FileBg>(Stringify(args[0]));
+    return JSNew<FileBg>(ReadAbsPath(Stringify(args[0])));
 }
 
 
