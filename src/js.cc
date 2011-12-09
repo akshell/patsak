@@ -31,9 +31,9 @@ using namespace v8;
 
 namespace
 {
-    const int MAX_YOUNG_SPACE_SIZE =  2 * 1024 * 1024;
-    const int MAX_OLD_SPACE_SIZE   = 32 * 1024 * 1024;
-    const int STACK_LIMIT          =  2 * 1024 * 1024;
+    const int MAX_YOUNG_SPACE_SIZE =   8 * 1024 * 1024;
+    const int MAX_OLD_SPACE_SIZE   = 128 * 1024 * 1024;
+    const int STACK_LIMIT          =   8 * 1024 * 1024;
 
     Persistent<Context> context;
     Persistent<Object> main_exports;
